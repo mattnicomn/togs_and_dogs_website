@@ -56,11 +56,38 @@ To generate the monthly report for Ryan in under 15 minutes:
 3. **Report Generation**: Copy the [monthly_client_report_template.md](./docs/monthly_client_report_template.md) and fill in the data.
 4. **Shared Cost Allocation**: Shared US Mission Hero overhead (Root DNS) is currently documented but **not** automatically surcharged. Line items for professional services are added separately.
 
-## 5. Assumptions & Limitations
-- **Latency**: Tags can take up to 24 hours to appear in Cost Explorer after being activated in the Billing console.
-- **Tag Activation**: Ensure that newly added tags (`Project`, `Company`) are marked as "Active" in the [AWS Cost Allocation Tags](https://console.aws.amazon.com/billing/home?#/tags) console.
+## 5. Monthly Operator Checklist
 
-## 6. Next Steps
+Follow these steps each month to produce the report in under 15 minutes:
+- [ ] **Open Cost Explorer**: Filter by `Tag: Project = TogsAndDogs`.
+- [ ] **Configure View**: Set granularity to "Monthly" and group by **Service**.
+- [ ] **Capture Totals**: Record the total spend for the **prior full billing month**.
+- [ ] **Draft Report**: Transfer totals into the `monthly_client_report_template.md`.
+- [ ] **Add Services**: Include any maintenance or professional services line items.
+- [ ] **Final Review**: Confirm thresholds haven't been breached (check Budget status).
+- [ ] **Send**: Deliver the report to Ryan.
+
+## 6. Reusable Client Onboarding Pattern
+
+This pattern is designed to scale to future customers:
+1. **Initialize Project Tag**: Add a new unique value for the `Project` tag in the client's `locals.tf`.
+2. **Standardize Infrastructure**: Deploy the client's stack using this repository's modules.
+3. **Activate Tags**: **Wait for first spend**, then manually activate the new `Project` tag in the [AWS Billing Dashboard](https://console.aws.amazon.com/billing/home?#/tags).
+4. **Create Budget**: Configure a dedicated `aws_budgets_budget` for the new client.
+5. **Clone Template**: Use the standard `monthly_client_report_template.md` for their billing cycle.
+
+## 7. Critical Operational Notes
+
+> [!WARNING]
+> **Manual Activation Required**: AWS cost allocation tags MUST be manually activated in the Master Payer account billing dashboard. They are NOT active by default.
+
+> [!IMPORTANT]
+> **Non-Retroactive Tracking**: Tagged cost tracking only begins *after* the tag is activated. Past spend cannot be retroactively grouped by project tags.
+
+> [!CAUTION]
+> **Reporting Window**: Always use the **prior full billing month** for client-facing reports. In-progress months are subject to AWS billing adjustments and may fluctuate.
+
+## 8. Next Steps
 1. **Activate Tags**: Manual step required in the AWS Billing Console to make `Project` and `Company` available for Cost Explorer.
-2. **Run Initial Terraform Apply**: Deploy the updated tags and budget resources.
-3. **First Month Review**: Perform the first internal cost review at the end of the current billing cycle.
+2. **Initial Deployment**: Run `terraform apply` to deploy the updated tags and budget resources.
+3. **Baseline Review**: Verify the Togs & Dogs saved view appears in Cost Explorer after 24 hours.

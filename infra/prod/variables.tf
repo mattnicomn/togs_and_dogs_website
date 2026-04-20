@@ -39,3 +39,17 @@ variable "app_subdomain" {
   description = "Subdomain for the app under domain_name."
   default     = "toganddogs"
 }
+
+# --- Budget & Cost Reporting ---
+
+variable "budget_amount" {
+  type        = string
+  description = "Monthly budget limit in USD."
+  default     = "20"
+}
+
+variable "budget_alert_email" {
+  type        = string
+  description = "Email address for budget threshold alerts."
+  default     = "mbn@usmissionhero.com"
+}
