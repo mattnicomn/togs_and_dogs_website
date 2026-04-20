@@ -3,6 +3,7 @@ import { signIn, signOut, getSession } from '../api/auth';
 import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision } from '../api/client';
 import MasterScheduler from './MasterScheduler';
 import CareCard from './CareCard';
+import { STAFF_MEMBERS } from '../constants/staff';
 
 const AdminDashboard = () => {
   const [requests, setRequests] = useState([]);
@@ -13,6 +14,7 @@ const AdminDashboard = () => {
   const [googleStatus, setGoogleStatus] = useState(null);
   const [view, setView] = useState('SCHEDULER'); // SCHEDULER or LIST
   const [selectedPet, setSelectedPet] = useState(null);
+  const [assigningId, setAssigningId] = useState(null); // Track which row is being assigned
 
   useEffect(() => {
     checkAuth();
@@ -96,10 +98,12 @@ const AdminDashboard = () => {
       'APPROVE': 'APPROVED',
       'DECLINE': 'DECLINED',
       'MEET_GREET': 'MEET_GREET_REQUIRED',
+      'VERIFY': 'VERIFY_MEET_GREET',
       'READY': 'READY_FOR_APPROVAL'
     };
     
     try {
+      console.log(`[Admin] Review Action: ${action} for Req:${req.request_id} Client:${req.client_id}`);
       setLoading(true);
       await reviewRequest(req.request_id, req.client_id, statusMap[action] || action);
       fetchAllData();
@@ -126,13 +130,23 @@ const AdminDashboard = () => {
     }
   };
 
-  const onAssignAction = async (req) => {
-    const workerId = prompt("Assign to: Ryan, Wife, Nephew1, or Nephew2?");
-    if (!workerId) return;
+  const handleAssignAction = async (item, workerId) => {
+    if (!workerId) {
+      setAssigningId(null);
+      return;
+    }
+    const jobId = item.job_id || (item.PK?.startsWith('JOB#') ? item.PK.replace('JOB#', '') : null);
+    const reqId = item.request_id || (item.SK?.startsWith('REQ#') ? item.SK.replace('REQ#', '') : item.PK?.replace('REQ#', ''));
+    
+    if (!jobId || !reqId) {
+      alert("Error: Could not identify Job or Request IDs for assignment.");
+      return;
+    }
+
     try {
       setLoading(true);
-      // For assignment, we pass the job_id if it exists, or request_id
-      await assignWorker(req.job_id || req.request_id, req.request_id, workerId);
+      await assignWorker(jobId, reqId, workerId);
+      setAssigningId(null);
       fetchAllData();
     } catch (err) {
       alert("Assignment failed: " + err.message);
@@ -253,7 +267,7 @@ const AdminDashboard = () => {
               onReviewAction(req, 'READY');
             }
           }}
-          onAssign={(req) => onAssignAction(req)}
+          onAssign={(req) => setAssigningId(req.PK)}
           onSelectPet={handleSelectPet}
         />
       ) : (
@@ -275,7 +289,7 @@ const AdminDashboard = () => {
               <tbody>
                 {requests.map(item => (
                   <tr key={item.PK}>
-                    <td>
+                    <td onClick={() => handleSelectPet(item)} className="clickable-cell">
                       <div className="client-cell">
                         <span className="client-name">{item.client_name}</span>
                         <span className="entity-type">{item.entity_type} {item.service_type && `- ${item.service_type}`}</span>
@@ -286,18 +300,38 @@ const AdminDashboard = () => {
                     <td className="actions-cell">
                       {item.status === 'PENDING_REVIEW' && (
                         <div className="btn-group">
-                          <button onClick={() => onReviewAction(item, 'MEET_GREET')} className="btn-action">Meet & Greet</button>
+                          <button onClick={() => onReviewAction(item, 'MEET_GREET')} className="btn-action">M&G Required</button>
+                          <button onClick={() => onReviewAction(item, 'VERIFY')} className="btn-action highlight">Mark M&G Complete</button>
                           <button onClick={() => onReviewAction(item, 'READY')} className="btn-action approve">Ready</button>
                         </div>
                       )}
                       {item.status === 'READY_FOR_APPROVAL' && (
-                        <button onClick={() => onReviewAction(item, 'APPROVE')} className="btn-action primary">Approve & Job Creation</button>
+                        <div className="btn-group">
+                          <button onClick={() => onReviewAction(item, 'VERIFY')} className="btn-action highlight">Mark M&G Complete</button>
+                          <button onClick={() => onReviewAction(item, 'APPROVE')} className="btn-action primary">Approve & Job Creation</button>
+                        </div>
                       )}
                       {item.status === 'CANCELLATION_REQUESTED' && (
                         <button onClick={() => handleProcessCancellation(item)} className="btn-action urgent-bg">Process Cancellation</button>
                       )}
                       {(item.status === 'APPROVED' || item.status === 'JOB_CREATED') && (
-                        <button onClick={() => onAssignAction(item)} className="btn-action">Assign Staff</button>
+                        <div className="assignment-wrapper">
+                          {assigningId === item.PK ? (
+                            <select 
+                              autoFocus 
+                              className="staff-select"
+                              onChange={(e) => handleAssignAction(item, e.target.value)}
+                              onBlur={() => setAssigningId(null)}
+                            >
+                              <option value="">Select Staff...</option>
+                              {STAFF_MEMBERS.map(s => (
+                                <option key={s.id} value={s.id}>{s.label}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <button onClick={() => setAssigningId(item.PK)} className="btn-action">Assign Staff</button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -368,6 +402,19 @@ const AdminDashboard = () => {
         .btn-action:hover { background: var(--bg-surface); border-color: var(--primary); }
         .btn-action.primary { background: var(--primary); color: white; border: none; }
         .btn-action.approve { color: #22c55e; border-color: hsla(142, 70%, 50%, 0.4); }
+        .btn-action.highlight { color: var(--primary); border-color: var(--primary); }
+        .clickable-cell { cursor: pointer; }
+        .clickable-cell:hover .client-name { color: var(--primary); text-decoration: underline; }
+        .staff-select {
+          padding: 6px 10px;
+          border-radius: 6px;
+          background: var(--bg-surface);
+          color: var(--text-main);
+          border: 2px solid var(--primary);
+          font-weight: 600;
+          font-size: 0.85rem;
+          min-width: 140px;
+        }
         .success-light { background: hsla(142, 70%, 50%, 0.15); color: #22c55e; border: 1px solid hsla(142, 70%, 50%, 0.3); }
         .btn-refresh {
           background: none;

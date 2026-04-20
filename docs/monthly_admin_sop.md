@@ -29,9 +29,22 @@ This Standard Operating Procedure (SOP) ensures the Togs & Dogs application rema
 4. **Budget Status**: Verify the `togs-and-dogs-prod-monthly-budget` is in "OK" status. 
 
 ### **B. Application Integrity (5 mins)**
-1. **Login Check**: Log into the Admin Portal as `admin@toganddogs.com`.
-2. **Data Review**: Open the **Master Scheduler** and confirm that current intake requests and approved jobs are rendering correctly.
-3. **Uptime Verification**: Check CloudFront distribution status via the console.
+1. **Login Check**: Log into the Admin Portal at [toganddogs.usmissionhero.com/admin](https://toganddogs.usmissionhero.com/admin).
+2. **Master Scheduler**: Confirm that current intake requests and approved jobs are rendering correctly.
+3. **Uptime Verification**: Check CloudFront distribution status (E35L00QPA2IRCY) via the console.
+
+### **C. Daily/Weekly Operational Gating**
+1. **Meet & Greet Verification**:
+   - Locate records in **PENDING_REVIEW** or **READY_FOR_APPROVAL**.
+   - After confirming Google Calendar invite completion, click **`Mark M&G Complete`** in the Admin Dashboard Actions column.
+   - This unblocks the **`Approve & Job Creation`** flow.
+2. **Staff Assignment**:
+   - For records in **JOB_CREATED** or **APPROVED**, ensure a staff member is assigned.
+   - Use the **`Assign Staff`** dropdown to select the primary worker (e.g., Ryan, Wife, Nephew).
+   - Verify the worker ID appears in the **Staff** column to ensure the job is active.
+3. **Pet Profile Hygiene**:
+   - Periodically open **Care Cards** for active jobs.
+   - Verify Vet and Emergency Contact info is populated; update as needed to ensure safety data is current.
 
 ---
 

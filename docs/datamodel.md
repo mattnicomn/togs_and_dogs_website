@@ -8,8 +8,10 @@ The system uses a shared status model to track the lifecycle of Service Requests
 - `REQUEST_DECLINED`: Request was rejected.
 
 ### Job Statuses
-- `JOB_CREATED`: Generated automatically upon request approval.
+- `JOB_CREATED`: Initial state of a job record.
 - `JOB_ASSIGNED`: Worker (Ryan, Wife, Nephew) has been assigned to the job.
+    - *Note: The staff list is currently a hardcoded frontend configuration (Ryan, Wife, Nephew1, Nephew2) and requires manual sync until the Staff Directory module is implemented.*
+- `JOB_IN_PROGRESS`: Service has started.
 - `JOB_COMPLETED`: Service is finished.
 - `JOB_CANCELLED`: Job was aborted after creation.
 - `CANCELLATION_REQUESTED`: Customer has requested to void the booking.
@@ -39,6 +41,7 @@ The system uses a shared status model to track the lifecycle of Service Requests
         - `photos_folder_url`
         - `misc_files_url`
     - `meet_and_greet_completed`: boolean
+    - *Note: This is an administrative gate for first-time approvals. It can be manually toggled via the 'Mark M&G Complete' action in the Admin Dashboard.*
 
 ### Service Request Record
 - **PK**: `REQ#<uuid>`

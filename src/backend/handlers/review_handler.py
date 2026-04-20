@@ -12,10 +12,29 @@ def handler(event, context):
         body = json.loads(event.get('body', '{}'))
         request_id = body.get('request_id')
         client_id = body.get('client_id')
-        new_status = body.get('status') # APPROVED, DECLINED, MEET_GREET_REQUIRED, etc.
+        new_status = body.get('status')
+        
+        # request_id is optional for client-level verification
+        if not (client_id and new_status) or (new_status != 'VERIFY_MEET_GREET' and not request_id):
+            return bad_request("Missing required fields: client_id, status (and request_id for status transitions)", event)
 
-        if not (request_id and client_id and new_status):
-            return bad_request("Missing required fields: request_id, client_id, status", event)
+        # 4. Handle VERIFY_MEET_GREET pseudo-status (updates Client Metadata)
+        if new_status == 'VERIFY_MEET_GREET':
+            try:
+                table.update_item(
+                    Key={'PK': f"CLIENT#{client_id}", 'SK': "METADATA"},
+                    UpdateExpression="SET meet_and_greet_completed = :t, entity_type = :et",
+                    ExpressionAttributeValues={":t": True, ":et": "CLIENT"}
+                )
+                print(f"INFO: [Client:{client_id}] Meet & Greet manually verified by admin.")
+                return success({
+                    "message": "Meet & Greet status updated successfully",
+                    "client_id": client_id,
+                    "meet_and_greet_completed": True
+                }, event)
+            except Exception as db_err:
+                print(f"ERROR: [Client:{client_id}] Failed to update M&G status: {db_err}")
+                return internal_error("Failed to update client metadata", event)
  
         # 1. Get current Request state
         request_item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
@@ -57,6 +76,7 @@ def handler(event, context):
             }
         }
         
+
         if update_status(f"REQ#{request_id}", f"CLIENT#{client_id}", new_status, audit_note):
             
             # 5. If APPROVED, sync to Google Calendar AND trigger Job creation

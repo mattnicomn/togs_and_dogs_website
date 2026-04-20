@@ -103,13 +103,33 @@ const CareCard = ({ pet, onClose, onUpdate }) => {
             <h3><span className="icon">🐾</span> Behavior & Triggers</h3>
             <div className="content-box">
               {isEditing ? (
-                <div className="field">
-                  <label>Behavioral Notes</label>
-                  <textarea 
-                    rows="3"
-                    value={formData.behavior || ''} 
-                    onChange={(e) => handleInputChange('behavior', e.target.value)}
-                  />
+                <div className="field-group">
+                  <div className="field">
+                    <label>Behavioral Notes</label>
+                    <textarea 
+                      rows="3"
+                      value={formData.behavior || ''} 
+                      onChange={(e) => handleInputChange('behavior', e.target.value)}
+                    />
+                  </div>
+                  <div className="field-row">
+                    <div className="field">
+                      <label>Vet Name</label>
+                      <input 
+                        type="text" 
+                        value={formData.health?.vet_name || ''} 
+                        onChange={(e) => handleInputChange('health', { ...formData.health, vet_name: e.target.value })}
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Vet Phone</label>
+                      <input 
+                        type="text" 
+                        value={formData.health?.vet_phone || ''} 
+                        onChange={(e) => handleInputChange('health', { ...formData.health, vet_phone: e.target.value })}
+                      />
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <p>{pet.behavior || 'No behavioral notes recorded.'}</p>
@@ -121,13 +141,33 @@ const CareCard = ({ pet, onClose, onUpdate }) => {
             <h3><span className="icon">🔑</span> Access & Logistics</h3>
             <div className="content-box">
               {isEditing ? (
-                <div className="field">
-                  <label>Access & Gate Codes</label>
-                  <textarea 
-                    rows="3"
-                    value={formData.logistics || ''} 
-                    onChange={(e) => handleInputChange('logistics', e.target.value)}
-                  />
+                <div className="field-group">
+                  <div className="field">
+                    <label>Access & Gate Codes</label>
+                    <textarea 
+                      rows="3"
+                      value={formData.logistics || ''} 
+                      onChange={(e) => handleInputChange('logistics', e.target.value)}
+                    />
+                  </div>
+                  <div className="field-row">
+                    <div className="field">
+                      <label>Emergency Contact</label>
+                      <input 
+                        type="text" 
+                        value={formData.health?.emergency_name || ''} 
+                        onChange={(e) => handleInputChange('health', { ...formData.health, emergency_name: e.target.value })}
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Emergency Phone</label>
+                      <input 
+                        type="text" 
+                        value={formData.health?.emergency_phone || ''} 
+                        onChange={(e) => handleInputChange('health', { ...formData.health, emergency_phone: e.target.value })}
+                      />
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <p>{pet.logistics || 'No specific access notes.'}</p>
@@ -144,17 +184,46 @@ const CareCard = ({ pet, onClose, onUpdate }) => {
 
           <section className="card-section records">
             <h3><span className="icon">📂</span> Ryan-Owned Records</h3>
-            <div className="link-grid">
-              {pet.document_links?.intake_form_url && (
-                <a href={pet.document_links.intake_form_url} target="_blank" rel="noopener noreferrer" className="doc-link">Intake Form</a>
+              {isEditing ? (
+                <div className="edit-links-grid">
+                  <div className="field">
+                    <label>Intake Form URL</label>
+                    <input 
+                      type="text" 
+                      value={formData.document_links?.intake_form_url || ''} 
+                      onChange={(e) => handleInputChange('document_links', { ...formData.document_links, intake_form_url: e.target.value })}
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Vaccination Records URL</label>
+                    <input 
+                      type="text" 
+                      value={formData.document_links?.vaccination_records_url || ''} 
+                      onChange={(e) => handleInputChange('document_links', { ...formData.document_links, vaccination_records_url: e.target.value })}
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Care Doc URL</label>
+                    <input 
+                      type="text" 
+                      value={formData.document_links?.care_instructions_doc_url || ''} 
+                      onChange={(e) => handleInputChange('document_links', { ...formData.document_links, care_instructions_doc_url: e.target.value })}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="link-grid">
+                  {pet.document_links?.intake_form_url && (
+                    <a href={pet.document_links.intake_form_url} target="_blank" rel="noopener noreferrer" className="doc-link">Intake Form</a>
+                  )}
+                  {pet.document_links?.vaccination_records_url && (
+                    <a href={pet.document_links.vaccination_records_url} target="_blank" rel="noopener noreferrer" className="doc-link">Vaccination Records</a>
+                  )}
+                  {pet.document_links?.care_instructions_doc_url && (
+                    <a href={pet.document_links.care_instructions_doc_url} target="_blank" rel="noopener noreferrer" className="doc-link">Detailed Care Doc</a>
+                  )}
+                </div>
               )}
-              {pet.document_links?.vaccination_records_url && (
-                <a href={pet.document_links.vaccination_records_url} target="_blank" rel="noopener noreferrer" className="doc-link">Vaccination Records</a>
-              )}
-              {pet.document_links?.care_instructions_doc_url && (
-                <a href={pet.document_links.care_instructions_doc_url} target="_blank" rel="noopener noreferrer" className="doc-link">Detailed Care Doc</a>
-              )}
-            </div>
           </section>
         </div>
 
@@ -264,6 +333,32 @@ const CareCard = ({ pet, onClose, onUpdate }) => {
         }
         .field-compact.slice {
           width: 100px;
+        }
+        .field-row {
+          display: flex;
+          gap: 12px;
+          margin-top: 10px;
+        }
+        .field-row .field { width: 100%; }
+        .edit-links-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .edit-links-grid label {
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: var(--text-muted);
+          margin-bottom: 4px;
+          display: block;
+        }
+        .edit-links-grid input {
+          width: 100%;
+          padding: 8px;
+          border-radius: 6px;
+          border: 1px solid var(--border-soft);
+          background: var(--bg-muted);
+          color: var(--text-main);
         }
         .pet-avatar-large {
           width: 80px;
