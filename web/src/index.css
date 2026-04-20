@@ -1,0 +1,196 @@
+:root {
+  /* Brand Palette - Friendly Purple & Lavender */
+  --primary: hsl(255, 60%, 55%);
+  --primary-hover: hsl(255, 60%, 45%);
+  --accent: hsl(255, 80%, 96%);
+  
+  /* Neutral Palette - Warm Whites and Soft Grays */
+  --bg-warm: hsl(20, 20%, 99%);
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-muted: hsl(210, 20%, 96%);
+  --text-main: hsl(260, 10%, 25%);
+  --text-heading: hsl(260, 20%, 15%);
+  --text-muted: hsl(215, 16%, 47%);
+  --border-soft: hsl(260, 10%, 90%);
+  --header-bg: hsla(20, 20%, 99%, 0.8);
+  
+  /* UI Elements */
+  --radius-lg: 24px;
+  --radius-md: 12px;
+  --shadow-soft: 
+    0 10px 25px -5px rgba(0, 0, 0, 0.05),
+    0 8px 10px -6px rgba(0, 0, 0, 0.03);
+  --shadow-hover:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -6px rgba(0, 0, 0, 0.04);
+
+  /* Staff Color Palette - Accessible Operational Dispatcher Colors */
+  --staff-ryan: #1e40af; /* Deep Blue */
+  --staff-wife: #0d9488; /* Teal */
+  --staff-nephew1: #d97706; /* Amber */
+  --staff-nephew2: #be185d; /* Rose */
+  --staff-unassigned: #475569; /* Slate Gray */
+
+  --sans: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  
+  font: 18px/1.6 var(--sans);
+  color: var(--text-main);
+  background: var(--bg-warm);
+  color-scheme: light;
+  
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Theme Transitions */
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+
+  @media (max-width: 768px) {
+    font-size: 16px;
+  }
+}
+
+:root.dark {
+  /* Dark Theme Palette - Abyss Purple */
+  --bg-warm: hsl(255, 30%, 8%);
+  --bg-surface: hsl(255, 30%, 12%);
+  --bg-card: hsl(255, 30%, 12%);
+  --bg-muted: hsl(255, 30%, 16%);
+  --text-main: hsl(255, 20%, 85%);
+  --text-heading: hsl(255, 20%, 98%);
+  --text-muted: hsl(255, 10%, 65%);
+  --border-soft: hsla(255, 20%, 100%, 0.1);
+  --accent: hsla(255, 60%, 55%, 0.15);
+  --header-bg: hsla(255, 30%, 8%, 0.8);
+  
+  /* Override Brand Palette for better contrast in dark mode if needed */
+  --primary: hsl(255, 70%, 70%);
+  --primary-hover: hsl(255, 70%, 75%);
+  
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg-warm);
+}
+
+#root {
+  width: 1200px;
+  max-width: 100%;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  padding-bottom: 64px;
+}
+
+h1, h2, h3 {
+  color: var(--text-heading);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+h1 {
+  font-size: 3.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+  @media (max-width: 768px) {
+    font-size: 2.5rem;
+  }
+}
+
+h2 {
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+/* Card Style (Premium Base) */
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--border-soft);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover);
+}
+
+/* Form Styling */
+.premium-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  text-align: left;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field label {
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--text-heading);
+  margin-left: 4px;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+  background: var(--bg-warm);
+  transition: all 0.2s ease;
+}
+
+input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--accent);
+}
+
+/* Button Styling */
+.button-primary {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 16px 32px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.2);
+}
+
+.button-primary:hover {
+  background: var(--primary-hover);
+  transform: scale(1.02);
+  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.3);
+}
+
+.button-primary:active {
+  transform: scale(0.98);
+}
+
+/* Service Badges/Tags */
+.badge {
+  display: inline-flex;
+  padding: 4px 12px;
+  border-radius: 99px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--primary);
+}

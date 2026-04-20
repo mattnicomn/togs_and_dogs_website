@@ -1,0 +1,14 @@
+{
+  "Comment": "ACM validation CNAME for toganddogs.usmissionhero.com certificate",
+  "Changes": [
+    {
+      "Action": "CREATE",
+      "ResourceRecordSet": {
+        "Name": "_55b2928a2cb2682169fb1b7010d5985c.toganddogs.usmissionhero.com",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [{"Value": "_2ea6f279b3979d347a9e8649981b0f9c.jkddzztszm.acm-validations.aws"}]
+      }
+    }
+  ]
+}

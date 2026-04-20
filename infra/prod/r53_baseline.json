@@ -1,0 +1,23 @@
+{
+  "Comment": "Baseline records: apex A for WordPress + www CNAME",
+  "Changes": [
+    {
+      "Action": "CREATE",
+      "ResourceRecordSet": {
+        "Name": "toganddogs.com",
+        "Type": "A",
+        "TTL": 300,
+        "ResourceRecords": [{"Value": "192.0.78.24"}, {"Value": "192.0.78.25"}]
+      }
+    },
+    {
+      "Action": "CREATE",
+      "ResourceRecordSet": {
+        "Name": "www.toganddogs.com",
+        "Type": "CNAME",
+        "TTL": 14400,
+        "ResourceRecords": [{"Value": "toganddogs.com"}]
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "Comment": "ACM validation CNAME for app.toganddogs.com certificate",
+  "Changes": [
+    {
+      "Action": "CREATE",
+      "ResourceRecordSet": {
+        "Name": "_7adea1d9734eb758cef02fe7c6c736c9.app.toganddogs.com",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [{"Value": "_a04586135a9cd7768a8eced6578b374e.jkddzztszm.acm-validations.aws"}]
+      }
+    }
+  ]
+}
