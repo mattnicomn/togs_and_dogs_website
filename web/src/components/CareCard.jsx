@@ -12,7 +12,7 @@ const CareCard = ({ pet, onClose, onUpdate }) => {
 
   const handleSave = () => {
     if (!pet.pet_id) {
-      alert("Error: Cannot save changes to an unpersisted record. Please ensure this pet has been fully registered.");
+      alert("This pet does not have a saved profile yet. Approve or complete intake first.");
       return;
     }
     onUpdate(formData);
@@ -175,7 +175,7 @@ const CareCard = ({ pet, onClose, onUpdate }) => {
                 className={`button-secondary ${!pet.pet_id ? 'disabled' : ''}`} 
                 onClick={() => {
                   if (pet.pet_id) setIsEditing(true);
-                  else alert("Cannot edit unpersisted records. Please complete the intake process first.");
+                  else alert("This pet does not have a saved profile yet. Approve or complete intake first.");
                 }}
               >
                 Edit Record

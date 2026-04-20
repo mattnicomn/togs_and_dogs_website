@@ -36,11 +36,15 @@ Effective cost allocation is driven by the following unified tagging standard. *
 
 US Mission Hero will use the following AWS-native tools for visibility. All billing operations take place in the **Payer Account (253881689673)**.
 
-### AWS Cost Explorer (The Single Pane)
+### AWS CLI (The Data Truth)
+Use the `website-infra-sandbox` profile to query raw billable data.
+```powershell
+aws ce get-cost-and-usage --time-period Start=2026-04-01,End=2026-05-01 --granularity MONTHLY --metrics "UnblendedCost" --filter '{\"Tags\": {\"Key\": \"Client\", \"Values\": [\"TogAndDogs\"]}}'
+```
+
+### AWS Cost Explorer (Visual Reporting)
 1. **Account**: US Mission Hero Payer Account (`253881689673`).
-2. **Profile**: Use `website-infra-sandbox`.
-3. **Saved Report**: Open **"Togs & Dogs Monthly Overview"**.
-4. **Manual Filters**: If the saved report is not used, filter by `Tag: Client = TogAndDogs` and group by `Service`.
+2. **Setup**: **Manual Action Required**. Create a saved report named "Togs & Dogs Monthly Overview" filtered by `Tag: Client = TogAndDogs` (Group by Service).
 
 ### AWS Budgets (The Proactive Guardrail)
 An automated budget is implemented in `budgets.tf` within the Payer Account:
@@ -52,8 +56,8 @@ An automated budget is implemented in `budgets.tf` within the Payer Account:
 
 To generate the monthly report for Ryan in under 15 minutes:
 
-1. **Extraction**: Access the Payer Account (`253881689673`) using the `website-infra-sandbox` profile.
-2. **Data Gathering**: Identify the total month-to-date or prior-month cost for the `TogAndDogs` client tag in Cost Explorer.
+1. **Verification**: Run the CLI command above using the `website-infra-sandbox` profile to confirm the total billable amount.
+2. **Extraction**: Access the Payer Account (`253881689673`) console to view the "Togs & Dogs Monthly Overview" report.
 3. **Report Generation**: Copy the [monthly_client_report_template.md](./docs/monthly_client_report_template.md) and fill in the data.
 4. **Shared Cost Allocation**: Shared US Mission Hero overhead (Root DNS) is currently documented but **not** automatically surcharged. Line items for professional services are added separately.
 

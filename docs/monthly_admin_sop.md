@@ -19,10 +19,14 @@ This Standard Operating Procedure (SOP) ensures the Togs & Dogs application rema
 ## **3. Monthly Hygiene Checklist**
 
 ### **A. Infrastructure Cost Review (10 mins)**
-1. **Open AWS Cost Explorer**: Use the saved view **`Togs & Dogs Monthly Overview`**.
-   - If tags haven't propagated, manually filter by `Tag: Client = TogAndDogs`.
-2. **Review Prior Month**: Ensure current project costs align with historical baselines.
-3. **Budget Status**: Verify the `togs-and-dogs-prod-monthly-budget` is in "OK" status. 
+1. **Verify Data (CLI)**: Run the following in your terminal to get the raw billable total:
+   ```powershell
+   $env:AWS_PROFILE = "website-infra-sandbox"
+   aws ce get-cost-and-usage --time-period Start=2026-04-01,End=2026-05-01 --granularity MONTHLY --metrics "UnblendedCost" --filter '{\"Tags\": {\"Key\": \"Client\", \"Values\": [\"TogAndDogs\"]}}'
+   ```
+2. **Open AWS Cost Explorer**: Use the saved view **`Togs & Dogs Monthly Overview`** in the Payer Account (253881689673).
+3. **Review Prior Month**: Ensure current project costs align with historical baselines.
+4. **Budget Status**: Verify the `togs-and-dogs-prod-monthly-budget` is in "OK" status. 
 
 ### **B. Application Integrity (5 mins)**
 1. **Login Check**: Log into the Admin Portal as `admin@toganddogs.com`.
