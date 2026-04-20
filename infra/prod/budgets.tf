@@ -9,7 +9,7 @@ resource "aws_budgets_budget" "project_budget" {
   cost_filter {
     name = "TagKeyValue"
     values = [
-      "Project$TogsAndDogs",
+      "Client$TogAndDogs",
     ]
   }
 

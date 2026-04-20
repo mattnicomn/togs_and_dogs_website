@@ -10,6 +10,8 @@ This Standard Operating Procedure (SOP) ensures the Togs & Dogs application rema
 
 ## **2. Cadence & Schedule**
 - **Date Range**: 1st – 5th of every month.
+- **Account**: US Mission Hero Payer Account (**253881689673**).
+- **Profile**: `website-infra-sandbox`.
 - **Duration**: ~20 minutes.
 
 ---
@@ -18,6 +20,7 @@ This Standard Operating Procedure (SOP) ensures the Togs & Dogs application rema
 
 ### **A. Infrastructure Cost Review (10 mins)**
 1. **Open AWS Cost Explorer**: Use the saved view **`Togs & Dogs Monthly Overview`**.
+   - If tags haven't propagated, manually filter by `Tag: Client = TogAndDogs`.
 2. **Review Prior Month**: Ensure current project costs align with historical baselines.
 3. **Budget Status**: Verify the `togs-and-dogs-prod-monthly-budget` is in "OK" status. 
 

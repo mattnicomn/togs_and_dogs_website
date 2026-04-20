@@ -22,37 +22,38 @@ The application utilizes a Serverless architecture that scales on-demand, keepin
 
 ## 2. Tagging Standard
 
-Effective cost allocation is driven by the following unified tagging standard implemented in Terraform's `common_tags`:
+Effective cost allocation is driven by the following unified tagging standard. **Note**: While several tags are deployed, we use **`Client`** as the primary reporting key because it is already active in the US Mission Hero master billing account.
 
 | Tag | Value | Description |
 | :--- | :--- | :--- |
-| **Project** | `TogsAndDogs` | Primary grouping for Cost Explorer. |
-| **Company** | `USMissionHero` | Identifying the owning entity. |
-| **Client** | `TogAndDogs` | Specifically for client-facing reports. |
+| **Client** | `TogAndDogs` | **Primary reporting key.** Already active in billing. |
+| **Project** | `TogsAndDogs` | Secondary grouping (Awaiting activation). |
 | **BillingModel** | `PassThrough` | Indicates costs should be billed to the client. |
+| **Company** | `USMissionHero` | Identifying the owning entity (Awaiting activation). |
 | **Environment** | `prod` | Distinguishes from development/test costs. |
 
 ## 3. Cost Monitoring Strategy
 
-US Mission Hero will use the following AWS-native tools for visibility:
+US Mission Hero will use the following AWS-native tools for visibility. All billing operations take place in the **Payer Account (253881689673)**.
 
 ### AWS Cost Explorer (The Single Pane)
-1. **Navigate to**: [AWS Cost Explorer](https://console.aws.amazon.com/costmanagement/home#/costexplorer)
-2. **Filter by**: `Tag: Project = TogsAndDogs`
-3. **Group by**: `Service` (to see which component is driving cost)
-4. **Save Report**: Save this view as "Togs & Dogs Monthly Overview" for one-click access.
+1. **Account**: US Mission Hero Payer Account (`253881689673`).
+2. **Profile**: Use `website-infra-sandbox`.
+3. **Saved Report**: Open **"Togs & Dogs Monthly Overview"**.
+4. **Manual Filters**: If the saved report is not used, filter by `Tag: Client = TogAndDogs` and group by `Service`.
 
 ### AWS Budgets (The Proactive Guardrail)
-An automated budget is implemented in `budgets.tf` with the following parameters:
+An automated budget is implemented in `budgets.tf` within the Payer Account:
 - **Threshold**: $20.00 / month.
+- **Filter**: `Tag: Client = TogAndDogs`.
 - **Alert**: Email notification to `mbn@usmissionhero.com` when 80% ($16.00) is reached.
 
 ## 4. Monthly Reporting Workflow
 
 To generate the monthly report for Ryan in under 15 minutes:
 
-1. **Extraction**: Open the "Togs & Dogs Monthly Overview" in Cost Explorer for the previous month.
-2. **Data Gathering**: Identify the total cost for the `TogsAndDogs` project tag.
+1. **Extraction**: Access the Payer Account (`253881689673`) using the `website-infra-sandbox` profile.
+2. **Data Gathering**: Identify the total month-to-date or prior-month cost for the `TogAndDogs` client tag in Cost Explorer.
 3. **Report Generation**: Copy the [monthly_client_report_template.md](./docs/monthly_client_report_template.md) and fill in the data.
 4. **Shared Cost Allocation**: Shared US Mission Hero overhead (Root DNS) is currently documented but **not** automatically surcharged. Line items for professional services are added separately.
 
