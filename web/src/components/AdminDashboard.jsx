@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { signIn, signOut, getSession } from '../api/auth';
-import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision } from '../api/client';
+import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, disconnectGoogle } from '../api/client';
 import MasterScheduler from './MasterScheduler';
 import CareCard from './CareCard';
 import { STAFF_MEMBERS } from '../constants/staff';
+import '../Admin.css';
 
 const AdminDashboard = () => {
   const [requests, setRequests] = useState([]);
@@ -14,7 +15,43 @@ const AdminDashboard = () => {
   const [googleStatus, setGoogleStatus] = useState(null);
   const [view, setView] = useState('SCHEDULER'); // SCHEDULER or LIST
   const [selectedPet, setSelectedPet] = useState(null);
-  const [assigningId, setAssigningId] = useState(null); // Track which row is being assigned
+  const [assigningId, setAssigningId] = useState(null); 
+  const [modalError, setModalError] = useState(null);
+  
+  const getStatusClass = (status = "") => {
+    const s = (status || "").toUpperCase();
+    if (s.includes("NEW") || s.includes("PENDING")) return "status-chip status-chip--new";
+    if (s.includes("READY")) return "status-chip status-chip--ready";
+    if (s.includes("APPROVED")) return "status-chip status-chip--approved";
+    if (s.includes("ASSIGNED")) return "status-chip status-chip--assigned";
+    if (s.includes("JOB_CREATED")) return "status-chip status-chip--job-created";
+    if (s.includes("CANCELLED")) return "status-chip status-chip--cancelled";
+    if (s.includes("REJECTED") || s.includes("DECLINED") || s.includes("DENIED")) return "status-chip status-chip--rejected";
+    if (s.includes("ARCHIVE")) return "status-chip status-chip--archived";
+    return "status-chip status-chip--archived";
+  };
+
+  const getStatusLabel = (status = "") => {
+    const s = (status || "").toUpperCase();
+    if (s === 'PENDING_REVIEW') return "Pending";
+    if (s === 'MEET_GREET_REQUIRED') return "M&G Required";
+    if (s === 'READY_FOR_APPROVAL') return "Ready";
+    if (s === 'APPROVED') return "Approved";
+    if (s === 'ASSIGNED') return "Assigned";
+    if (s === 'JOB_CREATED') return "Job Created";
+    if (s === 'CANCELLATION_REQUESTED') return "Cancel Requested";
+    if (s === 'CANCELLATION_DENIED') return "Cancel Denied";
+    if (s === 'CANCELLED') return "Cancelled";
+    if (s === 'ARCHIVED') return "Archived";
+    return s || "Unknown";
+  };
+
+  // Operational States
+  const [statusFilter, setStatusFilter] = useState('PENDING_REVIEW');
+  const [timeframeFilter, setTimeframeFilter] = useState('ALL');
+  const [lastKey, setLastKey] = useState(null);
+  const [decisionModal, setDecisionModal] = useState(null); 
+  const [adminNote, setAdminNote] = useState('');
 
   useEffect(() => {
     checkAuth();
@@ -55,15 +92,127 @@ const AdminDashboard = () => {
     setRequests([]);
   };
 
-  const fetchAllData = async () => {
+  const fetchAllData = async (startKey = null) => {
     try {
       setLoading(true);
-      // Fetch 'ALL' for the scheduler view
-      const data = await getAdminRequests('ALL');
-      setRequests(data.requests || []);
+      if (view === 'SCHEDULER') {
+        const data = await getAdminRequests('ALL');
+        setRequests(data.requests || []);
+      } else {
+        const data = await getAdminRequests(statusFilter, startKey, timeframeFilter);
+        setRequests(data.requests || []);
+        setLastKey(data.lastKey);
+      }
     } catch (err) {
       setError("Failed to fetch data: " + err.message);
       setRequests([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchAllData();
+    }
+  }, [view, statusFilter, timeframeFilter, isAuthenticated]);
+
+  const resolveIds = (item) => {
+    if (!item) return { reqId: null, clientId: null, jobId: null };
+    
+    // Request ID: Priority to direct field, then PK/SK parsing
+    const reqId = item.request_id || 
+                  (item.PK?.startsWith('REQ#') ? item.PK.split('#')[1] : 
+                  (item.SK?.startsWith('REQ#') ? item.SK.split('#')[1] : null));
+    
+    // Client ID: Priority to direct field, then PK/SK parsing
+    const clientId = item.client_id || 
+                     (item.PK?.startsWith('CLIENT#') ? item.PK.split('#')[1] : 
+                     (item.SK?.startsWith('CLIENT#') ? item.SK.split('#')[1] : null));
+    
+    // Job ID: Priority to job_id field (often present in REQUEST after approval), then PK if entity is JOB
+    const jobId = item.job_id || (item.entity_type === 'JOB' ? item.PK?.split('#')[1] : null);
+    
+    return { reqId, clientId, jobId };
+  };
+
+  const submitDecision = async () => {
+    if (!decisionModal) return;
+    const { item, type } = decisionModal;
+    const { reqId, clientId } = resolveIds(item);
+    
+    if (!reqId || !clientId) {
+      setModalError("Could not resolve Request or Client ID for this record.");
+      return;
+    }
+
+    setModalError(null);
+    try {
+      setLoading(true);
+      await reviewRequest(reqId, clientId, type === 'APPROVE' ? 'APPROVED' : 'DECLINED', adminNote);
+      setDecisionModal(null);
+      setAdminNote('');
+      fetchAllData();
+    } catch (err) {
+      setModalError(err.message || "An error occurred during review.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQuickVerify = async () => {
+    if (!decisionModal) return;
+    const { item } = decisionModal;
+    const { reqId, clientId } = resolveIds(item);
+
+    if (!reqId || !clientId) {
+      setModalError("Could not resolve IDs for verification.");
+      return;
+    }
+
+    setModalError(null);
+    try {
+      setLoading(true);
+      await reviewRequest(reqId, clientId, 'VERIFY_MEET_GREET');
+      alert("Meet & Greet marked as completed!");
+      fetchAllData();
+    } catch (err) {
+      setModalError("Failed to verify M&G: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAdminAction = async (item, action) => {
+    // Ensuring visibility and automation support by providing direct feedback instead of blocking confirmation
+    const pk = item.PK || (item.request_id ? `REQ#${item.request_id}` : null);
+    const sk = item.SK || (item.client_id ? `CLIENT#${item.client_id}` : null);
+
+    if (!pk || !sk) {
+      alert("Error: Missing primary keys (PK/SK) for administrative action.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await performAdminAction(pk, sk, action);
+      alert(`Success: Record has been ${action.toLowerCase()}d.`);
+      fetchAllData();
+    } catch (err) {
+      alert("Admin action failed: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDisconnectGoogle = async () => {
+    if (!window.confirm("Disconnect Google Calendar? Future syncs will stop.")) return;
+    try {
+      setLoading(true);
+      await disconnectGoogle();
+      fetchGoogleStatus();
+    } catch (err) {
+      alert("Disconnect failed: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -99,16 +248,25 @@ const AdminDashboard = () => {
       'DECLINE': 'DECLINED',
       'MEET_GREET': 'MEET_GREET_REQUIRED',
       'VERIFY': 'VERIFY_MEET_GREET',
-      'READY': 'READY_FOR_APPROVAL'
+      'READY': 'READY_FOR_APPROVAL',
+      'DENY_CANCEL': 'CANCELLATION_DENIED'
     };
+
+    const { reqId, clientId } = resolveIds(req);
+    
+    if (!reqId || !clientId) {
+      alert("Error: Missing Request or Client ID.");
+      return;
+    }
     
     try {
-      console.log(`[Admin] Review Action: ${action} for Req:${req.request_id} Client:${req.client_id}`);
+      console.log(`[Admin] Review Action: ${action} for Req:${reqId} Client:${clientId}`);
       setLoading(true);
-      await reviewRequest(req.request_id, req.client_id, statusMap[action] || action);
+      await reviewRequest(reqId, clientId, statusMap[action] || action);
       fetchAllData();
     } catch (err) {
       alert("Action failed: " + err.message);
+      fetchAllData(); // Refresh to sync UI with actual DB state
     } finally {
       setLoading(false);
     }
@@ -118,10 +276,17 @@ const AdminDashboard = () => {
     const decision = window.confirm("Approve this cancellation request?") ? 'APPROVE' : 'DENY';
     const note = prompt("Administrative note (required for audit):", "");
     if (note === null) return; // Cancelled prompt
+
+    const { reqId, clientId } = resolveIds(req);
+
+    if (!reqId || !clientId) {
+      alert("Error: Missing IDs for cancellation processing.");
+      return;
+    }
     
     try {
       setLoading(true);
-      await processCancellationDecision(req.request_id, req.client_id, decision, note);
+      await processCancellationDecision(reqId, clientId, decision, note);
       fetchAllData();
     } catch (err) {
       alert("Cancellation process failed: " + err.message);
@@ -135,17 +300,23 @@ const AdminDashboard = () => {
       setAssigningId(null);
       return;
     }
-    const jobId = item.job_id || (item.PK?.startsWith('JOB#') ? item.PK.replace('JOB#', '') : null);
-    const reqId = item.request_id || (item.SK?.startsWith('REQ#') ? item.SK.replace('REQ#', '') : item.PK?.replace('REQ#', ''));
-    
-    if (!jobId || !reqId) {
-      alert("Error: Could not identify Job or Request IDs for assignment.");
+
+    // ROBUST ID EXTRACTION
+    const { reqId, clientId, jobId } = resolveIds(item);
+
+    if (!reqId) {
+      alert("Error: Record has no valid Request ID. Assignment blocked.");
+      return;
+    }
+
+    if (item.entity_type === 'REQUEST' && !jobId) {
+      alert("Note: This request hasn't been approved yet. Approving it will create the job mapping needed for assignment.");
       return;
     }
 
     try {
       setLoading(true);
-      await assignWorker(jobId, reqId, workerId);
+      await assignWorker(jobId || reqId, reqId, workerId);
       setAssigningId(null);
       fetchAllData();
     } catch (err) {
@@ -180,18 +351,14 @@ const AdminDashboard = () => {
   };
 
   const handleUpdatePet = async (updatedPet) => {
-    if (!updatedPet.pet_id) {
-      alert("Error: This record does not have a valid Pet ID. Persistent updates require a registered pet profile.");
-      return;
-    }
-    
     try {
       setLoading(true);
-      await updatePet(updatedPet.pet_id, updatedPet.client_id, updatedPet);
+      // Support creating new PET records for legacy unlinked items
+      await updatePet(updatedPet.pet_id || 'NEW', updatedPet.client_id, updatedPet);
       setSelectedPet(null);
       fetchAllData();
     } catch (err) {
-      alert("Failed to update pet: " + err.message);
+      alert("Failed to update/create pet record: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -233,111 +400,225 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="section admin-section">
-      <div className="admin-hero">
-        <div className="admin-titles">
-          <h1>Operations Hub</h1>
-          <p className="subtitle">Family-run dispatcher for Togs & Dogs.</p>
-        </div>
-        <div className="admin-actions">
-           <button onClick={() => setView(view === 'SCHEDULER' ? 'LIST' : 'SCHEDULER')} className="button-secondary">
-             {view === 'SCHEDULER' ? 'Table View' : 'Master Scheduler'}
-           </button>
-           <button onClick={handleLogout} className="button-outline">Sign Out</button>
-        </div>
-      </div>
-
-      <div className="admin-controls-row">
-        <div className="integration-status">
-            {googleStatus === 'CONNECTED' ? (
-              <span className="badge success-light">● Google Calendar Active</span>
-            ) : (
-              <button onClick={handleConnectGoogle} className="btn-link">Connect Calendar</button>
-            )}
-        </div>
-      </div>
-
-      {view === 'SCHEDULER' ? (
-        <MasterScheduler 
-          items={requests} 
-          onReview={(req) => {
-            if (req.status === 'CANCELLATION_REQUESTED') {
-              handleProcessCancellation(req);
-            } else {
-              onReviewAction(req, 'READY');
-            }
-          }}
-          onAssign={(req) => setAssigningId(req.PK)}
-          onSelectPet={handleSelectPet}
-        />
-      ) : (
-        <div className="request-management card">
-          <div className="card-header">
-            <h3>Operational Records</h3>
-            <button onClick={fetchAllData} className="btn-refresh" title="Refresh data">⟳</button>
+    <div className="admin-container">
+      <div className="admin-header-bar card">
+        <div className="header-left">
+          <h1>Togs & Dogs Admin</h1>
+          <div className="view-selector">
+            <button className={view === 'SCHEDULER' ? 'active' : ''} onClick={() => { setView('SCHEDULER'); setStatusFilter('ALL'); }}>Scheduler</button>
+            <button className={view === 'LIST' ? 'active' : ''} onClick={() => setView('LIST')}>Request List</button>
           </div>
-          <div className="table-responsive">
-            <table className="request-table">
-              <thead>
-                <tr>
-                  <th>Client / Entity</th>
-                  <th>Status</th>
-                  <th>Staff</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {requests.map(item => (
-                  <tr key={item.PK}>
-                    <td onClick={() => handleSelectPet(item)} className="clickable-cell">
-                      <div className="client-cell">
-                        <span className="client-name">{item.client_name}</span>
-                        <span className="entity-type">{item.entity_type} {item.service_type && `- ${item.service_type}`}</span>
-                      </div>
-                    </td>
-                    <td><span className={`badge-status ${item.status}`}>{item.status}</span></td>
-                    <td>{item.worker_id || '---'}</td>
-                    <td className="actions-cell">
-                      {item.status === 'PENDING_REVIEW' && (
-                        <div className="btn-group">
-                          <button onClick={() => onReviewAction(item, 'MEET_GREET')} className="btn-action">M&G Required</button>
-                          <button onClick={() => onReviewAction(item, 'VERIFY')} className="btn-action highlight">Mark M&G Complete</button>
-                          <button onClick={() => onReviewAction(item, 'READY')} className="btn-action approve">Ready</button>
-                        </div>
-                      )}
-                      {item.status === 'READY_FOR_APPROVAL' && (
-                        <div className="btn-group">
-                          <button onClick={() => onReviewAction(item, 'VERIFY')} className="btn-action highlight">Mark M&G Complete</button>
-                          <button onClick={() => onReviewAction(item, 'APPROVE')} className="btn-action primary">Approve & Job Creation</button>
-                        </div>
-                      )}
-                      {item.status === 'CANCELLATION_REQUESTED' && (
-                        <button onClick={() => handleProcessCancellation(item)} className="btn-action urgent-bg">Process Cancellation</button>
-                      )}
-                      {(item.status === 'APPROVED' || item.status === 'JOB_CREATED') && (
-                        <div className="assignment-wrapper">
-                          {assigningId === item.PK ? (
-                            <select 
-                              autoFocus 
-                              className="staff-select"
-                              onChange={(e) => handleAssignAction(item, e.target.value)}
-                              onBlur={() => setAssigningId(null)}
-                            >
-                              <option value="">Select Staff...</option>
-                              {STAFF_MEMBERS.map(s => (
-                                <option key={s.id} value={s.id}>{s.label}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <button onClick={() => setAssigningId(item.PK)} className="btn-action">Assign Staff</button>
-                          )}
-                        </div>
-                      )}
-                    </td>
+        </div>
+        <button onClick={handleLogout} className="btn-secondary">Logout</button>
+      </div>
+
+      <div className="admin-layout">
+
+        <aside className="admin-sidebar card">
+          <div className="filter-group">
+            <h4>Quick Filters</h4>
+            {[
+              { id: 'PENDING_REVIEW', label: 'New Requests' },
+              { id: 'READY_FOR_APPROVAL', label: 'Ready' },
+              { id: 'APPROVED', label: 'Approved' },
+              { id: 'ASSIGNED', label: 'Assigned / Job Created' },
+              { id: 'CANCELLED', label: 'Cancelled' },
+              { id: 'ARCHIVED', label: 'Archive' },
+              { id: 'ALL', label: 'Snapshot (Scan)' }
+            ].map(f => (
+              <button 
+                key={f.id}
+                className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
+                onClick={() => setStatusFilter(f.id)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="filter-group">
+            <h4>Timeframe</h4>
+            <select value={timeframeFilter} onChange={(e) => setTimeframeFilter(e.target.value)} className="staff-select">
+              <option value="ALL">All Time</option>
+              <option value="DAILY">Daily</option>
+              <option value="WEEKLY">Weekly</option>
+              <option value="MONTHLY">Monthly</option>
+            </select>
+          </div>
+
+          <div className="settings-section">
+            <h4>Integrations</h4>
+            <div className="integration-card">
+              <div className="info">
+                <strong>Google Calendar</strong>
+                <div className={`status-indicator ${googleStatus === 'CONNECTED' ? 'connected' : 'not_connected'}`}>
+                   {googleStatus === 'CONNECTED' ? '● Connected' : '○ Disconnected'}
+                </div>
+              </div>
+              {googleStatus === 'CONNECTED' ? (
+                <button onClick={handleDisconnectGoogle} className="btn-small">Disconnect</button>
+              ) : (
+                <button onClick={handleConnectGoogle} className="btn-small primary">Connect</button>
+              )}
+            </div>
+          </div>
+        </aside>
+
+        <main className="admin-main">
+
+          {view === 'SCHEDULER' ? (
+            <MasterScheduler 
+              items={requests} 
+              onReview={(req) => {
+                if (req.status === 'CANCELLATION_REQUESTED') {
+                  handleProcessCancellation(req);
+                } else {
+                  setDecisionModal({ item: req, type: 'APPROVE' });
+                }
+              }}
+              onAssign={(req) => setAssigningId(req.PK)}
+              onSelectPet={handleSelectPet}
+            />
+          ) : (
+            <div className="list-view-container card">
+              <table className="request-table">
+                <thead>
+                  <tr>
+                    <th>Customer / Service</th>
+                    <th>Dates / Window</th>
+                    <th>Status</th>
+                    <th>Staff</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {requests.map(item => (
+                    <tr key={item.PK}>
+                      <td onClick={() => handleSelectPet(item)} className="clickable-cell">
+                        <div className="info-stack">
+                          <span className="bold">{item.pet_names || item.pet_name || '---'} ({item.client_name})</span>
+                          <span className="micro-text">{item.service_type}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="info-stack">
+                          <span className="small">{item.start_date} {item.end_date ? `to ${item.end_date}` : ''}</span>
+                          <span className="badge-window">{item.visit_window || 'ANYTIME'}</span>
+                        </div>
+                      </td>
+                      <td style={{ width: '180px' }}>
+                        <select 
+                          className={getStatusClass(item.status)}
+                          value={item.status || 'PENDING_REVIEW'}
+                          onChange={(e) => onReviewAction(item, e.target.value)}
+                        >
+                          <option value="PENDING_REVIEW">Pending</option>
+                          <option value="MEET_GREET_REQUIRED">M&G Required</option>
+                          <option value="READY_FOR_APPROVAL">Ready</option>
+                          <option value="APPROVED">Approved</option>
+                          <option value="JOB_CREATED">Job Created</option>
+                          <option value="ASSIGNED">Assigned</option>
+                          <option value="CANCELLATION_REQUESTED">Cancel Requested</option>
+                          <option value="CANCELLATION_DENIED">Cancel Denied</option>
+                          <option value="CANCELLED">Cancelled</option>
+                          <option value="ARCHIVED">Archived</option>
+                        </select>
+                      </td>
+                      <td>
+                        {(item.status === 'APPROVED' || item.status === 'JOB_CREATED' || item.status === 'ASSIGNED') && (item.entity_type === 'JOB' || item.entity_type === 'REQUEST') ? (
+                          <div className="assignment-wrapper">
+                            {assigningId === item.PK ? (
+                              <select 
+                                autoFocus
+                                className="staff-select"
+                                onChange={(e) => handleAssignAction(item, e.target.value)}
+                                onBlur={() => setAssigningId(null)}
+                              >
+                                <option value="">Select Staff...</option>
+                                {STAFF_MEMBERS.map(s => (
+                                  <option key={s.id} value={s.id}>{s.label}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <button 
+                                onClick={() => {
+                                  const { jobId } = resolveIds(item);
+                                  if (!jobId && item.status === 'APPROVED') {
+                                    alert("Job record is still initializing. Please wait a moment and refresh.");
+                                    fetchAllData();
+                                  } else {
+                                    setAssigningId(item.PK);
+                                  }
+                                }} 
+                                className={`btn-small ${item.worker_id ? 'success' : 'primary-outline'}`}
+                                disabled={!resolveIds(item).jobId && item.status === 'APPROVED'}
+                              >
+                                {item.worker_id || (item.status === 'APPROVED' && !resolveIds(item).jobId ? 'Initializing...' : 'Assign Staff')}
+                              </button>
+                            )}
+                          </div>
+                        ) : '---'}
+                      </td>
+                      <td>
+                        <div className="btn-group">
+                           {item.status === 'PENDING_REVIEW' && (
+                             <button onClick={() => setDecisionModal({ item, type: 'APPROVE' })} className="btn-small highlight">Review</button>
+                           )}
+                           <button onClick={() => handleAdminAction(item, 'ARCHIVE')} className="btn-small">Archive</button>
+                           <button onClick={() => handleAdminAction(item, 'DELETE')} className="btn-small urgent">Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="pagination-footer">
+                <span className="small text-muted">Showing {requests.length} records</span>
+                {lastKey && (
+                  <button onClick={() => fetchAllData(lastKey)} className="btn-small primary">Next Page →</button>
+                )}
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+
+      {decisionModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+               <h2>{decisionModal.type === 'APPROVE' ? 'Approve Booking' : 'Decline Booking'}</h2>
+               <p className="text-muted">For {decisionModal.item.client_name} - {decisionModal.item.start_date}</p>
+            </div>
+            
+            {modalError && (
+              <div className="modal-error-banner">
+                <p><strong>Error:</strong> {modalError}</p>
+                {modalError.includes("Meet-and-Greet required") && (
+                  <button onClick={handleQuickVerify} className="btn-small success">Mark M&G Completed Now</button>
+                )}
+              </div>
+            )}
+
+            <div className="field">
+              <label>Custom Message to Customer (Optional)</label>
+              <textarea 
+                rows="4"
+                placeholder={decisionModal.type === 'APPROVE' ? "e.g. Can't wait to see Rover!" : "e.g. Sorry, we are booked that day."}
+                value={adminNote}
+                onChange={(e) => setAdminNote(e.target.value)}
+              />
+            </div>
+
+            <div className="modal-footer">
+              <button onClick={() => { setDecisionModal(null); setModalError(null); }} className="btn-secondary">Cancel</button>
+              {decisionModal.type === 'APPROVE' ? (
+                <button onClick={submitDecision} className="btn-small success">Approve & Notify</button>
+              ) : (
+                <button onClick={submitDecision} className="btn-small urgent">Confirm Decline</button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -349,81 +630,6 @@ const AdminDashboard = () => {
           onUpdate={handleUpdatePet}
         />
       )}
-      
-      <style jsx>{`
-        .admin-section {
-          padding-top: 20px;
-        }
-        .admin-hero {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-end;
-          margin-bottom: 32px;
-        }
-        .admin-actions {
-          display: flex;
-          gap: 12px;
-        }
-        .admin-controls-row {
-          margin-bottom: 24px;
-        }
-        .btn-link {
-          background: none;
-          border: none;
-          color: var(--primary);
-          text-decoration: underline;
-          cursor: pointer;
-          font-weight: 600;
-        }
-        .badge-status {
-          padding: 4px 10px;
-          border-radius: 6px;
-          font-size: 0.75rem;
-          font-weight: 700;
-          background: var(--bg-muted);
-          color: var(--text-muted);
-        }
-        .badge-status.APPROVED, .badge-status.JOB_CREATED { background: hsla(142, 70%, 50%, 0.2); color: #22c55e; }
-        .badge-status.PENDING_REVIEW { background: hsla(45, 100%, 50%, 0.2); color: #eab308; }
-        .badge-status.MEET_GREET_REQUIRED { background: hsla(0, 100%, 50%, 0.2); color: #ef4444; }
-        .badge-status.CANCELLATION_REQUESTED { background: hsla(0, 100%, 50%, 0.2); color: #ef4444; }
-        .urgent-bg { background: #ef4444 !important; color: white !important; }
-        .btn-action {
-          padding: 6px 12px;
-          border-radius: 6px;
-          border: 1px solid var(--border-soft);
-          background: var(--bg-muted);
-          color: var(--text-main);
-          font-size: 0.85rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-        .btn-action:hover { background: var(--bg-surface); border-color: var(--primary); }
-        .btn-action.primary { background: var(--primary); color: white; border: none; }
-        .btn-action.approve { color: #22c55e; border-color: hsla(142, 70%, 50%, 0.4); }
-        .btn-action.highlight { color: var(--primary); border-color: var(--primary); }
-        .clickable-cell { cursor: pointer; }
-        .clickable-cell:hover .client-name { color: var(--primary); text-decoration: underline; }
-        .staff-select {
-          padding: 6px 10px;
-          border-radius: 6px;
-          background: var(--bg-surface);
-          color: var(--text-main);
-          border: 2px solid var(--primary);
-          font-weight: 600;
-          font-size: 0.85rem;
-          min-width: 140px;
-        }
-        .success-light { background: hsla(142, 70%, 50%, 0.15); color: #22c55e; border: 1px solid hsla(142, 70%, 50%, 0.3); }
-        .btn-refresh {
-          background: none;
-          border: none;
-          font-size: 1.2rem;
-          cursor: pointer;
-          color: var(--primary);
-        }
-      `}</style>
     </div>
   );
 };

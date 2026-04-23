@@ -24,7 +24,8 @@ const request = async (path, method = 'GET', data = null, isProtected = false) =
   
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `Request failed with status ${response.status}`);
+    const errorMessage = errorData.error || errorData.message || `Request failed with status ${response.status}`;
+    throw new Error(errorMessage);
   }
   
   return response.json();
@@ -33,8 +34,12 @@ const request = async (path, method = 'GET', data = null, isProtected = false) =
 export const submitRequest = (data) => request('/requests', 'POST', data);
 
 // Protected Admin Calls
-export const getAdminRequests = (status = 'PENDING_REVIEW') => 
-  request(`/admin/requests?status=${status}`, 'GET', null, true);
+export const getAdminRequests = (status = 'PENDING_REVIEW', startKey = null, timeframe = null) => {
+  let url = `/admin/requests?status=${status}`;
+  if (startKey) url += `&startKey=${encodeURIComponent(startKey)}`;
+  if (timeframe) url += `&timeframe=${timeframe}`;
+  return request(url, 'GET', null, true);
+};
 
 export const reviewRequest = (requestId, clientId, status, reason = "") => 
   request('/admin/review', 'POST', { 
@@ -74,3 +79,10 @@ export const requestCancellation = (requestId, clientId, reason) =>
 
 export const processCancellationDecision = (requestId, clientId, decision, note) =>
   request('/admin/cancel/decision', 'PUT', { request_id: requestId, client_id: clientId, decision, note }, true);
+
+// Operational Management
+export const performAdminAction = (pk, sk, action) => 
+  request('/admin/requests', 'POST', { PK: pk, SK: sk, action }, true);
+
+export const disconnectGoogle = () => 
+  request('/admin/auth/google', 'DELETE', null, true);

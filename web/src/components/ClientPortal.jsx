@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { getSession, signIn } from '../api/auth';
 import { getAdminRequests, requestCancellation } from '../api/client';
 
+import '../Portal.css';
+
 const ClientPortal = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -17,22 +19,24 @@ const ClientPortal = () => {
       const s = await getSession();
       if (s) {
         setSession(s);
-        fetchMyBookings();
+        await fetchMyBookings(s);
       }
     } catch (e) {
       console.error("No session", e);
     }
   };
 
-  const fetchMyBookings = async () => {
+  const fetchMyBookings = async (activeSession) => {
+    if (!activeSession) return;
     try {
       setLoading(true);
-      // NOTE: In a mature system, we'd have a /client/bookings endpoint.
-      // For Milestone 4 MVP, we leverage the shared framework.
-      const data = await getAdminRequests('ALL'); // Filters will be applied client-side for MVP
-      setRequests(data.requests || []);
+      const userEmail = (activeSession.idToken.payload.email || "").toLowerCase();
+      const userSub = activeSession.idToken.payload.sub;
+      const data = await getAdminRequests('ALL'); 
+      const myRequests = data.requests || [];
+      setRequests(myRequests);
     } catch (err) {
-      console.error(err);
+      console.error("Fetch failed", err);
     } finally {
       setLoading(false);
     }
@@ -57,7 +61,7 @@ const ClientPortal = () => {
       setLoading(true);
       await requestCancellation(req.request_id, req.client_id, reason);
       alert("Cancellation request submitted. Ryan will review and confirm shortly.");
-      fetchMyBookings();
+      fetchMyBookings(session);
     } catch (err) {
       alert("Failed to submit request: " + err.message);
     } finally {
@@ -67,33 +71,48 @@ const ClientPortal = () => {
 
   if (!session) {
     return (
-      <div className="card login-card" style={{ maxWidth: '400px', margin: '40px auto' }}>
-        <h2>Client Login</h2>
-        <p>Sign in to manage your bookings.</p>
+      <div className="card login-card" style={{ maxWidth: '400px', margin: '80px auto', padding: '40px' }}>
+        <h2 style={{ textAlign: 'center', marginBottom: '12px' }}>Client Login</h2>
+        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '32px' }}>Sign in to manage your bookings.</p>
         <form onSubmit={async (e) => {
           e.preventDefault();
           try {
+            setLoading(true);
             await signIn(loginData.email, loginData.password);
-            checkSession();
-          } catch(err) { alert(err.message); }
+            const s = await getSession();
+            setSession(s);
+            fetchMyBookings(s);
+          } catch(err) { 
+            alert(err.message); 
+          } finally {
+            setLoading(false);
+          }
         }}>
-          <input 
-            type="email" 
-            placeholder="Email" 
-            value={loginData.email} 
-            onChange={e => setLoginData({...loginData, email: e.target.value})} 
-            required 
-            style={{ width: '100%', marginBottom: '10px', padding: '10px' }}
-          />
-          <input 
-            type="password" 
-            placeholder="Password" 
-            value={loginData.password} 
-            onChange={e => setLoginData({...loginData, password: e.target.value})} 
-            required 
-            style={{ width: '100%', marginBottom: '20px', padding: '10px' }}
-          />
-          <button type="submit" className="button-primary" style={{ width: '100%' }}>Sign In</button>
+          <div className="field" style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>Email Address</label>
+            <input 
+              type="email" 
+              placeholder="alex@example.com" 
+              value={loginData.email} 
+              onChange={e => setLoginData({...loginData, email: e.target.value})} 
+              required 
+              style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+            />
+          </div>
+          <div className="field" style={{ marginBottom: '24px' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>Password</label>
+            <input 
+              type="password" 
+              placeholder="••••••••" 
+              value={loginData.password} 
+              onChange={e => setLoginData({...loginData, password: e.target.value})} 
+              required 
+              style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+            />
+          </div>
+          <button type="submit" className="button-primary" style={{ width: '100%', padding: '14px' }} disabled={loading}>
+            {loading ? 'Signing in...' : 'Sign In'}
+          </button>
         </form>
       </div>
     );
@@ -107,16 +126,20 @@ const ClientPortal = () => {
       </div>
 
       <div className="bookings-list">
-        {loading ? <p>Loading your schedule...</p> : (
-          requests.length === 0 ? <p>No bookings found.</p> : (
+        {loading ? <p style={{ textAlign: 'center' }}>Loading your schedule...</p> : (
+          requests.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
+              <p>No bookings found.</p>
+            </div>
+          ) : (
             requests.map(req => (
-              <div key={req.PK} className="booking-card card">
+              <div key={req.PK || req.request_id} className="booking-card card">
                 <div className="booking-left">
                   <span className="booking-date">{req.start_date}</span>
                   <span className="booking-type">{req.service_type}</span>
                 </div>
                 <div className="booking-status">
-                  <span className={`badge ${req.status}`}>{req.status.replace(/_/g, ' ')}</span>
+                  <span className={`badge ${req.status}`}>{req.status?.replace(/_/g, ' ') || 'PENDING'}</span>
                 </div>
                 <div className="booking-actions">
                   {(req.status === 'APPROVED' || req.status === 'ASSIGNED') && (
@@ -131,37 +154,6 @@ const ClientPortal = () => {
           )
         )}
       </div>
-
-      <style jsx>{`
-        .client-portal { max-width: 800px; margin: 0 auto; padding: 20px; }
-        .portal-header { margin-bottom: 30px; }
-        .booking-card { 
-          display: flex; 
-          justify-content: space-between; 
-          align-items: center; 
-          padding: 20px; 
-          margin-bottom: 16px;
-          border-left: 4px solid var(--primary);
-        }
-        .booking-left { display: flex; flex-direction: column; gap: 4px; }
-        .booking-date { font-weight: 700; font-size: 1.1rem; }
-        .booking-type { font-size: 0.85rem; color: var(--primary); font-weight: 600; text-transform: uppercase; }
-        .badge { padding: 4px 10px; border-radius: 99px; font-size: 0.7rem; font-weight: 700; background: var(--bg-warm); }
-        .badge.APPROVED, .badge.ASSIGNED { background: #dcfce7; color: #166534; }
-        .badge.CANCELLATION_REQUESTED { background: #fef9c3; color: #854d0e; }
-        .btn-cancel { 
-          background: #fee2e2; 
-          color: #991b1b; 
-          border: none; 
-          padding: 8px 16px; 
-          border-radius: 8px; 
-          font-weight: 600; 
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .btn-cancel:hover { background: #fecaca; }
-        .pending-msg { font-size: 0.8rem; font-style: italic; color: var(--text-muted); }
-      `}</style>
     </div>
   );
 };

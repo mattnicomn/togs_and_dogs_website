@@ -6,6 +6,11 @@ const IntakeForm = () => {
     client_name: '',
     client_email: '',
     start_date: '',
+    end_date: '',
+    visit_window: 'ANYTIME',
+    preferred_time: '',
+    timing_notes: '',
+    pet_names: '',
     pet_info: '',
     service_type: 'PET_SITTING'
   });
@@ -17,7 +22,18 @@ const IntakeForm = () => {
     try {
       const result = await submitRequest(formData);
       setStatus({ type: 'success', message: `Great! We've received your request. Support ID: ${result.request_id}` });
-      setFormData({ client_name: '', client_email: '', start_date: '', pet_info: '', service_type: 'PET_SITTING' });
+      setFormData({ 
+        client_name: '', 
+        client_email: '', 
+        start_date: '', 
+        end_date: '',
+        visit_window: 'ANYTIME',
+        preferred_time: '',
+        timing_notes: '',
+        pet_names: '',
+        pet_info: '', 
+        service_type: 'PET_SITTING' 
+      });
     } catch (error) {
       setStatus({ type: 'error', message: error.message });
     }
@@ -70,18 +86,74 @@ const IntakeForm = () => {
             </select>
           </div>
 
+          <div className="field-group">
+            <div className="field">
+              <label>Start Date</label>
+              <input 
+                type="date" 
+                value={formData.start_date} 
+                onChange={(e) => setFormData({...formData, start_date: e.target.value})} 
+                required 
+              />
+            </div>
+            <div className="field">
+              <label>End Date (Optional)</label>
+              <input 
+                type="date" 
+                value={formData.end_date} 
+                onChange={(e) => setFormData({...formData, end_date: e.target.value})} 
+              />
+            </div>
+          </div>
+
+          <div className="field-group">
+            <div className="field">
+              <label>Visit Window</label>
+              <select 
+                value={formData.visit_window}
+                onChange={(e) => setFormData({...formData, visit_window: e.target.value})}
+              >
+                <option value="MORNING">Morning (7 AM - 10 AM)</option>
+                <option value="MIDDAY">Midday (11 AM - 2 PM)</option>
+                <option value="AFTERNOON">Afternoon (3 PM - 6 PM)</option>
+                <option value="EVENING">Evening (7 PM - 10 PM)</option>
+                <option value="ANYTIME">Anytime (Best Effort)</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Preferred Exact Time</label>
+              <input 
+                type="text" 
+                value={formData.preferred_time} 
+                onChange={(e) => setFormData({...formData, preferred_time: e.target.value})} 
+                placeholder="e.g. 12:30 PM"
+              />
+            </div>
+          </div>
+
           <div className="field">
-            <label>Preferred Start Date</label>
+            <label>Timing / Arrival Notes</label>
             <input 
-              type="date" 
-              value={formData.start_date} 
-              onChange={(e) => setFormData({...formData, start_date: e.target.value})} 
-              required 
+              type="text" 
+              value={formData.timing_notes} 
+              onChange={(e) => setFormData({...formData, timing_notes: e.target.value})} 
+              placeholder="e.g. Please hide key under mat"
             />
           </div>
 
           <div className="field">
-            <label>Tell us about your furry friends</label>
+            <label>Pet Names</label>
+            <input 
+              type="text" 
+              value={formData.pet_names} 
+              onChange={(e) => setFormData({...formData, pet_names: e.target.value})} 
+              placeholder="e.g. Luna and Milo"
+              required
+            />
+          </div>
+
+          <div className="field">
+            <label>Tell us about your furry friends (Special needs, routines, etc.)</label>
             <textarea 
               rows="4"
               value={formData.pet_info} 

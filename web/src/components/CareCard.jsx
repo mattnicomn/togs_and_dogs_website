@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import '../Portal.css';
 
 const CareCard = ({ pet, onClose, onUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -11,10 +12,6 @@ const CareCard = ({ pet, onClose, onUpdate }) => {
   };
 
   const handleSave = () => {
-    if (!pet.pet_id) {
-      alert("This pet does not have a saved profile yet. Approve or complete intake first.");
-      return;
-    }
     onUpdate(formData);
     setIsEditing(false);
   };
@@ -241,257 +238,15 @@ const CareCard = ({ pet, onClose, onUpdate }) => {
               </>
             ) : (
               <button 
-                className={`button-secondary ${!pet.pet_id ? 'disabled' : ''}`} 
-                onClick={() => {
-                  if (pet.pet_id) setIsEditing(true);
-                  else alert("This pet does not have a saved profile yet. Approve or complete intake first.");
-                }}
+                className="button-secondary" 
+                onClick={() => setIsEditing(true)}
               >
-                Edit Record
+                {pet.pet_id ? 'Edit Record' : 'Create Profile'}
               </button>
             )}
           </div>
         </footer>
       </div>
-
-      <style jsx>{`
-        .care-card-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0,0,0,0.6);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-          padding: 20px;
-          backdrop-filter: blur(8px);
-        }
-        .care-card {
-          width: 100%;
-          max-width: 900px;
-          max-height: 90vh;
-          overflow-y: auto;
-          background: var(--bg-surface);
-          animation: slideUp 0.3s ease-out;
-          color: var(--text-main);
-          box-shadow: 0 24px 48px rgba(0,0,0,0.4);
-          border: 1px solid var(--border-soft);
-        }
-        @keyframes slideUp {
-          from { transform: translateY(30px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
-        .card-header-main {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 24px;
-          border-bottom: 1px solid var(--border-soft);
-          padding-bottom: 20px;
-        }
-        .pet-identity {
-          display: flex;
-          align-items: center;
-          gap: 20px;
-        }
-        .pet-identity.editing {
-          flex-direction: column;
-          align-items: flex-start;
-          width: 80%;
-          gap: 12px;
-        }
-        .field-compact {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          width: 100%;
-        }
-        .field-compact label {
-          font-size: 0.75rem;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          color: var(--text-muted);
-          font-weight: 700;
-        }
-        .field-compact input {
-          background: var(--bg-muted);
-          border: 1px solid var(--border-soft);
-          color: var(--text-main);
-          padding: 8px 12px;
-          border-radius: 6px;
-          font-size: 1rem;
-          font-weight: 600;
-          width: 100%;
-        }
-        .field-group-row {
-          display: flex;
-          gap: 12px;
-          width: 100%;
-        }
-        .field-compact.slice {
-          width: 100px;
-        }
-        .field-row {
-          display: flex;
-          gap: 12px;
-          margin-top: 10px;
-        }
-        .field-row .field { width: 100%; }
-        .edit-links-grid {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .edit-links-grid label {
-          font-size: 0.75rem;
-          font-weight: 700;
-          color: var(--text-muted);
-          margin-bottom: 4px;
-          display: block;
-        }
-        .edit-links-grid input {
-          width: 100%;
-          padding: 8px;
-          border-radius: 6px;
-          border: 1px solid var(--border-soft);
-          background: var(--bg-muted);
-          color: var(--text-main);
-        }
-        .pet-avatar-large {
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          object-fit: cover;
-          border: 3px solid var(--primary);
-        }
-        .pet-placeholder-large {
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          background: var(--primary);
-          color: white;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 2rem;
-          font-weight: 800;
-        }
-        .close-button {
-          background: hsla(0,0%,100%,0.1);
-          border: none;
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          font-size: 1.5rem;
-          cursor: pointer;
-          color: var(--text-heading);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.2s;
-        }
-        .close-button:hover { background: hsla(0,0%,100%,0.2); }
-        .card-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 24px;
-        }
-        @media (max-width: 768px) {
-          .card-grid { grid-template-columns: 1fr; }
-        }
-        .card-section h3 {
-          font-size: 1rem;
-          margin-bottom: 12px;
-          color: var(--text-muted);
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-        .content-box {
-          background: var(--bg-muted);
-          padding: 16px;
-          border-radius: 12px;
-          font-size: 0.95rem;
-          color: var(--text-main);
-          border: 1px solid var(--border-soft);
-        }
-        .content-box textarea {
-          width: 100%;
-          background: var(--bg-surface);
-          border: 1px solid var(--border-soft);
-          color: var(--text-main);
-          padding: 10px;
-          border-radius: 8px;
-          font-family: inherit;
-          resize: vertical;
-        }
-        .contact-actions {
-          margin-top: 12px;
-          padding-top: 12px;
-          border-top: 1px solid var(--border-soft);
-        }
-        .action-link {
-          display: inline-block;
-          margin-top: 8px;
-          color: var(--primary);
-          text-decoration: none;
-          font-weight: 700;
-          font-size: 0.9rem;
-        }
-        .link-grid {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-        }
-        .doc-link {
-          padding: 8px 16px;
-          background: var(--primary);
-          color: white;
-          border-radius: 8px;
-          text-decoration: none;
-          font-size: 0.85rem;
-          font-weight: 600;
-          transition: all 0.2s;
-        }
-        .doc-link:hover { opacity: 0.8; transform: translateY(-1px); }
-        .card-footer {
-          margin-top: 32px;
-          padding-top: 24px;
-          border-top: 1px solid var(--border-soft);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        .footer-actions {
-          display: flex;
-          gap: 12px;
-        }
-        .button-secondary.disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-          filter: grayscale(1);
-        }
-        .button-secondary.outline {
-          background: transparent;
-          border: 1px solid var(--border-soft);
-        }
-        .badge-pill {
-          padding: 6px 16px;
-          border-radius: 99px;
-          font-size: 0.8rem;
-          font-weight: 800;
-          text-transform: uppercase;
-          letter-spacing: 0.02em;
-        }
-        .badge-pill.success { background: hsla(142, 70%, 50%, 0.15); color: #22c55e; border: 1px solid hsla(142, 70%, 50%, 0.3); }
-        .badge-pill.warning { background: hsla(0, 100%, 50%, 0.15); color: #ef4444; border: 1px solid hsla(0, 100%, 50%, 0.3); }
-      `}</style>
     </div>
   );
 };
