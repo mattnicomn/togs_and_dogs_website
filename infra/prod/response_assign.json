@@ -1,1 +1,0 @@
-{"statusCode": 400, "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "https://toganddogs.com", "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token", "Access-Control-Allow-Methods": "GET,POST,OPTIONS"}, "body": "{\"error\": \"Missing required fields: job_id, req_id, worker_id\"}"}

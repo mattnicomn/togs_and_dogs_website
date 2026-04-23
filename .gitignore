@@ -3,6 +3,7 @@
 *.tfstate
 *.tfstate.backup
 *.zip
+tfplan*
 
 # Frontend
 dist/
@@ -15,8 +16,20 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Local/Brain
+# Local/Brain/Scratch
 brain/
 scratch/
+artifacts/
 verification_evidence_m4.md
 *.log
+
+# Python
+__pycache__/
+*.pyc
+
+# Test Artifacts
+payload*.json
+res*.json
+test*.json
+response*.json
+!infra/prod/payload.json
