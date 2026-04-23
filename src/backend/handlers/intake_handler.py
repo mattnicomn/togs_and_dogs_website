@@ -22,6 +22,8 @@ def handler(event, context):
         if not (client_name and client_email and start_date):
             return bad_request("Missing required fields: client_name, client_email, start_date", event)
 
+        client_email = client_email.lower().strip()
+
         request_id = str(uuid.uuid4())
         client_id = body.get('client_id', str(uuid.uuid4()))
         

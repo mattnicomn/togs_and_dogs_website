@@ -30,11 +30,12 @@ const ClientPortal = () => {
     if (!activeSession) return;
     try {
       setLoading(true);
-      const userEmail = (activeSession.idToken.payload.email || "").toLowerCase();
-      const userSub = activeSession.idToken.payload.sub;
+      const userEmail = (activeSession.idToken.payload.email || "").toLowerCase().trim();
       const data = await getAdminRequests('ALL'); 
       const myRequests = data.requests || [];
-      setRequests(myRequests);
+      // Secondary client-side safety filter (the backend already filters, but this handles edge cases)
+      const filtered = myRequests.filter(r => (r.client_email || "").toLowerCase().trim() === userEmail);
+      setRequests(filtered);
     } catch (err) {
       console.error("Fetch failed", err);
     } finally {
@@ -43,6 +44,7 @@ const ClientPortal = () => {
   };
 
   const handleCancelRequest = async (req) => {
+    const { reqId, clientId } = resolveIds(req);
     const serviceDate = new Date(req.start_date);
     const now = new Date();
     const hoursDiff = (serviceDate - now) / (1000 * 60 * 60);
@@ -59,7 +61,7 @@ const ClientPortal = () => {
 
     try {
       setLoading(true);
-      await requestCancellation(req.request_id, req.client_id, reason);
+      await requestCancellation(reqId, clientId, reason);
       alert("Cancellation request submitted. Ryan will review and confirm shortly.");
       fetchMyBookings(session);
     } catch (err) {
@@ -67,6 +69,13 @@ const ClientPortal = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const resolveIds = (item) => {
+    if (!item) return { reqId: null, clientId: null };
+    const reqId = item.request_id || (item.PK?.startsWith('REQ#') ? item.PK.split('#')[1] : null);
+    const clientId = item.client_id || (item.PK?.startsWith('CLIENT#') ? item.PK.split('#')[1] : (item.SK?.startsWith('CLIENT#') ? item.SK.split('#')[1] : null));
+    return { reqId, clientId };
   };
 
   if (!session) {
@@ -142,7 +151,7 @@ const ClientPortal = () => {
                   <span className={`badge ${req.status}`}>{req.status?.replace(/_/g, ' ') || 'PENDING'}</span>
                 </div>
                 <div className="booking-actions">
-                  {(req.status === 'APPROVED' || req.status === 'ASSIGNED') && (
+                  {(req.status === 'APPROVED' || req.status === 'ASSIGNED' || req.status === 'JOB_CREATED') && (
                     <button className="btn-cancel" onClick={() => handleCancelRequest(req)}>Request Cancellation</button>
                   )}
                   {req.status === 'CANCELLATION_REQUESTED' && (

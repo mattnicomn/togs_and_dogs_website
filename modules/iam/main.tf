@@ -158,3 +158,26 @@ resource "aws_iam_role_policy_attachment" "lambda_invoke" {
   role       = aws_iam_role.lambda_exec.name
   policy_arn = aws_iam_policy.lambda_invoke_access.arn
 }
+
+# SES Access for Notifications
+resource "aws_iam_policy" "ses_access" {
+  name        = "${var.name_prefix}-ses-access"
+  description = "Allows Lambda to send emails via SES"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = [
+        "ses:SendEmail",
+        "ses:SendRawEmail"
+      ]
+      Effect   = "Allow"
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_ses" {
+  role       = aws_iam_role.lambda_exec.name
+  policy_arn = aws_iam_policy.ses_access.arn
+}

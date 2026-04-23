@@ -69,6 +69,8 @@ resource "aws_lambda_function" "intake" {
   handler          = "handlers.intake_handler.handler"
   source_code_hash = data.archive_file.backend_zip.output_base64sha256
   runtime          = "python3.11"
+  memory_size      = 512
+  timeout          = 60
 
   environment {
     variables = {
@@ -87,6 +89,8 @@ resource "aws_lambda_function" "admin" {
   handler          = "handlers.admin_handler.handler"
   source_code_hash = data.archive_file.backend_zip.output_base64sha256
   runtime          = "python3.11"
+  memory_size      = 512
+  timeout          = 60
 
   environment {
     variables = {
@@ -104,6 +108,8 @@ resource "aws_lambda_function" "review" {
   handler          = "handlers.review_handler.handler"
   source_code_hash = data.archive_file.backend_zip.output_base64sha256
   runtime          = "python3.11"
+  timeout          = 60
+  memory_size      = 512
 
   environment {
     variables = {
@@ -124,6 +130,8 @@ resource "aws_lambda_function" "assign" {
   handler          = "handlers.assignment_handler.handler"
   source_code_hash = data.archive_file.backend_zip.output_base64sha256
   runtime          = "python3.11"
+  timeout          = 60
+  memory_size      = 512
 
   environment {
     variables = {
@@ -143,6 +151,8 @@ resource "aws_lambda_function" "job" {
   handler          = "handlers.job_handler.handler"
   source_code_hash = data.archive_file.backend_zip.output_base64sha256
   runtime          = "python3.11"
+  timeout          = 60
+  memory_size      = 512
 
   environment {
     variables = {
@@ -162,8 +172,8 @@ resource "aws_lambda_function" "google_auth" {
   handler          = "handlers.google_auth_handler.handler"
   source_code_hash = data.archive_file.backend_zip.output_base64sha256
   runtime          = "python3.11"
-
-  timeout = 30 # OAuth exchanges can be slow
+  memory_size      = 512
+  timeout          = 60 # OAuth exchanges can be slow
 
   environment {
     variables = {
@@ -183,6 +193,8 @@ resource "aws_lambda_function" "pet" {
   handler          = "handlers.pet_handler.handler"
   source_code_hash = data.archive_file.backend_zip.output_base64sha256
   runtime          = "python3.11"
+  memory_size      = 512
+  timeout          = 60
 
   environment {
     variables = {
@@ -200,6 +212,8 @@ resource "aws_lambda_function" "cancellation" {
   handler          = "handlers.cancellation_handler.handler"
   source_code_hash = data.archive_file.backend_zip.output_base64sha256
   runtime          = "python3.11"
+  memory_size      = 512
+  timeout          = 60
 
   environment {
     variables = {

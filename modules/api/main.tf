@@ -67,6 +67,25 @@ resource "aws_api_gateway_integration" "admin_lambda" {
   uri                     = var.admin_handler_invoke_arn
 }
 
+# Admin POST /admin/requests (Archive/Delete)
+resource "aws_api_gateway_method" "post_admin_requests" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_requests.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_admin_requests_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_requests.id
+  http_method = aws_api_gateway_method.post_admin_requests.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
 # Admin POST /admin/review
 resource "aws_api_gateway_resource" "admin_review" {
   rest_api_id = aws_api_gateway_rest_api.main.id
@@ -452,6 +471,7 @@ resource "aws_api_gateway_deployment" "main" {
   depends_on = [
     aws_api_gateway_integration.intake_lambda,
     aws_api_gateway_integration.admin_lambda,
+    aws_api_gateway_integration.post_admin_requests_lambda,
     aws_api_gateway_integration.review_lambda,
     aws_api_gateway_integration.assign_lambda,
     aws_api_gateway_integration.google_auth_lambda,
@@ -484,6 +504,7 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.admin_pet_id,
       aws_api_gateway_resource.client_cancel,
       aws_api_gateway_resource.admin_cancel_decision,
+      aws_api_gateway_method.post_admin_requests,
       aws_api_gateway_method.options,
       aws_api_gateway_integration.options_mock,
       aws_api_gateway_method_response.options_200,

@@ -20,8 +20,8 @@ ALLOWED_ORIGINS = [
 def format_response(status_code, body, event=None):
     # Default to the first allowed origin for safety, or reflect if in whitelist
     origin = "*"
-    if event:
-        headers = event.get('headers', {})
+    if event and isinstance(event, dict):
+        headers = event.get('headers') or {}
         # Case-insensitive check for Origin header
         request_origin = headers.get('origin') or headers.get('Origin')
         if request_origin in ALLOWED_ORIGINS:

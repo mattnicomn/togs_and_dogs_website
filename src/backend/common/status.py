@@ -40,12 +40,16 @@ REQUEST_TRANSITIONS = {
     ],
     RequestStatus.APPROVED.value: [
         RequestStatus.ASSIGNED.value,
+        RequestStatus.CANCELLATION_REQUESTED.value,
+        RequestStatus.CANCELLATION_DENIED.value,
         RequestStatus.ARCHIVED.value,
         RequestStatus.CANCELLED.value
     ],
     RequestStatus.ASSIGNED.value: [
         RequestStatus.ARCHIVED.value,
-        RequestStatus.CANCELLED.value
+        RequestStatus.CANCELLED.value,
+        RequestStatus.CANCELLATION_REQUESTED.value,
+        RequestStatus.CANCELLATION_DENIED.value
     ],
     RequestStatus.CANCELLATION_REQUESTED.value: [
         RequestStatus.CANCELLED.value,

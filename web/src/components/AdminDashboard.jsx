@@ -97,9 +97,11 @@ const AdminDashboard = () => {
       setLoading(true);
       if (view === 'SCHEDULER') {
         const data = await getAdminRequests('ALL');
-        setRequests(data.requests || []);
+        // Exclude archived from the scheduler timeline
+        setRequests((data.requests || []).filter(r => r.status !== 'ARCHIVED'));
       } else {
-        const data = await getAdminRequests(statusFilter, startKey, timeframeFilter);
+        const queryStatus = statusFilter === 'ARCHIVE' ? 'ARCHIVED' : statusFilter;
+        const data = await getAdminRequests(queryStatus, startKey, timeframeFilter);
         setRequests(data.requests || []);
         setLastKey(data.lastKey);
       }
@@ -316,7 +318,7 @@ const AdminDashboard = () => {
 
     try {
       setLoading(true);
-      await assignWorker(jobId || reqId, reqId, workerId);
+      await assignWorker(jobId || reqId, reqId, clientId, workerId);
       setAssigningId(null);
       fetchAllData();
     } catch (err) {
@@ -353,8 +355,12 @@ const AdminDashboard = () => {
   const handleUpdatePet = async (updatedPet) => {
     try {
       setLoading(true);
-      // Support creating new PET records for legacy unlinked items
-      await updatePet(updatedPet.pet_id || 'NEW', updatedPet.client_id, updatedPet);
+      const { clientId } = resolveIds(selectedPet || updatedPet);
+      const pid = updatedPet.pet_id || selectedPet?.pet_id || 'NEW';
+      
+      if (!clientId) throw new Error("Could not resolve Client ID for pet update.");
+      
+      await updatePet(pid, clientId, updatedPet);
       setSelectedPet(null);
       fetchAllData();
     } catch (err) {

@@ -34,7 +34,7 @@ def handler(event, context):
                 # we must restrict the scan or filter the results server-side.
                 authorizer = event.get('requestContext', {}).get('authorizer', {})
                 claims = authorizer.get('claims', {})
-                user_email = (claims.get('email') or "").lower()
+                user_email = (claims.get('email') or "").lower().strip()
                 groups = claims.get('cognito:groups', [])
                 is_admin = 'Staff' in groups or 'Admin' in groups or user_email in ['mattnicomn10@gmail.com', 'support@toganddogs.usmissionhero.com']
 

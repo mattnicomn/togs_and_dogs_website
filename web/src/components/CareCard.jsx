@@ -3,7 +3,11 @@ import '../Portal.css';
 
 const CareCard = ({ pet, onClose, onUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({ ...pet });
+  const [formData, setFormData] = useState({ 
+    health: {}, 
+    document_links: {}, 
+    ...pet 
+  });
 
   if (!pet) return null;
 
@@ -12,6 +16,7 @@ const CareCard = ({ pet, onClose, onUpdate }) => {
   };
 
   const handleSave = () => {
+    // Ensure nested objects are sent back
     onUpdate(formData);
     setIsEditing(false);
   };
