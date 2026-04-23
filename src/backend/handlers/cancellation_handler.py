@@ -168,8 +168,9 @@ def handle_admin_decision(body, event):
                 print(fail_msg)
                 record_sync_failure(request_id, client_id, "SNS_NOTIFICATION", fail_msg)
 
+    msg_action = f"{decision.lower()}ed" if decision != 'DENY' else "denied"
     return success({
-        "message": f"Cancellation request {decision.lower()}ed.",
+        "message": f"Cancellation request {msg_action}.",
         "new_status": new_status,
         "sns_message_id": message_id
     }, event)

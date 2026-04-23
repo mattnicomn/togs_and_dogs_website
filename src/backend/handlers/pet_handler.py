@@ -34,27 +34,30 @@ def handler(event, context):
             if not client_id:
                 return bad_request("Missing client_id in body", event)
             
-            if not pet_id:
+            if not pet_id or pet_id == 'NEW':
                 pet_id = str(uuid.uuid4())
+                existing_item = {}
+            else:
+                existing_item = get_item(f"PET#{pet_id}", f"CLIENT#{client_id}") or {}
             
-            item = {
+            item = existing_item.copy()
+            item.update({
                 'PK': f"PET#{pet_id}",
                 'SK': f"CLIENT#{client_id}",
                 'pet_id': pet_id,
                 'client_id': client_id,
                 'entity_type': 'PET',
-                'name': body.get('name'),
-                'breed': body.get('breed'),
-                'age': body.get('age'),
-                'photo_url': body.get('photo_url'),
-                'care_instructions': body.get('care_instructions'), # Structured text
-                'behavior': body.get('behavior'),
-                'logistics': body.get('logistics'),
-                'health': body.get('health', {}), # vet/emergency info
-                'document_links': body.get('document_links', {}),
-                'meet_and_greet_completed': body.get('meet_and_greet_completed', False),
                 'updated_at': datetime.datetime.utcnow().isoformat()
-            }
+            })
+            
+            editable_fields = [
+                'name', 'breed', 'age', 'photo_url', 'care_instructions',
+                'behavior', 'logistics', 'health', 'document_links', 'meet_and_greet_completed'
+            ]
+            
+            for field in editable_fields:
+                if field in body:
+                    item[field] = body[field]
             
             if put_item(item):
                 return success(item, event)

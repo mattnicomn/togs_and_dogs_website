@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 import boto3
 from common.db import put_item, get_item, table
 from common.status import JobStatus
@@ -34,12 +34,12 @@ def handler(event, context):
                 'PK': f"PET#{pet_id}",
                 'SK': f"CLIENT#{client_id}",
                 'entity_type': 'PET',
-                'name': request_item.get('client_name'), # Default to client name if not specified
+                'name': request_item.get('pet_names') or "Unnamed Pet", 
                 'client_id': client_id,
                 'pet_id': pet_id,
                 'care_instructions': request_item.get('pet_info'),
                 'meet_and_greet_completed': True, # Only approved requests get here
-                'created_at': datetime.utcnow().isoformat(),
+                'created_at': datetime.now(timezone.utc).isoformat(),
                 'status': 'ACTIVE'
             }
             if put_item(pet_item):
@@ -66,6 +66,7 @@ def handler(event, context):
             'request_id': request_id,
             'client_id': client_id,
             'pet_id': pet_id,
+            'pet_name': request_item.get('pet_names') or "Unnamed Pet",
             'client_name': request_item.get('client_name'),
             'client_email': request_item.get('client_email'),
             'service_type': request_item.get('service_type'),
@@ -73,17 +74,28 @@ def handler(event, context):
             'pet_info': request_item.get('pet_info'),
             'google_event_id': request_item.get('google_event_id'),
             'status': JobStatus.JOB_CREATED.value,
-            'created_at': datetime.utcnow().isoformat(),
+            'created_at': datetime.now(timezone.utc).isoformat(),
             'entity_type': 'JOB',
             'audit_log': [{
                 "action": "JOB_INITIALIZED",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "note": f"Automatically created from approved request. Linked Pet: {pet_id}"
             }]
         }
         
         if put_item(item):
             print(f"Job {job_id} created successfully. Pet: {pet_id}")
+            
+            # Link back to original request
+            try:
+                table.update_item(
+                    Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                    UpdateExpression="SET job_id = :jid",
+                    ExpressionAttributeValues={":jid": job_id}
+                )
+            except Exception as e:
+                print(f"WARNING: Failed to link job_id back to request: {e}")
+                
             return {
                 "job_id": job_id,
                 "pet_id": pet_id,

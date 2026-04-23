@@ -38,7 +38,8 @@ def _save_tokens(new_tokens):
     if 'refresh_token' not in new_tokens and 'refresh_token' in existing:
         merged['refresh_token'] = existing['refresh_token']
     
-    merged['updated_at'] = datetime.utcnow().isoformat() + 'Z'
+    from datetime import timezone
+    merged['updated_at'] = datetime.now(timezone.utc).isoformat()
     
     try:
         secrets.put_secret_value(
@@ -50,10 +51,9 @@ def _save_tokens(new_tokens):
         print(f"ERROR: Failed to persist refreshed tokens: {e}")
         return False
 
-def _refresh_access_token(request_id="UNKNOWN"):
+def _refresh_access_token(tokens, request_id="UNKNOWN"):
     """Internal: Refreshes the Google access token."""
     print(f"INFO: [Req:{request_id}] Starting Google access token refresh.")
-    tokens = _get_stored_tokens()
     refresh_token = tokens.get('refresh_token')
     
     if not refresh_token:
@@ -84,9 +84,28 @@ def _refresh_access_token(request_id="UNKNOWN"):
 
 def _get_valid_token(request_id="UNKNOWN"):
     """Internal: Gets a valid access token, refreshing if necessary."""
-    # For MVP, we'll just always refresh to ensure it's fresh, 
-    # as we don't track'local' expiry time precisely here.
-    return _refresh_access_token(request_id)
+    tokens = _get_stored_tokens()
+    access_token = tokens.get('access_token')
+    updated_at = tokens.get('updated_at')
+    expires_in = tokens.get('expires_in', 3600)
+
+    if access_token and updated_at:
+        try:
+            # Check if token is still valid (with 5-minute buffer)
+            update_time = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+            if update_time.tzinfo is None:
+                from datetime import timezone
+                update_time = update_time.replace(tzinfo=timezone.utc)
+            
+            from datetime import timezone
+            elapsed = (datetime.now(timezone.utc) - update_time).total_seconds()
+            if elapsed < (expires_in - 300):
+                print(f"INFO: [Req:{request_id}] Using cached Google access token.")
+                return access_token
+        except Exception as e:
+            print(f"WARNING: Token expiry check failed: {e}")
+
+    return _refresh_access_token(tokens, request_id)
 
 def _build_event_body(item, assigned_worker=None):
     """Internal: Builds Google Calendar event resource."""

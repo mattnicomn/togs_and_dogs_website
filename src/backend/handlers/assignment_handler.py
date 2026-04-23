@@ -28,11 +28,23 @@ def handler(event, context):
             return bad_request(f"Missing fields. Got: {list(body.keys())}", event)
 
         # Get current state
-        item = get_item(f"JOB#{job_id}", f"REQ#{req_id}")
-        if not item:
-            print(f"ERROR: Job JOB#{job_id} REQ#{req_id} not found")
-            return not_found(f"Job {job_id} not found", event)
+        # ROBUSTNESS: Handle case where UI sends REQ ID as JOB ID before sync
+        actual_job_id = job_id
+        if job_id == req_id or job_id.startswith('REQ#'):
+            print(f"INFO: Attempting to resolve Job ID from Request REQ#{req_id}")
+            request_rec = get_item(f"REQ#{req_id}", f"CLIENT#{body.get('client_id')}")
+            if request_rec and request_rec.get('job_id'):
+                actual_job_id = request_rec.get('job_id')
+                print(f"INFO: Resolved Job ID: {actual_job_id}")
 
+        item = get_item(f"JOB#{actual_job_id}", f"REQ#{req_id}")
+        if not item:
+            # Fallback: Maybe it's still a REQUEST and hasn't been turned into a JOB yet?
+            # Or the job_id mapping is truly missing.
+            print(f"ERROR: Job JOB#{actual_job_id} REQ#{req_id} not found")
+            return not_found(f"Job {actual_job_id} not found. Please ensure request is approved.", event)
+
+        job_id = actual_job_id # Ensure we use the resolved one for updates
         current_status = item.get('status')
         new_status = JobStatus.ASSIGNED.value
         
@@ -43,6 +55,7 @@ def handler(event, context):
         # Update DB
         try:
             now = datetime.utcnow().isoformat()
+            # 1. Update JOB record
             table.update_item(
                 Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{req_id}"},
                 UpdateExpression="SET #stat = :s, worker_id = :w, assigned_at = :a, audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)",
@@ -59,6 +72,20 @@ def handler(event, context):
                     ":empty_list": []
                 }
             )
+
+            # 2. Update REQ record (so it reflects in the admin list view)
+            try:
+                table.update_item(
+                    Key={'PK': f"REQ#{req_id}", 'SK': f"CLIENT#{item.get('client_id')}"},
+                    UpdateExpression="SET #stat = :s, worker_id = :w",
+                    ExpressionAttributeNames={"#stat": "status"},
+                    ExpressionAttributeValues={
+                        ":s": new_status,
+                        ":w": worker_id
+                    }
+                )
+            except Exception as req_err:
+                print(f"REQ_UPDATE_WARNING: {req_err}")
 
             # Sync to Google Calendar
             google_event_id = item.get('google_event_id')

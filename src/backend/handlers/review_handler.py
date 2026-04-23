@@ -1,11 +1,12 @@
 import json
 import os
 import boto3
-from datetime import datetime
+from datetime import datetime, timezone
 from common.db import get_item, update_status, table
 from common.response import success, bad_request, internal_error, not_found
 from common.status import RequestStatus, is_valid_transition
 from common.google_calendar import sync_calendar_event
+from common.email import send_transactional_email, get_approval_email_body, get_rejection_email_body
 
 def handler(event, context):
     try:
@@ -27,6 +28,18 @@ def handler(event, context):
                     ExpressionAttributeValues={":t": True, ":et": "CLIENT"}
                 )
                 print(f"INFO: [Client:{client_id}] Meet & Greet manually verified by admin.")
+                
+                if request_id:
+                    audit_note = {
+                        "action": "STATUS_CHANGE",
+                        "from": "MEET_GREET_REQUIRED",
+                        "to": "READY_FOR_APPROVAL",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "reason": "M&G Verified",
+                        "metadata": {"request_id": request_id, "client_id": client_id}
+                    }
+                    update_status(f"REQ#{request_id}", f"CLIENT#{client_id}", "READY_FOR_APPROVAL", audit_note)
+
                 return success({
                     "message": "Meet & Greet status updated successfully",
                     "client_id": client_id,
@@ -68,7 +81,7 @@ def handler(event, context):
             "action": "STATUS_CHANGE",
             "from": current_status,
             "to": new_status,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "reason": body.get('reason', 'Admin review'),
             "metadata": {
                 "request_id": request_id,
@@ -114,6 +127,29 @@ def handler(event, context):
                         print(f"INFO: [Req:{request_id}] Triggered Job creation (Lambda: {job_fn_name})")
                 except Exception as invoke_err:
                     print(f"ERROR: [Req:{request_id}] Failed to trigger job creation: {invoke_err}")
+
+            # 7. Send Customer Email (APPROVAL or REJECTION)
+            if new_status in ['APPROVED', 'DECLINED']:
+                client_name = request_item.get('client_name', 'Client')
+                client_email = request_item.get('client_email')
+                start_date = request_item.get('start_date', 'your requested date')
+                custom_message = body.get('reason', '') # Use the same 'reason' field for the email body
+
+                if client_email:
+                    try:
+                        if new_status == 'APPROVED':
+                            subject = "Your Togs & Dogs Booking Request: APPROVED!"
+                            html = get_approval_email_body(client_name, start_date, custom_message)
+                        else:
+                            subject = "Update regarding your Togs & Dogs request"
+                            html = get_rejection_email_body(client_name, start_date, custom_message)
+                        
+                        send_transactional_email(client_email, subject, html)
+                    except Exception as email_err:
+                        # FAIL GRACEFULLY: Log but don't block the response
+                        print(f"WARNING: [Req:{request_id}] Email notification failed: {email_err}")
+                else:
+                    print(f"INFO: [Req:{request_id}] No client email on file. Skipping notification.")
 
             return success({
                 "message": f"Request {new_status}",
