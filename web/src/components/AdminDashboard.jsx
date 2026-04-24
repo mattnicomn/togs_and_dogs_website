@@ -46,6 +46,59 @@ const AdminDashboard = () => {
     return s || "Unknown";
   };
 
+  const getWorkflowState = (item) => {
+    const status = item.status || 'PENDING_REVIEW';
+    const hasWorker = Boolean(item.worker_id);
+    const isInvalidAssigned = status === 'ASSIGNED' && !hasWorker;
+
+    const state = {
+      displayStatus: getStatusLabel(status),
+      statusClass: getStatusClass(status),
+      isInvalid: isInvalidAssigned,
+      actions: []
+    };
+
+    if (isInvalidAssigned) {
+      state.displayStatus = "Needs Assignment";
+      state.statusClass = "status-chip status-chip--urgent";
+      state.actions = ["ASSIGN", "REVERT_TO_APPROVED", "CANCEL"];
+      return state;
+    }
+
+    switch (status) {
+      case 'PENDING_REVIEW':
+        state.actions = ["APPROVE", "CANCEL", "EDIT_PET"];
+        break;
+      case 'MEET_GREET_REQUIRED':
+        state.actions = ["VERIFY_MG", "CANCEL", "EDIT_PET"];
+        break;
+      case 'READY_FOR_APPROVAL':
+        state.actions = ["APPROVE", "CANCEL", "EDIT_PET"];
+        break;
+      case 'APPROVED':
+      case 'JOB_CREATED':
+        state.actions = ["ASSIGN", "CANCEL", "EDIT_PET"];
+        break;
+      case 'ASSIGNED':
+        state.actions = ["CHANGE_WORKER", "REVERT_TO_APPROVED", "COMPLETE", "CANCEL", "EDIT_PET"];
+        break;
+      case 'COMPLETED':
+        state.actions = ["REOPEN", "ARCHIVE"];
+        break;
+      case 'CANCELLED':
+      case 'DECLINED':
+        state.actions = ["REOPEN_PENDING", "ARCHIVE"];
+        break;
+      case 'ARCHIVED':
+        state.actions = ["REOPEN_PENDING"];
+        break;
+      default:
+        state.actions = ["CANCEL", "ARCHIVE"];
+    }
+
+    return state;
+  };
+
   // Operational States
   const [statusFilter, setStatusFilter] = useState('PENDING_REVIEW');
   const [timeframeFilter, setTimeframeFilter] = useState('ALL');
@@ -95,6 +148,7 @@ const AdminDashboard = () => {
   const fetchAllData = async (startKey = null) => {
     try {
       setLoading(true);
+      setRequests([]); // Clear previous results to prevent stale data flash
       if (view === 'SCHEDULER') {
         const data = await getAdminRequests('ALL');
         // Exclude archived from the scheduler timeline
@@ -248,10 +302,16 @@ const AdminDashboard = () => {
     const statusMap = {
       'APPROVE': 'APPROVED',
       'DECLINE': 'DECLINED',
+      'CANCEL': 'CANCELLED',
       'MEET_GREET': 'MEET_GREET_REQUIRED',
       'VERIFY': 'VERIFY_MEET_GREET',
       'READY': 'READY_FOR_APPROVAL',
-      'DENY_CANCEL': 'CANCELLATION_DENIED'
+      'DENY_CANCEL': 'CANCELLATION_DENIED',
+      'REVERT_TO_APPROVED': 'APPROVED',
+      'COMPLETE': 'COMPLETED',
+      'REOPEN': 'ASSIGNED',
+      'REOPEN_PENDING': 'PENDING_REVIEW',
+      'ARCHIVE': 'ARCHIVED'
     };
 
     const { reqId, clientId } = resolveIds(req);
@@ -262,9 +322,11 @@ const AdminDashboard = () => {
     }
     
     try {
-      console.log(`[Admin] Review Action: ${action} for Req:${reqId} Client:${clientId}`);
+      const targetStatus = statusMap[action] || action;
+      console.log(`[Admin] Review Action: ${action} -> ${targetStatus} for Req:${reqId} Client:${clientId}`);
       setLoading(true);
-      await reviewRequest(reqId, clientId, statusMap[action] || action);
+      await reviewRequest(reqId, clientId, targetStatus);
+      // alert(`Success: Status updated to ${targetStatus}`);
       fetchAllData();
     } catch (err) {
       alert("Action failed: " + err.message);
@@ -513,65 +575,90 @@ const AdminDashboard = () => {
                         </div>
                       </td>
                       <td style={{ width: '180px' }}>
-                        <select 
-                          className={getStatusClass(item.status)}
-                          value={item.status || 'PENDING_REVIEW'}
-                          onChange={(e) => onReviewAction(item, e.target.value)}
-                        >
-                          <option value="PENDING_REVIEW">Pending</option>
-                          <option value="MEET_GREET_REQUIRED">M&G Required</option>
-                          <option value="READY_FOR_APPROVAL">Ready</option>
-                          <option value="APPROVED">Approved</option>
-                          <option value="JOB_CREATED">Job Created</option>
-                          <option value="ASSIGNED">Assigned</option>
-                          <option value="CANCELLATION_REQUESTED">Cancel Requested</option>
-                          <option value="CANCELLATION_DENIED">Cancel Denied</option>
-                          <option value="CANCELLED">Cancelled</option>
-                          <option value="ARCHIVED">Archived</option>
-                        </select>
+                        {(() => {
+                          const state = getWorkflowState(item);
+                          return (
+                            <div className="status-cell">
+                              <span className={`${state.statusClass} ${state.isInvalid ? 'status-chip--urgent' : ''}`}>
+                                {state.isInvalid ? "Needs Assignment" : getStatusLabel(item.status)}
+                              </span>
+                              {state.isInvalid && <div className="micro-text urgent-text">Missing worker assignment!</div>}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td>
-                        {(item.status === 'APPROVED' || item.status === 'JOB_CREATED' || item.status === 'ASSIGNED') && (item.entity_type === 'JOB' || item.entity_type === 'REQUEST') ? (
-                          <div className="assignment-wrapper">
-                            {assigningId === item.PK ? (
-                              <select 
-                                autoFocus
-                                className="staff-select"
-                                onChange={(e) => handleAssignAction(item, e.target.value)}
-                                onBlur={() => setAssigningId(null)}
-                              >
-                                <option value="">Select Staff...</option>
-                                {STAFF_MEMBERS.map(s => (
-                                  <option key={s.id} value={s.id}>{s.label}</option>
-                                ))}
-                              </select>
-                            ) : (
-                              <button 
-                                onClick={() => {
-                                  const { jobId } = resolveIds(item);
-                                  if (!jobId && item.status === 'APPROVED') {
-                                    alert("Job record is still initializing. Please wait a moment and refresh.");
-                                    fetchAllData();
-                                  } else {
-                                    setAssigningId(item.PK);
-                                  }
-                                }} 
-                                className={`btn-small ${item.worker_id ? 'success' : 'primary-outline'}`}
-                                disabled={!resolveIds(item).jobId && item.status === 'APPROVED'}
-                              >
-                                {item.worker_id || (item.status === 'APPROVED' && !resolveIds(item).jobId ? 'Initializing...' : 'Assign Staff')}
-                              </button>
-                            )}
-                          </div>
-                        ) : '---'}
+                        {(() => {
+                          const state = getWorkflowState(item);
+                          if (state.actions.includes("ASSIGN") || state.actions.includes("CHANGE_WORKER")) {
+                            return (
+                              <div className="assignment-wrapper">
+                                {assigningId === item.PK ? (
+                                  <select 
+                                    autoFocus
+                                    className="staff-select"
+                                    onChange={(e) => handleAssignAction(item, e.target.value)}
+                                    onBlur={() => setAssigningId(null)}
+                                  >
+                                    <option value="">Select Staff...</option>
+                                    {STAFF_MEMBERS.map(s => (
+                                      <option key={s.id} value={s.id}>{s.label}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <button 
+                                    onClick={() => {
+                                      const { jobId } = resolveIds(item);
+                                      if (!jobId && item.status === 'APPROVED') {
+                                        alert("Job record is still initializing. Please wait a moment and refresh.");
+                                        fetchAllData();
+                                      } else {
+                                        setAssigningId(item.PK);
+                                      }
+                                    }} 
+                                    className={`btn-small ${item.worker_id ? 'success' : 'primary-outline'}`}
+                                    disabled={!resolveIds(item).jobId && item.status === 'APPROVED'}
+                                  >
+                                    {item.worker_id || (item.status === 'APPROVED' && !resolveIds(item).jobId ? 'Initializing...' : 'Assign Staff')}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          }
+                          return item.worker_id || '---';
+                        })()}
                       </td>
                       <td>
-                        <div className="btn-group">
-                           {item.status === 'PENDING_REVIEW' && (
-                             <button onClick={() => setDecisionModal({ item, type: 'APPROVE' })} className="btn-small highlight">Review</button>
-                           )}
-                           <button onClick={() => handleAdminAction(item, 'ARCHIVE')} className="btn-small">Archive</button>
-                           <button onClick={() => handleAdminAction(item, 'DELETE')} className="btn-small urgent">Delete</button>
+                        <div className="btn-group-vertical">
+                           {(() => {
+                             const state = getWorkflowState(item);
+                             return state.actions.map(action => {
+                               if (action === 'EDIT_PET') return null; // Handled by row click
+                               if (action === 'ASSIGN' || action === 'CHANGE_WORKER') return null; // Handled in Staff column
+                               
+                               const labels = {
+                                 'APPROVE': 'Approve',
+                                 'CANCEL': 'Cancel',
+                                 'VERIFY_MG': 'Verify M&G',
+                                 'REVERT_TO_APPROVED': 'Back to Approved',
+                                 'COMPLETE': 'Complete',
+                                 'REOPEN': 'Reopen',
+                                 'REOPEN_PENDING': 'Restore',
+                                 'ARCHIVE': 'Archive'
+                               };
+                               
+                               return (
+                                 <button 
+                                   key={action}
+                                   onClick={() => onReviewAction(item, action)} 
+                                   className={`btn-micro ${action === 'CANCEL' || action === 'ARCHIVE' ? '' : 'highlight'}`}
+                                 >
+                                   {labels[action] || action}
+                                 </button>
+                               );
+                             });
+                           })()}
+                           <button onClick={() => handleAdminAction(item, 'DELETE')} className="btn-micro urgent">Delete</button>
                         </div>
                       </td>
                     </tr>

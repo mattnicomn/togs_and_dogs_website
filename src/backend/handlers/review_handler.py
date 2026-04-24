@@ -10,6 +10,18 @@ from common.email import send_transactional_email, get_approval_email_body, get_
 
 def handler(event, context):
     try:
+        # Extract user context
+        authorizer = event.get('requestContext', {}).get('authorizer', {})
+        claims = authorizer.get('claims', {})
+        user_email = (claims.get('email') or "").lower().strip()
+        groups = claims.get('cognito:groups', [])
+        is_admin = 'Staff' in groups or 'Admin' in groups or user_email in ['mattnicomn10@gmail.com', 'support@toganddogs.usmissionhero.com']
+        
+        if not is_admin:
+            return bad_request("Administrative access required.", event)
+
+        updated_by = user_email or claims.get('username') or 'admin-api'
+
         body = json.loads(event.get('body', '{}'))
         request_id = body.get('request_id')
         client_id = body.get('client_id')
@@ -30,15 +42,26 @@ def handler(event, context):
                 print(f"INFO: [Client:{client_id}] Meet & Greet manually verified by admin.")
                 
                 if request_id:
+                    now = datetime.now(timezone.utc).isoformat()
                     audit_note = {
                         "action": "STATUS_CHANGE",
                         "from": "MEET_GREET_REQUIRED",
                         "to": "READY_FOR_APPROVAL",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": now,
                         "reason": "M&G Verified",
                         "metadata": {"request_id": request_id, "client_id": client_id}
                     }
-                    update_status(f"REQ#{request_id}", f"CLIENT#{client_id}", "READY_FOR_APPROVAL", audit_note)
+                    table.update_item(
+                        Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                        UpdateExpression="SET #stat = :s, updated_at = :now, audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)",
+                        ExpressionAttributeNames={"#stat": "status"},
+                        ExpressionAttributeValues={
+                            ":s": "READY_FOR_APPROVAL",
+                            ":now": now,
+                            ":n": [audit_note],
+                            ":empty_list": []
+                        }
+                    )
 
                 return success({
                     "message": "Meet & Greet status updated successfully",
@@ -52,46 +75,105 @@ def handler(event, context):
         # 1. Get current Request state
         request_item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
         if not request_item:
+            print(f"ERROR: Request {request_id} (Client {client_id}) not found.")
             return not_found(f"Request {request_id} not found", event)
  
         current_status = request_item.get('status')
+        print(f"INFO: [Req:{request_id}] Transition attempt: {current_status} -> {new_status}")
         
         # 2. Validate transition
         if not is_valid_transition('REQUEST', current_status, new_status):
+            print(f"REJECTED: Invalid transition from {current_status} to {new_status}")
             return bad_request(f"Invalid transition from {current_status} to {new_status}", event)
  
-        # 3. Enforce Meet-and-Greet gate for APPROVED status
+        # 3. Enforce validation rules for specific statuses
         if new_status == 'APPROVED':
-            # Check Client metadata
+            # Check Client metadata for Meet-and-Greet
             client_metadata = get_item(f"CLIENT#{client_id}", "METADATA")
-            
-            # If client record doesn't exist yet or isn't marked as completed
             is_verified = client_metadata and client_metadata.get('meet_and_greet_completed')
             
             if not is_verified:
-                # Decision: Prevent approval if no meet-and-greet is on file
-                # Suggest move to MEET_GREET_REQUIRED instead
                 return bad_request(
-                    "Cannot approve first-time request: Meet-and-Greet required.", 
+                    "Cannot approve request: Meet-and-Greet required.", 
+                    event
+                )
+
+        if new_status == 'ASSIGNED':
+            # Ensure a worker is assigned
+            has_worker = request_item.get('worker_id') or body.get('worker_id')
+            if not has_worker:
+                return bad_request(
+                    "Cannot move to Assigned status without a selected team member.",
                     event
                 )
 
         # 4. Perform update
+        now = datetime.now(timezone.utc).isoformat()
         audit_note = {
             "action": "STATUS_CHANGE",
             "from": current_status,
             "to": new_status,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now,
             "reason": body.get('reason', 'Admin review'),
+            "updated_by": updated_by,
             "metadata": {
                 "request_id": request_id,
                 "client_id": client_id
             }
         }
         
+        # Prepare Update Expression
+        update_expr = "SET #stat = :s, updated_at = :now, updated_by = :ub, audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)"
+        expr_attr_names = {"#stat": "status"}
+        expr_attr_vals = {
+            ":s": new_status,
+            ":now": now,
+            ":ub": updated_by,
+            ":n": [audit_note],
+            ":empty_list": []
+        }
 
-        if update_status(f"REQ#{request_id}", f"CLIENT#{client_id}", new_status, audit_note):
+        # SPECIAL CASE: Rollback ASSIGNED -> APPROVED clears worker_id
+        if current_status == 'ASSIGNED' and new_status == 'APPROVED':
+            update_expr += " REMOVE worker_id"
+        
+        # SPECIAL CASE: Transition to ASSIGNED from body worker_id
+        if new_status == 'ASSIGNED' and body.get('worker_id'):
+            update_expr += ", worker_id = :w"
+            expr_attr_vals[":w"] = body.get('worker_id')
+
+        try:
+            table.update_item(
+                Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                UpdateExpression=update_expr,
+                ExpressionAttributeNames=expr_attr_names,
+                ExpressionAttributeValues=expr_attr_vals
+            )
             
+            # Also update the Job record if it exists
+            job_id = request_item.get('job_id')
+            if job_id:
+                try:
+                    # Map Request status to Job equivalent
+                    job_status = new_status
+                    if new_status == 'APPROVED':
+                        job_status = 'JOB_CREATED'
+                        
+                    job_update_expr = "SET #stat = :s, updated_at = :now, updated_by = :ub"
+                    job_attr_vals = {":s": job_status, ":now": now, ":ub": updated_by}
+                    
+                    if current_status == 'ASSIGNED' and job_status == 'JOB_CREATED':
+                         job_update_expr += " REMOVE worker_id"
+                    
+                    table.update_item(
+                        Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{request_id}"},
+                        UpdateExpression=job_update_expr,
+                        ExpressionAttributeNames={"#stat": "status"},
+                        ExpressionAttributeValues=job_attr_vals
+                    )
+                except Exception as job_err:
+                    print(f"WARNING: [Req:{request_id}] Failed to update linked job: {job_err}")
+
             # 5. If APPROVED, sync to Google Calendar AND trigger Job creation
             google_event_id = None
             if new_status == 'APPROVED':
@@ -157,7 +239,9 @@ def handler(event, context):
                 "status": new_status,
                 "google_event_id": google_event_id
             }, event)
-        else:
+
+        except Exception as db_err:
+            print(f"ERROR: [Req:{request_id}] DB update failed: {db_err}")
             return internal_error("Failed to update status in database", event)
             
     except Exception as e:

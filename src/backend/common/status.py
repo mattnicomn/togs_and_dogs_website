@@ -10,6 +10,7 @@ class RequestStatus(Enum):
     CANCELLATION_REQUESTED = "CANCELLATION_REQUESTED"
     CANCELLATION_DENIED = "CANCELLATION_DENIED"
     CANCELLED = "CANCELLED"
+    COMPLETED = "COMPLETED"
     ARCHIVED = "ARCHIVED"
 
 class JobStatus(Enum):
@@ -46,6 +47,8 @@ REQUEST_TRANSITIONS = {
         RequestStatus.CANCELLED.value
     ],
     RequestStatus.ASSIGNED.value: [
+        RequestStatus.APPROVED.value, # Allow rollback
+        RequestStatus.COMPLETED.value,
         RequestStatus.ARCHIVED.value,
         RequestStatus.CANCELLED.value,
         RequestStatus.CANCELLATION_REQUESTED.value,
@@ -66,7 +69,13 @@ REQUEST_TRANSITIONS = {
     ],
     RequestStatus.CANCELLED.value: [
         RequestStatus.ARCHIVED.value,
-        RequestStatus.PENDING_REVIEW.value # Allow restoration
+        RequestStatus.PENDING_REVIEW.value, # Allow restoration
+        RequestStatus.APPROVED.value        # Allow direct restoration
+    ],
+    RequestStatus.COMPLETED.value: [
+        RequestStatus.ARCHIVED.value,
+        RequestStatus.ASSIGNED.value,       # Reopen
+        RequestStatus.APPROVED.value        # Reopen to Approved
     ],
     RequestStatus.ARCHIVED.value: [
         RequestStatus.PENDING_REVIEW.value # Allow restoration
@@ -80,13 +89,27 @@ JOB_TRANSITIONS = {
         JobStatus.CANCELLED.value,
         JobStatus.ARCHIVED.value
     ],
+    "APPROVED": [ # Synonym for JOB_CREATED to handle legacy or mismatched status codes
+        JobStatus.ASSIGNED.value,
+        JobStatus.CANCELLED.value,
+        JobStatus.ARCHIVED.value
+    ],
     JobStatus.ASSIGNED.value: [
+        JobStatus.ASSIGNED.value, # Self-transition for re-assignment
+        JobStatus.JOB_CREATED.value, # Rollback to Approved equivalent
         JobStatus.COMPLETED.value,
         JobStatus.CANCELLED.value,
         JobStatus.ARCHIVED.value
     ],
-    JobStatus.COMPLETED.value: [JobStatus.ARCHIVED.value],
-    JobStatus.CANCELLED.value: [JobStatus.ARCHIVED.value],
+    JobStatus.COMPLETED.value: [
+        JobStatus.ASSIGNED.value, # Reopen
+        JobStatus.JOB_CREATED.value, # Reopen to Approved
+        JobStatus.ARCHIVED.value
+    ],
+    JobStatus.CANCELLED.value: [
+        JobStatus.JOB_CREATED.value, # Reopen
+        JobStatus.ARCHIVED.value
+    ],
     JobStatus.ARCHIVED.value: []
 }
 
@@ -97,6 +120,10 @@ def is_valid_transition(entity_type, current_status, new_status):
     """
     # Allow archiving from any state for safety
     if new_status == 'ARCHIVED':
+        return True
+
+    # Allow same-status transitions (idempotency) to handle UI lag or double-clicks
+    if current_status == new_status:
         return True
 
     if entity_type == 'REQUEST':

@@ -22,10 +22,26 @@ def handler(event, context):
         
         job_id = body.get('job_id')
         req_id = body.get('req_id') or body.get('request_id')
+        client_id = body.get('client_id')
         worker_id = body.get('worker_id')
 
-        if not (job_id and req_id and worker_id):
-            return bad_request(f"Missing fields. Got: {list(body.keys())}", event)
+        # Extract user context
+        authorizer = event.get('requestContext', {}).get('authorizer', {})
+        claims = authorizer.get('claims', {})
+        user_email = (claims.get('email') or "").lower().strip()
+        groups = claims.get('cognito:groups', [])
+        is_admin = 'Staff' in groups or 'Admin' in groups or user_email in ['mattnicomn10@gmail.com', 'support@toganddogs.usmissionhero.com']
+        
+        if not is_admin:
+            from common.response import bad_request
+            return bad_request("Administrative access required.", event)
+
+        updated_by = user_email or claims.get('username') or 'admin-api'
+        
+        if not (job_id and req_id and client_id and worker_id):
+            print(f"ERROR: Missing fields. job_id={job_id}, req_id={req_id}, client_id={client_id}, worker_id={worker_id}")
+            from common.response import bad_request
+            return bad_request(f"Missing fields. Required: [job_id, req_id, client_id, worker_id]", event)
 
         # Get current state
         # ROBUSTNESS: Handle case where UI sends REQ ID as JOB ID before sync
@@ -58,16 +74,19 @@ def handler(event, context):
             # 1. Update JOB record
             table.update_item(
                 Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{req_id}"},
-                UpdateExpression="SET #stat = :s, worker_id = :w, assigned_at = :a, audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)",
+                UpdateExpression="SET #stat = :s, worker_id = :w, assigned_at = :a, updated_at = :now, updated_by = :ub, audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)",
                 ExpressionAttributeNames={"#stat": "status"},
                 ExpressionAttributeValues={
                     ":s": new_status,
                     ":w": worker_id,
                     ":a": now,
+                    ":now": now,
+                    ":ub": updated_by,
                     ":n": [{
                         "action": "WORKER_ASSIGNED",
                         "worker_id": worker_id,
-                        "timestamp": now
+                        "timestamp": now,
+                        "updated_by": updated_by
                     }],
                     ":empty_list": []
                 }
@@ -77,11 +96,13 @@ def handler(event, context):
             try:
                 table.update_item(
                     Key={'PK': f"REQ#{req_id}", 'SK': f"CLIENT#{item.get('client_id')}"},
-                    UpdateExpression="SET #stat = :s, worker_id = :w",
+                    UpdateExpression="SET #stat = :s, worker_id = :w, updated_at = :now, updated_by = :ub",
                     ExpressionAttributeNames={"#stat": "status"},
                     ExpressionAttributeValues={
                         ":s": new_status,
-                        ":w": worker_id
+                        ":w": worker_id,
+                        ":now": now,
+                        ":ub": updated_by
                     }
                 )
             except Exception as req_err:
