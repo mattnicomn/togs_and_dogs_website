@@ -28,10 +28,11 @@
 }
 
 .logo {
-  font-size: 1.5rem;
+  font-family: var(--serif);
+  font-size: 1.6rem;
   font-weight: 800;
   color: var(--primary);
-  letter-spacing: -0.05em;
+  letter-spacing: -0.02em;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -39,7 +40,8 @@
 
 .logo::before {
   content: '🐾';
-  font-size: 1.25rem;
+  font-size: 1.4rem;
+  opacity: 0.9;
 }
 
 .main-nav {
@@ -63,14 +65,15 @@
 .nav-cta {
   background: var(--primary);
   color: white !important;
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  box-shadow: 0 4px 10px hsla(173, 80%, 31%, 0.2);
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(194, 139, 30, 0.2);
 }
 
 .nav-cta:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 14px hsla(173, 80%, 31%, 0.3);
+  background: var(--primary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(194, 139, 30, 0.3);
 }
 
 .content-area {
@@ -131,14 +134,14 @@
 
 .usmh-attribution {
   margin-top: 24px;
-  font-size: 0.8rem;
-  opacity: 0.7;
+  font-size: 0.75rem;
+  opacity: 0.5;
   color: var(--text-muted);
 }
 
 .usmh-attribution strong {
-  color: var(--text-main);
-  font-weight: 700;
+  color: var(--text-muted);
+  font-weight: 600;
 }
 
 .footer-bottom {

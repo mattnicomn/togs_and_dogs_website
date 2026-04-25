@@ -196,7 +196,7 @@ const Home = () => {
         }
         .hero {
           padding: 120px 24px;
-          background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-warm) 100%);
+          background: linear-gradient(135deg, #ffffff 0%, var(--page-bg) 100%);
         }
         .hero h1 {
           max-width: 800px;
@@ -204,7 +204,7 @@ const Home = () => {
         }
         .hero-subtext {
           font-size: 1.25rem;
-          color: var(--text-muted);
+          color: var(--text-secondary);
           max-width: 600px;
           margin: 0 auto 40px;
         }
@@ -216,7 +216,7 @@ const Home = () => {
         }
         .trust-row {
           padding: 60px 24px;
-          background: var(--primary);
+          background: #c28b1e;
           color: white;
         }
         .trust-row h3 {
@@ -224,7 +224,7 @@ const Home = () => {
           margin: 16px 0 8px;
         }
         .trust-row p {
-          color: hsla(0, 0%, 100%, 0.8);
+          color: rgba(255, 255, 255, 0.9);
           font-size: 0.95rem;
         }
         .trust-icon {
@@ -249,7 +249,7 @@ const Home = () => {
         .step-number {
           width: 50px;
           height: 50px;
-          background: var(--accent);
+          background: var(--primary);
           color: white;
           border-radius: 50%;
           display: flex;

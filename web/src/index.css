@@ -1,26 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Outfit:wght@100..900&display=swap');
+
 :root {
-  /* Brand Palette - Deep Teal & Warm Earth */
-  --primary: hsl(173, 80%, 31%);
-  --primary-hover: hsl(173, 80%, 25%);
-  --secondary: hsl(226, 71%, 40%);
-  --accent: hsl(24, 90%, 65%); /* Soft Coral */
-  --accent-soft: hsla(24, 90%, 65%, 0.1);
+  /* Brand Palette - Togs & Dogs Official */
+  --primary: #c28b1e; /* Gold */
+  --primary-hover: #f08c3a; /* Orange/Rust */
+  --secondary: #b8a890; /* Warm Tan */
+  --accent: #e17c80; /* Warm Coral */
+  --accent-soft: rgba(225, 124, 128, 0.1);
   
   /* Standardized Theme Tokens - Light Mode */
-  --page-bg: hsl(30, 20%, 98%);
+  --page-bg: #faf7f2; /* Soft Cream */
   --card-bg: #ffffff;
-  --card-bg-muted: hsl(30, 15%, 94%);
-  --text-primary: hsl(210, 30%, 15%);
-  --text-secondary: hsl(210, 15%, 35%);
-  --text-muted: hsl(210, 10%, 55%);
-  --border-color: hsl(210, 10%, 90%);
+  --card-bg-muted: #f3efe8; /* Slightly deeper cream */
+  --text-primary: #3c3c3b; /* Charcoal/Dark Brown */
+  --text-secondary: #5a5a58; 
+  --text-muted: #8a8a86;
+  --border-color: #e2dfd9;
   --accent-color: var(--primary);
   --accent-hover: var(--primary-hover);
   --input-bg: #ffffff;
   --button-bg: var(--primary);
   --button-text: #ffffff;
-  --warning-color: #ef4444;
-  --success-color: #10b981;
+  --warning-color: #d64933; /* Soft Red */
+  --success-color: #4a7c59; /* Muted Green */
 
   /* Mapping old variables for compatibility */
   --bg-warm: var(--page-bg);
@@ -30,28 +32,29 @@
   --text-main: var(--text-primary);
   --text-heading: var(--text-primary);
   --border-soft: var(--border-color);
-  --header-bg: hsla(30, 20%, 98%, 0.9);
+  --header-bg: rgba(250, 247, 242, 0.95);
   
   /* UI Elements */
-  --radius-lg: 32px;
-  --radius-md: 16px;
-  --radius-sm: 8px;
+  --radius-lg: 40px;
+  --radius-md: 20px;
+  --radius-sm: 10px;
   --shadow-soft: 
-    0 10px 25px -5px rgba(0, 0, 0, 0.05),
-    0 8px 10px -6px rgba(0, 0, 0, 0.03);
+    0 12px 30px -5px rgba(60, 60, 59, 0.08),
+    0 8px 15px -6px rgba(60, 60, 59, 0.04);
   --shadow-hover:
-    0 20px 25px -5px rgba(0, 0, 0, 0.08),
-    0 10px 10px -6px rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    0 25px 40px -5px rgba(60, 60, 59, 0.12),
+    0 15px 20px -6px rgba(60, 60, 59, 0.06);
+  --shadow-sm: 0 2px 4px 0 rgba(60, 60, 59, 0.05);
 
   /* Staff Color Palette - Accessible Operational Dispatcher Colors */
-  --staff-ryan: #1e40af;
-  --staff-wife: #0d9488;
-  --staff-nephew1: #d97706;
-  --staff-nephew2: #be185d;
-  --staff-unassigned: #475569;
+  --staff-ryan: #c28b1e;
+  --staff-wife: #4a7c59;
+  --staff-nephew1: #f08c3a;
+  --staff-nephew2: #e17c80;
+  --staff-unassigned: #8a8a86;
 
-  --sans: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  --sans: 'Outfit', system-ui, -apple-system, sans-serif;
+  --serif: 'Lora', serif;
   
   font: 18px/1.6 var(--sans);
   color: var(--text-primary);
@@ -69,29 +72,30 @@
 }
 
 :root.dark {
-  /* Standardized Theme Tokens - Dark Mode */
-  --page-bg: hsl(210, 30%, 8%);
-  --card-bg: hsl(210, 30%, 12%);
-  --card-bg-muted: hsl(210, 30%, 16%);
-  --text-primary: hsl(210, 20%, 98%);
-  --text-secondary: hsl(210, 10%, 75%);
-  --text-muted: hsl(210, 10%, 65%);
-  --border-color: hsla(210, 20%, 100%, 0.1);
-  --accent-color: hsl(173, 70%, 55%);
-  --accent-hover: hsl(173, 70%, 60%);
-  --input-bg: hsl(210, 30%, 14%);
-  --button-bg: var(--accent-color);
-  --button-text: hsl(210, 30%, 8%);
+  /* Dark mode preservation with Togs & Dogs accents */
+  --page-bg: #1a1a19;
+  --card-bg: #242423;
+  --card-bg-muted: #2d2d2c;
+  --text-primary: #f3efe8;
+  --text-secondary: #d2cfc9;
+  --text-muted: #8a8a86;
+  --border-color: rgba(243, 239, 232, 0.1);
+  --accent-color: var(--primary);
+  --accent-hover: var(--primary-hover);
+  --input-bg: #2d2d2c;
+  --button-bg: var(--primary);
+  --button-text: #1a1a19;
   --warning-color: #f87171;
   --success-color: #34d399;
 
   /* Legacy overrides */
   --primary: var(--accent-color);
   --primary-hover: var(--accent-hover);
-  --header-bg: hsla(210, 30%, 8%, 0.9);
+  --header-bg: rgba(26, 26, 25, 0.95);
   
   color-scheme: dark;
 }
+
 
 body {
   margin: 0;
@@ -109,8 +113,9 @@ body {
 }
 
 h1, h2, h3, h4 {
+  font-family: var(--serif);
   color: var(--text-heading);
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   margin: 0;
   line-height: 1.2;
 }
