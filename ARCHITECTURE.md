@@ -4,8 +4,10 @@
 The system follows a serverless, event-driven architecture using AWS native services.
 
 ### 1. Frontend Layer
-- **Public Intake**: Hosted on S3 behind CloudFront. Allows unauthenticated POST requests to the API Gateway.
-- **Admin Dashboard**: Hosted on same CloudFront distribution, protected by **AWS Cognito**. Provides interface for Ryan to approve/decline and assign workers. **Limited to Ryan/Admin only for MVP.**
+- **Operations Portal**: Hosted on `toganddogs.usmissionhero.com`. This is the core application for client intake and admin management.
+- **Branded Portal Gateway**: Entry point at `/` that serves as a professional operations hub.
+- **Public Marketing**: Ryan's main marketing site remains at `toganddogs.com`, linking to the operations portal for booking.
+- **Admin Dashboard**: Protected by **AWS Cognito**. Provides interface for Ryan to approve/decline and assign workers.
 
 ### 2. API & Logic Layer
 - **API Gateway**: Handles HTTP requests.
