@@ -21,16 +21,43 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet }) => {
     return staffPalette[workerId] || staffPalette['Unassigned'];
   };
 
+  // Helper to get start of week (Sunday)
+  const getStartOfWeek = (date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day;
+    return new Date(d.setDate(diff)).toISOString().split('T')[0];
+  };
+
+  const today = new Date().toISOString().split('T')[0];
+  const startOfWeek = getStartOfWeek(new Date());
+
   // Advanced Filtering Logic
   const filteredJobs = items.filter(i => {
-    const isActive = i.entity_type === 'JOB' || i.status === 'APPROVED' || i.status === 'CANCELLATION_REQUESTED' || i.status === 'JOB_CREATED' || i.status === 'ASSIGNED';
+    // Determine if it's an "active" visit that should be on the scheduler
+    const isActive = i.entity_type === 'JOB' || 
+                     ['APPROVED', 'ASSIGNED', 'SCHEDULED', 'JOB_CREATED', 'CANCELLATION_REQUESTED', 'IN_PROGRESS'].includes(i.status);
+    
     if (!isActive) return false;
     
+    // Quick Filters
     const staffMatch = filters.staff === 'ALL' || i.worker_id === filters.staff;
     const statusMatch = filters.status === 'ALL' || i.status === filters.status;
     const serviceMatch = filters.service === 'ALL' || i.service_type === filters.service;
     
-    return staffMatch && statusMatch && serviceMatch;
+    // Date Filtering (Day/Week View)
+    const visitDate = i.start_date; // Assuming start_date is the scheduled date
+    if (!visitDate) return false;
+
+    let dateMatch = true;
+    if (viewMode === 'DAY') {
+      dateMatch = visitDate === today;
+    } else if (viewMode === 'WEEK') {
+      const visitStartOfWeek = getStartOfWeek(visitDate);
+      dateMatch = visitStartOfWeek === startOfWeek;
+    }
+
+    return staffMatch && statusMatch && serviceMatch && dateMatch;
   });
 
   const pendingIntake = items.filter(i => i.status === 'PENDING_REVIEW' || i.status === 'MEET_GREET_REQUIRED');
@@ -45,14 +72,6 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet }) => {
             <button className={viewMode === 'DAY' ? 'active' : ''} onClick={() => setViewMode('DAY')}>Day View</button>
             <button className={viewMode === 'WEEK' ? 'active' : ''} onClick={() => setViewMode('WEEK')}>Week View</button>
           </div>
-        </div>
-        <div className="legend">
-          {Object.entries(staffPalette).map(([name, color]) => (
-            <div key={name} className="legend-item">
-              <span className="dot" style={{ backgroundColor: color }}></span>
-              {name}
-            </div>
-          ))}
         </div>
       </div>
 
@@ -72,8 +91,9 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet }) => {
           <select value={filters.status} onChange={(e) => setFilters({...filters, status: e.target.value})}>
             <option value="ALL">All Statuses</option>
             <option value="APPROVED">Approved</option>
+            <option value="ASSIGNED">Scheduled</option>
+            <option value="IN_PROGRESS">In Progress</option>
             <option value="CANCELLATION_REQUESTED">Cancel Requested</option>
-            <option value="ASSIGNED">Assigned</option>
           </select>
         </div>
         <div className="filter-group">

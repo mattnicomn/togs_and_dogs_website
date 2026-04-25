@@ -89,7 +89,7 @@ def handler(event, context):
             if action == 'ARCHIVE':
                 new_status = 'ARCHIVED'
             elif action == 'DELETE':
-                new_status = 'CANCELLED'
+                new_status = 'DELETED'
             
             if new_status:
                 from datetime import timezone

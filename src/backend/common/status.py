@@ -11,7 +11,9 @@ class RequestStatus(Enum):
     CANCELLATION_DENIED = "CANCELLATION_DENIED"
     CANCELLED = "CANCELLED"
     COMPLETED = "COMPLETED"
+    PROFILE_CREATED = "PROFILE_CREATED"
     ARCHIVED = "ARCHIVED"
+    DELETED = "DELETED"
 
 class JobStatus(Enum):
     JOB_CREATED = "JOB_CREATED"
@@ -19,18 +21,28 @@ class JobStatus(Enum):
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
     ARCHIVED = "ARCHIVED"
+    DELETED = "DELETED"
 
 # Define valid transitions for Request
 REQUEST_TRANSITIONS = {
     RequestStatus.PENDING_REVIEW.value: [
         RequestStatus.MEET_GREET_REQUIRED.value,
         RequestStatus.READY_FOR_APPROVAL.value,
+        RequestStatus.PROFILE_CREATED.value,
         RequestStatus.APPROVED.value,
         RequestStatus.DECLINED.value,
-        RequestStatus.ARCHIVED.value
+        RequestStatus.ARCHIVED.value,
+        RequestStatus.DELETED.value
     ],
     RequestStatus.MEET_GREET_REQUIRED.value: [
         RequestStatus.READY_FOR_APPROVAL.value,
+        RequestStatus.PROFILE_CREATED.value,
+        RequestStatus.DECLINED.value,
+        RequestStatus.ARCHIVED.value
+    ],
+    RequestStatus.PROFILE_CREATED.value: [
+        RequestStatus.READY_FOR_APPROVAL.value,
+        RequestStatus.APPROVED.value,
         RequestStatus.DECLINED.value,
         RequestStatus.ARCHIVED.value
     ],
@@ -78,8 +90,10 @@ REQUEST_TRANSITIONS = {
         RequestStatus.APPROVED.value        # Reopen to Approved
     ],
     RequestStatus.ARCHIVED.value: [
-        RequestStatus.PENDING_REVIEW.value # Allow restoration
-    ]
+        RequestStatus.PENDING_REVIEW.value, # Allow restoration
+        RequestStatus.DELETED.value
+    ],
+    RequestStatus.DELETED.value: []
 }
 
 # Define valid transitions for Job
@@ -110,7 +124,10 @@ JOB_TRANSITIONS = {
         JobStatus.JOB_CREATED.value, # Reopen
         JobStatus.ARCHIVED.value
     ],
-    JobStatus.ARCHIVED.value: []
+    JobStatus.ARCHIVED.value: [
+        JobStatus.DELETED.value
+    ],
+    JobStatus.DELETED.value: []
 }
 
 def is_valid_transition(entity_type, current_status, new_status):

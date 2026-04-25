@@ -17,32 +17,44 @@ const AdminDashboard = () => {
   const [selectedPet, setSelectedPet] = useState(null);
   const [assigningId, setAssigningId] = useState(null); 
   const [modalError, setModalError] = useState(null);
+  const [notification, setNotification] = useState(null);
+
+  const showNotification = (message, type = 'info') => {
+    console.log(`[Notification] ${type.toUpperCase()}: ${message}`);
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 5000);
+  };
   
   const getStatusClass = (status = "") => {
     const s = (status || "").toUpperCase();
-    if (s.includes("NEW") || s.includes("PENDING")) return "status-chip status-chip--new";
-    if (s.includes("READY")) return "status-chip status-chip--ready";
+    if (s.includes("NEW") || s.includes("INTAKE") || s.includes("PENDING")) return "status-chip status-chip--new";
+    if (s.includes("PROFILE_CREATED")) return "status-chip status-chip--profile";
+    if (s.includes("READY") || s.includes("REQUEST")) return "status-chip status-chip--ready";
     if (s.includes("APPROVED")) return "status-chip status-chip--approved";
-    if (s.includes("ASSIGNED")) return "status-chip status-chip--assigned";
-    if (s.includes("JOB_CREATED")) return "status-chip status-chip--job-created";
+    if (s.includes("SCHEDULED") || s.includes("ASSIGNED") || s.includes("JOB_CREATED")) return "status-chip status-chip--assigned";
+    if (s.includes("IN_PROGRESS")) return "status-chip status-chip--progress";
+    if (s.includes("COMPLETED")) return "status-chip status-chip--completed";
     if (s.includes("CANCELLED")) return "status-chip status-chip--cancelled";
     if (s.includes("REJECTED") || s.includes("DECLINED") || s.includes("DENIED")) return "status-chip status-chip--rejected";
-    if (s.includes("ARCHIVE")) return "status-chip status-chip--archived";
+    if (s.includes("ARCHIVE") || s.includes("DELETED")) return "status-chip status-chip--archived";
     return "status-chip status-chip--archived";
   };
 
   const getStatusLabel = (status = "") => {
     const s = (status || "").toUpperCase();
-    if (s === 'PENDING_REVIEW') return "Pending";
+    if (s === 'PENDING_REVIEW') return "Intake";
     if (s === 'MEET_GREET_REQUIRED') return "M&G Required";
-    if (s === 'READY_FOR_APPROVAL') return "Ready";
+    if (s === 'PROFILE_CREATED') return "Profile Created";
+    if (s === 'READY_FOR_APPROVAL') return "New Request";
     if (s === 'APPROVED') return "Approved";
-    if (s === 'ASSIGNED') return "Assigned";
-    if (s === 'JOB_CREATED') return "Job Created";
+    if (s === 'ASSIGNED' || s === 'JOB_CREATED') return "Scheduled";
+    if (s === 'IN_PROGRESS') return "In Progress";
+    if (s === 'COMPLETED') return "Completed";
     if (s === 'CANCELLATION_REQUESTED') return "Cancel Requested";
     if (s === 'CANCELLATION_DENIED') return "Cancel Denied";
     if (s === 'CANCELLED') return "Cancelled";
     if (s === 'ARCHIVED') return "Archived";
+    if (s === 'DELETED') return "Deleted";
     return s || "Unknown";
   };
 
@@ -67,7 +79,10 @@ const AdminDashboard = () => {
 
     switch (status) {
       case 'PENDING_REVIEW':
-        state.actions = ["APPROVE", "CANCEL", "EDIT_PET"];
+        state.actions = ["CREATE_PROFILE", "APPROVE", "CANCEL"];
+        break;
+      case 'PROFILE_CREATED':
+        state.actions = ["MOVE_TO_NEW_REQUEST", "APPROVE", "CANCEL", "EDIT_PET"];
         break;
       case 'MEET_GREET_REQUIRED':
         state.actions = ["VERIFY_MG", "CANCEL", "EDIT_PET"];
@@ -77,20 +92,24 @@ const AdminDashboard = () => {
         break;
       case 'APPROVED':
       case 'JOB_CREATED':
-        state.actions = ["ASSIGN", "CANCEL", "EDIT_PET"];
+        state.actions = ["ASSIGN", "CANCEL", "ARCHIVE", "EDIT_PET"];
         break;
       case 'ASSIGNED':
+      case 'SCHEDULED':
         state.actions = ["CHANGE_WORKER", "REVERT_TO_APPROVED", "COMPLETE", "CANCEL", "EDIT_PET"];
+        break;
+      case 'IN_PROGRESS':
+        state.actions = ["COMPLETE", "CANCEL", "EDIT_PET"];
         break;
       case 'COMPLETED':
         state.actions = ["REOPEN", "ARCHIVE"];
         break;
       case 'CANCELLED':
       case 'DECLINED':
-        state.actions = ["REOPEN_PENDING", "ARCHIVE"];
+        state.actions = ["REOPEN_PENDING", "ARCHIVE", "DELETE"];
         break;
       case 'ARCHIVED':
-        state.actions = ["REOPEN_PENDING"];
+        state.actions = ["REOPEN_PENDING", "DELETE"];
         break;
       default:
         state.actions = ["CANCEL", "ARCHIVE"];
@@ -230,7 +249,7 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       await reviewRequest(reqId, clientId, 'VERIFY_MEET_GREET');
-      alert("Meet & Greet marked as completed!");
+      showNotification("Meet & Greet marked as completed!", "success");
       fetchAllData();
     } catch (err) {
       setModalError("Failed to verify M&G: " + err.message);
@@ -252,10 +271,10 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       await performAdminAction(pk, sk, action);
-      alert(`Success: Record has been ${action.toLowerCase()}d.`);
+      showNotification(`Record successfully ${action.toLowerCase()}d.`, "success");
       fetchAllData();
     } catch (err) {
-      alert("Admin action failed: " + err.message);
+      showNotification("Admin action failed: " + err.message, "error");
     } finally {
       setLoading(false);
     }
@@ -297,7 +316,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const onReviewAction = async (req, action) => {
+  const onReviewAction = async (req, action, note = "") => {
     // Basic mapping for simpler UI buttons
     const statusMap = {
       'APPROVE': 'APPROVED',
@@ -305,13 +324,17 @@ const AdminDashboard = () => {
       'CANCEL': 'CANCELLED',
       'MEET_GREET': 'MEET_GREET_REQUIRED',
       'VERIFY': 'VERIFY_MEET_GREET',
+      'VERIFY_MG': 'VERIFY_MEET_GREET',
       'READY': 'READY_FOR_APPROVAL',
       'DENY_CANCEL': 'CANCELLATION_DENIED',
       'REVERT_TO_APPROVED': 'APPROVED',
       'COMPLETE': 'COMPLETED',
       'REOPEN': 'ASSIGNED',
       'REOPEN_PENDING': 'PENDING_REVIEW',
-      'ARCHIVE': 'ARCHIVED'
+      'ARCHIVE': 'ARCHIVED',
+      'CREATE_PROFILE': 'PROFILE_CREATED',
+      'MOVE_TO_NEW_REQUEST': 'READY_FOR_APPROVAL',
+      'DELETE': 'DELETED'
     };
 
     const { reqId, clientId } = resolveIds(req);
@@ -325,11 +348,11 @@ const AdminDashboard = () => {
       const targetStatus = statusMap[action] || action;
       console.log(`[Admin] Review Action: ${action} -> ${targetStatus} for Req:${reqId} Client:${clientId}`);
       setLoading(true);
-      await reviewRequest(reqId, clientId, targetStatus);
-      // alert(`Success: Status updated to ${targetStatus}`);
+      await reviewRequest(reqId, clientId, targetStatus, note);
+      showNotification(`Status updated to ${getStatusLabel(targetStatus)}`, "success");
       fetchAllData();
     } catch (err) {
-      alert("Action failed: " + err.message);
+      showNotification("Action failed: " + err.message, "error");
       fetchAllData(); // Refresh to sync UI with actual DB state
     } finally {
       setLoading(false);
@@ -396,7 +419,7 @@ const AdminDashboard = () => {
       try {
         setLoading(true);
         const petData = await getPet(item.pet_id, item.client_id);
-        setSelectedPet(petData);
+        setSelectedPet({ ...petData, _originItem: item });
       } catch (err) {
         alert("Failed to load care card: " + err.message);
       } finally {
@@ -409,7 +432,8 @@ const AdminDashboard = () => {
         pet_id: null, // No longer using "NEW" as an unsafe fallback
         client_id: item.client_id,
         meet_and_greet_completed: false,
-        care_instructions: item.pet_info || 'No care instructions on file yet.'
+        care_instructions: item.pet_info || 'No care instructions on file yet.',
+        _originItem: item
       });
     }
   };
@@ -417,12 +441,20 @@ const AdminDashboard = () => {
   const handleUpdatePet = async (updatedPet) => {
     try {
       setLoading(true);
-      const { clientId } = resolveIds(selectedPet || updatedPet);
+      const originItem = selectedPet?._originItem;
+      const { clientId, reqId } = resolveIds(originItem || selectedPet || updatedPet);
       const pid = updatedPet.pet_id || selectedPet?.pet_id || 'NEW';
       
       if (!clientId) throw new Error("Could not resolve Client ID for pet update.");
       
       await updatePet(pid, clientId, updatedPet);
+
+      // Transition workflow if this was an intake record
+      if (pid === 'NEW' && reqId && (originItem?.status === 'PENDING_REVIEW' || !originItem?.status)) {
+        console.log(`[Admin] Transitioning intake to PROFILE_CREATED for req:${reqId}`);
+        await reviewRequest(reqId, clientId, 'PROFILE_CREATED', "Automated: Profile created.");
+      }
+
       setSelectedPet(null);
       fetchAllData();
     } catch (err) {
@@ -468,28 +500,49 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="admin-container">
-      <div className="admin-header-bar card">
+    <div className="admin-page-container">
+      {notification && (
+        <div className={`notification-banner ${notification.type}`}>
+          <span className="msg">{notification.message}</span>
+          <button onClick={() => setNotification(null)}>&times;</button>
+        </div>
+      )}
+      <header className="admin-header-bar card">
         <div className="header-left">
           <h1>Togs & Dogs Admin</h1>
-          <div className="view-selector">
+          <nav className="view-selector">
             <button className={view === 'SCHEDULER' ? 'active' : ''} onClick={() => { setView('SCHEDULER'); setStatusFilter('ALL'); }}>Scheduler</button>
             <button className={view === 'LIST' ? 'active' : ''} onClick={() => setView('LIST')}>Request List</button>
-          </div>
+          </nav>
         </div>
-        <button onClick={handleLogout} className="btn-secondary">Logout</button>
-      </div>
+        <div className="header-right">
+          <button onClick={handleLogout} className="button-secondary">Logout Staff</button>
+        </div>
+      </header>
 
       <div className="admin-layout">
 
         <aside className="admin-sidebar card">
           <div className="filter-group">
+            <h4>Staff Quick View</h4>
+            <div className="staff-legend-box">
+              {['Ryan', 'Wife', 'Nephew1', 'Nephew2', 'Unassigned'].map(name => (
+                <div key={name} className="legend-item">
+                  <span className="dot" style={{ backgroundColor: `var(--staff-${name.toLowerCase()})` }}></span>
+                  <span className="legend-label">{name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="filter-group">
             <h4>Quick Filters</h4>
             {[
-              { id: 'PENDING_REVIEW', label: 'New Requests' },
-              { id: 'READY_FOR_APPROVAL', label: 'Ready' },
+              { id: 'PENDING_REVIEW', label: 'Intake Queue' },
+              { id: 'PROFILE_CREATED', label: 'Profile Created' },
+              { id: 'READY_FOR_APPROVAL', label: 'New Requests' },
               { id: 'APPROVED', label: 'Approved' },
-              { id: 'ASSIGNED', label: 'Assigned / Job Created' },
+              { id: 'ASSIGNED', label: 'Scheduled' },
               { id: 'CANCELLED', label: 'Cancelled' },
               { id: 'ARCHIVED', label: 'Archive' },
               { id: 'ALL', label: 'Snapshot (Scan)' }
@@ -644,7 +697,10 @@ const AdminDashboard = () => {
                                  'COMPLETE': 'Complete',
                                  'REOPEN': 'Reopen',
                                  'REOPEN_PENDING': 'Restore',
-                                 'ARCHIVE': 'Archive'
+                                 'ARCHIVE': 'Archive',
+                                 'CREATE_PROFILE': 'Create Profile',
+                                 'MOVE_TO_NEW_REQUEST': 'To New Request',
+                                 'DELETE': 'Delete'
                                };
                                
                                return (
@@ -658,7 +714,6 @@ const AdminDashboard = () => {
                                );
                              });
                            })()}
-                           <button onClick={() => handleAdminAction(item, 'DELETE')} className="btn-micro urgent">Delete</button>
                         </div>
                       </td>
                     </tr>
@@ -721,6 +776,7 @@ const AdminDashboard = () => {
           pet={selectedPet} 
           onClose={() => setSelectedPet(null)}
           onUpdate={handleUpdatePet}
+          onStatusUpdate={(item, status, note) => onReviewAction(item, status, note)}
         />
       )}
     </div>

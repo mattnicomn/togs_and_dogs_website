@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import '../Portal.css';
 
-const CareCard = ({ pet, onClose, onUpdate }) => {
+const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState(pet._originItem?.status || '');
+  const [statusNote, setStatusNote] = useState('');
   const [formData, setFormData] = useState({ 
     health: {}, 
     document_links: {}, 
@@ -227,6 +229,53 @@ const CareCard = ({ pet, onClose, onUpdate }) => {
                 </div>
               )}
           </section>
+          
+          {pet._originItem && onStatusUpdate && (
+            <section className="card-section admin-status">
+              <h3><span className="icon">⚙️</span> Appointment Status</h3>
+              <div className="content-box">
+                <div className="field">
+                  <label>Update Lifecycle Status</label>
+                  <select 
+                    value={selectedStatus} 
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                    className="status-select-admin"
+                  >
+                    <option value="PENDING_REVIEW">Intake (New)</option>
+                    <option value="PROFILE_CREATED">Profile Created</option>
+                    <option value="READY_FOR_APPROVAL">New Request</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="ASSIGNED">Scheduled</option>
+                    <option value="IN_PROGRESS">In Progress</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="CANCELLED">Cancelled</option>
+                    <option value="ARCHIVED">Archived</option>
+                    <option value="DELETED">Deleted (Soft)</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Note / Reason</label>
+                  <textarea 
+                    rows="2"
+                    value={statusNote}
+                    onChange={(e) => setStatusNote(e.target.value)}
+                    placeholder="Enter reason for change (required for cancellation)..."
+                  />
+                </div>
+                <button 
+                  className="button-primary btn-small" 
+                  style={{ width: '100%', marginTop: '0.5rem' }}
+                  onClick={() => {
+                    onStatusUpdate(pet._originItem, selectedStatus, statusNote);
+                    setStatusNote('');
+                  }}
+                  disabled={selectedStatus === pet._originItem.status && !statusNote}
+                >
+                  Save Status Change
+                </button>
+              </div>
+            </section>
+          )}
         </div>
 
         <footer className="card-footer">
