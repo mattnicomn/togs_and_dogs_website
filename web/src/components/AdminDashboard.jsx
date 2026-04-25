@@ -464,6 +464,44 @@ const AdminDashboard = () => {
     }
   };
 
+  const renderStats = () => {
+    const stats = {
+      intake: requests.filter(r => r.status === 'PENDING_REVIEW').length,
+      unassigned: requests.filter(r => (r.status === 'APPROVED' || r.status === 'JOB_CREATED') && !r.worker_id).length,
+      scheduled: requests.filter(r => r.status === 'ASSIGNED' || r.status === 'SCHEDULED' || (r.status === 'JOB_CREATED' && r.worker_id)).length,
+      alerts: requests.filter(r => r.status === 'CANCELLATION_REQUESTED').length
+    };
+
+    return (
+      <div className="admin-stats-grid">
+        <div className="stat-card" onClick={() => { setView('LIST'); setStatusFilter('PENDING_REVIEW'); }}>
+          <span className="label">Intake Queue</span>
+          <span className="value">{stats.intake}</span>
+          <span className="trend neutral">New registrations</span>
+        </div>
+        <div className="stat-card" onClick={() => { setView('LIST'); setStatusFilter('READY_FOR_APPROVAL'); }}>
+          <span className="label">Needs Assignment</span>
+          <span className="value" style={{ color: stats.unassigned > 0 ? 'var(--warning-color)' : 'inherit' }}>
+            {stats.unassigned}
+          </span>
+          <span className="trend">Approved, no staff</span>
+        </div>
+        <div className="stat-card" onClick={() => { setView('SCHEDULER'); setStatusFilter('ALL'); }}>
+          <span className="label">Scheduled Visits</span>
+          <span className="value">{stats.scheduled}</span>
+          <span className="trend neutral">Total upcoming</span>
+        </div>
+        {stats.alerts > 0 && (
+          <div className="stat-card" style={{ borderColor: 'var(--warning-color)' }} onClick={() => { setView('LIST'); setStatusFilter('ALL'); }}>
+            <span className="label" style={{ color: 'var(--warning-color)' }}>Alerts</span>
+            <span className="value" style={{ color: 'var(--warning-color)' }}>{stats.alerts}</span>
+            <span className="trend up">Cancellation requests</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="section auth-section">
@@ -519,6 +557,8 @@ const AdminDashboard = () => {
           <button onClick={handleLogout} className="button-secondary">Logout Staff</button>
         </div>
       </header>
+
+      {renderStats()}
 
       <div className="admin-layout">
 

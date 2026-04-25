@@ -88,14 +88,17 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
                     rows="3"
                     value={formData.care_instructions || ''} 
                     onChange={(e) => handleInputChange('care_instructions', e.target.value)}
+                    placeholder="Describe any medical needs or regular medications..."
                   />
                 </div>
               ) : (
-                <p><strong>Instructions/Dosage:</strong> {pet.care_instructions || 'N/A'}</p>
+                <div className="info-display">
+                  <p className="prominent-note">{pet.care_instructions || 'No specific care instructions provided.'}</p>
+                </div>
               )}
               
-              <div className="contact-actions">
-                <p><strong>Vet:</strong> {pet.health?.vet_name || 'N/A'}</p>
+              <div className="contact-actions" style={{ marginTop: '16px', borderTop: '1px solid var(--border-soft)', paddingTop: '12px' }}>
+                <p><strong>Primary Vet:</strong> {pet.health?.vet_name || 'Not specified'}</p>
                 {!isEditing && pet.health?.vet_phone && (
                   <a href={`tel:${pet.health.vet_phone}`} className="action-link tel">📞 Call Vet: {pet.health.vet_phone}</a>
                 )}
@@ -103,40 +106,44 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
             </div>
           </section>
 
+          <section className="card-section meet-greet">
+            <h3><span className="icon">🤝</span> Meet & Greet Info</h3>
+            <div className="content-box">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                <span className={`status-chip ${pet.meet_and_greet_completed ? 'status-chip--ready' : 'status-chip--urgent'}`}>
+                  {pet.meet_and_greet_completed ? '✓ Verified' : 'Pending Verification'}
+                </span>
+                <span className="micro-text">Status for {pet.name}</span>
+              </div>
+              <p className="small-text" style={{ color: 'var(--text-secondary)' }}>
+                {pet.meet_and_greet_completed 
+                  ? "Meet & Greet has been completed and verified by Ryan."
+                  : "A Meet & Greet must be scheduled and verified before first service."}
+              </p>
+              {pet.admin_notes && (
+                <div className="admin-note-box" style={{ background: 'var(--bg-muted)', padding: '12px', borderRadius: '8px', marginTop: '12px' }}>
+                  <label className="micro-text">Staff Notes</label>
+                  <p style={{ fontSize: '0.9rem', margin: '4px 0' }}>{pet.admin_notes}</p>
+                </div>
+              )}
+            </div>
+          </section>
+
           <section className="card-section behavior">
-            <h3><span className="icon">🐾</span> Behavior & Triggers</h3>
+            <h3><span className="icon">🐾</span> Behavior & Personality</h3>
             <div className="content-box">
               {isEditing ? (
-                <div className="field-group">
-                  <div className="field">
-                    <label>Behavioral Notes</label>
-                    <textarea 
-                      rows="3"
-                      value={formData.behavior || ''} 
-                      onChange={(e) => handleInputChange('behavior', e.target.value)}
-                    />
-                  </div>
-                  <div className="field-row">
-                    <div className="field">
-                      <label>Vet Name</label>
-                      <input 
-                        type="text" 
-                        value={formData.health?.vet_name || ''} 
-                        onChange={(e) => handleInputChange('health', { ...formData.health, vet_name: e.target.value })}
-                      />
-                    </div>
-                    <div className="field">
-                      <label>Vet Phone</label>
-                      <input 
-                        type="text" 
-                        value={formData.health?.vet_phone || ''} 
-                        onChange={(e) => handleInputChange('health', { ...formData.health, vet_phone: e.target.value })}
-                      />
-                    </div>
-                  </div>
+                <div className="field">
+                  <label>Behavioral Notes & Triggers</label>
+                  <textarea 
+                    rows="3"
+                    value={formData.behavior || ''} 
+                    onChange={(e) => handleInputChange('behavior', e.target.value)}
+                    placeholder="How do they react to other dogs, strangers, or loud noises?"
+                  />
                 </div>
               ) : (
-                <p>{pet.behavior || 'No behavioral notes recorded.'}</p>
+                <p>{pet.behavior || 'No behavioral notes recorded yet.'}</p>
               )}
             </div>
           </section>
@@ -145,40 +152,21 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
             <h3><span className="icon">🔑</span> Access & Logistics</h3>
             <div className="content-box">
               {isEditing ? (
-                <div className="field-group">
-                  <div className="field">
-                    <label>Access & Gate Codes</label>
-                    <textarea 
-                      rows="3"
-                      value={formData.logistics || ''} 
-                      onChange={(e) => handleInputChange('logistics', e.target.value)}
-                    />
-                  </div>
-                  <div className="field-row">
-                    <div className="field">
-                      <label>Emergency Contact</label>
-                      <input 
-                        type="text" 
-                        value={formData.health?.emergency_name || ''} 
-                        onChange={(e) => handleInputChange('health', { ...formData.health, emergency_name: e.target.value })}
-                      />
-                    </div>
-                    <div className="field">
-                      <label>Emergency Phone</label>
-                      <input 
-                        type="text" 
-                        value={formData.health?.emergency_phone || ''} 
-                        onChange={(e) => handleInputChange('health', { ...formData.health, emergency_phone: e.target.value })}
-                      />
-                    </div>
-                  </div>
+                <div className="field">
+                  <label>Key Location / Gate Codes</label>
+                  <textarea 
+                    rows="3"
+                    value={formData.logistics || ''} 
+                    onChange={(e) => handleInputChange('logistics', e.target.value)}
+                    placeholder="Where are the keys? Any gate or door codes?"
+                  />
                 </div>
               ) : (
-                <p>{pet.logistics || 'No specific access notes.'}</p>
+                <p className="prominent-note">{pet.logistics || 'No access instructions provided.'}</p>
               )}
               
-              <div className="contact-actions">
-                <p><strong>Emergency Contact:</strong> {pet.health?.emergency_name || 'N/A'}</p>
+              <div className="contact-actions" style={{ marginTop: '16px', borderTop: '1px solid var(--border-soft)', paddingTop: '12px' }}>
+                <p><strong>Emergency Contact:</strong> {pet.health?.emergency_name || 'Not specified'}</p>
                 {!isEditing && pet.health?.emergency_phone && (
                   <a href={`tel:${pet.health.emergency_phone}`} className="action-link tel">📞 Call Emergency: {pet.health.emergency_phone}</a>
                 )}
