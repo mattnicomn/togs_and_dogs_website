@@ -20,7 +20,6 @@ const AdminDashboard = () => {
   const [notification, setNotification] = useState(null);
 
   const showNotification = (message, type = 'info') => {
-    console.log(`[Notification] ${type.toUpperCase()}: ${message}`);
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 5000);
   };
@@ -348,7 +347,6 @@ const AdminDashboard = () => {
     
     try {
       const targetStatus = statusMap[action] || action;
-      console.log(`[Admin] Review Action: ${action} -> ${targetStatus} for Req:${reqId} Client:${clientId}`);
       setLoading(true);
       await reviewRequest(reqId, clientId, targetStatus, note);
       showNotification(`Status updated to ${getStatusLabel(targetStatus)}`, "success");
@@ -454,7 +452,6 @@ const AdminDashboard = () => {
       // Transition workflow if this was an intake record
       const intakeStatuses = ['PENDING_REVIEW', 'MEET_GREET_REQUIRED'];
       if (pid === 'NEW' && reqId && (!originItem?.status || intakeStatuses.includes(originItem.status))) {
-        console.log(`[Admin] Transitioning intake to PROFILE_CREATED for req:${reqId}`);
         await reviewRequest(reqId, clientId, 'PROFILE_CREATED', "Automated: Profile created.");
       }
 
