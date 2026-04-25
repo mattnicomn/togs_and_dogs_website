@@ -11,8 +11,21 @@
 - **API Endpoint**: `https://a022yxuiue.execute-api.us-east-1.amazonaws.com/prod`
 - **Backend Deployment**: Automated Terraform packaging (`backend.zip`) updating 8 Lambda handlers:
   - `intake`, `admin`, `review`, `assign`, `job`, `google-auth`, `pet`, `cancellation`.
+- **Validation Suite**: Integrated new production verification scripts in `infra/prod/` (e.g., `validate_ui_final.ps1`) for automated post-deployment health checks.
 
 ## 2. Feature & Fix Summary
+
+### Admin UI/UX Remediation
+- **Theme Standardization**: Implemented a global design system using standardized CSS variables for light/dark mode parity.
+- **Contrast & Readability**: Resolved "light mode" visibility issues by ensuring high-contrast typography and consistent card backgrounds.
+- **Layout Container**: Enforced a centered max-width container for the Admin Dashboard to prevent content stretching on ultra-wide displays.
+- **Sidebar Legend**: Moved staff labels into a dedicated "Staff Quick View" in the sidebar, cleaning up the scheduler header.
+- **Component Polish**: Redesigned timeline and intake cards for better visual hierarchy and status visibility.
+
+### Brand Refresh (Public Site)
+- **Marketing Homepage**: Full redesign of the public-facing homepage with modern typography (Outfit/Inter) and premium layouts.
+- **Services & About Pages**: Deployed new stylized content pages for business services and company background.
+- **Premium Intake Form**: Updated the public booking form with the new design system, improving conversion potential and user experience.
 
 ### Workflow & Lifecycle
 - **Status Normalization**: Standardized all status codes (`PENDING_REVIEW` to `DELETED`) and UI labels across the platform.
