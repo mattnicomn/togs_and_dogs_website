@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import Home from './components/Home';
+import PortalGateway from './components/PortalGateway';
 import About from './components/About';
 import Services from './components/Services';
 import IntakeForm from './components/IntakeForm';
@@ -19,11 +19,9 @@ function App() {
               <div className="logo">Togs & Dogs</div>
             </Link>
             <nav className="main-nav">
-              <Link to="/" className="nav-link">Home</Link>
-              <Link to="/services" className="nav-link">Services</Link>
-              <Link to="/about" className="nav-link">About</Link>
-              <Link to="/my-bookings" className="nav-link">Client Portal</Link>
-              <Link to="/book" className="nav-link nav-cta">Book Now</Link>
+              <Link to="/" className="nav-link">Portal</Link>
+              <Link to="/my-bookings" className="nav-link">My Bookings</Link>
+              <Link to="/book" className="nav-link nav-cta">Request Care</Link>
               <ThemeToggle />
             </nav>
           </div>
@@ -31,7 +29,7 @@ function App() {
 
         <main className="content-area">
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<PortalGateway />} />
             <Route path="/about" element={<About />} />
             <Route path="/services" element={<Services />} />
             <Route path="/book" element={<IntakeForm />} />
@@ -43,7 +41,7 @@ function App() {
                 <div className="container">
                   <h2>404 - Page Not Found</h2>
                   <p>We couldn't find the page you're looking for.</p>
-                  <Link to="/" className="button-primary" style={{ marginTop: '24px' }}>Back to Home</Link>
+                  <Link to="/" className="button-primary" style={{ marginTop: '24px' }}>Back to Portal</Link>
                 </div>
               </div>
             } />
@@ -59,19 +57,21 @@ function App() {
                 <span className="badge">Pet Tech CPR Certified</span>
                 <span className="badge">First-Aid Trained</span>
               </div>
+              <div className="usmh-attribution" style={{ marginTop: '24px', fontSize: '0.8rem', opacity: 0.7 }}>
+                Powered by <strong>US Mission Hero</strong>
+              </div>
             </div>
             <div className="footer-links">
-              <h4>Services</h4>
-              <Link to="/services">Dog Walking</Link>
-              <Link to="/services">Pet Sitting</Link>
-              <Link to="/services">Overnight Care</Link>
+              <h4>Portal</h4>
+              <Link to="/my-bookings">Client Login</Link>
+              <Link to="/book">Request Care</Link>
+              <Link to="/admin">Staff Portal</Link>
             </div>
             <div className="footer-links">
-              <h4>Company</h4>
+              <h4>External</h4>
+              <a href="https://toganddogs.com">Main Website</a>
               <Link to="/about">About Us</Link>
-              <Link to="/">Reviews</Link>
-              <Link to="/my-bookings">Client Portal</Link>
-              <Link to="/admin" style={{ marginTop: '12px', fontSize: '0.8rem', opacity: 0.6 }}>Staff Portal</Link>
+              <Link to="/services">Services List</Link>
             </div>
 
           </div>
