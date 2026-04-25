@@ -60,7 +60,7 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet }) => {
     return staffMatch && statusMatch && serviceMatch && dateMatch;
   });
 
-  const pendingIntake = items.filter(i => i.status === 'PENDING_REVIEW' || i.status === 'MEET_GREET_REQUIRED');
+  const pendingIntake = items.filter(i => ['PENDING_REVIEW', 'MEET_GREET_REQUIRED', 'PROFILE_CREATED', 'READY_FOR_APPROVAL'].includes(i.status));
   const pendingChanges = items.filter(i => i.status === 'CANCELLATION_REQUESTED');
 
   return (

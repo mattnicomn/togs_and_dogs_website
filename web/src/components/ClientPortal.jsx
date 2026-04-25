@@ -98,27 +98,28 @@ const ClientPortal = () => {
           }
         }}>
           <div className="field" style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>Email Address</label>
+            <label>Email Address</label>
             <input 
               type="email" 
               placeholder="alex@example.com" 
               value={loginData.email} 
               onChange={e => setLoginData({...loginData, email: e.target.value})} 
               required 
-              style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+              autoComplete="email"
             />
           </div>
           <div className="field" style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>Password</label>
+            <label>Password</label>
             <input 
               type="password" 
               placeholder="••••••••" 
               value={loginData.password} 
               onChange={e => setLoginData({...loginData, password: e.target.value})} 
               required 
-              style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+              autoComplete="current-password"
             />
           </div>
+
           <button type="submit" className="button-primary" style={{ width: '100%', padding: '14px' }} disabled={loading}>
             {loading ? 'Signing in...' : 'Sign In'}
           </button>

@@ -79,10 +79,10 @@ const AdminDashboard = () => {
 
     switch (status) {
       case 'PENDING_REVIEW':
-        state.actions = ["CREATE_PROFILE", "APPROVE", "CANCEL"];
+        state.actions = ["CREATE_PROFILE", "VERIFY_MG", "APPROVE", "CANCEL"];
         break;
       case 'PROFILE_CREATED':
-        state.actions = ["MOVE_TO_NEW_REQUEST", "APPROVE", "CANCEL", "EDIT_PET"];
+        state.actions = ["MOVE_TO_NEW_REQUEST", "VERIFY_MG", "APPROVE", "CANCEL", "EDIT_PET"];
         break;
       case 'MEET_GREET_REQUIRED':
         state.actions = ["VERIFY_MG", "CANCEL", "EDIT_PET"];
@@ -106,7 +106,9 @@ const AdminDashboard = () => {
         break;
       case 'CANCELLED':
       case 'DECLINED':
+      case 'DELETED':
         state.actions = ["REOPEN_PENDING", "ARCHIVE", "DELETE"];
+        if (status === 'DELETED') state.actions = ["REOPEN_PENDING", "ARCHIVE"]; 
         break;
       case 'ARCHIVED':
         state.actions = ["REOPEN_PENDING", "DELETE"];
@@ -450,7 +452,8 @@ const AdminDashboard = () => {
       await updatePet(pid, clientId, updatedPet);
 
       // Transition workflow if this was an intake record
-      if (pid === 'NEW' && reqId && (originItem?.status === 'PENDING_REVIEW' || !originItem?.status)) {
+      const intakeStatuses = ['PENDING_REVIEW', 'MEET_GREET_REQUIRED'];
+      if (pid === 'NEW' && reqId && (!originItem?.status || intakeStatuses.includes(originItem.status))) {
         console.log(`[Admin] Transitioning intake to PROFILE_CREATED for req:${reqId}`);
         await reviewRequest(reqId, clientId, 'PROFILE_CREATED', "Automated: Profile created.");
       }

@@ -31,6 +31,7 @@ REQUEST_TRANSITIONS = {
         RequestStatus.PROFILE_CREATED.value,
         RequestStatus.APPROVED.value,
         RequestStatus.DECLINED.value,
+        RequestStatus.CANCELLED.value,
         RequestStatus.ARCHIVED.value,
         RequestStatus.DELETED.value
     ],
@@ -44,6 +45,7 @@ REQUEST_TRANSITIONS = {
         RequestStatus.READY_FOR_APPROVAL.value,
         RequestStatus.APPROVED.value,
         RequestStatus.DECLINED.value,
+        RequestStatus.CANCELLED.value,
         RequestStatus.ARCHIVED.value
     ],
     RequestStatus.READY_FOR_APPROVAL.value: [
@@ -93,7 +95,9 @@ REQUEST_TRANSITIONS = {
         RequestStatus.PENDING_REVIEW.value, # Allow restoration
         RequestStatus.DELETED.value
     ],
-    RequestStatus.DELETED.value: []
+    RequestStatus.DELETED.value: [
+        RequestStatus.PENDING_REVIEW.value # Allow restoration
+    ]
 }
 
 # Define valid transitions for Job
@@ -135,8 +139,8 @@ def is_valid_transition(entity_type, current_status, new_status):
     Validates if a status transition is allowed.
     entity_type: 'REQUEST' or 'JOB'
     """
-    # Allow archiving from any state for safety
-    if new_status == 'ARCHIVED':
+    # Allow archiving or soft-deleting from any state for safety
+    if new_status in ['ARCHIVED', 'DELETED']:
         return True
 
     # Allow same-status transitions (idempotency) to handle UI lag or double-clicks

@@ -2,80 +2,85 @@
 
 /* Client Portal */
 .client-portal {
-  max-width: 800px;
+  max-width: 900px;
   margin: 0 auto;
-  padding: 40px 20px;
+  padding: 80px 24px;
 }
 
 .portal-header {
-  margin-bottom: 40px;
-  text-align: center;
+  margin-bottom: 60px;
+  text-align: left;
 }
 
 .portal-header h1 {
-  font-size: 2.5rem;
+  font-size: 3rem;
   font-weight: 800;
-  margin-bottom: 8px;
-  background: linear-gradient(135deg, var(--primary), #f97316);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  margin-bottom: 12px;
+  color: var(--text-heading);
+}
+
+.portal-header p {
+  font-size: 1.1rem;
+  color: var(--text-muted);
 }
 
 .bookings-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .booking-card {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24px;
+  padding: 32px;
   background: white;
-  border-radius: 20px;
-  box-shadow: var(--shadow-sm);
-  border-left: 6px solid var(--primary);
-  transition: transform 0.2s ease;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--border-soft);
+  border-left: 8px solid var(--primary);
+  transition: all 0.3s ease;
 }
 
 .booking-card:hover {
-  transform: translateX(4px);
-  box-shadow: var(--shadow-md);
+  transform: translateX(8px);
+  box-shadow: var(--shadow-hover);
 }
 
 .booking-left {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .booking-date {
   font-weight: 800;
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   color: var(--text-heading);
+  letter-spacing: -0.02em;
 }
 
 .booking-type {
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   color: var(--primary);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
 }
 
 .booking-status .badge {
-  padding: 6px 16px;
+  padding: 8px 20px;
   border-radius: 99px;
-  font-size: 0.75rem;
-  font-weight: 800;
+  font-size: 0.85rem;
+  font-weight: 700;
   text-transform: uppercase;
   background: var(--bg-muted);
 }
 
 .badge.APPROVED, .badge.ASSIGNED {
-  background: #dcfce7;
-  color: #166534;
+  background: hsla(173, 80%, 31%, 0.1);
+  color: var(--primary);
 }
 
 .badge.CANCELLATION_REQUESTED {
@@ -84,23 +89,24 @@
 }
 
 .btn-cancel {
-  background: #fee2e2;
-  color: #991b1b;
+  background: #fef2f2;
+  color: #b91c1c;
   border: none;
-  padding: 10px 20px;
-  border-radius: 12px;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
+  font-size: 0.9rem;
 }
 
 .btn-cancel:hover {
-  background: #fecaca;
-  transform: scale(1.02);
+  background: #fee2e2;
+  transform: translateY(-2px);
 }
 
 .pending-msg {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-style: italic;
   color: var(--text-muted);
   font-weight: 600;
@@ -127,9 +133,9 @@
   max-width: 900px;
   max-height: 90vh;
   overflow-y: auto;
-  background: white;
-  border-radius: 32px;
-  padding: 40px;
+  background: var(--bg-surface);
+  border-radius: 40px;
+  padding: 48px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   position: relative;
   animation: modalEnter 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -144,85 +150,79 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 32px;
-  border-bottom: 1px solid var(--border-soft);
-  padding-bottom: 24px;
+  margin-bottom: 40px;
+  border-bottom: 2px solid var(--border-soft);
+  padding-bottom: 32px;
 }
 
 .pet-identity {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 32px;
 }
 
 .pet-identity.editing {
   flex-direction: column;
   align-items: flex-start;
   width: 80%;
-  gap: 16px;
+  gap: 24px;
 }
 
 .pet-avatar-large {
-  width: 100px;
-  height: 100px;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
   object-fit: cover;
   border: 4px solid var(--primary);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-soft);
 }
 
 .pet-placeholder-large {
-  width: 100px;
-  height: 100px;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary), #f97316);
+  background: var(--primary);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2.5rem;
+  font-size: 3rem;
   font-weight: 800;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-soft);
 }
 
 .card-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 32px;
+  gap: 40px;
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
 }
 
 .card-section h3 {
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-muted);
+  letter-spacing: 0.12em;
+  color: var(--text-heading);
   font-weight: 800;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .content-box {
-  background: var(--bg-muted);
-  padding: 24px;
-  border-radius: 20px;
-  border: 1px solid var(--border-soft);
-}
-
-.content-box textarea {
-  width: 100%;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid var(--border-soft);
-  font-family: inherit;
-  font-size: 0.95rem;
+  background: var(--bg-warm);
+  padding: 32px;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border-soft);
 }
 
 .card-footer {
-  margin-top: 40px;
-  padding-top: 32px;
-  border-top: 1px solid var(--border-soft);
+  margin-top: 48px;
+  padding-top: 40px;
+  border-top: 2px solid var(--border-soft);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -230,16 +230,17 @@
 
 .footer-actions {
   display: flex;
-  gap: 16px;
+  gap: 20px;
 }
 
 .badge-pill {
-  padding: 8px 20px;
+  padding: 10px 24px;
   border-radius: 99px;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-weight: 800;
   text-transform: uppercase;
 }
 
-.badge-pill.success { background: #dcfce7; color: #166534; }
-.badge-pill.warning { background: #fef2f2; color: #991b1b; }
+.badge-pill.success { background: hsla(173, 80%, 31%, 0.1); color: var(--primary); }
+.badge-pill.warning { background: #fef2f2; color: #b91c1c; }
+
