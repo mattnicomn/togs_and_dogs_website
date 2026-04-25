@@ -23,7 +23,7 @@
 }
 
 .gateway-logo {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--sans);
   font-size: 2.5rem;
   font-weight: 800;
   color: var(--primary);

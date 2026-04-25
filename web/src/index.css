@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Outfit:wght@100..900&display=swap');
+/* System Font Stacks - Privacy & Performance Optimized */
 
 :root {
   /* Brand Palette - Togs & Dogs Official */
@@ -53,8 +53,8 @@
   --staff-nephew2: #e17c80;
   --staff-unassigned: #8a8a86;
 
-  --sans: 'Outfit', system-ui, -apple-system, sans-serif;
-  --serif: 'Lora', serif;
+  --sans: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --serif: Georgia, "Times New Roman", serif;
   
   font: 18px/1.6 var(--sans);
   color: var(--text-primary);
