@@ -18,6 +18,10 @@ const AdminDashboard = () => {
   const [assigningId, setAssigningId] = useState(null); 
   const [modalError, setModalError] = useState(null);
   const [notification, setNotification] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkAction, setBulkAction] = useState('');
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [bulkConfirmModal, setBulkConfirmModal] = useState(null);
 
   const showNotification = (message, type = 'info') => {
     setNotification({ message, type });
@@ -171,6 +175,7 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       setRequests([]); // Clear previous results to prevent stale data flash
+      setSelectedIds([]); // Reset selection on fresh fetch
       if (view === 'SCHEDULER') {
         const data = await getAdminRequests('ALL');
         // Exclude archived from the scheduler timeline
@@ -198,6 +203,58 @@ const AdminDashboard = () => {
       fetchAllData();
     }
   }, [view, statusFilter, timeframeFilter, isAuthenticated]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === requests.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(requests.map(r => r.PK));
+    }
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkUpdate = async () => {
+    if (!bulkAction || selectedIds.length === 0) return;
+    
+    setIsBulkUpdating(true);
+    const results = { success: 0, failed: 0 };
+    
+    const selectedRequests = requests.filter(r => selectedIds.includes(r.PK));
+    
+    const updates = selectedRequests.map(async (req) => {
+      const { reqId, clientId } = resolveIds(req);
+      if (!reqId || !clientId) throw new Error("Missing IDs");
+      return reviewRequest(reqId, clientId, bulkAction, `Bulk update: ${bulkAction}`);
+    });
+
+    try {
+      const settled = await Promise.allSettled(updates);
+      settled.forEach(res => {
+        if (res.status === 'fulfilled') results.success++;
+        else results.failed++;
+      });
+
+      if (results.failed > 0) {
+        showNotification(`Bulk update partial: ${results.success} success, ${results.failed} failed.`, "error");
+      } else {
+        showNotification(`Successfully updated ${results.success} records to ${getStatusLabel(bulkAction)}.`, "success");
+      }
+      
+      setSelectedIds([]);
+      setBulkAction('');
+      setBulkConfirmModal(null);
+      fetchAllData();
+    } catch (err) {
+      showNotification("Bulk update failed: " + err.message, "error");
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
 
   const resolveIds = (item) => {
     if (!item) return { reqId: null, clientId: null, jobId: null };
@@ -265,7 +322,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleAdminAction = async (item, action) => {
+  const _handleAdminAction = async (item, action) => {
     // Ensuring visibility and automation support by providing direct feedback instead of blocking confirmation
     const pk = item.PK || (item.request_id ? `REQ#${item.request_id}` : null);
     const sk = item.SK || (item.client_id ? `CLIENT#${item.client_id}` : null);
@@ -304,7 +361,7 @@ const AdminDashboard = () => {
     try {
       const data = await getGoogleStatus();
       setGoogleStatus(data.status || 'NOT_CONNECTED');
-    } catch (err) {
+    } catch {
       setGoogleStatus('NOT_CONNECTED');
     }
   };
@@ -649,9 +706,57 @@ const AdminDashboard = () => {
             />
           ) : (
             <div className="list-view-container card">
+              {selectedIds.length > 0 && (
+                <div className="bulk-toolbar">
+                  <div className="bulk-info">
+                    <span className="count">{selectedIds.length}</span>
+                    <span>visits selected</span>
+                  </div>
+                  <div className="bulk-actions">
+                    <select 
+                      value={bulkAction} 
+                      onChange={(e) => setBulkAction(e.target.value)}
+                      disabled={isBulkUpdating}
+                      className="staff-select bulk-select"
+                    >
+                      <option value="">Choose status...</option>
+                      <option value="PENDING_REVIEW">Requested / Intake</option>
+                      <option value="READY_FOR_APPROVAL">New Request</option>
+                      <option value="APPROVED">Approved</option>
+                      <option value="ASSIGNED">Scheduled</option>
+                      <option value="IN_PROGRESS">In Progress</option>
+                      <option value="COMPLETED">Completed</option>
+                      <option value="CANCELLED">Cancelled</option>
+                      <option value="ARCHIVED">Archived</option>
+                    </select>
+                    <button 
+                      onClick={() => setBulkConfirmModal({ count: selectedIds.length, target: bulkAction })}
+                      className="button-primary"
+                      disabled={!bulkAction || isBulkUpdating}
+                    >
+                      {isBulkUpdating ? 'Applying...' : 'Apply Bulk Update'}
+                    </button>
+                    <button 
+                      onClick={() => setSelectedIds([])}
+                      className="button-secondary"
+                      disabled={isBulkUpdating}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
               <table className="request-table">
                 <thead>
                   <tr>
+                    <th style={{ width: '40px' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={requests.length > 0 && selectedIds.length === requests.length}
+                        onChange={toggleSelectAll}
+                        disabled={requests.length === 0}
+                      />
+                    </th>
                     <th>Customer / Service</th>
                     <th>Dates / Window</th>
                     <th>Status</th>
@@ -661,7 +766,14 @@ const AdminDashboard = () => {
                 </thead>
                 <tbody>
                   {requests.map(item => (
-                    <tr key={item.PK}>
+                    <tr key={item.PK} className={selectedIds.includes(item.PK) ? 'selected-row' : ''}>
+                      <td>
+                        <input 
+                          type="checkbox" 
+                          checked={selectedIds.includes(item.PK)}
+                          onChange={() => toggleSelectOne(item.PK)}
+                        />
+                      </td>
                       <td onClick={() => handleSelectPet(item)} className="clickable-cell">
                         <div className="info-stack">
                           <span className="bold">{item.pet_names || item.pet_name || '---'} ({item.client_name})</span>
@@ -825,6 +937,46 @@ const AdminDashboard = () => {
           onUpdate={handleUpdatePet}
           onStatusUpdate={(item, status, note) => onReviewAction(item, status, note)}
         />
+      )}
+
+      {bulkConfirmModal && (
+        <div className="modal-overlay">
+          <div className="modal-content bulk-confirm-modal">
+            <div className="modal-header">
+              <h2>Confirm Bulk Update</h2>
+              <p>You are about to update <strong>{bulkConfirmModal.count}</strong> selected records.</p>
+            </div>
+            
+            <div className="bulk-confirm-details">
+              <p>Target Status: <span className="highlight-status">{getStatusLabel(bulkConfirmModal.target)}</span></p>
+              <div className="safety-notice">
+                <p>● This action will update only the currently selected visible records.</p>
+                {bulkConfirmModal.target === 'ARCHIVED' ? (
+                  <p>● This uses archive/soft-delete behavior. Records can be restored from the Archived view.</p>
+                ) : (
+                  <p>● Records will be moved to the {getStatusLabel(bulkConfirmModal.target)} workflow phase.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button 
+                className="button-secondary" 
+                onClick={() => setBulkConfirmModal(null)}
+                disabled={isBulkUpdating}
+              >
+                Cancel
+              </button>
+              <button 
+                className="button-primary" 
+                onClick={handleBulkUpdate}
+                disabled={isBulkUpdating}
+              >
+                {isBulkUpdating ? 'Updating...' : 'Confirm & Apply'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
