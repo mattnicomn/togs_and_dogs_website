@@ -29,7 +29,19 @@ As requested, a "Permanent Delete" capability is recommended for a future releas
 - **Retention Policy**: Recommend a 30-90 day soft-delete period before records become eligible for permanent removal.
 - **Implementation**: Prefer a dedicated backend hard-delete endpoint or a periodic cleanup Lambda.
 
-## Repository Details
+## Deployment Details
+- **Production URL**: [https://toganddogs.usmissionhero.com/admin](https://toganddogs.usmissionhero.com/admin)
+- **Backend Deployment**: Successfully updated 8 Lambda functions via `terraform apply` in `infra/prod/`.
+- **Frontend Deployment**: S3 sync completed to `togs-and-dogs-prod-toganddogs-hosting`.
+- **CloudFront Distribution**: `E35L00QPA2IRCY`
+- **CloudFront Invalidation ID**: `I10KR2SK3D6IOX3U8CK1QMF7N9`
+- **CloudFront Invalidation Status**: Completed
+- **Build Validation**: Success (Vite production build)
 - **Correction Commit Hash**: `81c7836`
-- **Deployment URL**: [https://toganddogs.usmissionhero.com/admin](https://toganddogs.usmissionhero.com/admin)
-- **Status**: Deployment Pending Manual Validation
+- **Release Note Commit Hash**: `b6a35fe`
+
+## Final Production Validation Results
+- **DAY Dispatcher Timeline Flow**: Successfully verified that changing lifecycle status (Deleted, Archived, Completed, Cancelled) now reliably persists to the backend and removes records from the active timeline.
+- **Persistence Verification**: Confirmed that reopening a record immediately after save shows the updated status in the dropdown (no "reset to Intake" behavior).
+- **Bulk Workflow Actions**: Verified that bulk actions continue to function as expected.
+- **Regression Check**: Confirmed that active statuses remain visible in the timeline and the intake queue processing is unaffected.
