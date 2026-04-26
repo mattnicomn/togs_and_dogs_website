@@ -3,7 +3,7 @@ import '../Portal.css';
 
 const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState(pet._originItem?.status || '');
+  const [selectedStatus, setSelectedStatus] = useState((pet._originItem?.status || '').toUpperCase());
   const [statusNote, setStatusNote] = useState('');
   const [formData, setFormData] = useState({ 
     health: {}, 
@@ -20,6 +20,13 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
   const handleSave = () => {
     // Ensure nested objects are sent back
     onUpdate(formData);
+
+    // If status was changed in the dropdown but the user clicked the main Save button, 
+    // trigger the status update as well to meet user expectations.
+    if (pet._originItem && onStatusUpdate && selectedStatus !== pet._originItem.status) {
+      onStatusUpdate(pet._originItem, selectedStatus, statusNote || "Status updated via record edit.");
+    }
+
     setIsEditing(false);
   };
 

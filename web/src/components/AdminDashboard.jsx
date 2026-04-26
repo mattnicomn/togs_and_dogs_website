@@ -196,8 +196,9 @@ const AdminDashboard = () => {
       setSelectedIds([]); // Reset selection on fresh fetch
       if (view === 'SCHEDULER') {
         const data = await getAdminRequests('ALL');
-        // Exclude archived from the scheduler timeline
-        setRequests((data.requests || []).filter(r => r.status !== 'ARCHIVED'));
+        // Exclude lifecycle/removal statuses from the scheduler timeline to prevent stale display
+        const terminalStatuses = ['ARCHIVED', 'DELETED'];
+        setRequests((data.requests || []).filter(r => !terminalStatuses.includes((r.status || '').toUpperCase())));
       } else {
         // Handle filter mapping
         let queryStatus = statusFilter;
@@ -431,7 +432,15 @@ const AdminDashboard = () => {
       setLoading(true);
       await reviewRequest(reqId, clientId, targetStatus, note);
       showNotification(`Status updated to ${getStatusLabel(targetStatus)}`, "success");
+      
+      // Reconcile local state: Close modal if open for this item
+      if (selectedPet?._originItem?.PK === req.PK) {
+        setSelectedPet(null);
+      }
+      
+      // Refresh data to sync UI
       fetchAllData();
+      setSelectedIds([]); // Clear bulk selection after individual action to be safe
     } catch (err) {
       showNotification("Action failed: " + err.message, "error");
       fetchAllData(); // Refresh to sync UI with actual DB state

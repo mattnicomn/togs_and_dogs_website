@@ -34,11 +34,17 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet }) => {
 
   // Advanced Filtering Logic
   const filteredJobs = items.filter(i => {
-    // Determine if it's an "active" visit that should be on the scheduler
-    const isActive = i.entity_type === 'JOB' || 
-                     ['APPROVED', 'ASSIGNED', 'SCHEDULED', 'JOB_CREATED', 'CANCELLATION_REQUESTED', 'IN_PROGRESS'].includes(i.status);
+    const status = (i.status || "").toUpperCase();
+    const terminalStatuses = ['ARCHIVED', 'DELETED', 'COMPLETED', 'CANCELLED', 'DECLINED'];
     
-    if (!isActive) return false;
+    // Determine if it's an "active" visit that should be on the scheduler
+    // Must be a JOB or an active workflow status, AND must NOT be a terminal lifecycle status
+    const isWorkflowActive = i.entity_type === 'JOB' || 
+                     ['APPROVED', 'ASSIGNED', 'SCHEDULED', 'JOB_CREATED', 'CANCELLATION_REQUESTED', 'IN_PROGRESS'].includes(status);
+    
+    const isLifecycleActive = !terminalStatuses.includes(status);
+    
+    if (!isWorkflowActive || !isLifecycleActive) return false;
     
     // Quick Filters
     const staffMatch = filters.staff === 'ALL' || i.worker_id === filters.staff;
