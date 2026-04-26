@@ -628,7 +628,7 @@ const AdminDashboard = () => {
       )}
       <header className="admin-header-bar card">
         <div className="header-left">
-          <h1>Togs & Dogs Admin</h1>
+          <h1>Tog&Dogs Admin</h1>
           <nav className="view-selector">
             <button className={view === 'SCHEDULER' ? 'active' : ''} onClick={() => { setView('SCHEDULER'); setStatusFilter('ALL'); }}>Scheduler</button>
             <button className={view === 'LIST' ? 'active' : ''} onClick={() => setView('LIST')}>Request List</button>

@@ -1,10 +1,10 @@
 /**
- * Centralized site content for Togs & Dogs.
+ * Centralized site content for Tog and Dogs.
  * Edit this file to update services, pricing, testimonials, and service areas.
  */
 
 export const siteContent = {
-  brandName: "Togs & Dogs",
+  brandName: "Tog and Dogs",
   contactEmail: "hello@toganddogs.com",
   contactPhone: "(555) 123-4567",
 

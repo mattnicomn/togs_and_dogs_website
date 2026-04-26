@@ -16,7 +16,7 @@ function App() {
         <header className="main-header">
           <div className="header-content">
             <Link to="/" className="logo-link">
-              <div className="logo">Togs & Dogs</div>
+              <div className="logo">Tog&Dogs</div>
             </Link>
             <nav className="main-nav">
               <Link to="/" className="nav-link">Portal</Link>
@@ -51,7 +51,7 @@ function App() {
         <footer className="main-footer">
           <div className="footer-content">
             <div className="footer-brand">
-              <div className="logo">Togs & Dogs</div>
+              <div className="logo">Tog&Dogs</div>
               <p>Premium, local pet care services providing peace of mind for you and personalized attention for your pets.</p>
               <div className="footer-badges">
                 <span className="badge">Pet Tech CPR Certified</span>
@@ -77,7 +77,7 @@ function App() {
           </div>
           <div className="footer-bottom">
             <div className="container" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '16px' }}>
-              <p>&copy; 2026 Togs & Dogs Pet Sitting Services</p>
+              <p>&copy; 2026 Tog and Dogs Pet Sitting Services</p>
               <div className="legal-links" style={{ display: 'flex', gap: '24px' }}>
                 <Link to="/" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy Policy</Link>
                 <Link to="/" style={{ color: 'inherit', textDecoration: 'none' }}>Terms of Service</Link>

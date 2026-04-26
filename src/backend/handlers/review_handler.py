@@ -220,10 +220,10 @@ def handler(event, context):
                 if client_email:
                     try:
                         if new_status == 'APPROVED':
-                            subject = "Your Togs & Dogs Booking Request: APPROVED!"
+                            subject = "Your Tog and Dogs Booking Request: APPROVED!"
                             html = get_approval_email_body(client_name, start_date, custom_message)
                         else:
-                            subject = "Update regarding your Togs & Dogs request"
+                            subject = "Update regarding your Tog and Dogs request"
                             html = get_rejection_email_body(client_name, start_date, custom_message)
                         
                         send_transactional_email(client_email, subject, html)

@@ -1,7 +1,7 @@
 /* System Font Stacks - Privacy & Performance Optimized */
 
 :root {
-  /* Brand Palette - Togs & Dogs Official */
+  /* Brand Palette - Tog and Dogs Official */
   --primary: #c28b1e; /* Gold */
   --primary-hover: #f08c3a; /* Orange/Rust */
   --secondary: #b8a890; /* Warm Tan */
@@ -72,7 +72,7 @@
 }
 
 :root.dark {
-  /* Dark mode preservation with Togs & Dogs accents */
+  /* Dark mode preservation with Tog and Dogs accents */
   --page-bg: #1a1a19;
   --card-bg: #242423;
   --card-bg-muted: #2d2d2c;

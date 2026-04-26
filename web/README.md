@@ -1,6 +1,6 @@
-# Togs & Dogs | Client Operations Portal
+# Tog and Dogs | Client Operations Portal
 
-This repository contains the frontend for the Togs & Dogs operations platform, powered by **US Mission Hero**. It serves as the primary interface for client intake, administrative scheduling, and staff coordination.
+This repository contains the frontend for the Tog and Dogs operations platform, powered by **US Mission Hero**. It serves as the primary interface for client intake, administrative scheduling, and staff coordination.
 
 ## 🌐 Domain Strategy
 - **Marketing**: [toganddogs.com](https://toganddogs.com) (Ryan's public site)

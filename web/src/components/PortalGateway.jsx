@@ -7,14 +7,14 @@ const PortalGateway = () => {
     <div className="portal-gateway-container">
       <div className="gateway-card card">
         <header className="gateway-header">
-          <div className="gateway-logo">Togs & Dogs</div>
+          <div className="gateway-logo">Tog&Dogs</div>
           <h1>Client Portal</h1>
           <p className="gateway-tagline">Premium Care for Your Best Friend</p>
         </header>
 
         <div className="gateway-content">
           <p className="welcome-text">
-            Welcome to the Togs & Dogs client operations platform. 
+            Welcome to the Tog and Dogs client operations platform. 
             Request services, manage your pet's profile, and view your booking schedule all in one place.
           </p>
 
@@ -39,7 +39,7 @@ const PortalGateway = () => {
 
         <footer className="gateway-footer">
           <a href="https://toganddogs.com" className="external-link">
-            ← Back to Togs & Dogs Website
+            ← Back to Tog and Dogs Website
           </a>
           <div className="powered-by">
             Powered by <span className="usmh-logo">US Mission Hero</span>

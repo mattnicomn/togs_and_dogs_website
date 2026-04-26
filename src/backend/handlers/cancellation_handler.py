@@ -192,7 +192,7 @@ def notify_worker(worker_id, item):
         raise Exception("STAFF_COORDINATION_SNS_ARN environment variable not set")
 
     message = (
-        f"Togs & Dogs ALERT: Visit for {item.get('client_name')} on {item.get('start_date')} "
+        f"Tog and Dogs ALERT: Visit for {item.get('client_name')} on {item.get('start_date')} "
         f"has been CANCELLED. Please update your schedule accordingly."
     )
     

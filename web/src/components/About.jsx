@@ -9,7 +9,7 @@ const About = () => {
           <span className="badge">Our Story</span>
           <h1>Passion for Pets, <br/>Driven by Care</h1>
           <p style={{ fontSize: '1.2rem', marginTop: '32px' }}>
-            At Togs & Dogs, we believe that pets aren't just animals—they're family. 
+            At Tog and Dogs, we believe that pets aren't just animals—they're family. 
             Our mission is to provide the highest standard of professional care, giving 
             pet parents the freedom to work or travel without worry.
           </p>
@@ -38,7 +38,7 @@ const About = () => {
 
           <div style={{ marginTop: '80px' }}>
             <h2>Experience the difference</h2>
-            <Link to="/book" className="button-primary" style={{ marginTop: '24px' }}>Join the Togs & Dogs Family</Link>
+            <Link to="/book" className="button-primary" style={{ marginTop: '24px' }}>Join the Tog and Dogs Family</Link>
           </div>
         </div>
       </section>
