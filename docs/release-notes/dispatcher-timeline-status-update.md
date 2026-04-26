@@ -28,5 +28,16 @@ Within the Admin Dashboard **DAY Dispatcher Timeline** section, selecting a visi
 - Verified that the project builds successfully (`npm run build`).
 
 ## Deployment
-- Standard frontend deployment to S3/CloudFront.
-- Recommend CloudFront invalidation for `/index.html` and `/assets/*` after deployment.
+- Production URL: [https://toganddogs.usmissionhero.com/admin](https://toganddogs.usmissionhero.com/admin)
+- S3 Sync: Completed to `togs-and-dogs-prod-toganddogs-hosting`
+- CloudFront Distribution ID: `E35L00QPA2IRCY`
+- CloudFront Invalidation ID: `I54LBJ85I2KWYY0E8UO28W32ZS`
+- CloudFront Invalidation Status: Completed
+- Build Validation: Success (Vite production build)
+- Git Commit Hash: `4ca610f2dc3d9f60d474b781b0f1b7ac60232578`
+
+## Post-Deployment Validation Results
+- **DAY Dispatcher Timeline**: Successfully verified that changing status to **Archived** removes visits from the active timeline and updates the record status.
+- **Bulk Actions**: Verified no regression in bulk workflow status updates.
+- **Intake Queue**: Verified items continue to flow correctly through the intake lifecycle.
+- **API/Auth**: Confirmed no regressions in authentication or backend API communication.
