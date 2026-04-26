@@ -30,6 +30,6 @@ As requested, a "Permanent Delete" capability is recommended for a future releas
 - **Implementation**: Prefer a dedicated backend hard-delete endpoint or a periodic cleanup Lambda.
 
 ## Repository Details
-- **Correction Commit Hash**: `[TO_BE_FILLED]`
+- **Correction Commit Hash**: `81c7836`
 - **Deployment URL**: [https://toganddogs.usmissionhero.com/admin](https://toganddogs.usmissionhero.com/admin)
 - **Status**: Deployment Pending Manual Validation
