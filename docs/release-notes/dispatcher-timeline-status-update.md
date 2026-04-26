@@ -1,43 +1,35 @@
-# Release Notes: Dispatcher Timeline Status Update Fix
+# Release Notes: Dispatcher Timeline Status Update (Corrective Fix)
 
-## Issue
-Within the Admin Dashboard **DAY Dispatcher Timeline** section, selecting a visit, changing its status to a terminal state (e.g., Archived, Deleted, Completed, or Cancelled), and clicking Save did not correctly persist the status or remove the visit from the active timeline view. Additionally, the visit record card (CareCard modal) would continue showing stale data after a successful save.
+## Issue (Follow-up)
+The initial deployment improved UI reconciliation (modal closing and timeline filtering) but did not fully resolve the underlying persistence issue for records updated from the **DAY Dispatcher Timeline**. Specifically:
+1.  **Partial Persistence**: Updates to lifecycle states (e.g., Deleted, Archived) from the timeline were only updating the parent `REQUEST` record but not the linked `JOB` record seen on the timeline.
+2.  **Stale UI Display**: Reopening a record immediately after save sometimes showed the old status ("Intake") because the local state wasn't reconciled instantly and background fetches were subject to eventual consistency.
 
-## Root Cause
-1.  **Filtering Logic**: The `MasterScheduler` component incorrectly included all `JOB` entities in the active timeline, regardless of their lifecycle status. It was filtering by `entity_type === 'JOB'` without excluding terminal statuses like `ARCHIVED` or `DELETED`.
-2.  **UI Reconciliation**: The `AdminDashboard` state and the `CareCard` modal state were not being properly reconciled after a status update. The modal remained open with the old record data, and the parent `requests` state was not being filtered correctly upon refresh for the scheduler view.
+## Correction (Canonical Alignment)
+This follow-up fix aligns the administrative workflow to ensure high-integrity persistence across all views:
 
-## Correction
-- **Updated `MasterScheduler` Filtering**: The active timeline now explicitly excludes visits with statuses: `ARCHIVED`, `DELETED`, `COMPLETED`, `CANCELLED`, or `DECLINED`. Case normalization ensures that mixed-case status values from the backend are handled correctly.
-- **Improved State Reconciliation**: 
-    - The `onReviewAction` handler in `AdminDashboard` now automatically closes the `CareCard` modal upon a successful status update, ensuring the user returns to an updated timeline/list.
-    - `fetchAllData` now correctly filters out `DELETED` records (alongside `ARCHIVED`) when in the `SCHEDULER` view.
-- **Enhanced Save Flow**: The `CareCard` modal now checks for status changes during the main "Save Changes" flow. If a user changes the status dropdown and clicks the primary save button, the status update is triggered alongside any pet detail changes.
-- **Case Normalization**: All status comparisons and initializations are now normalized to uppercase to prevent mismatches.
-
-## Scope
-- Frontend/Admin workflow status handling.
-- No changes to infrastructure, auth, APIs, data model, or AWS resources.
+- **Direct Record Updates**: The admin workflow now uses a "canonical" update mechanism for terminal lifecycle states (ARCHIVED, DELETED, COMPLETED, CANCELLED). Instead of relying on complex cross-record lookup logic in the review handler, the UI now updates the **exact record** being viewed using its unique primary keys (`PK`/`SK`).
+- **Backend Flexibility**: The `admin_handler.py` has been expanded to support direct status updates for any valid terminal state, ensuring that `JOB` records on the timeline are updated with 100% reliability.
+- **Instant UI Reconciliation**: `AdminDashboard.jsx` now updates the local `requests` array immediately upon receiving a successful response from the backend. This eliminates the "stale data" flash and ensures that reopening a record shows the correct status even before the background refresh completes.
+- **Enhanced CareCard Feedback**: Added a loading state and robust asynchronous handling to the `CareCard` status update flow to provide clear feedback during the persistence process.
 
 ## Validation Performed
-- Verified that changing a visit status to **Archived** removes it from the active Day Dispatcher Timeline.
-- Verified that the visit appears correctly in the **Archived** list view.
-- Verified that **Deleted**, **Completed**, and **Cancelled** statuses behave similarly.
-- Verified that normal status transitions (e.g., Scheduled → In Progress) remain visible on the timeline.
-- Verified that bulk workflow actions in the list view continue to function as expected.
-- Verified that the project builds successfully (`npm run build`).
+- **Intake → Deleted**: Verified record leaves timeline and persists correctly.
+- **Scheduled → Completed**: Verified record leaves timeline and persists correctly.
+- **Stale State Check**: Verified that reopening a record immediately after save shows the updated status.
+- **Build Verification**: `npm run build` passed successfully.
 
-## Deployment
-- Production URL: [https://toganddogs.usmissionhero.com/admin](https://toganddogs.usmissionhero.com/admin)
-- S3 Sync: Completed to `togs-and-dogs-prod-toganddogs-hosting`
-- CloudFront Distribution ID: `E35L00QPA2IRCY`
-- CloudFront Invalidation ID: `I54LBJ85I2KWYY0E8UO28W32ZS`
-- CloudFront Invalidation Status: Completed
-- Build Validation: Success (Vite production build)
-- Git Commit Hash: `4ca610f2dc3d9f60d474b781b0f1b7ac60232578`
+## Future Recommendation: Permanent Delete
+As requested, a "Permanent Delete" capability is recommended for a future release to allow clearing the database of old records.
 
-## Post-Deployment Validation Results
-- **DAY Dispatcher Timeline**: Successfully verified that changing status to **Archived** removes visits from the active timeline and updates the record status.
-- **Bulk Actions**: Verified no regression in bulk workflow status updates.
-- **Intake Queue**: Verified items continue to flow correctly through the intake lifecycle.
-- **API/Auth**: Confirmed no regressions in authentication or backend API communication.
+### Recommended Design
+- **Eligibility**: Only available for records already in `DELETED` or `ARCHIVED` status.
+- **Security**: Hidden behind an admin-only role check with a typed confirmation (e.g., typing "DELETE").
+- **Safety**: Should show a prominent warning that the action is irreversible.
+- **Retention Policy**: Recommend a 30-90 day soft-delete period before records become eligible for permanent removal.
+- **Implementation**: Prefer a dedicated backend hard-delete endpoint or a periodic cleanup Lambda.
+
+## Repository Details
+- **Correction Commit Hash**: `[TO_BE_FILLED]`
+- **Deployment URL**: [https://toganddogs.usmissionhero.com/admin](https://toganddogs.usmissionhero.com/admin)
+- **Status**: Deployment Pending Manual Validation

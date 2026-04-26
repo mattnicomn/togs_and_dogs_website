@@ -102,13 +102,16 @@ def handler(event, context):
                 new_status = 'ARCHIVED'
             elif action == 'DELETE':
                 new_status = 'DELETED'
+            elif action in ['COMPLETED', 'CANCELLED', 'ASSIGNED', 'APPROVED', 'PENDING_REVIEW']:
+                # Support direct status mapping for canonical record updates
+                new_status = action
             
             if new_status:
                 from datetime import timezone
-                if update_status(pk, sk, new_status, {"action": action, "timestamp": datetime.now(timezone.utc).isoformat()}):
-                    return success({"message": f"Record {action} success", "status": new_status}, event)
+                if update_status(pk, sk, new_status, {"action": f"ADMIN_{action}", "timestamp": datetime.now(timezone.utc).isoformat()}):
+                    return success({"message": f"Record status update to {new_status} success", "status": new_status}, event)
             
-            return bad_request(f"Unsupported action: {action}", event)
+            return bad_request(f"Unsupported action: {action}. Please use ARCHIVE, DELETE, or a valid terminal status.", event)
             
     except Exception as e:
         print(f"Unhandled error: {e}")

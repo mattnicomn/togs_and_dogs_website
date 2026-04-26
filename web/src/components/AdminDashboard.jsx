@@ -237,6 +237,40 @@ const AdminDashboard = () => {
     );
   };
 
+  const updateRecordStatus = async (req, action, note = "") => {
+    const statusMap = {
+      'APPROVE': 'APPROVED',
+      'DECLINE': 'DECLINED',
+      'CANCEL': 'CANCELLED',
+      'MEET_GREET': 'MEET_GREET_REQUIRED',
+      'VERIFY': 'VERIFY_MEET_GREET',
+      'VERIFY_MG': 'VERIFY_MEET_GREET',
+      'READY': 'READY_FOR_APPROVAL',
+      'DENY_CANCEL': 'CANCELLATION_DENIED',
+      'REVERT_TO_APPROVED': 'APPROVED',
+      'COMPLETE': 'COMPLETED',
+      'REOPEN': 'ASSIGNED',
+      'REOPEN_PENDING': 'PENDING_REVIEW',
+      'ARCHIVE': 'ARCHIVED',
+      'CREATE_PROFILE': 'PROFILE_CREATED',
+      'MOVE_TO_NEW_REQUEST': 'READY_FOR_APPROVAL',
+      'DELETE': 'DELETED'
+    };
+
+    const targetStatus = statusMap[action] || action;
+    const isLifecycleAction = ['ARCHIVED', 'DELETED', 'COMPLETED', 'CANCELLED'].includes(targetStatus.toUpperCase());
+    
+    if (isLifecycleAction && req.PK && req.SK) {
+      // Direct record update for terminal states
+      return performAdminAction(req.PK, req.SK, targetStatus === 'DELETED' ? 'DELETE' : (targetStatus === 'ARCHIVED' ? 'ARCHIVE' : targetStatus));
+    } else {
+      // Workflow transition update
+      const { reqId, clientId } = resolveIds(req);
+      if (!reqId || !clientId) throw new Error("Missing IDs for transition");
+      return reviewRequest(reqId, clientId, targetStatus, note);
+    }
+  };
+
   const handleBulkUpdate = async () => {
     if (!bulkAction || selectedIds.length === 0) return;
     
@@ -246,9 +280,7 @@ const AdminDashboard = () => {
     const selectedRequests = requests.filter(r => selectedIds.includes(r.PK));
     
     const updates = selectedRequests.map(async (req) => {
-      const { reqId, clientId } = resolveIds(req);
-      if (!reqId || !clientId) throw new Error("Missing IDs");
-      return reviewRequest(reqId, clientId, bulkAction, `Bulk update: ${bulkAction}`);
+      return updateRecordStatus(req, bulkAction, `Bulk update: ${bulkAction}`);
     });
 
     try {
@@ -261,13 +293,13 @@ const AdminDashboard = () => {
       if (results.failed > 0) {
         showNotification(`Bulk update partial: ${results.success} success, ${results.failed} failed.`, "error");
       } else {
-        showNotification(`Successfully updated ${results.success} records to ${getStatusLabel(bulkAction)}.`, "success");
+        showNotification(`Successfully updated ${results.success} records.`, "success");
       }
       
       setSelectedIds([]);
       setBulkAction('');
       setBulkConfirmModal(null);
-      fetchAllData();
+      await fetchAllData();
     } catch (err) {
       showNotification("Bulk update failed: " + err.message, "error");
     } finally {
@@ -400,50 +432,42 @@ const AdminDashboard = () => {
   };
 
   const onReviewAction = async (req, action, note = "") => {
-    // Basic mapping for simpler UI buttons
-    const statusMap = {
-      'APPROVE': 'APPROVED',
-      'DECLINE': 'DECLINED',
-      'CANCEL': 'CANCELLED',
-      'MEET_GREET': 'MEET_GREET_REQUIRED',
-      'VERIFY': 'VERIFY_MEET_GREET',
-      'VERIFY_MG': 'VERIFY_MEET_GREET',
-      'READY': 'READY_FOR_APPROVAL',
-      'DENY_CANCEL': 'CANCELLATION_DENIED',
-      'REVERT_TO_APPROVED': 'APPROVED',
-      'COMPLETE': 'COMPLETED',
-      'REOPEN': 'ASSIGNED',
-      'REOPEN_PENDING': 'PENDING_REVIEW',
-      'ARCHIVE': 'ARCHIVED',
-      'CREATE_PROFILE': 'PROFILE_CREATED',
-      'MOVE_TO_NEW_REQUEST': 'READY_FOR_APPROVAL',
-      'DELETE': 'DELETED'
-    };
-
-    const { reqId, clientId } = resolveIds(req);
-    
-    if (!reqId || !clientId) {
-      alert("Error: Missing Request or Client ID.");
-      return;
-    }
-    
     try {
-      const targetStatus = statusMap[action] || action;
       setLoading(true);
-      await reviewRequest(reqId, clientId, targetStatus, note);
-      showNotification(`Status updated to ${getStatusLabel(targetStatus)}`, "success");
+      await updateRecordStatus(req, action, note);
       
-      // Reconcile local state: Close modal if open for this item
+      const statusMap = {
+        'APPROVE': 'APPROVED',
+        'DECLINE': 'DECLINED',
+        'CANCEL': 'CANCELLED',
+        'COMPLETE': 'COMPLETED',
+        'ARCHIVE': 'ARCHIVED',
+        'DELETE': 'DELETED'
+      };
+      const targetStatus = statusMap[action] || action;
+
+      showNotification(`Status successfully updated to ${getStatusLabel(targetStatus)}`, "success");
+      
+      // Reconcile local state: Update the item in the local requests array immediately
+      // to prevent stale data display while fetchAllData is in flight.
+      setRequests(prev => prev.map(item => 
+        (item.PK === req.PK && item.SK === req.SK) 
+        ? { ...item, status: targetStatus } 
+        : item
+      ));
+
+      // Close modal if open for this item
       if (selectedPet?._originItem?.PK === req.PK) {
         setSelectedPet(null);
       }
       
-      // Refresh data to sync UI
-      fetchAllData();
+      // Refresh data to sync UI from source of truth
+      await fetchAllData();
       setSelectedIds([]); // Clear bulk selection after individual action to be safe
     } catch (err) {
+      console.error("Action failed:", err);
       showNotification("Action failed: " + err.message, "error");
-      fetchAllData(); // Refresh to sync UI with actual DB state
+      await fetchAllData(); // Refresh to sync UI with actual DB state
     } finally {
       setLoading(false);
     }

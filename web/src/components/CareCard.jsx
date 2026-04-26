@@ -5,6 +5,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState((pet._originItem?.status || '').toUpperCase());
   const [statusNote, setStatusNote] = useState('');
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [formData, setFormData] = useState({ 
     health: {}, 
     document_links: {}, 
@@ -260,13 +261,18 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
                 <button 
                   className="button-primary btn-small" 
                   style={{ width: '100%', marginTop: '0.5rem' }}
-                  onClick={() => {
-                    onStatusUpdate(pet._originItem, selectedStatus, statusNote);
-                    setStatusNote('');
+                  disabled={isUpdatingStatus || (selectedStatus === (pet._originItem?.status || '').toUpperCase() && !statusNote)}
+                  onClick={async () => {
+                    setIsUpdatingStatus(true);
+                    try {
+                      await onStatusUpdate(pet._originItem, selectedStatus, statusNote);
+                      setStatusNote('');
+                    } finally {
+                      setIsUpdatingStatus(false);
+                    }
                   }}
-                  disabled={selectedStatus === pet._originItem.status && !statusNote}
                 >
-                  Save Status Change
+                  {isUpdatingStatus ? 'Updating...' : 'Save Status Change'}
                 </button>
               </div>
             </section>
