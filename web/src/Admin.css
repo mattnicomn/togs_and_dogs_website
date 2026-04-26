@@ -664,12 +664,14 @@
 }
 
 .btn-micro.urgent {
-  color: #ef4444;
+  color: var(--warning-color);
+  border-color: var(--border-color);
 }
 
 .btn-micro.urgent:hover {
-  background: #fef2f2;
-  border-color: #ef4444;
+  background: #fdf2f0;
+  border-color: var(--warning-color);
+  color: #9b2c1d;
 }
 
 .urgent-text {

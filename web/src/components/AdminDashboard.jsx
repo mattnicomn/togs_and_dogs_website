@@ -62,8 +62,17 @@ const AdminDashboard = () => {
     return s || "Unknown";
   };
 
+  /**
+   * Lifecycle Helpers
+   * NOTE: Currently the backend uses the 'status' field for both workflow phase and lifecycle state.
+   * We treat ARCHIVED and DELETED as lifecycle states while others are active workflow statuses.
+   */
+  const isArchivedRecord = (item) => (item.status || "").toUpperCase() === 'ARCHIVED';
+  const isDeletedRecord = (item) => (item.status || "").toUpperCase() === 'DELETED';
+  const isActiveRecord = (item) => !isArchivedRecord(item) && !isDeletedRecord(item);
+
   const getWorkflowState = (item) => {
-    const status = item.status || 'PENDING_REVIEW';
+    const status = (item.status || 'PENDING_REVIEW').toUpperCase();
     const hasWorker = Boolean(item.worker_id);
     const isInvalidAssigned = status === 'ASSIGNED' && !hasWorker;
 
@@ -81,6 +90,19 @@ const AdminDashboard = () => {
       return state;
     }
 
+    // Lifecycle-based Actions
+    // If a record is archived or deleted, its workflow status is terminal and it only supports recovery/trash actions.
+    if (isArchivedRecord(item)) {
+      state.actions = ["REOPEN_PENDING", "DELETE"];
+      return state;
+    }
+    
+    if (isDeletedRecord(item)) {
+      state.actions = ["REOPEN_PENDING"]; // Restore only, avoid re-archiving trash
+      return state;
+    }
+
+    // Active Workflow Status Actions
     switch (status) {
       case 'PENDING_REVIEW':
         state.actions = ["CREATE_PROFILE", "VERIFY_MG", "APPROVE", "CANCEL"];
@@ -110,13 +132,9 @@ const AdminDashboard = () => {
         break;
       case 'CANCELLED':
       case 'DECLINED':
-      case 'DELETED':
-        state.actions = ["REOPEN_PENDING", "ARCHIVE", "DELETE"];
-        if (status === 'DELETED') state.actions = ["REOPEN_PENDING", "ARCHIVE"]; 
-        if (status === 'ARCHIVED') state.actions = ["REOPEN_PENDING", "DELETE"];
-        break;
-      case 'ARCHIVED':
-        state.actions = ["REOPEN_PENDING", "DELETE"];
+        // Cancelled/Declined active records can be archived or deleted, but not "restored" directly to Pending Review
+        // (Use Restore only from Archived/Trash state)
+        state.actions = ["ARCHIVE", "DELETE"];
         break;
       default:
         state.actions = ["CANCEL", "ARCHIVE"];
@@ -855,18 +873,24 @@ const AdminDashboard = () => {
                                  'REVERT_TO_APPROVED': 'Back to Approved',
                                  'COMPLETE': 'Complete',
                                  'REOPEN': 'Reopen',
-                                 'REOPEN_PENDING': 'Restore',
+                                 'REOPEN_PENDING': 'Restore to Active',
                                  'ARCHIVE': 'Archive',
                                  'CREATE_PROFILE': 'Create Profile',
                                  'MOVE_TO_NEW_REQUEST': 'To New Request',
-                                 'DELETE': 'Delete'
+                                 'DELETE': 'Move to Trash'
+                               };
+                               
+                               const getButtonClass = (act) => {
+                                 if (act === 'DELETE' || act === 'CANCEL') return 'btn-micro urgent';
+                                 if (['APPROVE', 'REOPEN', 'REOPEN_PENDING', 'COMPLETE', 'VERIFY_MG'].includes(act)) return 'btn-micro highlight';
+                                 return 'btn-micro';
                                };
                                
                                return (
                                  <button 
                                    key={action}
                                    onClick={() => onReviewAction(item, action)} 
-                                   className={`btn-micro ${action === 'CANCEL' || action === 'ARCHIVE' ? '' : 'highlight'}`}
+                                   className={getButtonClass(action)}
                                  >
                                    {labels[action] || action}
                                  </button>
