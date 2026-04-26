@@ -30,21 +30,33 @@ def handler(event, context):
             # SPECIAL CASE: ALL (Scan fallback for scheduler & Client Portal)
             if status == 'ALL':
                 # SECURITY: Data Isolation for Clients
-                # If the user is a client (detected by lack of admin group or presence of email), 
-                # we must restrict the scan or filter the results server-side.
                 authorizer = event.get('requestContext', {}).get('authorizer', {})
                 claims = authorizer.get('claims', {})
                 user_email = (claims.get('email') or "").lower().strip()
                 groups = claims.get('cognito:groups', [])
                 is_admin = 'Staff' in groups or 'Admin' in groups or user_email in ['mattnicomn10@gmail.com', 'support@toganddogs.usmissionhero.com']
 
-                scan_kwargs = {"Limit": 1000} # Increased limit for production stability
+                scan_kwargs = {"Limit": 1000}
                 
+                # Filter logic: 
+                # 1. Clients only see their own records
+                # 2. Admins see 'All Active' (excludes DELETED and ARCHIVED) by default in this view
+                filter_expressions = []
+                expression_values = {}
+
                 if not is_admin and user_email:
-                    # CLIENT-ONLY: Restrict to their email
-                    print(f"INFO: Restricting scan for client: {user_email}")
-                    scan_kwargs["FilterExpression"] = "client_email = :email"
-                    scan_kwargs["ExpressionAttributeValues"] = {":email": user_email}
+                    filter_expressions.append("client_email = :email")
+                    expression_values[":email"] = user_email
+                
+                # Exclude deleted and archived from the general 'ALL' view
+                filter_expressions.append("#stat <> :deleted")
+                filter_expressions.append("#stat <> :archived")
+                expression_values[":deleted"] = 'DELETED'
+                expression_values[":archived"] = 'ARCHIVED'
+                
+                scan_kwargs["FilterExpression"] = " AND ".join(filter_expressions)
+                scan_kwargs["ExpressionAttributeValues"] = expression_values
+                scan_kwargs["ExpressionAttributeNames"] = {"#stat": "status"}
                 
                 if last_key:
                     scan_kwargs["ExclusiveStartKey"] = json.loads(last_key)

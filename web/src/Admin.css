@@ -392,6 +392,12 @@
   color: var(--text-muted);
   border-color: var(--border-color);
 }
+.status-chip--deleted {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #cbd5e1;
+  text-decoration: line-through;
+}
 
 .status-chip--urgent {
   background: #fff1f2;

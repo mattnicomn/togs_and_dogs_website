@@ -35,7 +35,8 @@ const AdminDashboard = () => {
     if (s.includes("COMPLETED")) return "status-chip status-chip--completed";
     if (s.includes("CANCELLED")) return "status-chip status-chip--cancelled";
     if (s.includes("REJECTED") || s.includes("DECLINED") || s.includes("DENIED")) return "status-chip status-chip--rejected";
-    if (s.includes("ARCHIVE") || s.includes("DELETED")) return "status-chip status-chip--archived";
+    if (s.includes("ARCHIVE")) return "status-chip status-chip--archived";
+    if (s.includes("DELETED")) return "status-chip status-chip--deleted";
     return "status-chip status-chip--archived";
   };
 
@@ -108,6 +109,7 @@ const AdminDashboard = () => {
       case 'DELETED':
         state.actions = ["REOPEN_PENDING", "ARCHIVE", "DELETE"];
         if (status === 'DELETED') state.actions = ["REOPEN_PENDING", "ARCHIVE"]; 
+        if (status === 'ARCHIVED') state.actions = ["REOPEN_PENDING", "DELETE"];
         break;
       case 'ARCHIVED':
         state.actions = ["REOPEN_PENDING", "DELETE"];
@@ -174,7 +176,11 @@ const AdminDashboard = () => {
         // Exclude archived from the scheduler timeline
         setRequests((data.requests || []).filter(r => r.status !== 'ARCHIVED'));
       } else {
-        const queryStatus = statusFilter === 'ARCHIVE' ? 'ARCHIVED' : statusFilter;
+        // Handle filter mapping
+        let queryStatus = statusFilter;
+        if (statusFilter === 'ARCHIVE' || statusFilter === 'ARCHIVED') queryStatus = 'ARCHIVED';
+        if (statusFilter === 'TRASH' || statusFilter === 'DELETED') queryStatus = 'DELETED';
+        
         const data = await getAdminRequests(queryStatus, startKey, timeframeFilter);
         setRequests(data.requests || []);
         setLastKey(data.lastKey);
@@ -584,8 +590,9 @@ const AdminDashboard = () => {
               { id: 'APPROVED', label: 'Approved' },
               { id: 'ASSIGNED', label: 'Scheduled' },
               { id: 'CANCELLED', label: 'Cancelled' },
-              { id: 'ARCHIVED', label: 'Archive' },
-              { id: 'ALL', label: 'Snapshot (Scan)' }
+              { id: 'ARCHIVED', label: 'Archived' },
+              { id: 'DELETED', label: 'Trash / Deleted' },
+              { id: 'ALL', label: 'All Active' }
             ].map(f => (
               <button 
                 key={f.id}
