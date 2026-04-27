@@ -77,7 +77,7 @@ def get_approval_email_body(client_name, start_date, custom_message=""):
         <p>Your pet sitting request for {start_date} has been <strong>APPROVED</strong>.</p>
         {message_section}
         <p>We've added this to our Master Scheduler and will see you soon!</p>
-        <p>Best,<br/>Togs & Dogs Team</p>
+        <p>Best,<br/>Tog and Dogs Team</p>
     </body>
     </html>
     """
@@ -94,7 +94,7 @@ def get_rejection_email_body(client_name, start_date, custom_message=""):
         <p>Unfortunately, we are <strong>unable to fulfill</strong> this specific booking at this time.</p>
         {message_section}
         <p>We apologize for the inconvenience and hope to see you and your furry friends in the future.</p>
-        <p>Best,<br/>Togs & Dogs Team</p>
+        <p>Best,<br/>Tog and Dogs Team</p>
     </body>
     </html>
     """

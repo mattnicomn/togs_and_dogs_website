@@ -88,15 +88,69 @@ def handler(event, context):
             }, event)
 
         elif http_method == 'POST':
-            # Archive/Delete Actions
+            # Archive/Delete/Purge Actions
             body = json.loads(event.get('body', '{}'))
             action = body.get('action')
             pk = body.get('PK')
             sk = body.get('SK')
-            
+
             if not (action and pk and sk):
                 return bad_request("Missing action, PK, or SK", event)
-            
+
+            # --- PURGE: Permanent deletion — only allowed for already-DELETED records ---
+            if action == 'PURGE':
+                # Auth guard: only admins may purge
+                authorizer = event.get('requestContext', {}).get('authorizer', {})
+                claims = authorizer.get('claims', {})
+                user_email = (claims.get('email') or "").lower().strip()
+                groups = claims.get('cognito:groups', [])
+                is_admin = (
+                    'Staff' in groups or
+                    'Admin' in groups or
+                    user_email in ['mattnicomn10@gmail.com', 'support@toganddogs.usmissionhero.com']
+                )
+                if not is_admin:
+                    return bad_request("Administrative access required for permanent deletion.", event)
+
+                # Fetch current record to verify status before purging
+                current_item = get_item(pk, sk)
+                if not current_item:
+                    return not_found(f"Record not found: {pk} / {sk}", event)
+
+                current_status = (current_item.get('status') or '').upper()
+                if current_status != 'DELETED':
+                    print(
+                        f"PURGE REJECTED: [{pk}] status is '{current_status}', not DELETED. "
+                        f"Requester: {user_email}"
+                    )
+                    return bad_request(
+                        f"Only records with status DELETED can be permanently removed. "
+                        f"This record is currently '{current_status}'.",
+                        event
+                    )
+
+                # Perform permanent deletion
+                from datetime import timezone
+                from common.db import table as _table
+                try:
+                    _table.delete_item(Key={'PK': pk, 'SK': sk})
+                    print(
+                        f"PURGE COMPLETE: [{pk}] permanently deleted by {user_email} "
+                        f"at {datetime.now(timezone.utc).isoformat()}. "
+                        f"Previous status: DELETED."
+                    )
+                    return success({
+                        "message": "Record permanently deleted.",
+                        "PK": pk,
+                        "SK": sk,
+                        "previous_status": current_status,
+                        "purged_by": user_email
+                    }, event)
+                except Exception as purge_err:
+                    print(f"ERROR: PURGE failed for [{pk}]: {purge_err}")
+                    return internal_error("Failed to permanently delete record.", event)
+
+            # --- Standard soft-state transitions ---
             new_status = None
             if action == 'ARCHIVE':
                 new_status = 'ARCHIVED'
@@ -105,13 +159,13 @@ def handler(event, context):
             elif action in ['COMPLETED', 'CANCELLED', 'ASSIGNED', 'APPROVED', 'PENDING_REVIEW']:
                 # Support direct status mapping for canonical record updates
                 new_status = action
-            
+
             if new_status:
                 from datetime import timezone
                 if update_status(pk, sk, new_status, {"action": f"ADMIN_{action}", "timestamp": datetime.now(timezone.utc).isoformat()}):
                     return success({"message": f"Record status update to {new_status} success", "status": new_status}, event)
-            
-            return bad_request(f"Unsupported action: {action}. Please use ARCHIVE, DELETE, or a valid terminal status.", event)
+
+            return bad_request(f"Unsupported action: {action}. Please use ARCHIVE, DELETE, PURGE, or a valid terminal status.", event)
             
     except Exception as e:
         print(f"Unhandled error: {e}")

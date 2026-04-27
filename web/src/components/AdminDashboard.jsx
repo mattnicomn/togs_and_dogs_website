@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { signIn, signOut, getSession } from '../api/auth';
-import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, disconnectGoogle } from '../api/client';
+import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, purgeRecord, disconnectGoogle } from '../api/client';
 import MasterScheduler from './MasterScheduler';
 import CareCard from './CareCard';
 import { STAFF_MEMBERS } from '../constants/staff';
@@ -22,6 +22,9 @@ const AdminDashboard = () => {
   const [bulkAction, setBulkAction] = useState('');
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const [bulkConfirmModal, setBulkConfirmModal] = useState(null);
+  const [purgeModal, setPurgeModal] = useState(null); // { item } — confirmation before permanent delete
+  const [purgeConfirmText, setPurgeConfirmText] = useState('');
+  const [isBulkPurging, setIsBulkPurging] = useState(false);
 
   const showNotification = (message, type = 'info') => {
     setNotification({ message, type });
@@ -34,6 +37,7 @@ const AdminDashboard = () => {
     if (s.includes("PROFILE_CREATED")) return "status-chip status-chip--profile";
     if (s.includes("READY") || s.includes("REQUEST")) return "status-chip status-chip--ready";
     if (s.includes("APPROVED")) return "status-chip status-chip--approved";
+    if (s.includes("QUOTED")) return "status-chip status-chip--quoted";
     if (s.includes("SCHEDULED") || s.includes("ASSIGNED") || s.includes("JOB_CREATED")) return "status-chip status-chip--assigned";
     if (s.includes("IN_PROGRESS")) return "status-chip status-chip--progress";
     if (s.includes("COMPLETED")) return "status-chip status-chip--completed";
@@ -99,7 +103,7 @@ const AdminDashboard = () => {
     }
     
     if (isDeletedRecord(item)) {
-      state.actions = ["REOPEN_PENDING"]; // Restore only, avoid re-archiving trash
+      state.actions = ["REOPEN_PENDING", "PURGE_FOREVER"]; // Restore or permanently remove
       return state;
     }
 
@@ -479,7 +483,58 @@ const AdminDashboard = () => {
       setLoading(false);
     }
   };
-  
+
+  const handlePurgeRecord = async (item) => {
+    const pk = item.PK;
+    const sk = item.SK;
+    if (!pk || !sk) {
+      showNotification("Error: Missing record keys — cannot purge.", "error");
+      return;
+    }
+    try {
+      setLoading(true);
+      await purgeRecord(pk, sk);
+      // Remove row from local state immediately
+      setRequests(prev => prev.filter(r => !(r.PK === pk && r.SK === sk)));
+      showNotification("Record permanently deleted.", "success");
+      setPurgeModal(null);
+    } catch (err) {
+      showNotification("Permanent delete failed: " + err.message, "error");
+      setPurgeModal(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkPurge = async () => {
+    if (selectedIds.length === 0) return;
+    setIsBulkPurging(true);
+    const selectedItems = requests.filter(r => selectedIds.includes(r.PK) && isDeletedRecord(r));
+    const results = { success: 0, failed: 0, skipped: 0 };
+    const purged = [];
+    for (const item of selectedItems) {
+      try {
+        await purgeRecord(item.PK, item.SK);
+        purged.push(item.PK);
+        results.success++;
+      } catch {
+        results.failed++;
+      }
+    }
+    const skippedCount = selectedIds.length - selectedItems.length;
+    results.skipped = skippedCount;
+    setRequests(prev => prev.filter(r => !purged.includes(r.PK)));
+    setSelectedIds([]);
+    setBulkConfirmModal(null);
+    setIsBulkPurging(false);
+    const msg = [
+      results.success > 0 ? `${results.success} permanently deleted` : null,
+      results.failed > 0 ? `${results.failed} failed` : null,
+      results.skipped > 0 ? `${results.skipped} skipped (not DELETED)` : null,
+    ].filter(Boolean).join(', ');
+    showNotification(msg || "Bulk purge complete.", results.failed > 0 ? "error" : "success");
+  };
+
   const handleProcessCancellation = async (req) => {
     const decision = window.confirm("Approve this cancellation request?") ? 'APPROVE' : 'DENY';
     const note = prompt("Administrative note (required for audit):", "");
@@ -772,6 +827,16 @@ const AdminDashboard = () => {
                     <span>visits selected</span>
                   </div>
                   <div className="bulk-actions">
+                    {/* Bulk purge — only shown in Trash/Deleted view */}
+                    {statusFilter === 'DELETED' && (
+                      <button
+                        className="btn-small purge"
+                        disabled={isBulkPurging}
+                        onClick={() => setBulkConfirmModal({ count: selectedIds.length, target: '__PURGE__' })}
+                      >
+                        {isBulkPurging ? 'Purging...' : `Delete ${selectedIds.length} Permanently`}
+                      </button>
+                    )}
                     <select 
                       value={bulkAction} 
                       onChange={(e) => setBulkAction(e.target.value)}
@@ -907,6 +972,20 @@ const AdminDashboard = () => {
                              return state.actions.map(action => {
                                if (action === 'EDIT_PET') return null; // Handled by row click
                                if (action === 'ASSIGN' || action === 'CHANGE_WORKER') return null; // Handled in Staff column
+
+                               // PURGE_FOREVER: intercept here — do NOT route through onReviewAction
+                               if (action === 'PURGE_FOREVER') {
+                                 return (
+                                   <button
+                                     key="PURGE_FOREVER"
+                                     onClick={() => setPurgeModal({ item })}
+                                     className="btn-micro purge"
+                                     title="Permanently delete this record — cannot be undone"
+                                   >
+                                     Delete Permanently
+                                   </button>
+                                 );
+                               }
                                
                                const labels = {
                                  'APPROVE': 'Approve',
@@ -1015,15 +1094,27 @@ const AdminDashboard = () => {
             </div>
             
             <div className="bulk-confirm-details">
-              <p>Target Status: <span className="highlight-status">{getStatusLabel(bulkConfirmModal.target)}</span></p>
-              <div className="safety-notice">
-                <p>● This action will update only the currently selected visible records.</p>
-                {bulkConfirmModal.target === 'ARCHIVED' ? (
-                  <p>● This uses archive/soft-delete behavior. Records can be restored from the Archived view.</p>
-                ) : (
-                  <p>● Records will be moved to the {getStatusLabel(bulkConfirmModal.target)} workflow phase.</p>
-                )}
-              </div>
+              {bulkConfirmModal.target === '__PURGE__' ? (
+                <>
+                  <p className="purge-warning-text">You are about to <strong>permanently delete {bulkConfirmModal.count} record(s)</strong> from the Trash.</p>
+                  <div className="safety-notice">
+                    <p>● Only records currently in DELETED / Trash status will be purged.</p>
+                    <p>● <strong>This cannot be undone.</strong> Records will be removed from the database entirely.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p>Target Status: <span className="highlight-status">{getStatusLabel(bulkConfirmModal.target)}</span></p>
+                  <div className="safety-notice">
+                    <p>● This action will update only the currently selected visible records.</p>
+                    {bulkConfirmModal.target === 'ARCHIVED' ? (
+                      <p>● This uses archive/soft-delete behavior. Records can be restored from the Archived view.</p>
+                    ) : (
+                      <p>● Records will be moved to the {getStatusLabel(bulkConfirmModal.target)} workflow phase.</p>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="modal-footer">
@@ -1034,17 +1125,75 @@ const AdminDashboard = () => {
               >
                 Cancel
               </button>
-              <button 
-                className="button-primary" 
-                onClick={handleBulkUpdate}
-                disabled={isBulkUpdating}
-              >
-                {isBulkUpdating ? 'Updating...' : 'Confirm & Apply'}
-              </button>
+              {bulkConfirmModal.target === '__PURGE__' ? (
+                <button
+                  className="btn-small purge"
+                  onClick={handleBulkPurge}
+                  disabled={isBulkPurging}
+                >
+                  {isBulkPurging ? 'Purging...' : 'Yes, Delete Permanently'}
+                </button>
+              ) : (
+                <button 
+                  className="button-primary" 
+                  onClick={handleBulkUpdate}
+                  disabled={isBulkUpdating}
+                >
+                  {isBulkUpdating ? 'Updating...' : 'Confirm & Apply'}
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
+
+      {/* Purge Confirmation Modal */}
+      {purgeModal && (() => {
+        const item = purgeModal.item;
+        const recordName = [
+          item.pet_name || item.client_name || '',
+          item.client_name && item.pet_name ? `(${item.client_name})` : ''
+        ].filter(Boolean).join(' ') || 'this record';
+        return (
+          <div className="modal-overlay">
+            <div className="modal-content purge-confirm-modal">
+              <div className="modal-header">
+                <h2>⚠️ Permanently Delete Record?</h2>
+                <p className="purge-warning-text">
+                  This will permanently delete <strong>{recordName}</strong> and cannot be undone.
+                </p>
+              </div>
+              <div className="field" style={{ margin: '0' }}>
+                <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Type <code>DELETE</code> to confirm:</label>
+                <input
+                  type="text"
+                  value={purgeConfirmText}
+                  onChange={(e) => setPurgeConfirmText(e.target.value)}
+                  placeholder="DELETE"
+                  autoFocus
+                  style={{ marginTop: '8px' }}
+                />
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn-secondary"
+                  onClick={() => { setPurgeModal(null); setPurgeConfirmText(''); }}
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn-small purge"
+                  onClick={() => { handlePurgeRecord(item); setPurgeConfirmText(''); }}
+                  disabled={loading || purgeConfirmText !== 'DELETE'}
+                >
+                  {loading ? 'Deleting...' : 'Permanently Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

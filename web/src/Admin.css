@@ -381,6 +381,18 @@
   border-color: #f1e3c1;
 }
 
+.status-chip--quoted {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+.status-chip--completed {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
 .status-chip--cancelled, .status-chip--rejected, .status-chip--declined {
   background: #fdf2f0;
   color: #9b2c1d;
@@ -409,6 +421,8 @@
 :root.dark .status-chip--new { background: #2d2d2c; color: #f3efe8; border-color: #3c3c3b; }
 :root.dark .status-chip--ready, :root.dark .status-chip--approved { background: #1a2e21; color: #d1fae5; border-color: #4a7c59; }
 :root.dark .status-chip--assigned, :root.dark .status-chip--job-created { background: #2e2614; color: #fcf6e9; border-color: #c28b1e; }
+:root.dark .status-chip--quoted { background: #1e293b; color: #bfdbfe; border-color: #3b82f6; }
+:root.dark .status-chip--completed { background: #064e3b; color: #d1fae5; border-color: #10b981; }
 :root.dark .status-chip--cancelled, :root.dark .status-chip--rejected, :root.dark .status-chip--declined { background: #3d140f; color: #fee2e2; border-color: #d64933; }
 :root.dark .status-chip--urgent { background: #881337; color: #fff1f2; border-color: #f43f5e; }
 
@@ -672,6 +686,51 @@
   background: #fdf2f0;
   border-color: var(--warning-color);
   color: #9b2c1d;
+}
+
+/* Purge / Permanent Delete — distinct deep crimson to signal irreversibility */
+.btn-micro.purge {
+  color: #7f1d1d;
+  border-color: #fca5a5;
+  background: #fff5f5;
+  font-weight: 800;
+}
+
+.btn-micro.purge:hover {
+  background: #7f1d1d;
+  border-color: #7f1d1d;
+  color: white;
+}
+
+.btn-small.purge {
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  border: 1.5px solid #7f1d1d;
+  background: #fff5f5;
+  color: #7f1d1d;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-small.purge:hover:not(:disabled) {
+  background: #7f1d1d;
+  color: white;
+}
+
+.btn-small.purge:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.purge-warning-text {
+  color: #7f1d1d;
+  line-height: 1.6;
+}
+
+.purge-confirm-modal .modal-header h2 {
+  color: #7f1d1d;
 }
 
 .urgent-text {
