@@ -33,6 +33,25 @@ This update implements a more robust and intuitive operational lifecycle for the
 - [x] Completed records appear in the new filter and are excluded from "All Active".
 - [x] Frontend builds successfully with `npm run build`.
 
+## Deployment & Final Validation
+
+### Deployment Summary
+- **Deployment Date**: April 27, 2026
+- **Terraform Changes**: Successfully modified 8 Lambda functions (no state or storage replacement).
+- **Frontend Changes**: Built with Vite and synced to S3.
+- **Cache Invalidation**: Invalidated `/*` on CloudFront distribution `E35L00QPA2IRCY` with invalidation ID `IAKB2C53K7TFPK4PCJN7EYGLX7`.
+
+### Corrective Fixes During Validation
+- **Backend Crash**: Addressed an issue in `review_handler.py` where gating incorrectly checked `CLIENT` metadata instead of `PET` metadata, resulting in a `NoneType` error during the approval workflow.
+- **Pet Linkage / Data Persistence**: Patched `pet_handler.py` to correctly map dynamically created `pet_id`s back to the corresponding visit requests, ensuring edits to notes and contacts do not get lost on refresh.
+
+### Final Verification Suite
+- [x] **Workflow Gates**: Validated that `MEET_GREET_REQUIRED` and quote checks prevent premature approval.
+- [x] **Field Persistence**: Verified that Primary Vet Notes and Emergency Contact updates save securely.
+- [x] **Operational Flow**: Tested the assignment and completion actions successfully against the canonical backend statuses (`ASSIGNED` and `COMPLETED`).
+
+- [x] **UI Support**: Verified isolation of the scheduler and operational reliability of search/clear filters.
+
 ## Status Mapping Reference
 | UI Label | Backend Status (Canonical) |
 | :--- | :--- |
