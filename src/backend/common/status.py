@@ -12,6 +12,7 @@ class RequestStatus(Enum):
     CANCELLED = "CANCELLED"
     COMPLETED = "COMPLETED"
     PROFILE_CREATED = "PROFILE_CREATED"
+    QUOTED = "QUOTED"
     ARCHIVED = "ARCHIVED"
     DELETED = "DELETED"
 
@@ -29,6 +30,7 @@ REQUEST_TRANSITIONS = {
         RequestStatus.MEET_GREET_REQUIRED.value,
         RequestStatus.READY_FOR_APPROVAL.value,
         RequestStatus.PROFILE_CREATED.value,
+        RequestStatus.QUOTED.value,
         RequestStatus.APPROVED.value,
         RequestStatus.DECLINED.value,
         RequestStatus.CANCELLED.value,
@@ -38,11 +40,13 @@ REQUEST_TRANSITIONS = {
     RequestStatus.MEET_GREET_REQUIRED.value: [
         RequestStatus.READY_FOR_APPROVAL.value,
         RequestStatus.PROFILE_CREATED.value,
+        RequestStatus.QUOTED.value,
         RequestStatus.DECLINED.value,
         RequestStatus.ARCHIVED.value
     ],
     RequestStatus.PROFILE_CREATED.value: [
         RequestStatus.READY_FOR_APPROVAL.value,
+        RequestStatus.QUOTED.value,
         RequestStatus.APPROVED.value,
         RequestStatus.DECLINED.value,
         RequestStatus.CANCELLED.value,
@@ -50,8 +54,17 @@ REQUEST_TRANSITIONS = {
     ],
     RequestStatus.READY_FOR_APPROVAL.value: [
         RequestStatus.APPROVED.value,
+        RequestStatus.QUOTED.value,
         RequestStatus.DECLINED.value,
         RequestStatus.ARCHIVED.value
+    ],
+    RequestStatus.QUOTED.value: [
+        RequestStatus.APPROVED.value,
+        RequestStatus.READY_FOR_APPROVAL.value, # Rollback
+        RequestStatus.DECLINED.value,
+        RequestStatus.CANCELLED.value,
+        RequestStatus.ARCHIVED.value,
+        RequestStatus.DELETED.value
     ],
     RequestStatus.APPROVED.value: [
         RequestStatus.ASSIGNED.value,
@@ -79,11 +92,13 @@ REQUEST_TRANSITIONS = {
     ],
     RequestStatus.DECLINED.value: [
         RequestStatus.ARCHIVED.value,
+        RequestStatus.QUOTED.value,        # Allow restoration to Quote
         RequestStatus.PENDING_REVIEW.value # Allow restoration
     ],
     RequestStatus.CANCELLED.value: [
         RequestStatus.ARCHIVED.value,
         RequestStatus.PENDING_REVIEW.value, # Allow restoration
+        RequestStatus.QUOTED.value,         # Allow restoration to Quote
         RequestStatus.APPROVED.value        # Allow direct restoration
     ],
     RequestStatus.COMPLETED.value: [
