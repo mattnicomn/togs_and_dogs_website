@@ -90,18 +90,52 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
             <h3><span className="icon">💊</span> Health & Medications</h3>
             <div className="content-box">
               {isEditing ? (
-                <div className="field">
-                  <label>Care Instructions & Dosage</label>
-                  <textarea 
-                    rows="3"
-                    value={formData.care_instructions || ''} 
-                    onChange={(e) => handleInputChange('care_instructions', e.target.value)}
-                    placeholder="Describe any medical needs or regular medications..."
-                  />
+                <div className="edit-fields-stack">
+                  <div className="field">
+                    <label>Care Instructions & Dosage</label>
+                    <textarea 
+                      rows="2"
+                      value={formData.care_instructions || ''} 
+                      onChange={(e) => handleInputChange('care_instructions', e.target.value)}
+                      placeholder="Describe any medical needs..."
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Primary Vet Notes</label>
+                    <textarea 
+                      rows="2"
+                      value={formData.health?.vet_notes || ''} 
+                      onChange={(e) => handleInputChange('health', { ...formData.health, vet_notes: e.target.value })}
+                      placeholder="Special instructions for the vet..."
+                    />
+                  </div>
+                  <div className="field-group-row">
+                    <div className="field-compact">
+                      <label>Vet Name</label>
+                      <input 
+                        type="text" 
+                        value={formData.health?.vet_name || ''} 
+                        onChange={(e) => handleInputChange('health', { ...formData.health, vet_name: e.target.value })}
+                      />
+                    </div>
+                    <div className="field-compact">
+                      <label>Vet Phone</label>
+                      <input 
+                        type="text" 
+                        value={formData.health?.vet_phone || ''} 
+                        onChange={(e) => handleInputChange('health', { ...formData.health, vet_phone: e.target.value })}
+                      />
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="info-display">
                   <p className="prominent-note">{pet.care_instructions || 'No specific care instructions provided.'}</p>
+                  {pet.health?.vet_notes && (
+                    <div className="sub-note">
+                      <strong>Vet Notes:</strong> {pet.health.vet_notes}
+                    </div>
+                  )}
                 </div>
               )}
               
@@ -117,22 +151,73 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
           <section className="card-section meet-greet">
             <h3><span className="icon">🤝</span> Meet & Greet Info</h3>
             <div className="content-box">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                <span className={`status-chip ${pet.meet_and_greet_completed ? 'status-chip--ready' : 'status-chip--urgent'}`}>
-                  {pet.meet_and_greet_completed ? '✓ Verified' : 'Pending Verification'}
-                </span>
-                <span className="micro-text">Status for {pet.name}</span>
-              </div>
-              <p className="small-text" style={{ color: 'var(--text-secondary)' }}>
-                {pet.meet_and_greet_completed 
-                  ? "Meet & Greet has been completed and verified by Ryan."
-                  : "A Meet & Greet must be scheduled and verified before first service."}
-              </p>
-              {pet.admin_notes && (
-                <div className="admin-note-box" style={{ background: 'var(--bg-muted)', padding: '12px', borderRadius: '8px', marginTop: '12px' }}>
-                  <label className="micro-text">Staff Notes</label>
-                  <p style={{ fontSize: '0.9rem', margin: '4px 0' }}>{pet.admin_notes}</p>
+              {isEditing ? (
+                <div className="edit-fields-stack">
+                  <div className="field-checkbox">
+                    <input 
+                      type="checkbox" 
+                      id="mg_required"
+                      checked={formData.meet_and_greet_required !== false} // Default to true
+                      onChange={(e) => handleInputChange('meet_and_greet_required', e.target.checked)}
+                    />
+                    <label htmlFor="mg_required">Meet & Greet Required</label>
+                  </div>
+                  <div className="field">
+                    <label>Scheduled Date/Time</label>
+                    <input 
+                      type="datetime-local" 
+                      value={formData.meet_and_greet_scheduled_at || ''} 
+                      onChange={(e) => handleInputChange('meet_and_greet_scheduled_at', e.target.value)}
+                    />
+                  </div>
+                  <div className="field-checkbox">
+                    <input 
+                      type="checkbox" 
+                      id="mg_completed"
+                      checked={formData.meet_and_greet_completed || false} 
+                      onChange={(e) => handleInputChange('meet_and_greet_completed', e.target.checked)}
+                    />
+                    <label htmlFor="mg_completed">M&G Completed</label>
+                  </div>
+                  {formData.meet_and_greet_completed && (
+                    <div className="field">
+                      <label>Completion Date</label>
+                      <input 
+                        type="date" 
+                        value={formData.meet_and_greet_completed_at || ''} 
+                        onChange={(e) => handleInputChange('meet_and_greet_completed_at', e.target.value)}
+                      />
+                    </div>
+                  )}
+                  <div className="field">
+                    <label>M&G Staff Notes</label>
+                    <textarea 
+                      rows="2"
+                      value={formData.meet_and_greet_notes || ''} 
+                      onChange={(e) => handleInputChange('meet_and_greet_notes', e.target.value)}
+                    />
+                  </div>
                 </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <span className={`status-chip ${pet.meet_and_greet_completed ? 'status-chip--ready' : (pet.meet_and_greet_required === false ? 'status-chip--profile' : 'status-chip--urgent')}`}>
+                      {pet.meet_and_greet_completed ? '✓ Verified' : (pet.meet_and_greet_required === false ? 'Not Required' : 'Required')}
+                    </span>
+                    <span className="micro-text">Status for {pet.name}</span>
+                  </div>
+                  <p className="small-text" style={{ color: 'var(--text-secondary)' }}>
+                    {pet.meet_and_greet_completed 
+                      ? `Completed on ${pet.meet_and_greet_completed_at || 'record'}.`
+                      : pet.meet_and_greet_required === false ? "No M&G necessary for this client." : "Must be completed before first service."}
+                  </p>
+                  {pet.meet_and_greet_notes && (
+                    <div className="admin-note-box" style={{ background: 'var(--bg-muted)', padding: '12px', borderRadius: '8px', marginTop: '12px' }}>
+                      <label className="micro-text">M&G Notes</label>
+                      <p style={{ fontSize: '0.9rem', margin: '4px 0' }}>{pet.meet_and_greet_notes}</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </section>
@@ -160,14 +245,34 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
             <h3><span className="icon">🔑</span> Access & Logistics</h3>
             <div className="content-box">
               {isEditing ? (
-                <div className="field">
-                  <label>Key Location / Gate Codes</label>
-                  <textarea 
-                    rows="3"
-                    value={formData.logistics || ''} 
-                    onChange={(e) => handleInputChange('logistics', e.target.value)}
-                    placeholder="Where are the keys? Any gate or door codes?"
-                  />
+                <div className="edit-fields-stack">
+                  <div className="field">
+                    <label>Key Location / Gate Codes</label>
+                    <textarea 
+                      rows="2"
+                      value={formData.logistics || ''} 
+                      onChange={(e) => handleInputChange('logistics', e.target.value)}
+                      placeholder="Where are the keys? Any gate or door codes?"
+                    />
+                  </div>
+                  <div className="field-group-row">
+                    <div className="field-compact">
+                      <label>Emergency Name</label>
+                      <input 
+                        type="text" 
+                        value={formData.health?.emergency_name || ''} 
+                        onChange={(e) => handleInputChange('health', { ...formData.health, emergency_name: e.target.value })}
+                      />
+                    </div>
+                    <div className="field-compact">
+                      <label>Emergency Phone</label>
+                      <input 
+                        type="text" 
+                        value={formData.health?.emergency_phone || ''} 
+                        onChange={(e) => handleInputChange('health', { ...formData.health, emergency_phone: e.target.value })}
+                      />
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <p className="prominent-note">{pet.logistics || 'No access instructions provided.'}</p>
@@ -225,6 +330,89 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
                 </div>
               )}
           </section>
+
+          <section className="card-section quote">
+            <h3><span className="icon">💰</span> Quote & Pricing</h3>
+            <div className="content-box">
+              {isEditing ? (
+                <div className="edit-fields-stack">
+                  <div className="field-group-row">
+                    <div className="field-compact">
+                      <label>Quote Amount ($)</label>
+                      <input 
+                        type="number" 
+                        value={formData.quote_amount || ''} 
+                        onChange={(e) => handleInputChange('quote_amount', parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
+                    <div className="field-compact">
+                      <label>Deposit Required ($)</label>
+                      <input 
+                        type="number" 
+                        value={formData.deposit_required || ''} 
+                        onChange={(e) => handleInputChange('deposit_required', parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label>Payment Status</label>
+                    <select 
+                      value={formData.payment_status || 'Not Quoted'} 
+                      onChange={(e) => handleInputChange('payment_status', e.target.value)}
+                    >
+                      <option value="Not Quoted">Not Quoted</option>
+                      <option value="Quote Needed">Quote Needed</option>
+                      <option value="Quote Sent">Quote Sent</option>
+                      <option value="Accepted">Accepted</option>
+                      <option value="Declined">Declined</option>
+                      <option value="Deposit Paid">Deposit Paid</option>
+                      <option value="Paid in Full">Paid in Full</option>
+                    </select>
+                  </div>
+                  <div className="field-group-row">
+                    <div className="field-compact">
+                      <label>Sent Date</label>
+                      <input 
+                        type="date" 
+                        value={formData.quote_sent_date || ''} 
+                        onChange={(e) => handleInputChange('quote_sent_date', e.target.value)}
+                      />
+                    </div>
+                    <div className="field-compact">
+                      <label>Accepted Date</label>
+                      <input 
+                        type="date" 
+                        value={formData.quote_accepted_date || ''} 
+                        onChange={(e) => handleInputChange('quote_accepted_date', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label>Internal Pricing Notes</label>
+                    <textarea 
+                      rows="2"
+                      value={formData.internal_pricing_notes || ''} 
+                      onChange={(e) => handleInputChange('internal_pricing_notes', e.target.value)}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="quote-display">
+                  <div className="price-row">
+                    <span className="price-label">Quote Amount:</span>
+                    <span className="price-value">${pet.quote_amount || '0.00'}</span>
+                  </div>
+                  <div className="price-row">
+                    <span className="price-label">Status:</span>
+                    <span className={`status-pill ${pet.payment_status?.toLowerCase().replace(/ /g, '-') || 'not-quoted'}`}>
+                      {pet.payment_status || 'Not Quoted'}
+                    </span>
+                  </div>
+                  {pet.quote_sent_date && <p className="micro-text">Sent on: {pet.quote_sent_date}</p>}
+                </div>
+              )}
+            </div>
+          </section>
           
           {pet._originItem && onStatusUpdate && (
             <section className="card-section admin-status">
@@ -237,17 +425,31 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
                     onChange={(e) => setSelectedStatus(e.target.value)}
                     className="status-select-admin"
                   >
-                    <option value="PENDING_REVIEW">Intake (New)</option>
-                    <option value="PROFILE_CREATED">Profile Created</option>
-                    <option value="QUOTED">Quoted</option>
-                    <option value="READY_FOR_APPROVAL">New Request</option>
-                    <option value="APPROVED">Approved</option>
-                    <option value="ASSIGNED">Scheduled</option>
-                    <option value="IN_PROGRESS">In Progress</option>
-                    <option value="COMPLETED">Completed</option>
-                    <option value="CANCELLED">Cancelled</option>
-                    <option value="ARCHIVED">Archived</option>
-                    <option value="DELETED">Deleted (Soft)</option>
+                    <optgroup label="Intake & Review">
+                      <option value="PENDING_REVIEW">Needs Review</option>
+                      <option value="PROFILE_CREATED">Profile Created</option>
+                      <option value="READY_FOR_APPROVAL">New Request</option>
+                    </optgroup>
+                    <optgroup label="Meet & Greet">
+                      <option value="MEET_GREET_REQUIRED">Needs M&G</option>
+                      <option value="MG_SCHEDULED">M&G Scheduled</option>
+                      <option value="MG_COMPLETED">M&G Completed</option>
+                    </optgroup>
+                    <optgroup label="Quoting">
+                      <option value="QUOTE_NEEDED">Quote Needed</option>
+                      <option value="QUOTE_SENT">Quote Sent</option>
+                    </optgroup>
+                    <optgroup label="Execution">
+                      <option value="APPROVED">Approved / Booked</option>
+                      <option value="ASSIGNED">Scheduled</option>
+                      <option value="IN_PROGRESS">In Progress</option>
+                      <option value="COMPLETED">Completed</option>
+                    </optgroup>
+                    <optgroup label="Lifecycle">
+                      <option value="CANCELLED">Cancelled</option>
+                      <option value="ARCHIVED">Archived</option>
+                      <option value="DELETED">Deleted (Soft)</option>
+                    </optgroup>
                   </select>
                 </div>
                 <div className="field">

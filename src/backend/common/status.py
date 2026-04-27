@@ -2,9 +2,17 @@ from enum import Enum
 
 class RequestStatus(Enum):
     PENDING_REVIEW = "PENDING_REVIEW"
+    NEEDS_REVIEW = "PENDING_REVIEW" # Synonym
     MEET_GREET_REQUIRED = "MEET_GREET_REQUIRED"
+    NEEDS_MG = "MEET_GREET_REQUIRED" # Synonym
+    MG_SCHEDULED = "MG_SCHEDULED"
+    MG_COMPLETED = "MG_COMPLETED"
     READY_FOR_APPROVAL = "READY_FOR_APPROVAL"
+    NEW_REQUEST = "READY_FOR_APPROVAL" # Synonym
+    QUOTE_NEEDED = "QUOTE_NEEDED"
+    QUOTE_SENT = "QUOTE_SENT"
     APPROVED = "APPROVED"
+    BOOKED = "APPROVED" # Synonym
     ASSIGNED = "ASSIGNED"
     DECLINED = "DECLINED"
     CANCELLATION_REQUESTED = "CANCELLATION_REQUESTED"
@@ -30,6 +38,8 @@ REQUEST_TRANSITIONS = {
         RequestStatus.MEET_GREET_REQUIRED.value,
         RequestStatus.READY_FOR_APPROVAL.value,
         RequestStatus.PROFILE_CREATED.value,
+        RequestStatus.QUOTE_NEEDED.value,
+        RequestStatus.QUOTE_SENT.value,
         RequestStatus.QUOTED.value,
         RequestStatus.APPROVED.value,
         RequestStatus.DECLINED.value,
@@ -37,30 +47,61 @@ REQUEST_TRANSITIONS = {
         RequestStatus.ARCHIVED.value,
         RequestStatus.DELETED.value
     ],
-    RequestStatus.MEET_GREET_REQUIRED.value: [
+    RequestStatus.PROFILE_CREATED.value: [
         RequestStatus.READY_FOR_APPROVAL.value,
-        RequestStatus.PROFILE_CREATED.value,
-        RequestStatus.QUOTED.value,
+        RequestStatus.MEET_GREET_REQUIRED.value,
+        RequestStatus.QUOTE_NEEDED.value,
+        RequestStatus.QUOTE_SENT.value,
+        RequestStatus.APPROVED.value,
+        RequestStatus.DECLINED.value,
+        RequestStatus.CANCELLED.value,
+        RequestStatus.ARCHIVED.value
+    ],
+    RequestStatus.MEET_GREET_REQUIRED.value: [
+        RequestStatus.MG_SCHEDULED.value,
+        RequestStatus.MG_COMPLETED.value,
+        RequestStatus.READY_FOR_APPROVAL.value,
+        RequestStatus.QUOTE_NEEDED.value,
         RequestStatus.DECLINED.value,
         RequestStatus.ARCHIVED.value
     ],
-    RequestStatus.PROFILE_CREATED.value: [
+    RequestStatus.MG_SCHEDULED.value: [
+        RequestStatus.MG_COMPLETED.value,
+        RequestStatus.MEET_GREET_REQUIRED.value, # Reschedule/Revert
+        RequestStatus.CANCELLED.value,
+        RequestStatus.ARCHIVED.value
+    ],
+    RequestStatus.MG_COMPLETED.value: [
+        RequestStatus.QUOTE_NEEDED.value,
         RequestStatus.READY_FOR_APPROVAL.value,
-        RequestStatus.QUOTED.value,
         RequestStatus.APPROVED.value,
+        RequestStatus.ARCHIVED.value
+    ],
+    RequestStatus.QUOTE_NEEDED.value: [
+        RequestStatus.QUOTE_SENT.value,
+        RequestStatus.READY_FOR_APPROVAL.value,
+        RequestStatus.DECLINED.value,
+        RequestStatus.CANCELLED.value,
+        RequestStatus.ARCHIVED.value
+    ],
+    RequestStatus.QUOTE_SENT.value: [
+        RequestStatus.APPROVED.value,
+        RequestStatus.QUOTE_NEEDED.value, # Revision
         RequestStatus.DECLINED.value,
         RequestStatus.CANCELLED.value,
         RequestStatus.ARCHIVED.value
     ],
     RequestStatus.READY_FOR_APPROVAL.value: [
         RequestStatus.APPROVED.value,
+        RequestStatus.QUOTE_NEEDED.value,
+        RequestStatus.QUOTE_SENT.value,
         RequestStatus.QUOTED.value,
         RequestStatus.DECLINED.value,
         RequestStatus.ARCHIVED.value
     ],
     RequestStatus.QUOTED.value: [
         RequestStatus.APPROVED.value,
-        RequestStatus.READY_FOR_APPROVAL.value, # Rollback
+        RequestStatus.READY_FOR_APPROVAL.value,
         RequestStatus.DECLINED.value,
         RequestStatus.CANCELLED.value,
         RequestStatus.ARCHIVED.value,
@@ -92,26 +133,26 @@ REQUEST_TRANSITIONS = {
     ],
     RequestStatus.DECLINED.value: [
         RequestStatus.ARCHIVED.value,
-        RequestStatus.QUOTED.value,        # Allow restoration to Quote
-        RequestStatus.PENDING_REVIEW.value # Allow restoration
+        RequestStatus.QUOTED.value,
+        RequestStatus.PENDING_REVIEW.value
     ],
     RequestStatus.CANCELLED.value: [
         RequestStatus.ARCHIVED.value,
-        RequestStatus.PENDING_REVIEW.value, # Allow restoration
-        RequestStatus.QUOTED.value,         # Allow restoration to Quote
-        RequestStatus.APPROVED.value        # Allow direct restoration
+        RequestStatus.PENDING_REVIEW.value,
+        RequestStatus.QUOTED.value,
+        RequestStatus.APPROVED.value
     ],
     RequestStatus.COMPLETED.value: [
         RequestStatus.ARCHIVED.value,
-        RequestStatus.ASSIGNED.value,       # Reopen
-        RequestStatus.APPROVED.value        # Reopen to Approved
+        RequestStatus.ASSIGNED.value,
+        RequestStatus.APPROVED.value
     ],
     RequestStatus.ARCHIVED.value: [
-        RequestStatus.PENDING_REVIEW.value, # Allow restoration
+        RequestStatus.PENDING_REVIEW.value,
         RequestStatus.DELETED.value
     ],
     RequestStatus.DELETED.value: [
-        RequestStatus.PENDING_REVIEW.value # Allow restoration
+        RequestStatus.PENDING_REVIEW.value
     ]
 }
 

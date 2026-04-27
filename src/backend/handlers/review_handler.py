@@ -87,14 +87,25 @@ def handler(event, context):
             return bad_request(f"Invalid transition from {current_status} to {new_status}", event)
  
         # 3. Enforce validation rules for specific statuses
-        if new_status == 'APPROVED':
+        if new_status in ['APPROVED', 'BOOKED']:
             # Check Client metadata for Meet-and-Greet
             client_metadata = get_item(f"CLIENT#{client_id}", "METADATA")
-            is_verified = client_metadata and client_metadata.get('meet_and_greet_completed')
+            mg_required = client_metadata.get('meet_and_greet_required', True) # Default to true for safety
+            mg_completed = client_metadata.get('meet_and_greet_completed', False)
             
-            if not is_verified:
+            if mg_required and not mg_completed:
                 return bad_request(
-                    "Cannot approve request: Meet-and-Greet required.", 
+                    "Meet & Greet must be marked completed before this request can move forward to Approved.", 
+                    event
+                )
+            
+            # Check Quote requirements
+            quote_required = request_item.get('quote_required', False)
+            payment_status = request_item.get('payment_status', 'Not Quoted')
+            
+            if quote_required and payment_status not in ['Accepted', 'Deposit Paid', 'Paid in Full']:
+                return bad_request(
+                    "Quote must be accepted and payment status updated before this request can move forward to Approved.",
                     event
                 )
 

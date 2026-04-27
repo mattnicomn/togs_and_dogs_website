@@ -33,38 +33,41 @@ const AdminDashboard = () => {
   
   const getStatusClass = (status = "") => {
     const s = (status || "").toUpperCase();
-    if (s.includes("NEW") || s.includes("INTAKE") || s.includes("PENDING")) return "status-chip status-chip--new";
+    if (s.includes("NEW") || s.includes("INTAKE") || s.includes("PENDING") || s.includes("REVIEW")) return "status-chip status-chip--new";
     if (s.includes("PROFILE_CREATED")) return "status-chip status-chip--profile";
     if (s.includes("READY") || s.includes("REQUEST")) return "status-chip status-chip--ready";
-    if (s.includes("APPROVED")) return "status-chip status-chip--approved";
-    if (s.includes("QUOTED")) return "status-chip status-chip--quoted";
+    if (s.includes("MEET") || s.includes("MG_")) return "status-chip status-chip--ready";
+    if (s.includes("QUOTE")) return "status-chip status-chip--quoted";
+    if (s.includes("APPROVED") || s.includes("BOOKED")) return "status-chip status-chip--approved";
     if (s.includes("SCHEDULED") || s.includes("ASSIGNED") || s.includes("JOB_CREATED")) return "status-chip status-chip--assigned";
     if (s.includes("IN_PROGRESS")) return "status-chip status-chip--progress";
     if (s.includes("COMPLETED")) return "status-chip status-chip--completed";
     if (s.includes("CANCELLED")) return "status-chip status-chip--cancelled";
     if (s.includes("REJECTED") || s.includes("DECLINED") || s.includes("DENIED")) return "status-chip status-chip--rejected";
     if (s.includes("ARCHIVE")) return "status-chip status-chip--archived";
-    if (s.includes("DELETED")) return "status-chip status-chip--deleted";
+    if (s.includes("DELETED") || s.includes("TRASH")) return "status-chip status-chip--deleted";
     return "status-chip status-chip--archived";
   };
 
   const getStatusLabel = (status = "") => {
     const s = (status || "").toUpperCase();
-    if (s === 'PENDING_REVIEW') return "Intake";
-    if (s === 'MEET_GREET_REQUIRED') return "M&G Required";
+    if (s === 'PENDING_REVIEW' || s === 'NEEDS_REVIEW') return "Needs Review";
+    if (s === 'MEET_GREET_REQUIRED' || s === 'NEEDS_MG') return "Needs M&G";
+    if (s === 'MG_SCHEDULED') return "M&G Scheduled";
+    if (s === 'MG_COMPLETED') return "M&G Completed";
     if (s === 'PROFILE_CREATED') return "Profile Created";
-    if (s === 'READY_FOR_APPROVAL') return "New Request";
-    if (s === 'QUOTED') return "Quoted";
-    if (s === 'APPROVED') return "Approved";
-    if (s === 'ASSIGNED' || s === 'JOB_CREATED') return "Scheduled";
+    if (s === 'READY_FOR_APPROVAL' || s === 'NEW_REQUEST') return "New Request";
+    if (s === 'QUOTE_NEEDED') return "Quote Needed";
+    if (s === 'QUOTE_SENT' || s === 'QUOTED') return "Quoted";
+    if (s === 'APPROVED' || s === 'BOOKED') return "Approved";
+    if (s === 'ASSIGNED' || s === 'JOB_CREATED' || s === 'SCHEDULED') return "Scheduled";
     if (s === 'IN_PROGRESS') return "In Progress";
     if (s === 'COMPLETED') return "Completed";
     if (s === 'CANCELLATION_REQUESTED') return "Cancel Requested";
     if (s === 'CANCELLATION_DENIED') return "Cancel Denied";
     if (s === 'CANCELLED') return "Cancelled";
     if (s === 'ARCHIVED' || s === 'ARCHIVE') return "Archived";
-    if (s === 'DELETED' || s === 'DELETE') return "Deleted";
-    if (s === 'REOPEN_PENDING' || s === 'PENDING_REVIEW') return "Intake Queue";
+    if (s === 'DELETED' || s === 'DELETE' || s === 'TRASH') return "Deleted";
     return s || "Unknown";
   };
 
@@ -111,21 +114,35 @@ const AdminDashboard = () => {
     // Active Workflow Status Actions
     switch (status) {
       case 'PENDING_REVIEW':
-        state.actions = ["CREATE_PROFILE", "VERIFY_MG", "APPROVE", "CANCEL"];
+      case 'NEEDS_REVIEW':
+        state.actions = ["CREATE_PROFILE", "MEET_GREET", "APPROVE", "CANCEL"];
         break;
       case 'PROFILE_CREATED':
-        state.actions = ["MOVE_TO_NEW_REQUEST", "VERIFY_MG", "APPROVE", "CANCEL", "EDIT_PET"];
+        state.actions = ["MOVE_TO_NEW_REQUEST", "MEET_GREET", "QUOTE", "APPROVE", "CANCEL", "EDIT_PET"];
         break;
       case 'MEET_GREET_REQUIRED':
-        state.actions = ["VERIFY_MG", "CANCEL", "EDIT_PET"];
+      case 'NEEDS_MG':
+        state.actions = ["MG_SCHEDULED", "VERIFY_MG", "CANCEL", "EDIT_PET"];
         break;
-      case 'READY_FOR_APPROVAL':
+      case 'MG_SCHEDULED':
+        state.actions = ["VERIFY_MG", "MEET_GREET_REQUIRED", "CANCEL", "EDIT_PET"];
+        break;
+      case 'MG_COMPLETED':
         state.actions = ["QUOTE", "APPROVE", "CANCEL", "EDIT_PET"];
         break;
+      case 'QUOTE_NEEDED':
+        state.actions = ["QUOTE_SENT", "APPROVE", "CANCEL", "EDIT_PET"];
+        break;
+      case 'QUOTE_SENT':
       case 'QUOTED':
-        state.actions = ["APPROVE", "CANCEL", "EDIT_PET"];
+        state.actions = ["APPROVE", "QUOTE_NEEDED", "CANCEL", "EDIT_PET"];
+        break;
+      case 'READY_FOR_APPROVAL':
+      case 'NEW_REQUEST':
+        state.actions = ["QUOTE", "APPROVE", "CANCEL", "EDIT_PET"];
         break;
       case 'APPROVED':
+      case 'BOOKED':
       case 'JOB_CREATED':
         state.actions = ["ASSIGN", "CANCEL", "ARCHIVE", "EDIT_PET"];
         break;
@@ -141,8 +158,6 @@ const AdminDashboard = () => {
         break;
       case 'CANCELLED':
       case 'DECLINED':
-        // Cancelled/Declined active records can be archived or deleted, but not "restored" directly to Pending Review
-        // (Use Restore only from Archived/Trash state)
         state.actions = ["ARCHIVE", "DELETE"];
         break;
       default:
@@ -205,8 +220,8 @@ const AdminDashboard = () => {
       
       if (view === 'SCHEDULER') {
         const data = await getAdminRequests('ALL');
-        // Exclude lifecycle/removal statuses from the scheduler timeline to prevent stale display
-        const terminalStatuses = ['ARCHIVED', 'DELETED'];
+        // Exclude lifecycle/removal statuses from the scheduler timeline
+        const terminalStatuses = ['ARCHIVED', 'DELETED', 'COMPLETED', 'CANCELLED'];
         setRequests((data.requests || []).filter(r => !terminalStatuses.includes((r.status || '').toUpperCase())));
       } else {
         // Handle filter mapping
@@ -215,7 +230,15 @@ const AdminDashboard = () => {
         if (statusFilter === 'TRASH' || statusFilter === 'DELETED') queryStatus = 'DELETED';
         
         const data = await getAdminRequests(queryStatus, startKey, timeframeFilter);
-        setRequests(data.requests || []);
+        let items = data.requests || [];
+        
+        // Refinement: If status is 'ALL' (Active), exclude terminal statuses
+        if (statusFilter === 'ALL') {
+          const exclusionStatuses = ['COMPLETED', 'ARCHIVED', 'DELETED', 'CANCELLED', 'DECLINED'];
+          items = items.filter(r => !exclusionStatuses.includes((r.status || '').toUpperCase()));
+        }
+
+        setRequests(items);
         setLastKey(data.lastKey);
       }
     } catch (err) {
@@ -262,7 +285,9 @@ const AdminDashboard = () => {
       'ARCHIVE': 'ARCHIVED',
       'CREATE_PROFILE': 'PROFILE_CREATED',
       'MOVE_TO_NEW_REQUEST': 'READY_FOR_APPROVAL',
-      'QUOTE': 'QUOTED',
+      'QUOTE': 'QUOTE_NEEDED',
+      'QUOTE_SENT': 'QUOTE_SENT',
+      'MG_SCHEDULED': 'MG_SCHEDULED',
       'DELETE': 'DELETED'
     };
 
@@ -743,41 +768,46 @@ const AdminDashboard = () => {
       <div className="admin-layout">
 
         <aside className="admin-sidebar card">
-          <div className="filter-group">
-            <h4>Staff Quick View</h4>
-            <div className="staff-legend-box">
-              {['Ryan', 'Wife', 'Nephew1', 'Nephew2', 'Unassigned'].map(name => (
-                <div key={name} className="legend-item">
-                  <span className="dot" style={{ backgroundColor: `var(--staff-${name.toLowerCase()})` }}></span>
-                  <span className="legend-label">{name}</span>
-                </div>
+          {view === 'LIST' && (
+            <div className="filter-group">
+              <h4>Staff Quick View</h4>
+              <div className="staff-legend-box">
+                {['Ryan', 'Wife', 'Nephew1', 'Nephew2', 'Unassigned'].map(name => (
+                  <div key={name} className="legend-item">
+                    <span className="dot" style={{ backgroundColor: `var(--staff-${name.toLowerCase()})` }}></span>
+                    <span className="legend-label">{name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {view === 'LIST' && (
+            <div className="filter-group">
+              <h4>Quick Filters</h4>
+              {[
+                { id: 'PENDING_REVIEW', label: 'Needs Review' },
+                { id: 'MEET_GREET_REQUIRED', label: 'Needs M&G' },
+                { id: 'READY_FOR_APPROVAL', label: 'New Requests' },
+                { id: 'QUOTE_NEEDED', label: 'Quote Needed' },
+                { id: 'APPROVED', label: 'Approved' },
+                { id: 'ASSIGNED', label: 'Scheduled' },
+                { id: 'COMPLETED', label: 'Completed' },
+                { id: 'CANCELLED', label: 'Cancelled' },
+                { id: 'ARCHIVED', label: 'Archived' },
+                { id: 'DELETED', label: 'Trash / Deleted' },
+                { id: 'ALL', label: 'All Active' }
+              ].map(f => (
+                <button 
+                  key={f.id}
+                  className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
+                  onClick={() => setStatusFilter(f.id)}
+                >
+                  {f.label}
+                </button>
               ))}
             </div>
-          </div>
-
-          <div className="filter-group">
-            <h4>Quick Filters</h4>
-            {[
-              { id: 'PENDING_REVIEW', label: 'Intake Queue' },
-              { id: 'PROFILE_CREATED', label: 'Profile Created' },
-              { id: 'READY_FOR_APPROVAL', label: 'New Requests' },
-              { id: 'QUOTED', label: 'Quoted' },
-              { id: 'APPROVED', label: 'Approved' },
-              { id: 'ASSIGNED', label: 'Scheduled' },
-              { id: 'CANCELLED', label: 'Cancelled' },
-              { id: 'ARCHIVED', label: 'Archived' },
-              { id: 'DELETED', label: 'Trash / Deleted' },
-              { id: 'ALL', label: 'All Active' }
-            ].map(f => (
-              <button 
-                key={f.id}
-                className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
-                onClick={() => setStatusFilter(f.id)}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
+          )}
 
           <div className="filter-group">
             <h4>Timeframe</h4>
@@ -824,6 +854,25 @@ const AdminDashboard = () => {
             />
           ) : (
             <div className="list-view-container card">
+              <div className="list-header-bar">
+                <h2>Request List — {(() => {
+                  const filter = [
+                    { id: 'PENDING_REVIEW', label: 'Needs Review' },
+                    { id: 'MEET_GREET_REQUIRED', label: 'Needs M&G' },
+                    { id: 'READY_FOR_APPROVAL', label: 'New Requests' },
+                    { id: 'QUOTE_NEEDED', label: 'Quote Needed' },
+                    { id: 'APPROVED', label: 'Approved' },
+                    { id: 'ASSIGNED', label: 'Scheduled' },
+                    { id: 'COMPLETED', label: 'Completed' },
+                    { id: 'CANCELLED', label: 'Cancelled' },
+                    { id: 'ARCHIVED', label: 'Archived' },
+                    { id: 'DELETED', label: 'Trash / Deleted' },
+                    { id: 'ALL', label: 'All Active' }
+                  ].find(f => f.id === statusFilter);
+                  return filter ? filter.label : 'Items';
+                })()}</h2>
+                <span className="micro-text">Showing records requiring action in the {statusFilter.replace(/_/g, ' ')} phase</span>
+              </div>
               {selectedIds.length > 0 && (
                 <div className="bulk-toolbar">
                   <div className="bulk-info">

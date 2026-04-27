@@ -38,22 +38,23 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet }) => {
     const status = (i.status || "").toUpperCase();
     const terminalStatuses = ['ARCHIVED', 'DELETED', 'COMPLETED', 'CANCELLED', 'DECLINED'];
     
-    // Determine if it's an "active" visit that should be on the scheduler
-    // Must be a JOB or an active workflow status, AND must NOT be a terminal lifecycle status
-    const isWorkflowActive = i.entity_type === 'JOB' || 
-                     ['APPROVED', 'QUOTED', 'ASSIGNED', 'SCHEDULED', 'JOB_CREATED', 'CANCELLATION_REQUESTED', 'IN_PROGRESS'].includes(status);
-    
-    const isLifecycleActive = !terminalStatuses.includes(status);
-    
-    if (!isWorkflowActive || !isLifecycleActive) return false;
-    
     // Quick Filters
     const staffMatch = filters.staff === 'ALL' || i.worker_id === filters.staff;
-    const statusMatch = filters.status === 'ALL' || i.status === filters.status;
+    const statusMatch = filters.status === 'ALL' 
+      ? !terminalStatuses.includes(status) // Exclude terminal from 'ALL Active'
+      : status === filters.status;         // Exact match for specific status selection
     const serviceMatch = filters.service === 'ALL' || i.service_type === filters.service;
     
+    // Search Filter
+    const searchTerm = (filters.search || "").toLowerCase();
+    const searchMatch = !searchTerm || 
+                        (i.pet_name || "").toLowerCase().includes(searchTerm) || 
+                        (i.client_name || "").toLowerCase().includes(searchTerm);
+
+    if (!statusMatch || !staffMatch || !serviceMatch || !searchMatch) return false;
+    
     // Date Filtering (Day/Week View)
-    const visitDate = i.start_date; // Assuming start_date is the scheduled date
+    const visitDate = i.start_date;
     if (!visitDate) return false;
 
     let dateMatch = true;
@@ -64,7 +65,7 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet }) => {
       dateMatch = visitStartOfWeek === startOfWeek;
     }
 
-    return staffMatch && statusMatch && serviceMatch && dateMatch;
+    return dateMatch;
   });
 
   const pendingIntake = items.filter(i => ['PENDING_REVIEW', 'MEET_GREET_REQUIRED', 'PROFILE_CREATED', 'READY_FOR_APPROVAL'].includes(i.status));
@@ -83,6 +84,16 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet }) => {
       </div>
 
       <div className="filter-bar card">
+        <div className="filter-group search">
+          <label>Search</label>
+          <input 
+            type="text" 
+            placeholder="Customer or pet..."
+            value={filters.search || ''} 
+            onChange={(e) => setFilters({...filters, search: e.target.value})}
+            className="search-input"
+          />
+        </div>
         <div className="filter-group">
           <label>Staff</label>
           <select value={filters.staff} onChange={(e) => setFilters({...filters, staff: e.target.value})}>
@@ -96,12 +107,12 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet }) => {
         <div className="filter-group">
           <label>Status</label>
           <select value={filters.status} onChange={(e) => setFilters({...filters, status: e.target.value})}>
-            <option value="ALL">All Statuses</option>
-            <option value="QUOTED">Quoted</option>
-            <option value="APPROVED">Approved</option>
+            <option value="ALL">All Active</option>
             <option value="ASSIGNED">Scheduled</option>
             <option value="IN_PROGRESS">In Progress</option>
-            <option value="CANCELLATION_REQUESTED">Cancel Requested</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="CANCELLED">Canceled</option>
+            <option value="RESCHEDULED">Rescheduled</option>
           </select>
         </div>
         <div className="filter-group">
@@ -113,6 +124,14 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet }) => {
             <option value="DROPIN_3HR">3hr Drop-in</option>
             <option value="OVERNIGHT">Overnight</option>
           </select>
+        </div>
+        <div className="filter-actions">
+          <button 
+            className="btn-micro" 
+            onClick={() => setFilters({ staff: 'ALL', status: 'ALL', service: 'ALL', search: '' })}
+          >
+            Clear Filters
+          </button>
         </div>
       </div>
 

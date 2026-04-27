@@ -52,7 +52,12 @@ def handler(event, context):
             
             editable_fields = [
                 'name', 'breed', 'age', 'photo_url', 'care_instructions',
-                'behavior', 'logistics', 'health', 'document_links', 'meet_and_greet_completed'
+                'behavior', 'logistics', 'health', 'document_links', 
+                'meet_and_greet_completed', 'meet_and_greet_required', 
+                'meet_and_greet_scheduled_at', 'meet_and_greet_completed_at', 
+                'meet_and_greet_notes', 'quote_amount', 'deposit_required', 
+                'deposit_paid', 'payment_status', 'quote_sent_date', 
+                'quote_accepted_date', 'quote_notes', 'internal_pricing_notes'
             ]
             
             for field in editable_fields:
