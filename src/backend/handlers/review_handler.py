@@ -88,10 +88,16 @@ def handler(event, context):
  
         # 3. Enforce validation rules for specific statuses
         if new_status in ['APPROVED', 'BOOKED']:
-            # Check Client metadata for Meet-and-Greet
-            client_metadata = get_item(f"CLIENT#{client_id}", "METADATA")
-            mg_required = client_metadata.get('meet_and_greet_required', True) # Default to true for safety
-            mg_completed = client_metadata.get('meet_and_greet_completed', False)
+            pet_id = request_item.get('pet_id')
+            pet_metadata = {}
+            if pet_id:
+                pet_metadata = get_item(f"PET#{pet_id}", f"CLIENT#{client_id}") or {}
+            
+            mg_required = pet_metadata.get('meet_and_greet_required')
+            if mg_required is None:
+                mg_required = True # Default to true for safety
+                
+            mg_completed = pet_metadata.get('meet_and_greet_completed', False)
             
             if mg_required and not mg_completed:
                 return bad_request(
@@ -100,10 +106,10 @@ def handler(event, context):
                 )
             
             # Check Quote requirements
-            quote_required = request_item.get('quote_required', False)
-            payment_status = request_item.get('payment_status', 'Not Quoted')
+            quote_amount = float(pet_metadata.get('quote_amount', 0))
+            payment_status = pet_metadata.get('payment_status', 'Not Quoted')
             
-            if quote_required and payment_status not in ['Accepted', 'Deposit Paid', 'Paid in Full']:
+            if quote_amount > 0 and payment_status not in ['Accepted', 'Deposit Paid', 'Paid in Full']:
                 return bad_request(
                     "Quote must be accepted and payment status updated before this request can move forward to Approved.",
                     event

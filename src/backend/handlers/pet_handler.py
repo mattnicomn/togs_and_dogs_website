@@ -31,6 +31,8 @@ def handler(event, context):
         elif http_method == 'POST' or http_method == 'PUT':
             body = json.loads(event.get('body', '{}'))
             client_id = body.get('client_id')
+            request_id = body.get('request_id') # Extract request_id if passed
+            
             if not client_id:
                 return bad_request("Missing client_id in body", event)
             
@@ -65,6 +67,17 @@ def handler(event, context):
                     item[field] = body[field]
             
             if put_item(item):
+                if request_id:
+                    try:
+                        table.update_item(
+                            Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                            UpdateExpression="SET pet_id = :pid",
+                            ExpressionAttributeValues={":pid": pet_id}
+                        )
+                        print(f"INFO: [Req:{request_id}] Linked to Pet:{pet_id}")
+                    except Exception as link_err:
+                        print(f"ERROR: [Req:{request_id}] Failed to link to Pet:{pet_id}: {link_err}")
+                
                 return success(item, event)
             return internal_error("Failed to save pet record", event)
 

@@ -652,7 +652,7 @@ const AdminDashboard = () => {
       
       if (!clientId) throw new Error("Could not resolve Client ID for pet update.");
       
-      await updatePet(pid, clientId, updatedPet);
+      await updatePet(pid, clientId, { ...updatedPet, request_id: reqId });
 
       // Transition workflow if this was an intake record
       const intakeStatuses = ['PENDING_REVIEW', 'MEET_GREET_REQUIRED'];
