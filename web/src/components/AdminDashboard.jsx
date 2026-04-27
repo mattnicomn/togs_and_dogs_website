@@ -62,8 +62,9 @@ const AdminDashboard = () => {
     if (s === 'CANCELLATION_REQUESTED') return "Cancel Requested";
     if (s === 'CANCELLATION_DENIED') return "Cancel Denied";
     if (s === 'CANCELLED') return "Cancelled";
-    if (s === 'ARCHIVED') return "Archived";
-    if (s === 'DELETED') return "Deleted";
+    if (s === 'ARCHIVED' || s === 'ARCHIVE') return "Archived";
+    if (s === 'DELETED' || s === 'DELETE') return "Deleted";
+    if (s === 'REOPEN_PENDING' || s === 'PENDING_REVIEW') return "Intake Queue";
     return s || "Unknown";
   };
 
@@ -301,7 +302,10 @@ const AdminDashboard = () => {
       if (results.failed > 0) {
         showNotification(`Bulk update partial: ${results.success} success, ${results.failed} failed.`, "error");
       } else {
-        showNotification(`Successfully updated ${results.success} records.`, "success");
+        const actionLabel = bulkAction === 'DELETE' ? 'moved to Trash' : 
+                           bulkAction === 'REOPEN_PENDING' ? 'restored to Active' : 
+                           `updated to ${getStatusLabel(bulkAction)}`;
+        showNotification(`Successfully ${actionLabel}: ${results.success} records.`, "success");
       }
       
       setSelectedIds([]);
@@ -853,6 +857,8 @@ const AdminDashboard = () => {
                       <option value="COMPLETED">Completed</option>
                       <option value="CANCELLED">Cancelled</option>
                       <option value="ARCHIVED">Archived</option>
+                      <option value="DELETE">Move to Trash / Deleted</option>
+                      <option value="REOPEN_PENDING">Restore to Active</option>
                     </select>
                     <button 
                       onClick={() => setBulkConfirmModal({ count: selectedIds.length, target: bulkAction })}
@@ -1107,8 +1113,12 @@ const AdminDashboard = () => {
                   <p>Target Status: <span className="highlight-status">{getStatusLabel(bulkConfirmModal.target)}</span></p>
                   <div className="safety-notice">
                     <p>● This action will update only the currently selected visible records.</p>
-                    {bulkConfirmModal.target === 'ARCHIVED' ? (
+                    {bulkConfirmModal.target === 'ARCHIVED' || bulkConfirmModal.target === 'ARCHIVE' ? (
                       <p>● This uses archive/soft-delete behavior. Records can be restored from the Archived view.</p>
+                    ) : (bulkConfirmModal.target === 'DELETE' || bulkConfirmModal.target === 'DELETED') ? (
+                      <p>● Move {bulkConfirmModal.count} selected visits to Trash? These records will be hidden from active workflows but can still be restored unless permanently deleted.</p>
+                    ) : (bulkConfirmModal.target === 'REOPEN_PENDING' || bulkConfirmModal.target === 'PENDING_REVIEW') ? (
+                      <p>● Restore {bulkConfirmModal.count} selected visits to Active? This will move records back to the Intake Queue (Pending Review).</p>
                     ) : (
                       <p>● Records will be moved to the {getStatusLabel(bulkConfirmModal.target)} workflow phase.</p>
                     )}
