@@ -239,6 +239,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
                   >
                     <option value="PENDING_REVIEW">Intake (New)</option>
                     <option value="PROFILE_CREATED">Profile Created</option>
+                    <option value="QUOTED">Quoted</option>
                     <option value="READY_FOR_APPROVAL">New Request</option>
                     <option value="APPROVED">Approved</option>
                     <option value="ASSIGNED">Scheduled</option>

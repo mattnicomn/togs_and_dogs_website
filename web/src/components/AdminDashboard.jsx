@@ -50,6 +50,7 @@ const AdminDashboard = () => {
     if (s === 'MEET_GREET_REQUIRED') return "M&G Required";
     if (s === 'PROFILE_CREATED') return "Profile Created";
     if (s === 'READY_FOR_APPROVAL') return "New Request";
+    if (s === 'QUOTED') return "Quoted";
     if (s === 'APPROVED') return "Approved";
     if (s === 'ASSIGNED' || s === 'JOB_CREATED') return "Scheduled";
     if (s === 'IN_PROGRESS') return "In Progress";
@@ -114,6 +115,9 @@ const AdminDashboard = () => {
         state.actions = ["VERIFY_MG", "CANCEL", "EDIT_PET"];
         break;
       case 'READY_FOR_APPROVAL':
+        state.actions = ["QUOTE", "APPROVE", "CANCEL", "EDIT_PET"];
+        break;
+      case 'QUOTED':
         state.actions = ["APPROVE", "CANCEL", "EDIT_PET"];
         break;
       case 'APPROVED':
@@ -192,8 +196,8 @@ const AdminDashboard = () => {
   const fetchAllData = async (startKey = null) => {
     try {
       setLoading(true);
-      setRequests([]); // Clear previous results to prevent stale data flash
-      setSelectedIds([]); // Reset selection on fresh fetch
+      if (!startKey) setSelectedIds([]); // Reset selection on fresh fetch
+      
       if (view === 'SCHEDULER') {
         const data = await getAdminRequests('ALL');
         // Exclude lifecycle/removal statuses from the scheduler timeline to prevent stale display
@@ -211,7 +215,6 @@ const AdminDashboard = () => {
       }
     } catch (err) {
       setError("Failed to fetch data: " + err.message);
-      setRequests([]);
     } finally {
       setLoading(false);
     }
@@ -254,6 +257,7 @@ const AdminDashboard = () => {
       'ARCHIVE': 'ARCHIVED',
       'CREATE_PROFILE': 'PROFILE_CREATED',
       'MOVE_TO_NEW_REQUEST': 'READY_FOR_APPROVAL',
+      'QUOTE': 'QUOTED',
       'DELETE': 'DELETED'
     };
 
@@ -310,18 +314,21 @@ const AdminDashboard = () => {
   const resolveIds = (item) => {
     if (!item) return { reqId: null, clientId: null, jobId: null };
     
+    const pk = String(item.PK || '');
+    const sk = String(item.SK || '');
+    
     // Request ID: Priority to direct field, then PK/SK parsing
     const reqId = item.request_id || 
-                  (item.PK?.startsWith('REQ#') ? item.PK.split('#')[1] : 
-                  (item.SK?.startsWith('REQ#') ? item.SK.split('#')[1] : null));
+                  (pk.startsWith('REQ#') ? pk.split('#')[1] : 
+                  (sk.startsWith('REQ#') ? sk.split('#')[1] : null));
     
     // Client ID: Priority to direct field, then PK/SK parsing
     const clientId = item.client_id || 
-                     (item.PK?.startsWith('CLIENT#') ? item.PK.split('#')[1] : 
-                     (item.SK?.startsWith('CLIENT#') ? item.SK.split('#')[1] : null));
+                     (pk.startsWith('CLIENT#') ? pk.split('#')[1] : 
+                     (sk.startsWith('CLIENT#') ? sk.split('#')[1] : null));
     
     // Job ID: Priority to job_id field (often present in REQUEST after approval), then PK if entity is JOB
-    const jobId = item.job_id || (item.entity_type === 'JOB' ? item.PK?.split('#')[1] : null);
+    const jobId = item.job_id || (item.entity_type === 'JOB' ? pk.split('#')[1] : null);
     
     return { reqId, clientId, jobId };
   };
@@ -661,7 +668,7 @@ const AdminDashboard = () => {
       )}
       <header className="admin-header-bar card">
         <div className="header-left">
-          <h1>Tog&Dogs Admin</h1>
+          <h1>Tog and Dogs Admin</h1>
           <nav className="view-selector">
             <button className={view === 'SCHEDULER' ? 'active' : ''} onClick={() => { setView('SCHEDULER'); setStatusFilter('ALL'); }}>Scheduler</button>
             <button className={view === 'LIST' ? 'active' : ''} onClick={() => setView('LIST')}>Request List</button>
@@ -695,6 +702,7 @@ const AdminDashboard = () => {
               { id: 'PENDING_REVIEW', label: 'Intake Queue' },
               { id: 'PROFILE_CREATED', label: 'Profile Created' },
               { id: 'READY_FOR_APPROVAL', label: 'New Requests' },
+              { id: 'QUOTED', label: 'Quoted' },
               { id: 'APPROVED', label: 'Approved' },
               { id: 'ASSIGNED', label: 'Scheduled' },
               { id: 'CANCELLED', label: 'Cancelled' },
@@ -773,6 +781,7 @@ const AdminDashboard = () => {
                       <option value="">Choose status...</option>
                       <option value="PENDING_REVIEW">Requested / Intake</option>
                       <option value="READY_FOR_APPROVAL">New Request</option>
+                      <option value="QUOTED">Quoted</option>
                       <option value="APPROVED">Approved</option>
                       <option value="ASSIGNED">Scheduled</option>
                       <option value="IN_PROGRESS">In Progress</option>
@@ -901,6 +910,7 @@ const AdminDashboard = () => {
                                
                                const labels = {
                                  'APPROVE': 'Approve',
+                                 'QUOTE': 'Quote',
                                  'CANCEL': 'Cancel',
                                  'VERIFY_MG': 'Verify M&G',
                                  'REVERT_TO_APPROVED': 'Back to Approved',

@@ -29,7 +29,8 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet }) => {
     return new Date(d.setDate(diff)).toISOString().split('T')[0];
   };
 
-  const today = new Date().toISOString().split('T')[0];
+  // Use local date for "today" to match user expectations in their timezone
+  const today = new Date().toLocaleDateString('sv-SE'); // Swedish locale returns YYYY-MM-DD
   const startOfWeek = getStartOfWeek(new Date());
 
   // Advanced Filtering Logic
@@ -40,7 +41,7 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet }) => {
     // Determine if it's an "active" visit that should be on the scheduler
     // Must be a JOB or an active workflow status, AND must NOT be a terminal lifecycle status
     const isWorkflowActive = i.entity_type === 'JOB' || 
-                     ['APPROVED', 'ASSIGNED', 'SCHEDULED', 'JOB_CREATED', 'CANCELLATION_REQUESTED', 'IN_PROGRESS'].includes(status);
+                     ['APPROVED', 'QUOTED', 'ASSIGNED', 'SCHEDULED', 'JOB_CREATED', 'CANCELLATION_REQUESTED', 'IN_PROGRESS'].includes(status);
     
     const isLifecycleActive = !terminalStatuses.includes(status);
     
@@ -96,6 +97,7 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet }) => {
           <label>Status</label>
           <select value={filters.status} onChange={(e) => setFilters({...filters, status: e.target.value})}>
             <option value="ALL">All Statuses</option>
+            <option value="QUOTED">Quoted</option>
             <option value="APPROVED">Approved</option>
             <option value="ASSIGNED">Scheduled</option>
             <option value="IN_PROGRESS">In Progress</option>
