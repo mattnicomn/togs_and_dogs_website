@@ -27,12 +27,17 @@ def handler(event, context):
         request_id = str(uuid.uuid4())
         client_id = body.get('client_id', str(uuid.uuid4()))
         
+        from common.auth import get_current_company_id
+        company_id = get_current_company_id(event)
+
         # Create the Request record
         item = {
             'PK': f"REQ#{request_id}",
             'SK': f"CLIENT#{client_id}",
+            'company_id': company_id,
             'request_id': request_id,
             'client_id': client_id,
+
             'client_name': client_name,
             'client_email': client_email,
             'start_date': start_date,

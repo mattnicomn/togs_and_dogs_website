@@ -56,6 +56,9 @@ def handler(event, context):
             if not client_id:
                 return bad_request("Missing client_id in body", event)
             
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
+
             if not pet_id or pet_id == 'NEW':
                 pet_id = str(uuid.uuid4())
                 existing_item = {}
@@ -66,11 +69,13 @@ def handler(event, context):
             item.update({
                 'PK': f"PET#{pet_id}",
                 'SK': f"CLIENT#{client_id}",
+                'company_id': item.get('company_id') or company_id,
                 'pet_id': pet_id,
                 'client_id': client_id,
                 'entity_type': 'PET',
                 'updated_at': datetime.datetime.utcnow().isoformat()
             })
+
             
             editable_fields = [
                 'name', 'breed', 'age', 'photo_url', 'care_instructions',

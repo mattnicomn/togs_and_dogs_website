@@ -99,13 +99,18 @@ def initiate_auth(event):
     expires_at = int(time.time()) + 600 # 10 minutes
     
     try:
+        from common.auth import get_current_company_id
+        company_id = get_current_company_id(event)
+
         table.put_item(Item={
             'PK': f"OAUTHSTATE#{state}",
             'SK': 'META',
+            'company_id': company_id,
             'expires_at': expires_at,
             'created_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
             # Link to admin if available in context
             'admin_id': get_claims(event).get('sub', 'dynamic-admin')
+
 
         })
     except Exception as e:

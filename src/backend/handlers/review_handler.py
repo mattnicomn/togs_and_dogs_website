@@ -40,11 +40,15 @@ def handler(event, context):
         # 4. Handle VERIFY_MEET_GREET pseudo-status (updates Client Metadata)
         if new_status == 'VERIFY_MEET_GREET':
             try:
+                from common.auth import get_current_company_id
+                company_id = get_current_company_id(event)
+
                 table.update_item(
                     Key={'PK': f"CLIENT#{client_id}", 'SK': "METADATA"},
-                    UpdateExpression="SET meet_and_greet_completed = :t, entity_type = :et",
-                    ExpressionAttributeValues={":t": True, ":et": "CLIENT"}
+                    UpdateExpression="SET meet_and_greet_completed = :t, entity_type = :et, company_id = :cid",
+                    ExpressionAttributeValues={":t": True, ":et": "CLIENT", ":cid": company_id}
                 )
+
                 print(f"INFO: [Client:{client_id}] Meet & Greet manually verified by admin.")
                 
                 if request_id:

@@ -20,13 +20,15 @@ def handler(event, context):
             if role not in ['owner', 'admin', 'staff']:
                 return error(403, "Forbidden", event)
                 
-            company_id = 'tog_and_dogs'
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
             from common.db import table as items_table
             from boto3.dynamodb.conditions import Key
             
             response = items_table.query(
                 KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("STAFF#")
             )
+
             staff_profiles = response.get('Items', [])
             # Only return active staff
             active_staff = [s for s in staff_profiles if s.get('is_active') == True]
@@ -49,7 +51,8 @@ def handler(event, context):
             if display_name.lower() == 'unassigned':
                 return bad_request("Unassigned is a reserved system option", event)
                 
-            company_id = 'tog_and_dogs'
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
             from common.db import table as items_table
             from boto3.dynamodb.conditions import Key
             
@@ -57,6 +60,7 @@ def handler(event, context):
             resp = items_table.query(
                 KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("STAFF#")
             )
+
             existing_staff = resp.get('Items', [])
             for s in existing_staff:
                 if (s.get('display_name') or '').lower() == display_name.lower() and s.get('is_active') == True:
@@ -108,7 +112,8 @@ def handler(event, context):
             if display_name.lower() == 'unassigned':
                 return bad_request("Unassigned is a reserved system option", event)
                 
-            company_id = 'tog_and_dogs'
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
             from common.db import table as items_table
             from boto3.dynamodb.conditions import Key
             
@@ -116,6 +121,7 @@ def handler(event, context):
             resp = items_table.query(
                 KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("STAFF#")
             )
+
             existing_staff = resp.get('Items', [])
             for s in existing_staff:
                 if s.get('is_active') == True:
@@ -212,10 +218,12 @@ def handler(event, context):
             if not staff_id:
                 staff_id = path.split('/')[-2]
                 
-            company_id = 'tog_and_dogs'
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
             from common.db import table as items_table
             
             resp = items_table.get_item(Key={"PK": f"COMPANY#{company_id}", "SK": f"STAFF#{staff_id}"})
+
             staff_profile = resp.get('Item')
             if not staff_profile:
                 return not_found(f"Staff profile {staff_id} not found", event)
@@ -272,10 +280,12 @@ def handler(event, context):
             if not staff_id:
                 staff_id = path.split('/')[-2]
                 
-            company_id = 'tog_and_dogs'
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
             from common.db import table as items_table
             
             resp = items_table.get_item(Key={"PK": f"COMPANY#{company_id}", "SK": f"STAFF#{staff_id}"})
+
             staff_profile = resp.get('Item')
             if not staff_profile:
                 return not_found(f"Staff profile {staff_id} not found", event)
@@ -315,11 +325,13 @@ def handler(event, context):
             if not staff_id:
                 staff_id = path.split('/')[-1]
                 
-            company_id = 'tog_and_dogs'
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
             from common.db import table as items_table
             from boto3.dynamodb.conditions import Key
             
             resp = items_table.get_item(Key={"PK": f"COMPANY#{company_id}", "SK": f"STAFF#{staff_id}"})
+
             staff_profile = resp.get('Item')
             if not staff_profile:
                 return not_found(f"Staff profile {staff_id} not found", event)
@@ -435,12 +447,18 @@ def handler(event, context):
                 filter_expressions = []
                 expression_values = {}
 
+                from common.auth import get_current_company_id
+                company_id = get_current_company_id(event)
+                filter_expressions.append("(company_id = :cid OR attribute_not_exists(company_id))")
+                expression_values[":cid"] = company_id
+
                 if not is_admin and user_email:
                     filter_expressions.append("client_email = :email")
                     expression_values[":email"] = user_email
                 
                 # Exclude deleted and archived from the general 'ALL' view
                 filter_expressions.append("#stat <> :deleted")
+
                 filter_expressions.append("#stat <> :archived")
                 expression_values[":deleted"] = 'DELETED'
                 expression_values[":archived"] = 'ARCHIVED'
@@ -467,10 +485,14 @@ def handler(event, context):
             if role not in ['owner', 'admin', 'staff']:
                 return error(403, "Forbidden: Clients cannot query arbitrary statuses", event)
                 
-            query_kwargs = {
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
 
+            query_kwargs = {
                 "IndexName": "StatusIndex",
                 "KeyConditionExpression": Key('status').eq(status),
+                "FilterExpression": "company_id = :cid OR attribute_not_exists(company_id)",
+                "ExpressionAttributeValues": {":cid": company_id},
                 "Limit": limit,
                 "ScanIndexForward": False # Newest first
             }

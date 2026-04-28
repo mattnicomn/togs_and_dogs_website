@@ -25,6 +25,9 @@ def handler(event, context):
             print(f"Error: Request REQ#{request_id} not found")
             return {"error": "Request not found"}
 
+        from common.auth import get_current_company_id
+        company_id = request_item.get('company_id') or get_current_company_id(event if 'event' in locals() else {})
+
         # 1. Ensure PET entity exists or create a new one
         pet_id = request_item.get('pet_id')
         if not pet_id:
@@ -33,10 +36,12 @@ def handler(event, context):
             pet_item = {
                 'PK': f"PET#{pet_id}",
                 'SK': f"CLIENT#{client_id}",
+                'company_id': company_id,
                 'entity_type': 'PET',
                 'name': request_item.get('pet_names') or "Unnamed Pet", 
                 'client_id': client_id,
                 'pet_id': pet_id,
+
                 'care_instructions': request_item.get('pet_info'),
                 'meet_and_greet_completed': True, # Only approved requests get here
                 'created_at': datetime.now(timezone.utc).isoformat(),
@@ -63,10 +68,12 @@ def handler(event, context):
         item = {
             'PK': f"JOB#{job_id}",
             'SK': f"REQ#{request_id}",
+            'company_id': company_id,
             'request_id': request_id,
             'client_id': client_id,
             'pet_id': pet_id,
             'pet_name': request_item.get('pet_names') or "Unnamed Pet",
+
             'client_name': request_item.get('client_name'),
             'client_email': request_item.get('client_email'),
             'service_type': request_item.get('service_type'),

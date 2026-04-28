@@ -143,3 +143,34 @@ def require_client_booking_access(event, booking):
             return True
             
     raise PermissionError("Forbidden: You do not have access to this booking")
+
+import os
+DEFAULT_COMPANY_ID = os.environ.get("DEFAULT_COMPANY_ID", "tog_and_dogs")
+
+def get_current_company_id(event, claims=None):
+    # Phase 4 current behavior:
+    # 1. Use trusted custom claim if later configured.
+    # 2. Use StaffProfile/user mapping if already implemented.
+    # 3. Fallback to DEFAULT_COMPANY_ID for current production.
+    if not claims:
+        claims = get_claims(event) if isinstance(event, dict) else {}
+    
+    custom_company = claims.get('custom:company_id')
+    if custom_company:
+        return custom_company
+        
+    return DEFAULT_COMPANY_ID
+
+def validate_tenant_ownership(item, event):
+    if not isinstance(item, dict):
+        return
+    item_company = item.get('company_id')
+    # If the item doesn't have a company_id, it belongs to the fallback 'tog_and_dogs'
+    if not item_company:
+        item_company = DEFAULT_COMPANY_ID
+        
+    caller_company = get_current_company_id(event)
+    if item_company != caller_company:
+        raise PermissionError("Forbidden: Cross-tenant data access detected")
+
+
