@@ -775,9 +775,12 @@ const AdminDashboard = () => {
         : item
       ));
 
-      // Close pet modal if it's open for this item
+      // Close modals if they are open for this item
       if (selectedPet?._originItem?.PK === req.PK) {
         setSelectedPet(null);
+      }
+      if (decisionModal && decisionModal.item.PK === req.PK) {
+        setDecisionModal(null);
       }
 
       setSelectedIds([]);
@@ -1198,11 +1201,10 @@ const AdminDashboard = () => {
               items={requests} 
               staffList={staffList}
               onReview={(req) => {
-
                 if (req.status === 'CANCELLATION_REQUESTED') {
                   handleProcessCancellation(req);
                 } else {
-                  setDecisionModal({ item: req, type: 'APPROVE' });
+                  setDecisionModal({ item: req, type: 'WORKFLOW_REVIEW' });
                 }
               }}
               onAssign={(req) => setAssigningId(req.PK)}
@@ -1835,7 +1837,11 @@ const AdminDashboard = () => {
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-               <h2>{decisionModal.type === 'APPROVE' ? 'Approve Booking' : 'Decline Booking'}</h2>
+               <h2>
+                 {decisionModal.type === 'APPROVE' ? 'Approve Booking' : 
+                  decisionModal.type === 'DECLINE' ? 'Decline Booking' : 
+                  'Process Workflow'}
+               </h2>
                <p className="text-muted">For {decisionModal.item.client_name} - {decisionModal.item.start_date}</p>
             </div>
             
@@ -1852,7 +1858,7 @@ const AdminDashboard = () => {
               <label>Custom Message to Customer (Optional)</label>
               <textarea 
                 rows="4"
-                placeholder={decisionModal.type === 'APPROVE' ? "e.g. Can't wait to see Rover!" : "e.g. Sorry, we are booked that day."}
+                placeholder={decisionModal.type === 'APPROVE' ? "e.g. Can't wait to see Rover!" : "e.g. Note for client..."}
                 value={adminNote}
                 onChange={(e) => setAdminNote(e.target.value)}
               />
@@ -1860,11 +1866,49 @@ const AdminDashboard = () => {
 
             <div className="modal-footer">
               <button onClick={() => { setDecisionModal(null); setModalError(null); }} className="btn-secondary">Cancel</button>
+              
               {decisionModal.type === 'APPROVE' ? (
                 <button onClick={submitDecision} className="btn-small success">Approve & Notify</button>
-              ) : (
-                <button onClick={submitDecision} className="btn-small urgent">Confirm Decline</button>
-              )}
+              ) : decisionModal.type === 'DECLINE' ? (
+                <button onClick={submitDecision} className="btn-small danger">Decline & Notify</button>
+              ) : decisionModal.type === 'WORKFLOW_REVIEW' ? (
+                <div className="workflow-actions-row">
+                  {getWorkflowState(decisionModal.item).actions.map(action => {
+                    if (action === 'EDIT_PET' || action === 'ASSIGN' || action === 'CHANGE_WORKER' || action === 'PURGE_FOREVER') return null;
+                    
+                    const labels = {
+                      'APPROVE': 'Approve', 'QUOTE': 'Quote Needed', 'QUOTED': 'Mark Quoted',
+                      'CANCEL': 'Cancel', 'VERIFY_MG': 'Mark M&G Complete',
+                      'REVERT_TO_APPROVED': 'Back to Approved', 'COMPLETE': 'Complete',
+                      'REOPEN': 'Reopen', 'REOPEN_PENDING': 'Restore to Active',
+                      'ARCHIVE': 'Archive', 'CREATE_PROFILE': 'Create Profile',
+                      'MOVE_TO_NEW_REQUEST': 'To New Request', 'DELETE': 'Move to Trash',
+                      'MEET_GREET': 'Require Meet & Greet', 'MG_SCHEDULED': 'M&G Scheduled'
+                    };
+                    
+                    const getButtonClass = (act) => {
+                      if (act === 'DELETE' || act === 'CANCEL') return 'btn-small danger';
+                      if (['APPROVE', 'VERIFY_MG', 'QUOTED'].includes(act)) return 'btn-small success';
+                      if (['QUOTE', 'MEET_GREET', 'MG_SCHEDULED'].includes(act)) return 'btn-small highlight';
+                      return 'btn-small primary';
+                    };
+                    
+                    return (
+                      <button 
+                        key={action}
+                        onClick={() => {
+                          onReviewAction(decisionModal.item, action, adminNote);
+                          setDecisionModal(null);
+                        }} 
+                        className={getButtonClass(action)}
+                        style={{ marginRight: '8px', marginBottom: '8px' }}
+                      >
+                        {labels[action] || action}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
