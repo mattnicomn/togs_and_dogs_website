@@ -115,17 +115,20 @@ def handler(event, context):
             if pet_id:
                 pet_metadata = get_item(f"PET#{pet_id}", f"CLIENT#{client_id}") or {}
             
-            mg_required = pet_metadata.get('meet_and_greet_required')
-            if mg_required is None:
-                mg_required = True # Default to true for safety
+            # Check M&G requirements
+            if current_status not in ['QUOTED', 'QUOTE_SENT', 'MG_COMPLETED', 'QUOTE_NEEDED']:
+                mg_required = pet_metadata.get('meet_and_greet_required')
+                if mg_required is None:
+                    mg_required = True # Default to true for safety
+                    
+                mg_completed = pet_metadata.get('meet_and_greet_completed', False)
                 
-            mg_completed = pet_metadata.get('meet_and_greet_completed', False)
-            
-            if mg_required and not mg_completed:
-                return bad_request(
-                    "Meet & Greet must be marked completed before this request can move forward to Approved.", 
-                    event
-                )
+                if mg_required and not mg_completed:
+                    return bad_request(
+                        "Meet & Greet must be marked completed before this request can move forward to Approved.", 
+                        event
+                    )
+
             
             # Check Quote requirements
             quote_amount = float(pet_metadata.get('quote_amount', 0))

@@ -522,8 +522,10 @@ const AdminDashboard = () => {
       'CREATE_PROFILE': 'PROFILE_CREATED',
       'MOVE_TO_NEW_REQUEST': 'READY_FOR_APPROVAL',
       'QUOTE': 'QUOTE_NEEDED',
+      'QUOTED': 'QUOTED',
       'QUOTE_SENT': 'QUOTE_SENT',
       'MG_SCHEDULED': 'MG_SCHEDULED',
+      'MEET_GREET_REQUIRED': 'MEET_GREET_REQUIRED',
       'DELETE': 'DELETED'
     };
 

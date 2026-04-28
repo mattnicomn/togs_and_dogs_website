@@ -63,6 +63,7 @@ REQUEST_TRANSITIONS = {
         RequestStatus.READY_FOR_APPROVAL.value,
         RequestStatus.QUOTE_NEEDED.value,
         RequestStatus.DECLINED.value,
+        RequestStatus.CANCELLED.value,
         RequestStatus.ARCHIVED.value
     ],
     RequestStatus.MG_SCHEDULED.value: [
@@ -73,12 +74,17 @@ REQUEST_TRANSITIONS = {
     ],
     RequestStatus.MG_COMPLETED.value: [
         RequestStatus.QUOTE_NEEDED.value,
+        RequestStatus.QUOTE_SENT.value,
+        RequestStatus.QUOTED.value,
         RequestStatus.READY_FOR_APPROVAL.value,
         RequestStatus.APPROVED.value,
+        RequestStatus.CANCELLED.value,
         RequestStatus.ARCHIVED.value
     ],
     RequestStatus.QUOTE_NEEDED.value: [
         RequestStatus.QUOTE_SENT.value,
+        RequestStatus.QUOTED.value,
+        RequestStatus.APPROVED.value,
         RequestStatus.READY_FOR_APPROVAL.value,
         RequestStatus.DECLINED.value,
         RequestStatus.CANCELLED.value,

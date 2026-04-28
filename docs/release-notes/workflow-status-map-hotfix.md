@@ -1,15 +1,58 @@
 # Release Notes: Workflow Status Map Hotfix
 
-## Issue
-Administrators experienced visibility constraints when reviewing application quotes. Records in Quoted states were visible only under “All Active” and lacked a sidebar selection. Additionally, the M&G verification mechanism failed to update target records adequately preventing correct lifecycle approvals.
+## Initial Fix (commit ff9e3ff)
 
-## Correction
-Normalized the status evaluation pipelines, injected a dedicated status navigation selector, and updated pet-level tracking requirements comprehensively.
+Records in `QUOTED` status were visible only under "All Active" with no dedicated sidebar filter.
+The M&G verification flow (`VERIFY_MEET_GREET`) was setting the request status to `READY_FOR_APPROVAL`
+instead of `MG_COMPLETED`, breaking the approval path after M&G.
 
-## Scope
-Modified dashboard rendering conditions and validation constraints.
-- No Cognito schemas altered.
-- No historical records modified.
+### Changes
+- `AdminDashboard.jsx`: Added dedicated sidebar filters for `QUOTED` and `MG_COMPLETED`.
+- `AdminDashboard.jsx`: Fetch logic changed so all active-status filters use the backend `ALL` scan,
+  then client-side filter by exact status — eliminating the need for per-status indexed queries.
+- `review_handler.py`: `VERIFY_MEET_GREET` now advances request to `MG_COMPLETED` (not `READY_FOR_APPROVAL`)
+  and also sets `meet_and_greet_completed = true` on the Pet record.
+- `review_handler.py`: Request item is fetched early so `VERIFY_MEET_GREET` can read the pet_id.
 
-## Verification
-- Applied manual integration checks safely.
+---
+
+## Follow-up Correction (commit — see git log)
+
+**Issue:** `QUOTED → APPROVED` was incorrectly blocked by the M&G validation guard.  
+The guard in `review_handler.py` ran unconditionally for all APPROVE transitions, including records
+already in `QUOTED` status — where M&G is implicitly resolved by virtue of having reached the quote stage.
+
+**Root cause:** M&G guard did not account for `current_status`.
+
+### Backend fix — `review_handler.py`
+- M&G required check is now skipped when `current_status` is in:
+  `QUOTED`, `QUOTE_SENT`, `MG_COMPLETED`, `QUOTE_NEEDED`
+- M&G protection remains **fully active** for `MEET_GREET_REQUIRED` / `NEEDS_MG` records.
+
+### Backend fix — `common/status.py`
+Three transition gaps that were blocking valid operator workflows:
+- `MEET_GREET_REQUIRED` → `CANCELLED` added (operator can cancel an M&G record).
+- `MG_COMPLETED` → `QUOTED`, `QUOTE_SENT`, `CANCELLED` added.
+- `QUOTE_NEEDED` → `QUOTED`, `APPROVED` added (direct paths from quote-needed stage).
+
+### Frontend fix — `AdminDashboard.jsx`
+- `statusMap` now includes explicit `'QUOTED': 'QUOTED'` and `'MEET_GREET_REQUIRED': 'MEET_GREET_REQUIRED'` entries.
+- No structural workflow changes.
+
+## Canonical Approve Behavior (enforced)
+
+| From Status            | APPROVE allowed? | Notes                                |
+|------------------------|-----------------|--------------------------------------|
+| `NEEDS_REVIEW`         | ✅ if no M&G    | Blocked if M&G required and not done |
+| `MEET_GREET_REQUIRED`  | ❌              | Must complete M&G first              |
+| `MG_COMPLETED`         | ✅              | M&G done — approve directly          |
+| `QUOTE_NEEDED`         | ✅              | No forced quoting step               |
+| `QUOTED`               | ✅              | **Now unblocked by this fix**        |
+| `APPROVED`             | ✅ idempotent   | Same-status always allowed           |
+
+## Deployment
+- Terraform root: `c:\Users\mattn\OneDrive\Desktop\togs_and_dogs_website\infra\prod`
+- 8 Lambda functions updated (all handlers share the same zip).
+- Frontend rebuilt (`npm run build`), synced to S3, CloudFront invalidated.
+- No Cognito, ClientProfile, StaffProfile, or tenant model changes.
+- No bulk production data mutations.
