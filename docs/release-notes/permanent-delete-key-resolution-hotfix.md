@@ -11,11 +11,21 @@ Admins were encountering the error: `"Permanent delete failed: Record not found"
 - **Parent Requests**: `PK=REQ#{id}`, `SK=CLIENT#{id}`
 - **Child Jobs**: `PK=JOB#{id}`, `SK=REQ#{id}`
 
-## Verification Results
-- Fallback chains executed flawlessly.
-- Bulk purges process together in lightweight arrays.
+## Files Changed
+- [admin_handler.py](file:///c:/Users/mattn/OneDrive/Desktop/togs_and_dogs_website/src/backend/handlers/admin_handler.py)
+- [client.js](file:///c:/Users/mattn/OneDrive/Desktop/togs_and_dogs_website/web/src/api/client.js)
+- [AdminDashboard.jsx](file:///c:/Users/mattn/OneDrive/Desktop/togs_and_dogs_website/web/src/components/AdminDashboard.jsx)
 
-## Release Deployment
-- **Terraform Target**: Production Lambda Updates
-- **Sync Method**: Static Web Hosting
-- **Hash State**: `2458665`
+## Verification Results
+- **Individual Delete**: Direct PK/SK queries, inverted key shapes, and string scans delete successfully.
+- **Bulk Delete**: Consolidated array payloads clear batch requests uniformly.
+- **Safety Controls Preserved**: Blocks non-DELETED items natively.
+
+## Deployment State
+- **Terraform Result**: Modified 8 related microservice paths.
+- **CloudFront Cache Clearing**: Processed under `I3A7EL13ZN7LWT6Z5U4ICOC0AS` (Status: Completed).
+
+## Checkpoint Hashes
+- **Hotfix Implementation**: `2458665`
+- **Release Documentation update**: `556cd00`
+
