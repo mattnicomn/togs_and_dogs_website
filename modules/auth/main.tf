@@ -46,3 +46,5 @@ resource "aws_cognito_user_pool_domain" "admin_domain" {
   domain       = "${var.name_prefix}-admin"
   user_pool_id = aws_cognito_user_pool.admin.id
 }
+
+

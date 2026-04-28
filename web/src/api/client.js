@@ -64,7 +64,12 @@ export const initiateGoogleAuth = () => request('/admin/auth/google', 'GET', nul
 export const getStaff = () => request('/admin/staff', 'GET', null, true);
 export const createStaff = (data) => request('/admin/staff', 'POST', data, true);
 export const updateStaff = (staffId, data) => request(`/admin/staff/${staffId}`, 'PATCH', data, true);
-export const disableStaff = (staffId) => request(`/admin/staff/${staffId}`, 'DELETE', null, true);
+export const disableStaff = (staffId, data = null) => request(`/admin/staff/${staffId}`, 'DELETE', data, true);
+
+export const onboardStaff = (data) => request('/admin/staff/onboard', 'POST', data, true);
+export const linkCognitoUser = (staffId, data) => request(`/admin/staff/${staffId}/link-cognito`, 'POST', data, true);
+export const resendInvite = (staffId) => request(`/admin/staff/${staffId}/resend-invite`, 'POST', null, true);
+
 
 
 

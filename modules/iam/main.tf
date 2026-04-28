@@ -181,3 +181,33 @@ resource "aws_iam_role_policy_attachment" "lambda_ses" {
   role       = aws_iam_role.lambda_exec.name
   policy_arn = aws_iam_policy.ses_access.arn
 }
+
+# Cognito Admin Access
+resource "aws_iam_policy" "cognito_admin_access" {
+  name        = "${var.name_prefix}-cognito-admin"
+  description = "Allows Lambda to onboard and manage Cognito users"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = [
+        "cognito-idp:AdminCreateUser",
+        "cognito-idp:AdminAddUserToGroup",
+        "cognito-idp:AdminGetUser",
+        "cognito-idp:AdminUpdateUserAttributes",
+        "cognito-idp:AdminDisableUser",
+        "cognito-idp:AdminEnableUser",
+        "cognito-idp:AdminResetUserPassword",
+        "cognito-idp:ListUsers"
+      ]
+      Effect   = "Allow"
+      Resource = var.user_pool_arn
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_cognito" {
+  role       = aws_iam_role.lambda_exec.name
+  policy_arn = aws_iam_policy.cognito_admin_access.arn
+}
+

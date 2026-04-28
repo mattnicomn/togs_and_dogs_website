@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { signIn, signOut, getSession, getEffectiveRole } from '../api/auth';
 
-import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, purgeRecord, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff } from '../api/client';
+import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, purgeRecord, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite } from '../api/client';
+
 
 
 import MasterScheduler from './MasterScheduler';
@@ -29,8 +30,13 @@ const AdminDashboard = () => {
     role: 'Staff',
     email: '',
     is_assignable: true,
-    assignment_color: 'var(--staff-ryan)'
+    assignment_color: 'var(--staff-ryan)',
+    creation_mode: 'onboard', // onboard or profile_only
+    send_invite: true,
+    phone: '',
+    notes: ''
   });
+
   const [isSavingStaff, setIsSavingStaff] = useState(false);
 
 
@@ -309,27 +315,40 @@ const AdminDashboard = () => {
   };
 
   const handleSaveStaff = async (e) => {
-
     e.preventDefault();
     if (!staffForm.display_name.trim()) {
       showNotification("Display name is required", "error");
       return;
     }
+    if (staffForm.creation_mode === 'onboard' && !editingStaffId && !staffForm.email.trim()) {
+      showNotification("Email is required for Cognito onboarding", "error");
+      return;
+    }
+    
     setIsSavingStaff(true);
     try {
       if (editingStaffId) {
         await updateStaff(editingStaffId, staffForm);
         showNotification("Staff updated successfully", "success");
       } else {
-        await createStaff(staffForm);
-        showNotification("Staff created successfully", "success");
+        if (staffForm.creation_mode === 'onboard') {
+          await onboardStaff(staffForm);
+          showNotification("Staff created and Cognito onboarding triggered", "success");
+        } else {
+          await createStaff(staffForm);
+          showNotification("Staff profile created successfully", "success");
+        }
       }
       setStaffForm({
         display_name: '',
         role: 'Staff',
         email: '',
         is_assignable: true,
-        assignment_color: 'var(--staff-ryan)'
+        assignment_color: 'var(--staff-ryan)',
+        creation_mode: 'onboard',
+        send_invite: true,
+        phone: '',
+        notes: ''
       });
       setEditingStaffId(null);
       await fetchStaffData();
@@ -340,16 +359,24 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDisableStaff = async (staffId) => {
-    if (!window.confirm("Are you sure you want to disable this staff profile? They will no longer appear as assignable.")) return;
+  const handleDisableStaff = async (staffId, hasCognito) => {
+    let disableCognito = false;
+    if (hasCognito) {
+      const choice = window.confirm("Do you also want to disable this staff member's Cognito login access? \n\nClick OK to disable BOTH the profile and Cognito login.\nClick Cancel to disable ONLY the profile.");
+      disableCognito = choice;
+    } else {
+      if (!window.confirm("Are you sure you want to disable this staff profile? They will no longer appear as assignable.")) return;
+    }
+    
     try {
-      await disableStaff(staffId);
+      await disableStaff(staffId, disableCognito ? { disable_cognito: true } : null);
       showNotification("Staff disabled successfully", "success");
       await fetchStaffData();
     } catch (err) {
       showNotification(err.message || "Failed to disable staff", "error");
     }
   };
+
 
   const handleEditStaff = (staff) => {
     setEditingStaffId(staff.staff_id);
@@ -358,8 +385,13 @@ const AdminDashboard = () => {
       role: staff.role || 'Staff',
       email: staff.email || '',
       is_assignable: staff.is_assignable !== false,
-      assignment_color: staff.assignment_color || 'var(--staff-ryan)'
+      assignment_color: staff.assignment_color || 'var(--staff-ryan)',
+      creation_mode: 'profile_only',
+      send_invite: true,
+      phone: staff.phone || '',
+      notes: staff.notes || ''
     });
+
     setView('STAFF_MGMT');
   };
 
@@ -1062,7 +1094,8 @@ const AdminDashboard = () => {
               onAssign={(req) => setAssigningId(req.PK)}
               onSelectPet={handleSelectPet}
             />
-          ) : view === 'STAFF_MGMT' ? (
+          ) : view === 'STAFF_MGMT' && ['owner', 'admin'].includes(role) ? (
+
 
             <div className="staff-management-container card" style={{ padding: '24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -1075,13 +1108,43 @@ const AdminDashboard = () => {
                       role: 'Staff',
                       email: '',
                       is_assignable: true,
-                      assignment_color: 'var(--staff-ryan)'
+                      assignment_color: 'var(--staff-ryan)',
+                      creation_mode: 'onboard',
+                      send_invite: true,
+                      phone: '',
+                      notes: ''
                     });
+
                   }}>Cancel Edit</button>
                 )}
               </div>
               
               <form onSubmit={handleSaveStaff} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px', borderBottom: '1px solid var(--border)', paddingBottom: '32px' }}>
+                {!editingStaffId && (
+                  <div className="field" style={{ gridColumn: 'span 2', display: 'flex', gap: '20px', marginBottom: '10px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input 
+                        type="radio" 
+                        name="creation_mode" 
+                        value="onboard" 
+                        checked={staffForm.creation_mode === 'onboard'} 
+                        onChange={(e) => setStaffForm({ ...staffForm, creation_mode: e.target.value })}
+                      />
+                      Onboard New Cognito User
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input 
+                        type="radio" 
+                        name="creation_mode" 
+                        value="profile_only" 
+                        checked={staffForm.creation_mode === 'profile_only'} 
+                        onChange={(e) => setStaffForm({ ...staffForm, creation_mode: e.target.value })}
+                      />
+                      Create Local Profile Only
+                    </label>
+                  </div>
+                )}
+
                 <div className="field">
                   <label>Display Name *</label>
                   <input 
@@ -1108,12 +1171,13 @@ const AdminDashboard = () => {
                 </div>
                 
                 <div className="field">
-                  <label>Email (Optional)</label>
+                  <label>Email {staffForm.creation_mode === 'onboard' ? '*' : '(Optional)'}</label>
                   <input 
                     type="email" 
                     value={staffForm.email} 
                     onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })} 
                     placeholder="staff@example.com"
+                    required={staffForm.creation_mode === 'onboard'}
                     style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
                   />
                 </div>
@@ -1134,6 +1198,40 @@ const AdminDashboard = () => {
                     <option value="#00bcd4">Cyan</option>
                   </select>
                 </div>
+
+                <div className="field">
+                  <label>Phone (Optional)</label>
+                  <input 
+                    type="text" 
+                    value={staffForm.phone} 
+                    onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })} 
+                    placeholder="555-123-4567"
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                  />
+                </div>
+
+                <div className="field">
+                  <label>Notes (Optional)</label>
+                  <input 
+                    type="text" 
+                    value={staffForm.notes} 
+                    onChange={(e) => setStaffForm({ ...staffForm, notes: e.target.value })} 
+                    placeholder="Internal scheduling notes"
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                  />
+                </div>
+
+                {staffForm.creation_mode === 'onboard' && !editingStaffId && (
+                  <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '10px', gridColumn: 'span 2' }}>
+                    <input 
+                      type="checkbox" 
+                      id="send_invite_cb"
+                      checked={staffForm.send_invite} 
+                      onChange={(e) => setStaffForm({ ...staffForm, send_invite: e.target.checked })} 
+                    />
+                    <label htmlFor="send_invite_cb" style={{ margin: 0 }}>Send setup email via Cognito</label>
+                  </div>
+                )}
 
                 <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '10px', gridColumn: 'span 2' }}>
                   <input 
@@ -1163,14 +1261,59 @@ const AdminDashboard = () => {
                     <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
                       <p style={{ margin: '2px 0' }}><strong>Role:</strong> {s.role}</p>
                       {s.email && <p style={{ margin: '2px 0' }}><strong>Email:</strong> {s.email}</p>}
+                      {s.phone && <p style={{ margin: '2px 0' }}><strong>Phone:</strong> {s.phone}</p>}
                       <p style={{ margin: '2px 0' }}><strong>Assignable:</strong> {s.is_assignable !== false ? 'Yes' : 'No'}</p>
+                      <p style={{ margin: '2px 0' }}>
+                        <strong>Cognito:</strong> {s.cognito_sub ? (s.cognito_status || 'Linked') : <span style={{ color: 'var(--accent-orange)' }}>Not Linked</span>}
+                      </p>
                     </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                      {s.cognito_sub ? (
+                        ['FORCE_CHANGE_PASSWORD', 'UNCONFIRMED'].includes(s.cognito_status) && (
+                          <button 
+                            className="button-secondary" 
+                            style={{ fontSize: '12px', padding: '6px' }} 
+                            onClick={async () => {
+                              try {
+                                await resendInvite(s.staff_id);
+                                showNotification("Invite resent successfully", "success");
+                              } catch(err) {
+                                showNotification(err.message || "Failed to resend invite", "error");
+                              }
+                            }}
+                          >
+                            Resend Invite
+                          </button>
+                        )
+                      ) : (
+                        <button 
+                          className="button-secondary" 
+                          style={{ fontSize: '12px', padding: '6px' }} 
+                          onClick={async () => {
+                            const username = window.prompt("Enter existing Cognito Email to link:");
+                            if (!username || !username.trim()) return;
+                            try {
+                              await linkCognitoUser(s.staff_id, { username: username.trim() });
+                              showNotification("Cognito user linked successfully", "success");
+                              await fetchStaffData();
+                            } catch(err) {
+                              showNotification(err.message || "Failed to link user", "error");
+                            }
+                          }}
+                        >
+                          Link Cognito Login
+                        </button>
+                      )}
+                    </div>
+
                     <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
                       <button className="btn-small" style={{ flex: 1 }} onClick={() => handleEditStaff(s)}>Edit</button>
-                      <button className="btn-small error" style={{ flex: 1 }} onClick={() => handleDisableStaff(s.staff_id)}>Disable</button>
+                      <button className="btn-small error" style={{ flex: 1 }} onClick={() => handleDisableStaff(s.staff_id, !!s.cognito_sub)}>Disable</button>
                     </div>
                   </div>
                 ))}
+
                 {staffList.length === 0 && (
                   <p style={{ gridColumn: 'span 3', color: 'var(--text-secondary)', textAlign: 'center', padding: '24px' }}>No active staff profiles found.</p>
                 )}

@@ -28,8 +28,14 @@ variable "google_user_tokens_arn" {
   type        = string
 }
 
+variable "user_pool_arn" {
+  type        = string
+  description = "ARN of the Cognito User Pool"
+}
+
 variable "tags" {
   type        = map(string)
   description = "Tags to apply to resources"
   default     = {}
 }
+

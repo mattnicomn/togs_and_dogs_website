@@ -22,8 +22,10 @@ module "iam" {
   sfn_arn                 = module.workflow.sfn_arn
   google_client_creds_arn = module.secrets.google_client_creds_arn
   google_user_tokens_arn  = module.secrets.google_user_tokens_arn
+  user_pool_arn           = module.auth.user_pool_arn
   tags                    = local.common_tags
 }
+
 
 # ------------------------------------------------------------------------------
 # 2. DATA LAYER
@@ -94,9 +96,12 @@ resource "aws_lambda_function" "admin" {
 
   environment {
     variables = {
-      DATA_TABLE_NAME = module.data.table_name
+      DATA_TABLE_NAME      = module.data.table_name
+      ADMIN_USER_POOL_ID   = module.auth.user_pool_id
+      DEFAULT_COMPANY_ID   = "tog_and_dogs"
     }
   }
+
 
   tags = local.common_tags
 }
