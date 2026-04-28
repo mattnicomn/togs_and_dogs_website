@@ -12,13 +12,15 @@ def handler(event, context):
     try:
         # Extract user context
         authorizer = event.get('requestContext', {}).get('authorizer', {})
+        from common.auth import get_effective_role
+        from common.response import error
+        role = get_effective_role(event)
+        if role not in ['owner', 'admin', 'staff']:
+            return error(403, "Forbidden", event)
+            
         claims = authorizer.get('claims', {})
         user_email = (claims.get('email') or "").lower().strip()
-        groups = claims.get('cognito:groups', [])
-        is_admin = 'Staff' in groups or 'Admin' in groups or user_email in ['mattnicomn10@gmail.com', 'support@toganddogs.usmissionhero.com']
-        
-        if not is_admin:
-            return bad_request("Administrative access required.", event)
+
 
         updated_by = user_email or claims.get('username') or 'admin-api'
 
@@ -30,6 +32,10 @@ def handler(event, context):
         # request_id is optional for client-level verification
         if not (client_id and new_status) or (new_status != 'VERIFY_MEET_GREET' and not request_id):
             return bad_request("Missing required fields: client_id, status (and request_id for status transitions)", event)
+
+        if new_status in ['APPROVED', 'BOOKED', 'DECLINED', 'CANCELLED', 'ARCHIVED', 'DELETED'] and role not in ['owner', 'admin']:
+            return error(403, "Forbidden: Only owners and admins can perform sensitive transitions", event)
+
 
         # 4. Handle VERIFY_MEET_GREET pseudo-status (updates Client Metadata)
         if new_status == 'VERIFY_MEET_GREET':

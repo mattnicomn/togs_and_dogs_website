@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getSession, signIn } from '../api/auth';
+import { getSession, signIn, getEffectiveRole } from '../api/auth';
+
 import { getAdminRequests, requestCancellation } from '../api/client';
 
 import '../Portal.css';
@@ -14,17 +15,26 @@ const ClientPortal = () => {
     checkSession();
   }, []);
 
+  const [error, setError] = useState(null);
+
   const checkSession = async () => {
     try {
       const s = await getSession();
       if (s) {
-        setSession(s);
-        await fetchMyBookings(s);
+        const role = getEffectiveRole(s);
+        if (['owner', 'admin', 'client'].includes(role)) {
+          setSession(s);
+          await fetchMyBookings(s);
+        } else {
+          setError("Access denied. Staff members must use the Staff Portal.");
+          setSession(null);
+        }
       }
     } catch (e) {
       console.error("No session", e);
     }
   };
+
 
   const fetchMyBookings = async (activeSession) => {
     if (!activeSession) return;
@@ -82,15 +92,23 @@ const ClientPortal = () => {
     return (
       <div className="card login-card" style={{ maxWidth: '400px', margin: '80px auto', padding: '40px' }}>
         <h2 style={{ textAlign: 'center', marginBottom: '12px' }}>Client Login</h2>
+        {error && <p style={{ color: 'red', textAlign: 'center', marginBottom: '16px' }}>{error}</p>}
         <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '32px' }}>Sign in to manage your bookings.</p>
+
         <form onSubmit={async (e) => {
           e.preventDefault();
           try {
             setLoading(true);
             await signIn(loginData.email, loginData.password);
             const s = await getSession();
-            setSession(s);
-            fetchMyBookings(s);
+            const role = getEffectiveRole(s);
+            if (['owner', 'admin', 'client'].includes(role)) {
+              setSession(s);
+              fetchMyBookings(s);
+            } else {
+              setError("Access denied. Staff members must use the Staff Portal.");
+            }
+
           } catch(err) { 
             alert(err.message); 
           } finally {

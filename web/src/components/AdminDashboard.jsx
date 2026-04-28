@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { signIn, signOut, getSession } from '../api/auth';
+import { signIn, signOut, getSession, getEffectiveRole } from '../api/auth';
+
 import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, purgeRecord, disconnectGoogle } from '../api/client';
 import MasterScheduler from './MasterScheduler';
 import CareCard from './CareCard';
@@ -11,6 +12,8 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [role, setRole] = useState('unknown');
+
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [googleStatus, setGoogleStatus] = useState(null);
   const [view, setView] = useState('SCHEDULER'); // SCHEDULER or LIST
@@ -182,14 +185,22 @@ const AdminDashboard = () => {
     try {
       const session = await getSession();
       if (session) {
-        setIsAuthenticated(true);
-        fetchAllData();
-        fetchGoogleStatus();
+        const userRole = getEffectiveRole(session);
+        if (['owner', 'admin', 'staff'].includes(userRole)) {
+          setIsAuthenticated(true);
+          setRole(userRole);
+          fetchAllData();
+          fetchGoogleStatus();
+        } else {
+          setError("Access denied. You do not have permission to view the Staff Portal.");
+          setIsAuthenticated(false);
+        }
       }
     } catch (err) {
       console.error("Auth check failed", err);
     }
   };
+
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -197,9 +208,17 @@ const AdminDashboard = () => {
     setError(null);
     try {
       await signIn(loginData.email, loginData.password);
-      setIsAuthenticated(true);
-      fetchAllData();
-      fetchGoogleStatus();
+      const session = await getSession();
+      const userRole = getEffectiveRole(session);
+      if (['owner', 'admin', 'staff'].includes(userRole)) {
+        setIsAuthenticated(true);
+        setRole(userRole);
+        fetchAllData();
+        fetchGoogleStatus();
+      } else {
+        setError("Access denied. Insufficient permissions.");
+        setIsAuthenticated(false);
+      }
     } catch (err) {
       setError(err.message || 'Login failed');
     } finally {
@@ -1137,7 +1156,9 @@ const AdminDashboard = () => {
           onClose={() => setSelectedPet(null)}
           onUpdate={handleUpdatePet}
           onStatusUpdate={(item, status, note) => onReviewAction(item, status, note)}
+          userRole={role}
         />
+
       )}
 
       {bulkConfirmModal && (

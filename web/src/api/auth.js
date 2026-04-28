@@ -51,3 +51,26 @@ export const getIdToken = async () => {
   const session = await getSession();
   return session ? session.getIdToken().getJwtToken() : null;
 };
+
+export const getEffectiveRole = (session) => {
+  if (!session) return 'unknown';
+  const payload = session.getIdToken().payload;
+  const groups = payload['cognito:groups'] || [];
+  
+  // Handle case where groups might be a string (rare)
+  const groupArray = Array.isArray(groups) ? groups : [groups];
+  const normalizedGroups = groupArray.map(g => String(g).toLowerCase());
+  
+  if (normalizedGroups.includes('owner')) return 'owner';
+  if (normalizedGroups.includes('admin')) return 'admin';
+  if (normalizedGroups.includes('staff')) return 'staff';
+  if (normalizedGroups.includes('client')) return 'client';
+  
+  const email = (payload.email || '').toLowerCase().trim();
+  if (['mattnicomn10@gmail.com', 'support@toganddogs.usmissionhero.com'].includes(email)) {
+    return 'owner';
+  }
+  
+  return 'unknown';
+};
+

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import '../Portal.css';
 
-const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
+const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
+
   const [isEditing, setIsEditing] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState((pet._originItem?.status || '').toUpperCase());
   const [statusNote, setStatusNote] = useState('');
@@ -189,14 +190,17 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
                       />
                     </div>
                   )}
-                  <div className="field">
-                    <label>M&G Staff Notes</label>
-                    <textarea 
-                      rows="2"
-                      value={formData.meet_and_greet_notes || ''} 
-                      onChange={(e) => handleInputChange('meet_and_greet_notes', e.target.value)}
-                    />
-                  </div>
+                  {userRole !== 'staff' && (
+                    <div className="field">
+                      <label>M&G Staff Notes</label>
+                      <textarea 
+                        rows="2"
+                        value={formData.meet_and_greet_notes || ''} 
+                        onChange={(e) => handleInputChange('meet_and_greet_notes', e.target.value)}
+                      />
+                    </div>
+                  )}
+
                 </div>
               ) : (
                 <>
@@ -211,12 +215,13 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
                       ? `Completed on ${pet.meet_and_greet_completed_at || 'record'}.`
                       : pet.meet_and_greet_required === false ? "No M&G necessary for this client." : "Must be completed before first service."}
                   </p>
-                  {pet.meet_and_greet_notes && (
+                  {userRole !== 'staff' && pet.meet_and_greet_notes && (
                     <div className="admin-note-box" style={{ background: 'var(--bg-muted)', padding: '12px', borderRadius: '8px', marginTop: '12px' }}>
                       <label className="micro-text">M&G Notes</label>
                       <p style={{ fontSize: '0.9rem', margin: '4px 0' }}>{pet.meet_and_greet_notes}</p>
                     </div>
                   )}
+
                 </>
               )}
             </div>
@@ -387,14 +392,17 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate }) => {
                       />
                     </div>
                   </div>
-                  <div className="field">
-                    <label>Internal Pricing Notes</label>
-                    <textarea 
-                      rows="2"
-                      value={formData.internal_pricing_notes || ''} 
-                      onChange={(e) => handleInputChange('internal_pricing_notes', e.target.value)}
-                    />
-                  </div>
+                  {userRole !== 'staff' && (
+                    <div className="field">
+                      <label>Internal Pricing Notes</label>
+                      <textarea 
+                        rows="2"
+                        value={formData.internal_pricing_notes || ''} 
+                        onChange={(e) => handleInputChange('internal_pricing_notes', e.target.value)}
+                      />
+                    </div>
+                  )}
+
                 </div>
               ) : (
                 <div className="quote-display">

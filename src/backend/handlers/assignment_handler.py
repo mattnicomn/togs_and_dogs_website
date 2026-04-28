@@ -25,16 +25,14 @@ def handler(event, context):
         client_id = body.get('client_id')
         worker_id = body.get('worker_id')
 
-        # Extract user context
-        authorizer = event.get('requestContext', {}).get('authorizer', {})
-        claims = authorizer.get('claims', {})
+        from common.auth import get_effective_role
+        from common.response import error
+        role = get_effective_role(event)
+        if role not in ['owner', 'admin']:
+            return error(403, "Forbidden: Only owners and admins can assign workers", event)
+        authorizer = event.get('requestContext', {}).get('authorizer', {}) or {}
+        claims = authorizer.get('claims', {}) or {}
         user_email = (claims.get('email') or "").lower().strip()
-        groups = claims.get('cognito:groups', [])
-        is_admin = 'Staff' in groups or 'Admin' in groups or user_email in ['mattnicomn10@gmail.com', 'support@toganddogs.usmissionhero.com']
-        
-        if not is_admin:
-            from common.response import bad_request
-            return bad_request("Administrative access required.", event)
 
         updated_by = user_email or claims.get('username') or 'admin-api'
         

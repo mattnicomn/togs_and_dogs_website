@@ -4,7 +4,9 @@ import os
 import datetime
 import boto3
 from common.db import table, get_item, put_item
-from common.response import success, bad_request, internal_error, not_found
+from common.response import success, bad_request, internal_error, not_found, error
+from common.auth import get_effective_role, sanitize_booking_for_role
+
 
 def handler(event, context):
     try:
@@ -12,7 +14,12 @@ def handler(event, context):
         path_params = event.get('pathParameters', {}) or {}
         pet_id = path_params.get('petId')
         
+        role = get_effective_role(event)
+        if role not in ['owner', 'admin', 'staff']:
+            return error(403, "Forbidden", event)
+            
         if http_method == 'GET':
+
             if not pet_id:
                 return bad_request("Missing petId in path", event)
             
@@ -25,13 +32,26 @@ def handler(event, context):
             
             item = get_item(f"PET#{pet_id}", f"CLIENT#{client_id}")
             if item:
+                item = sanitize_booking_for_role(item, role)
                 return success(item, event)
+
             return not_found(f"Pet {pet_id} not found", event)
 
         elif http_method == 'POST' or http_method == 'PUT':
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin', 'staff']:
+                return error(403, "Forbidden", event)
+                
             body = json.loads(event.get('body', '{}'))
             client_id = body.get('client_id')
             request_id = body.get('request_id') # Extract request_id if passed
+            
+            if role == 'staff':
+                sensitive_fields = ['meet_and_greet_notes', 'internal_pricing_notes', 'quote_amount', 'deposit_required']
+                for field in sensitive_fields:
+                    if field in body:
+                        del body[field]
+
             
             if not client_id:
                 return bad_request("Missing client_id in body", event)

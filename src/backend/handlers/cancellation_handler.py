@@ -40,7 +40,14 @@ def handle_customer_request(body, event):
 
     item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
     if not item:
-        return error(404, "Booking request not found", event)
+        return error(403, "Forbidden", event)
+        
+    from common.auth import require_client_booking_access
+    try:
+        require_client_booking_access(event, item)
+    except PermissionError:
+        return error(403, "Forbidden", event)
+
 
     # 24-hour warning logic check
     service_start_str = item.get('start_date')
@@ -103,15 +110,11 @@ def handle_admin_decision(body, event):
     decision = body.get('decision') # 'APPROVE' or 'DENY'
     note = body.get('note', '')
 
-    # Extract user context
-    authorizer = event.get('requestContext', {}).get('authorizer', {})
-    claims = authorizer.get('claims', {})
-    user_email = (claims.get('email') or "").lower().strip()
-    groups = claims.get('cognito:groups', [])
-    is_admin = 'Staff' in groups or 'Admin' in groups or user_email in ['mattnicomn10@gmail.com', 'support@toganddogs.usmissionhero.com']
-    
-    if not is_admin:
-        return bad_request("Administrative access required.", event)
+    from common.auth import get_effective_role
+    role = get_effective_role(event)
+    if role not in ['owner', 'admin']:
+        return error(403, "Forbidden: Only owners and admins can process cancellation decisions", event)
+
 
     if not request_id or not client_id or not decision:
         return bad_request("Missing required decision fields", event)
