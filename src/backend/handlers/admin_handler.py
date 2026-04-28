@@ -32,7 +32,122 @@ def handler(event, context):
             active_staff = [s for s in staff_profiles if s.get('is_active') == True]
             return success({"staff": active_staff}, event)
 
+        if http_method == 'POST' and (path == '/admin/staff' or path.endswith('/admin/staff')):
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin']:
+                return error(403, "Forbidden", event)
+                
+            try:
+                body = json.loads(event.get('body', '{}'))
+            except Exception:
+                return bad_request("Invalid JSON body", event)
+                
+            display_name = body.get('display_name', '').strip()
+            if not display_name:
+                return bad_request("display_name is required", event)
+                
+            if display_name.lower() == 'unassigned':
+                return bad_request("Unassigned is a reserved system option", event)
+                
+            company_id = 'tog_and_dogs'
+            from common.db import table as items_table
+            from boto3.dynamodb.conditions import Key
+            
+            # Check duplicate active display_name
+            resp = items_table.query(
+                KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("STAFF#")
+            )
+            existing_staff = resp.get('Items', [])
+            for s in existing_staff:
+                if s.get('display_name', '').lower() == display_name.lower() and s.get('is_active') == True:
+                    return error(409, f"Active staff with display_name {display_name} already exists", event)
+                    
+            import uuid
+            staff_id = f"staff_{str(uuid.uuid4())[:8]}"
+            
+            new_profile = {
+                "PK": f"COMPANY#{company_id}",
+                "SK": f"STAFF#{staff_id}",
+                "company_id": company_id,
+                "staff_id": staff_id,
+                "display_name": display_name,
+                "role": body.get('role', 'Staff'),
+                "email": body.get('email', '').strip() or None,
+                "cognito_sub": body.get('cognito_sub', '').strip() or None,
+                "is_active": True,
+                "is_assignable": body.get('is_assignable', True),
+                "assignment_color": body.get('assignment_color', 'var(--staff-ryan)'),
+                "phone": body.get('phone', '').strip() or None,
+                "notes": body.get('notes', '').strip() or None,
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat()
+            }
+            
+            items_table.put_item(Item=new_profile)
+            return success(new_profile, event)
+
+        if http_method in ['PATCH', 'DELETE'] and '/admin/staff' in path:
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin']:
+                return error(403, "Forbidden", event)
+                
+            staff_id = path_params.get('staff_id')
+            if not staff_id:
+                staff_id = path.split('/')[-1]
+                
+            company_id = 'tog_and_dogs'
+            from common.db import table as items_table
+            from boto3.dynamodb.conditions import Key
+            
+            resp = items_table.get_item(Key={"PK": f"COMPANY#{company_id}", "SK": f"STAFF#{staff_id}"})
+            staff_profile = resp.get('Item')
+            if not staff_profile:
+                return not_found(f"Staff profile {staff_id} not found", event)
+                
+            if http_method == 'DELETE':
+                staff_profile['is_active'] = False
+                staff_profile['is_assignable'] = False
+                staff_profile['updated_at'] = datetime.utcnow().isoformat()
+                items_table.put_item(Item=staff_profile)
+                return success(staff_profile, event)
+                
+            if http_method == 'PATCH':
+                try:
+                    body = json.loads(event.get('body', '{}'))
+                except Exception:
+                    return bad_request("Invalid JSON body", event)
+                    
+                editable_fields = [
+                    'display_name', 'role', 'email', 'cognito_sub', 
+                    'is_active', 'is_assignable', 'assignment_color', 'phone', 'notes'
+                ]
+                
+                if 'display_name' in body:
+                    new_display_name = body.get('display_name', '').strip()
+                    if not new_display_name:
+                        return bad_request("display_name is required", event)
+                    if new_display_name.lower() == 'unassigned':
+                        return bad_request("Unassigned is a reserved system option", event)
+                        
+                    resp_all = items_table.query(
+                        KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("STAFF#")
+                    )
+                    for s in resp_all.get('Items', []):
+                        if s['SK'] != f"STAFF#{staff_id}" and s.get('display_name', '').lower() == new_display_name.lower() and s.get('is_active') == True:
+                            return error(409, f"Active staff with display_name {new_display_name} already exists", event)
+                    
+                    staff_profile['display_name'] = new_display_name
+                    
+                for field in editable_fields:
+                    if field != 'display_name' and field in body:
+                        staff_profile[field] = body[field]
+                        
+                staff_profile['updated_at'] = datetime.utcnow().isoformat()
+                items_table.put_item(Item=staff_profile)
+                return success(staff_profile, event)
+
         if http_method == 'GET':
+
             request_id = path_params.get('requestId')
 
             client_id = query_params.get('clientId')

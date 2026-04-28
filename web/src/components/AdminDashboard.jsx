@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { signIn, signOut, getSession, getEffectiveRole } from '../api/auth';
 
-import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, purgeRecord, disconnectGoogle, getStaff } from '../api/client';
+import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, purgeRecord, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff } from '../api/client';
+
 
 import MasterScheduler from './MasterScheduler';
 import CareCard from './CareCard';
@@ -22,6 +23,16 @@ const AdminDashboard = () => {
   const [challengeContext, setChallengeContext] = useState(null);
   const [googleStatus, setGoogleStatus] = useState(null);
   const [staffList, setStaffList] = useState([]);
+  const [editingStaffId, setEditingStaffId] = useState(null);
+  const [staffForm, setStaffForm] = useState({
+    display_name: '',
+    role: 'Staff',
+    email: '',
+    is_assignable: true,
+    assignment_color: 'var(--staff-ryan)'
+  });
+  const [isSavingStaff, setIsSavingStaff] = useState(false);
+
 
 
   const [view, setView] = useState('SCHEDULER'); // SCHEDULER or LIST
@@ -296,6 +307,62 @@ const AdminDashboard = () => {
       console.error("Failed to fetch staff list:", err);
     }
   };
+
+  const handleSaveStaff = async (e) => {
+
+    e.preventDefault();
+    if (!staffForm.display_name.trim()) {
+      showNotification("Display name is required", "error");
+      return;
+    }
+    setIsSavingStaff(true);
+    try {
+      if (editingStaffId) {
+        await updateStaff(editingStaffId, staffForm);
+        showNotification("Staff updated successfully", "success");
+      } else {
+        await createStaff(staffForm);
+        showNotification("Staff created successfully", "success");
+      }
+      setStaffForm({
+        display_name: '',
+        role: 'Staff',
+        email: '',
+        is_assignable: true,
+        assignment_color: 'var(--staff-ryan)'
+      });
+      setEditingStaffId(null);
+      await fetchStaffData();
+    } catch (err) {
+      showNotification(err.message || "Failed to save staff", "error");
+    } finally {
+      setIsSavingStaff(false);
+    }
+  };
+
+  const handleDisableStaff = async (staffId) => {
+    if (!window.confirm("Are you sure you want to disable this staff profile? They will no longer appear as assignable.")) return;
+    try {
+      await disableStaff(staffId);
+      showNotification("Staff disabled successfully", "success");
+      await fetchStaffData();
+    } catch (err) {
+      showNotification(err.message || "Failed to disable staff", "error");
+    }
+  };
+
+  const handleEditStaff = (staff) => {
+    setEditingStaffId(staff.staff_id);
+    setStaffForm({
+      display_name: staff.display_name,
+      role: staff.role || 'Staff',
+      email: staff.email || '',
+      is_assignable: staff.is_assignable !== false,
+      assignment_color: staff.assignment_color || 'var(--staff-ryan)'
+    });
+    setView('STAFF_MGMT');
+  };
+
 
   const handleLogout = () => {
     signOut();
@@ -889,6 +956,10 @@ const AdminDashboard = () => {
           <nav className="view-selector">
             <button className={view === 'SCHEDULER' ? 'active' : ''} onClick={() => { setView('SCHEDULER'); setStatusFilter('ALL'); }}>Scheduler</button>
             <button className={view === 'LIST' ? 'active' : ''} onClick={() => setView('LIST')}>Request List</button>
+            {['owner', 'admin'].includes(role) && (
+              <button className={view === 'STAFF_MGMT' ? 'active' : ''} onClick={() => setView('STAFF_MGMT')}>Staff Management</button>
+            )}
+
           </nav>
         </div>
         <div className="header-right">
@@ -991,7 +1062,122 @@ const AdminDashboard = () => {
               onAssign={(req) => setAssigningId(req.PK)}
               onSelectPet={handleSelectPet}
             />
+          ) : view === 'STAFF_MGMT' ? (
+
+            <div className="staff-management-container card" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h2>{editingStaffId ? 'Edit Staff Profile' : 'Add New Staff Profile'}</h2>
+                {editingStaffId && (
+                  <button className="button-secondary" onClick={() => {
+                    setEditingStaffId(null);
+                    setStaffForm({
+                      display_name: '',
+                      role: 'Staff',
+                      email: '',
+                      is_assignable: true,
+                      assignment_color: 'var(--staff-ryan)'
+                    });
+                  }}>Cancel Edit</button>
+                )}
+              </div>
+              
+              <form onSubmit={handleSaveStaff} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px', borderBottom: '1px solid var(--border)', paddingBottom: '32px' }}>
+                <div className="field">
+                  <label>Display Name *</label>
+                  <input 
+                    type="text" 
+                    value={staffForm.display_name} 
+                    onChange={(e) => setStaffForm({ ...staffForm, display_name: e.target.value })} 
+                    placeholder="e.g. Ryan"
+                    required 
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                  />
+                </div>
+                
+                <div className="field">
+                  <label>Role</label>
+                  <select 
+                    value={staffForm.role} 
+                    onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                  >
+                    <option value="Staff">Staff</option>
+                    <option value="Admin">Admin</option>
+                    <option value="owner">Owner</option>
+                  </select>
+                </div>
+                
+                <div className="field">
+                  <label>Email (Optional)</label>
+                  <input 
+                    type="email" 
+                    value={staffForm.email} 
+                    onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })} 
+                    placeholder="staff@example.com"
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                  />
+                </div>
+                
+                <div className="field">
+                  <label>Assignment Color</label>
+                  <select 
+                    value={staffForm.assignment_color} 
+                    onChange={(e) => setStaffForm({ ...staffForm, assignment_color: e.target.value })}
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                  >
+                    <option value="var(--staff-ryan)">Orange (Default)</option>
+                    <option value="var(--staff-wife)">Green</option>
+                    <option value="var(--staff-nephew1)">Yellow</option>
+                    <option value="var(--staff-nephew2)">Red</option>
+                    <option value="#9c27b0">Purple</option>
+                    <option value="#2196f3">Blue</option>
+                    <option value="#00bcd4">Cyan</option>
+                  </select>
+                </div>
+
+                <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '10px', gridColumn: 'span 2' }}>
+                  <input 
+                    type="checkbox" 
+                    id="is_assignable_cb"
+                    checked={staffForm.is_assignable} 
+                    onChange={(e) => setStaffForm({ ...staffForm, is_assignable: e.target.checked })} 
+                  />
+                  <label htmlFor="is_assignable_cb" style={{ margin: 0 }}>Can be assigned to jobs / bookings</label>
+                </div>
+
+                <div style={{ gridColumn: 'span 2' }}>
+                  <button type="submit" className="button-primary" disabled={isSavingStaff} style={{ width: '100%', padding: '12px' }}>
+                    {isSavingStaff ? 'Saving...' : editingStaffId ? 'Update Staff Profile' : 'Create Staff Profile'}
+                  </button>
+                </div>
+              </form>
+
+              <h2>Active Staff List</h2>
+              <div className="staff-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                {staffList.map(s => (
+                  <div key={s.staff_id} className="staff-profile-card" style={{ border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: 'var(--card-bg)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span className="dot" style={{ backgroundColor: s.assignment_color || 'var(--staff-unassigned)', width: '16px', height: '16px', borderRadius: '50%' }}></span>
+                      <strong style={{ fontSize: '18px' }}>{s.display_name}</strong>
+                    </div>
+                    <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+                      <p style={{ margin: '2px 0' }}><strong>Role:</strong> {s.role}</p>
+                      {s.email && <p style={{ margin: '2px 0' }}><strong>Email:</strong> {s.email}</p>}
+                      <p style={{ margin: '2px 0' }}><strong>Assignable:</strong> {s.is_assignable !== false ? 'Yes' : 'No'}</p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
+                      <button className="btn-small" style={{ flex: 1 }} onClick={() => handleEditStaff(s)}>Edit</button>
+                      <button className="btn-small error" style={{ flex: 1 }} onClick={() => handleDisableStaff(s.staff_id)}>Disable</button>
+                    </div>
+                  </div>
+                ))}
+                {staffList.length === 0 && (
+                  <p style={{ gridColumn: 'span 3', color: 'var(--text-secondary)', textAlign: 'center', padding: '24px' }}>No active staff profiles found.</p>
+                )}
+              </div>
+            </div>
           ) : (
+
             <div className="list-view-container card">
               <div className="list-header-bar">
                 <h2>Request List — {(() => {

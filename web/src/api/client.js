@@ -62,6 +62,10 @@ export const getGoogleStatus = () => request('/admin/auth/status', 'GET', null, 
 export const initiateGoogleAuth = () => request('/admin/auth/google', 'GET', null, true);
 
 export const getStaff = () => request('/admin/staff', 'GET', null, true);
+export const createStaff = (data) => request('/admin/staff', 'POST', data, true);
+export const updateStaff = (staffId, data) => request(`/admin/staff/${staffId}`, 'PATCH', data, true);
+export const disableStaff = (staffId) => request(`/admin/staff/${staffId}`, 'DELETE', null, true);
+
 
 
 export const completeGoogleAuth = (code, state) => 

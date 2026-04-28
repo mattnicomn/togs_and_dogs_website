@@ -350,6 +350,68 @@ resource "aws_api_gateway_integration" "get_admin_staff_lambda" {
   uri                     = var.admin_handler_invoke_arn
 }
 
+resource "aws_api_gateway_method" "post_admin_staff" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_staff.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_admin_staff_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_staff.id
+  http_method = aws_api_gateway_method.post_admin_staff.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+# Admin /admin/staff/{staff_id}
+resource "aws_api_gateway_resource" "admin_staff_id" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_staff.id
+  path_part   = "{staff_id}"
+}
+
+resource "aws_api_gateway_method" "patch_admin_staff_id" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_staff_id.id
+  http_method   = "PATCH"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "patch_admin_staff_id_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_staff_id.id
+  http_method = aws_api_gateway_method.patch_admin_staff_id.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+resource "aws_api_gateway_method" "delete_admin_staff_id" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_staff_id.id
+  http_method   = "DELETE"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "delete_admin_staff_id_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_staff_id.id
+  http_method = aws_api_gateway_method.delete_admin_staff_id.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+
 # Admin PUT /admin/cancel/decision
 
 resource "aws_api_gateway_resource" "admin_cancel" {
@@ -400,8 +462,10 @@ locals {
     "admin_pet_id" : aws_api_gateway_resource.admin_pet_id.id,
     "client_cancel" : aws_api_gateway_resource.client_cancel.id,
     "admin_cancel_decision" : aws_api_gateway_resource.admin_cancel_decision.id,
-    "admin_staff" : aws_api_gateway_resource.admin_staff.id
+    "admin_staff" : aws_api_gateway_resource.admin_staff.id,
+    "admin_staff_id" : aws_api_gateway_resource.admin_staff_id.id
   }
+
 
 }
 
@@ -511,7 +575,11 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.post_client_cancel_lambda,
     aws_api_gateway_integration.put_admin_cancel_lambda,
     aws_api_gateway_integration.get_admin_staff_lambda,
+    aws_api_gateway_integration.post_admin_staff_lambda,
+    aws_api_gateway_integration.patch_admin_staff_id_lambda,
+    aws_api_gateway_integration.delete_admin_staff_id_lambda,
     aws_api_gateway_integration_response.options_200,
+
 
     aws_api_gateway_gateway_response.unauthorized,
     aws_api_gateway_gateway_response.missing_auth_token
@@ -535,7 +603,9 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.client_cancel,
       aws_api_gateway_resource.admin_cancel_decision,
       aws_api_gateway_resource.admin_staff,
+      aws_api_gateway_resource.admin_staff_id,
       aws_api_gateway_method.post_admin_requests,
+
 
       aws_api_gateway_method.options,
       aws_api_gateway_integration.options_mock,

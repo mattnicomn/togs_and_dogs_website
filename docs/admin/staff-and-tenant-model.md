@@ -1,7 +1,8 @@
 # Staff and Tenant Architecture
 
 ## Overview
-Maps distinct administrative parameters.
+Maps distinct administrative parameters. Staff profiles provide application-level role tracking.
 
 ### Multi-Tenancy
-- Roles separated seamlessly.
+- Scoped to `company_id` boundaries.
+- Separates worker availability seamlessly.
