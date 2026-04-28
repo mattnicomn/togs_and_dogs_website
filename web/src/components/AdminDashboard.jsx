@@ -254,8 +254,9 @@ const AdminDashboard = () => {
     setLoading(true);
     setError(null);
     try {
-      const { cognitoUser, userAttributes } = challengeContext;
-      cognitoUser.completeNewPasswordChallenge(newPassword, userAttributes, {
+      const { cognitoUser } = challengeContext;
+      cognitoUser.completeNewPasswordChallenge(newPassword, {}, {
+
         onSuccess: async (result) => {
           setAuthChallenge(null);
           setChallengeContext(null);
