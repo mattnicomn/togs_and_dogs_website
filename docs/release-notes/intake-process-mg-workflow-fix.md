@@ -26,5 +26,5 @@ The "Process" button in `MasterScheduler.jsx` was hardcoded to trigger a decisio
 
 ## Deployment Details
 - **Production URL:** [https://toganddogs.usmissionhero.com/admin](https://toganddogs.usmissionhero.com/admin)
-- **Commit Hash:** [to be populated]
+- **Commit Hash:** `e7fe69c`
 - **CloudFront Invalidation ID:** `ID0K35IYP3YST8DMI889ZI4LMG`
