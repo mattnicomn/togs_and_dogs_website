@@ -4,7 +4,8 @@ import boto3
 from datetime import datetime
 from common.db import query_by_status, get_item, update_status
 from common.response import success, bad_request, internal_error, not_found, error
-from common.auth import get_effective_role, sanitize_booking_for_role
+from common.auth import get_effective_role, sanitize_booking_for_role, get_claims
+
 
 
 def handler(event, context):
@@ -35,8 +36,9 @@ def handler(event, context):
                 if role not in ['owner', 'admin', 'staff', 'client']:
                     return error(403, "Forbidden", event)
                     
-                claims = authorizer.get('claims', {})
+                claims = get_claims(event)
                 user_email = (claims.get('email') or "").lower().strip()
+
                 is_admin = role in ['owner', 'admin', 'staff']
 
 

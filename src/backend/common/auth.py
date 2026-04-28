@@ -10,25 +10,36 @@ ROLE_PRIORITY = {
     'unknown': 0
 }
 
-def get_user_groups(event):
+def get_authorizer(event):
     if not isinstance(event, dict):
-        return []
-    authorizer = event.get('requestContext', {}).get('authorizer', {}) or {}
-    claims = authorizer.get('claims', {}) or {}
-    groups = claims.get('cognito:groups', [])
-    if isinstance(groups, str):
-        # Sometimes claims can be a string if not parsed correctly by API Gateway (rare but possible)
-        groups = [groups]
-    return groups
+        return {}
+    return event.get("requestContext", {}).get("authorizer", {}) or {}
+
+def get_claims(event):
+    authorizer = get_authorizer(event)
+    claims = authorizer.get("claims") or authorizer.get("jwt", {}).get("claims") or {}
+    return claims
+
+def get_groups(event):
+    claims = get_claims(event)
+    raw_groups = claims.get("cognito:groups", [])
+    if isinstance(raw_groups, str):
+        return [g.strip() for g in raw_groups.split(",") if g.strip()]
+    if isinstance(raw_groups, list):
+        return raw_groups
+    return []
+
+def get_user_groups(event):
+    return get_groups(event)
 
 def get_effective_role(event):
     if not isinstance(event, dict):
         return 'unknown'
         
-    authorizer = event.get('requestContext', {}).get('authorizer', {}) or {}
-    claims = authorizer.get('claims', {}) or {}
+    claims = get_claims(event)
     user_email = (claims.get('email') or "").lower().strip()
     groups = get_user_groups(event)
+
     
     # Normalize groups to lowercase
     normalized_groups = [g.lower() for g in groups]
@@ -123,9 +134,9 @@ def require_client_booking_access(event, booking):
         
     # Client access check
     if role == 'client':
-        authorizer = event.get('requestContext', {}).get('authorizer', {}) or {}
-        claims = authorizer.get('claims', {}) or {}
+        claims = get_claims(event)
         user_email = (claims.get('email') or "").lower().strip()
+
         
         booking_email = (booking.get('client_email') or "").lower().strip()
         if user_email and booking_email == user_email:

@@ -7,6 +7,8 @@ import urllib.request
 import boto3
 from common.response import success, error, bad_request, internal_error, ALLOWED_ORIGINS
 from common.db import table
+from common.auth import get_claims
+
 
 secrets = boto3.client('secretsmanager')
 
@@ -103,7 +105,8 @@ def initiate_auth(event):
             'expires_at': expires_at,
             'created_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
             # Link to admin if available in context
-            'admin_id': event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub', 'dynamic-admin')
+            'admin_id': get_claims(event).get('sub', 'dynamic-admin')
+
         })
     except Exception as e:
         print(f"Error saving OAuth state: {e}")

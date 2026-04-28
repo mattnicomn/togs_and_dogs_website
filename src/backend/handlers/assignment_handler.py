@@ -25,14 +25,15 @@ def handler(event, context):
         client_id = body.get('client_id')
         worker_id = body.get('worker_id')
 
-        from common.auth import get_effective_role
+        from common.auth import get_effective_role, get_claims
         from common.response import error
         role = get_effective_role(event)
         if role not in ['owner', 'admin']:
             return error(403, "Forbidden: Only owners and admins can assign workers", event)
-        authorizer = event.get('requestContext', {}).get('authorizer', {}) or {}
-        claims = authorizer.get('claims', {}) or {}
+            
+        claims = get_claims(event)
         user_email = (claims.get('email') or "").lower().strip()
+
 
         updated_by = user_email or claims.get('username') or 'admin-api'
         

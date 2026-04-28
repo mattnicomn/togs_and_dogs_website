@@ -11,15 +11,15 @@ from common.email import send_transactional_email, get_approval_email_body, get_
 def handler(event, context):
     try:
         # Extract user context
-        authorizer = event.get('requestContext', {}).get('authorizer', {})
-        from common.auth import get_effective_role
+        from common.auth import get_effective_role, get_claims
         from common.response import error
         role = get_effective_role(event)
         if role not in ['owner', 'admin', 'staff']:
             return error(403, "Forbidden", event)
             
-        claims = authorizer.get('claims', {})
+        claims = get_claims(event)
         user_email = (claims.get('email') or "").lower().strip()
+
 
 
         updated_by = user_email or claims.get('username') or 'admin-api'
