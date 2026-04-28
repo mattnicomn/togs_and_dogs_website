@@ -170,15 +170,16 @@ const AdminDashboard = () => {
         state.actions = ["VERIFY_MG", "MEET_GREET_REQUIRED", "CANCEL", "EDIT_PET"];
         break;
       case 'MG_COMPLETED':
-        state.actions = ["QUOTE", "APPROVE", "CANCEL", "EDIT_PET"];
+        state.actions = ["QUOTE", "QUOTED", "APPROVE", "ASSIGN", "CANCEL", "EDIT_PET"];
         break;
       case 'QUOTE_NEEDED':
-        state.actions = ["QUOTE_SENT", "APPROVE", "CANCEL", "EDIT_PET"];
+        state.actions = ["QUOTED", "APPROVE", "CANCEL", "EDIT_PET"];
         break;
       case 'QUOTE_SENT':
       case 'QUOTED':
-        state.actions = ["APPROVE", "QUOTE_NEEDED", "CANCEL", "EDIT_PET"];
+        state.actions = ["APPROVE", "CANCEL", "ARCHIVE", "EDIT_PET"];
         break;
+
       case 'READY_FOR_APPROVAL':
       case 'NEW_REQUEST':
         state.actions = ["QUOTE", "APPROVE", "CANCEL", "EDIT_PET"];
@@ -443,22 +444,38 @@ const AdminDashboard = () => {
         const terminalStatuses = ['ARCHIVED', 'DELETED', 'COMPLETED', 'CANCELLED'];
         setRequests((data.requests || []).filter(r => !terminalStatuses.includes((r.status || '').toUpperCase())));
       } else {
-        // Handle filter mapping
+        const terminalStatuses = ['COMPLETED', 'CANCELLED', 'ARCHIVED', 'DELETED', 'TRASH', 'ARCHIVE'];
+        const isActiveFilter = !terminalStatuses.includes(statusFilter.toUpperCase());
+
         let queryStatus = statusFilter;
         if (statusFilter === 'ARCHIVE' || statusFilter === 'ARCHIVED') queryStatus = 'ARCHIVED';
         if (statusFilter === 'TRASH' || statusFilter === 'DELETED') queryStatus = 'DELETED';
-        
-        const data = await getAdminRequests(queryStatus, startKey, timeframeFilter);
+
+        let data;
+        if (isActiveFilter) {
+          data = await getAdminRequests('ALL', startKey, timeframeFilter);
+        } else {
+          data = await getAdminRequests(queryStatus, startKey, timeframeFilter);
+        }
+
         let items = data.requests || [];
-        
-        // Refinement: If status is 'ALL' (Active), exclude terminal statuses
-        if (statusFilter === 'ALL') {
+
+        if (isActiveFilter && statusFilter !== 'ALL') {
+          items = items.filter(r => {
+            const stat = (r.status || '').toUpperCase();
+            if (statusFilter === 'MEET_GREET_REQUIRED') return stat === 'MEET_GREET_REQUIRED' || stat === 'NEEDS_MG';
+            if (statusFilter === 'QUOTED') return stat === 'QUOTED' || stat === 'QUOTE_SENT';
+            if (statusFilter === 'ASSIGNED') return stat === 'ASSIGNED' || stat === 'SCHEDULED';
+            return stat === statusFilter.toUpperCase();
+          });
+        } else if (statusFilter === 'ALL') {
           const exclusionStatuses = ['COMPLETED', 'ARCHIVED', 'DELETED', 'CANCELLED', 'DECLINED'];
           items = items.filter(r => !exclusionStatuses.includes((r.status || '').toUpperCase()));
         }
 
         setRequests(items);
         setLastKey(data.lastKey);
+
       }
     } catch (err) {
       setError("Failed to fetch data: " + err.message);
@@ -1058,8 +1075,10 @@ const AdminDashboard = () => {
               {[
                 { id: 'PENDING_REVIEW', label: 'Needs Review' },
                 { id: 'MEET_GREET_REQUIRED', label: 'Needs M&G' },
+                { id: 'MG_COMPLETED', label: 'M&G Completed' },
                 { id: 'READY_FOR_APPROVAL', label: 'New Requests' },
                 { id: 'QUOTE_NEEDED', label: 'Quote Needed' },
+                { id: 'QUOTED', label: 'Quoted' },
                 { id: 'APPROVED', label: 'Approved' },
                 { id: 'ASSIGNED', label: 'Scheduled' },
                 { id: 'COMPLETED', label: 'Completed' },
@@ -1067,15 +1086,25 @@ const AdminDashboard = () => {
                 { id: 'ARCHIVED', label: 'Archived' },
                 { id: 'DELETED', label: 'Trash / Deleted' },
                 { id: 'ALL', label: 'All Active' }
-              ].map(f => (
-                <button 
-                  key={f.id}
-                  className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
-                  onClick={() => setStatusFilter(f.id)}
-                >
-                  {f.label}
-                </button>
-              ))}
+              ].map(f => {
+                const count = f.id === 'ALL' 
+                  ? requests.filter(r => !['COMPLETED', 'ARCHIVED', 'DELETED', 'CANCELLED', 'DECLINED'].includes((r.status || '').toUpperCase())).length
+                  : requests.filter(r => (r.status || '').toUpperCase() === f.id || 
+                      (f.id === 'MEET_GREET_REQUIRED' && (r.status || '').toUpperCase() === 'NEEDS_MG') ||
+                      (f.id === 'QUOTED' && (r.status || '').toUpperCase() === 'QUOTE_SENT') ||
+                      (f.id === 'ASSIGNED' && (r.status || '').toUpperCase() === 'SCHEDULED')
+                    ).length;
+                return (
+                  <button 
+                    key={f.id}
+                    className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
+                    onClick={() => setStatusFilter(f.id)}
+                  >
+                    {f.label} <span className="filter-count" style={{ float: 'right', opacity: 0.7, fontSize: '11px', fontWeight: 'bold' }}>({count})</span>
+                  </button>
+                );
+              })}
+
             </div>
           )}
 
@@ -1508,8 +1537,10 @@ const AdminDashboard = () => {
                   const filter = [
                     { id: 'PENDING_REVIEW', label: 'Needs Review' },
                     { id: 'MEET_GREET_REQUIRED', label: 'Needs M&G' },
+                    { id: 'MG_COMPLETED', label: 'M&G Completed' },
                     { id: 'READY_FOR_APPROVAL', label: 'New Requests' },
                     { id: 'QUOTE_NEEDED', label: 'Quote Needed' },
+                    { id: 'QUOTED', label: 'Quoted' },
                     { id: 'APPROVED', label: 'Approved' },
                     { id: 'ASSIGNED', label: 'Scheduled' },
                     { id: 'COMPLETED', label: 'Completed' },
@@ -1518,6 +1549,7 @@ const AdminDashboard = () => {
                     { id: 'DELETED', label: 'Trash / Deleted' },
                     { id: 'ALL', label: 'All Active' }
                   ].find(f => f.id === statusFilter);
+
                   return filter ? filter.label : 'Items';
                 })()}</h2>
                 <span className="micro-text">Showing records requiring action in the {statusFilter.replace(/_/g, ' ')} phase</span>
@@ -1695,6 +1727,7 @@ const AdminDashboard = () => {
                                const labels = {
                                  'APPROVE': 'Approve',
                                  'QUOTE': 'Quote',
+                                 'QUOTED': 'Mark Quoted',
                                  'CANCEL': 'Cancel',
                                  'VERIFY_MG': 'Verify M&G',
                                  'REVERT_TO_APPROVED': 'Back to Approved',
@@ -1706,6 +1739,7 @@ const AdminDashboard = () => {
                                  'MOVE_TO_NEW_REQUEST': 'To New Request',
                                  'DELETE': 'Move to Trash'
                                };
+
                                
                                const getButtonClass = (act) => {
                                  if (act === 'DELETE' || act === 'CANCEL') return 'btn-micro urgent';

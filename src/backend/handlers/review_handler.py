@@ -33,9 +33,12 @@ def handler(event, context):
         if not (client_id and new_status) or (new_status != 'VERIFY_MEET_GREET' and not request_id):
             return bad_request("Missing required fields: client_id, status (and request_id for status transitions)", event)
 
+        request_item = {}
+        if request_id:
+            request_item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}") or {}
+
         if new_status in ['APPROVED', 'BOOKED', 'DECLINED', 'CANCELLED', 'ARCHIVED', 'DELETED'] and role not in ['owner', 'admin']:
             return error(403, "Forbidden: Only owners and admins can perform sensitive transitions", event)
-
 
         # 4. Handle VERIFY_MEET_GREET pseudo-status (updates Client Metadata)
         if new_status == 'VERIFY_MEET_GREET':
@@ -49,14 +52,22 @@ def handler(event, context):
                     ExpressionAttributeValues={":t": True, ":et": "CLIENT", ":cid": company_id}
                 )
 
+                pet_id = request_item.get('pet_id')
+                if pet_id:
+                    table.update_item(
+                        Key={'PK': f"PET#{pet_id}", 'SK': f"CLIENT#{client_id}"},
+                        UpdateExpression="SET meet_and_greet_completed = :t",
+                        ExpressionAttributeValues={":t": True}
+                    )
+
                 print(f"INFO: [Client:{client_id}] Meet & Greet manually verified by admin.")
                 
                 if request_id:
                     now = datetime.now(timezone.utc).isoformat()
                     audit_note = {
                         "action": "STATUS_CHANGE",
-                        "from": "MEET_GREET_REQUIRED",
-                        "to": "READY_FOR_APPROVAL",
+                        "from": request_item.get('status', 'MEET_GREET_REQUIRED'),
+                        "to": "MG_COMPLETED",
                         "timestamp": now,
                         "reason": "M&G Verified",
                         "metadata": {"request_id": request_id, "client_id": client_id}
@@ -66,12 +77,13 @@ def handler(event, context):
                         UpdateExpression="SET #stat = :s, updated_at = :now, audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)",
                         ExpressionAttributeNames={"#stat": "status"},
                         ExpressionAttributeValues={
-                            ":s": "READY_FOR_APPROVAL",
+                            ":s": "MG_COMPLETED",
                             ":now": now,
                             ":n": [audit_note],
                             ":empty_list": []
                         }
                     )
+
 
                 return success({
                     "message": "Meet & Greet status updated successfully",
