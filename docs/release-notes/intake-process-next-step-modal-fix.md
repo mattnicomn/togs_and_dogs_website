@@ -22,7 +22,7 @@ When assigning staff to an approved visit, the staff dropdown selector was not r
 
 ## Deployment Details
 - **Production URL:** [https://toganddogs.usmissionhero.com/admin](https://toganddogs.usmissionhero.com/admin)
-- **Commit Hash:** [to be populated]
+- **Commit Hash:** `64450eb`
 - **CloudFront Invalidation ID:** `I5FBKYG5RPJASE0WX4F0HYQLVC`
 
 ## Validation Matrix
