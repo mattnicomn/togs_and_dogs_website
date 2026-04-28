@@ -195,6 +195,87 @@ def handler(event, context):
                 return success(new_profile, event)
                 
             except cognito.exceptions.UsernameExistsException:
+                if body.get('mode') == 'create_or_link' or body.get('mode') == 'link_existing':
+                    try:
+                        cog_user = cognito.admin_get_user(
+                            UserPoolId=user_pool_id,
+                            Username=email
+                        )
+                        
+                        cognito_sub = None
+                        for attr in cog_user.get('UserAttributes', []):
+                            if attr.get('Name') == 'sub':
+                                cognito_sub = attr.get('Value')
+                                break
+                                
+                        role_input = body.get('role', 'Staff')
+                        cognito_group = 'Staff'
+                        if role_input.lower() == 'owner':
+                            cognito_group = 'owner'
+                        elif role_input.lower() == 'admin':
+                            cognito_group = 'Admin'
+                            
+                        try:
+                            cognito.admin_add_user_to_group(
+                                UserPoolId=user_pool_id,
+                                Username=email,
+                                GroupName=cognito_group
+                            )
+                        except Exception as group_err:
+                            print(f"Warn: Add to group failed or user already in group: {group_err}")
+                            
+                        existing_by_email = None
+                        existing_by_sub = None
+                        for s in existing_staff:
+                            if (s.get('email') or '').lower() == email:
+                                existing_by_email = s
+                            if s.get('cognito_sub') == cognito_sub:
+                                existing_by_sub = s
+                                
+                        target_profile = existing_by_email or existing_by_sub
+                        
+                        if target_profile:
+                            if target_profile.get('cognito_sub') == cognito_sub:
+                                return success({
+                                    "message": "Staff profile is already linked to this Cognito user.",
+                                    "profile": target_profile
+                                }, event)
+                                
+                            target_profile['cognito_sub'] = cognito_sub
+                            target_profile['cognito_status'] = cog_user.get('UserStatus')
+                            target_profile['updated_at'] = datetime.utcnow().isoformat()
+                            if not target_profile.get('email'):
+                                target_profile['email'] = email
+                            
+                            items_table.put_item(Item=target_profile)
+                            return success(target_profile, event)
+                        else:
+                            import uuid
+                            staff_id = f"staff_{str(uuid.uuid4())[:8]}"
+                            
+                            new_profile = {
+                                "PK": f"COMPANY#{company_id}",
+                                "SK": f"STAFF#{staff_id}",
+                                "company_id": company_id,
+                                "staff_id": staff_id,
+                                "display_name": display_name,
+                                "role": role_input,
+                                "email": email,
+                                "cognito_sub": cognito_sub,
+                                "is_active": True,
+                                "is_assignable": body.get('is_assignable', True),
+                                "assignment_color": body.get('assignment_color', 'blue'),
+                                "phone": body.get('phone', '').strip() or None,
+                                "cognito_status": cog_user.get('UserStatus'),
+                                "created_at": datetime.utcnow().isoformat(),
+                                "updated_at": datetime.utcnow().isoformat()
+                            }
+                            items_table.put_item(Item=new_profile)
+                            return success(new_profile, event)
+                    except Exception as fallback_err:
+                        print(f"Fallback link error: {fallback_err}")
+                        return internal_error(f"Failed to link existing user: {fallback_err}", event)
+                        
                 return error(409, "Cognito user already exists with this email. Use Link Existing User instead.", event)
             except Exception as e:
                 print(f"Cognito onboard error: {e}")
@@ -255,6 +336,23 @@ def handler(event, context):
                     if s.get('cognito_sub') == cognito_sub and s.get('is_active') == True and s.get('staff_id') != staff_id:
                         return error(409, "Cognito user already linked to another active staff profile in this company", event)
                 
+                # Assign to proper Cognito group
+                role_input = staff_profile.get('role', 'Staff')
+                cognito_group = 'Staff'
+                if role_input.lower() == 'owner':
+                    cognito_group = 'owner'
+                elif role_input.lower() == 'admin':
+                    cognito_group = 'Admin'
+                    
+                try:
+                    cognito.admin_add_user_to_group(
+                        UserPoolId=user_pool_id,
+                        Username=username,
+                        GroupName=cognito_group
+                    )
+                except Exception as group_err:
+                    print(f"Warn: Add to group failed during manual link: {group_err}")
+
                 # Update profile
                 staff_profile['cognito_sub'] = cognito_sub
                 if email:

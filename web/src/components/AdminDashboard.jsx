@@ -26,6 +26,7 @@ const AdminDashboard = () => {
   const [googleStatus, setGoogleStatus] = useState(null);
   const [staffList, setStaffList] = useState([]);
   const [editingStaffId, setEditingStaffId] = useState(null);
+  const [staffLinkPrompt, setStaffLinkPrompt] = useState(null);
   const [staffForm, setStaffForm] = useState({
     display_name: '',
     role: 'Staff',
@@ -378,7 +379,19 @@ const AdminDashboard = () => {
       setEditingStaffId(null);
       await fetchStaffData();
     } catch (err) {
-      showNotification(err.message || "Failed to save staff", "error");
+      if (err.message && err.message.includes("Cognito user already exists")) {
+        setStaffLinkPrompt({
+          email: staffForm.email,
+          display_name: staffForm.display_name,
+          role: staffForm.role,
+          is_assignable: staffForm.is_assignable,
+          assignment_color: staffForm.assignment_color,
+          phone: staffForm.phone,
+          notes: staffForm.notes
+        });
+      } else {
+        showNotification(err.message || "Failed to save staff", "error");
+      }
     } finally {
       setIsSavingStaff(false);
     }
@@ -1360,6 +1373,59 @@ const AdminDashboard = () => {
                       onChange={(e) => setStaffForm({ ...staffForm, send_invite: e.target.checked })} 
                     />
                     <label htmlFor="send_invite_cb" style={{ margin: 0 }}>Send setup email via Cognito</label>
+                  </div>
+                )}
+
+                {staffLinkPrompt && (
+                  <div style={{ gridColumn: 'span 2', backgroundColor: '#fff3e0', padding: '16px', borderRadius: '8px', border: '1px solid #ffe0b2', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <p style={{ margin: 0, color: 'var(--text-primary)' }}>
+                      <strong>Cognito user already exists with this email ({staffLinkPrompt.email}).</strong>
+                    </p>
+                    <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)' }}>
+                      A login account already exists for this email. You can link it to this staff profile instead.
+                    </p>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <button 
+                        type="button" 
+                        className="button-primary" 
+                        style={{ padding: '8px 16px', backgroundColor: 'var(--accent-orange)' }}
+                        disabled={isSavingStaff}
+                        onClick={async () => {
+                          try {
+                            setIsSavingStaff(true);
+                            await onboardStaff({ ...staffLinkPrompt, mode: 'create_or_link' });
+                            showNotification("Staff profile linked successfully", "success");
+                            setStaffLinkPrompt(null);
+                            setStaffForm({
+                              display_name: '',
+                              role: 'Staff',
+                              email: '',
+                              is_assignable: true,
+                              assignment_color: 'var(--staff-ryan)',
+                              creation_mode: 'onboard',
+                              send_invite: true,
+                              phone: '',
+                              notes: ''
+                            });
+                            await fetchStaffData();
+                          } catch (err) {
+                            showNotification(err.message || "Failed to link existing user", "error");
+                          } finally {
+                            setIsSavingStaff(false);
+                          }
+                        }}
+                      >
+                        Link Existing User
+                      </button>
+                      <button 
+                        type="button" 
+                        className="button-secondary" 
+                        style={{ padding: '8px 16px' }}
+                        onClick={() => setStaffLinkPrompt(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 )}
 
