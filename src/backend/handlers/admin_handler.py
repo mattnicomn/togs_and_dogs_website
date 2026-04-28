@@ -14,8 +14,27 @@ def handler(event, context):
         path_params = event.get('pathParameters', {}) or {}
         query_params = event.get('queryStringParameters', {}) or {}
         
+        path = event.get('path', '')
+        if http_method == 'GET' and (path == '/admin/staff' or path.endswith('/admin/staff')):
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin', 'staff']:
+                return error(403, "Forbidden", event)
+                
+            company_id = 'tog_and_dogs'
+            from common.db import table as items_table
+            from boto3.dynamodb.conditions import Key
+            
+            response = items_table.query(
+                KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("STAFF#")
+            )
+            staff_profiles = response.get('Items', [])
+            # Only return active staff
+            active_staff = [s for s in staff_profiles if s.get('is_active') == True]
+            return success({"staff": active_staff}, event)
+
         if http_method == 'GET':
             request_id = path_params.get('requestId')
+
             client_id = query_params.get('clientId')
             
             if request_id and client_id:

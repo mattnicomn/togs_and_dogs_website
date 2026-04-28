@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { signIn, signOut, getSession, getEffectiveRole } from '../api/auth';
 
-import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, purgeRecord, disconnectGoogle } from '../api/client';
+import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, purgeRecord, disconnectGoogle, getStaff } from '../api/client';
+
 import MasterScheduler from './MasterScheduler';
 import CareCard from './CareCard';
-import { STAFF_MEMBERS } from '../constants/staff';
 import '../Admin.css';
+
 
 const AdminDashboard = () => {
   const [requests, setRequests] = useState([]);
@@ -20,6 +21,8 @@ const AdminDashboard = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [challengeContext, setChallengeContext] = useState(null);
   const [googleStatus, setGoogleStatus] = useState(null);
+  const [staffList, setStaffList] = useState([]);
+
 
   const [view, setView] = useState('SCHEDULER'); // SCHEDULER or LIST
   const [selectedPet, setSelectedPet] = useState(null);
@@ -285,8 +288,18 @@ const AdminDashboard = () => {
   };
 
 
+  const fetchStaffData = async () => {
+    try {
+      const data = await getStaff();
+      setStaffList(data.staff || []);
+    } catch (err) {
+      console.error("Failed to fetch staff list:", err);
+    }
+  };
+
   const handleLogout = () => {
     signOut();
+
 
     setIsAuthenticated(false);
     setRequests([]);
@@ -296,8 +309,10 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       if (!startKey) setSelectedIds([]); // Reset selection on fresh fetch
+      fetchStaffData();
       
       if (view === 'SCHEDULER') {
+
         const data = await getAdminRequests('ALL');
         // Exclude lifecycle/removal statuses from the scheduler timeline
         const terminalStatuses = ['ARCHIVED', 'DELETED', 'COMPLETED', 'CANCELLED'];
@@ -890,12 +905,16 @@ const AdminDashboard = () => {
             <div className="filter-group">
               <h4>Staff Quick View</h4>
               <div className="staff-legend-box">
-                {['Ryan', 'Wife', 'Nephew1', 'Nephew2', 'Unassigned'].map(name => (
-                  <div key={name} className="legend-item">
-                    <span className="dot" style={{ backgroundColor: `var(--staff-${name.toLowerCase()})` }}></span>
-                    <span className="legend-label">{name}</span>
+                {(staffList.length > 0 
+                  ? [...staffList, { display_name: 'Unassigned', assignment_color: 'var(--staff-unassigned)' }] 
+                  : [{ display_name: 'Unassigned', assignment_color: 'var(--staff-unassigned)' }]
+                ).map(s => (
+                  <div key={s.display_name} className="legend-item">
+                    <span className="dot" style={{ backgroundColor: s.assignment_color || `var(--staff-${s.display_name.toLowerCase()})` }}></span>
+                    <span className="legend-label">{s.display_name}</span>
                   </div>
                 ))}
+
               </div>
             </div>
           )}
@@ -960,7 +979,9 @@ const AdminDashboard = () => {
           {view === 'SCHEDULER' ? (
             <MasterScheduler 
               items={requests} 
+              staffList={staffList}
               onReview={(req) => {
+
                 if (req.status === 'CANCELLATION_REQUESTED') {
                   handleProcessCancellation(req);
                 } else {
@@ -1111,9 +1132,10 @@ const AdminDashboard = () => {
                                     onBlur={() => setAssigningId(null)}
                                   >
                                     <option value="">Select Staff...</option>
-                                    {STAFF_MEMBERS.map(s => (
-                                      <option key={s.id} value={s.id}>{s.label}</option>
+                                    {staffList.map(s => (
+                                      <option key={s.display_name} value={s.display_name}>{s.display_name}</option>
                                     ))}
+
                                   </select>
                                 ) : (
                                   <button 

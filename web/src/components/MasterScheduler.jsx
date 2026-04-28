@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import '../Admin.css';
 
-const MasterScheduler = ({ items, onAssign, onReview, onSelectPet }) => {
+const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [] }) => {
   const [viewMode, setViewMode] = useState('DAY'); // DAY or WEEK
   const [filters, setFilters] = useState({
     staff: 'ALL',
@@ -9,13 +9,19 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet }) => {
     service: 'ALL'
   });
 
-  const staffPalette = {
-    'Ryan': 'var(--staff-ryan)',
-    'Wife': 'var(--staff-wife)',
-    'Nephew1': 'var(--staff-nephew1)',
-    'Nephew2': 'var(--staff-nephew2)',
-    'Unassigned': 'var(--staff-unassigned)'
-  };
+  const staffPalette = {};
+  if (staffList && staffList.length > 0) {
+    staffList.forEach(s => {
+      staffPalette[s.display_name] = s.assignment_color || `var(--staff-${s.display_name.toLowerCase()})`;
+    });
+  } else {
+    staffPalette['Ryan'] = 'var(--staff-ryan)';
+    staffPalette['Wife'] = 'var(--staff-wife)';
+    staffPalette['Nephew1'] = 'var(--staff-nephew1)';
+    staffPalette['Nephew2'] = 'var(--staff-nephew2)';
+  }
+  staffPalette['Unassigned'] = 'var(--staff-unassigned)';
+
 
   const getWorkerColor = (workerId) => {
     return staffPalette[workerId] || staffPalette['Unassigned'];

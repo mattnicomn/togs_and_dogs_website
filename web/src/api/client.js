@@ -61,6 +61,9 @@ export const getGoogleStatus = () => request('/admin/auth/status', 'GET', null, 
 
 export const initiateGoogleAuth = () => request('/admin/auth/google', 'GET', null, true);
 
+export const getStaff = () => request('/admin/staff', 'GET', null, true);
+
+
 export const completeGoogleAuth = (code, state) => 
   request(`/admin/auth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`, 'GET', null, false);
 
