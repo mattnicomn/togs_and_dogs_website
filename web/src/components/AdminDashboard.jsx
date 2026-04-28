@@ -710,10 +710,47 @@ const AdminDashboard = () => {
   };
 
   const onReviewAction = async (req, action, note = "") => {
+    // Clear any previous notification before this action starts
+    setError(null);
+
+    const actionSuccessMessages = {
+      'APPROVE':             'Visit approved successfully.',
+      'APPROVED':            'Visit approved successfully.',
+      'DECLINE':             'Request declined.',
+      'DECLINED':            'Request declined.',
+      'CANCEL':              'Request cancelled.',
+      'CANCELLED':           'Request cancelled.',
+      'COMPLETE':            'Visit marked as completed.',
+      'COMPLETED':           'Visit marked as completed.',
+      'ARCHIVE':             'Record archived.',
+      'ARCHIVED':            'Record archived.',
+      'DELETE':              'Record moved to trash.',
+      'DELETED':             'Record moved to trash.',
+      'VERIFY_MG':           'Meet & Greet marked as completed.',
+      'VERIFY_MEET_GREET':   'Meet & Greet marked as completed.',
+      'MG_SCHEDULED':        'M&G scheduled.',
+      'QUOTED':              'Request marked as Quoted.',
+      'QUOTE':               'Quote needed flag set.',
+      'QUOTE_NEEDED':        'Quote needed flag set.',
+      'APPROVE_CANCEL':      'Cancellation approved.',
+      'DENY_CANCEL':         'Cancellation denied.',
+      'REVERT_TO_APPROVED':  'Reverted to Approved.',
+      'REOPEN':              'Record reopened.',
+      'REOPEN_PENDING':      'Record restored to Active.',
+      'ASSIGN':              'Worker assigned.',
+      'CREATE_PROFILE':      'Profile created.',
+      'MOVE_TO_NEW_REQUEST': 'Moved to New Request.',
+      'MEET_GREET':          'M&G required flag set.',
+      'MEET_GREET_REQUIRED': 'M&G required flag set.',
+    };
+
+    let actionSucceeded = false;
+
     try {
       setLoading(true);
       await updateRecordStatus(req, action, note);
-      
+      actionSucceeded = true;
+
       const statusMap = {
         'APPROVE': 'APPROVED',
         'DECLINE': 'DECLINED',
@@ -724,32 +761,42 @@ const AdminDashboard = () => {
       };
       const targetStatus = statusMap[action] || action;
 
-      showNotification(`Status successfully updated to ${getStatusLabel(targetStatus)}`, "success");
-      
-      // Reconcile local state: Update the item in the local requests array immediately
-      // to prevent stale data display while fetchAllData is in flight.
-      setRequests(prev => prev.map(item => 
-        (item.PK === req.PK && item.SK === req.SK) 
-        ? { ...item, status: targetStatus } 
+      const successMsg = actionSuccessMessages[action] || actionSuccessMessages[targetStatus] || `Status updated to ${getStatusLabel(targetStatus)}.`;
+      showNotification(successMsg, "success");
+
+      // Reconcile local state immediately to prevent stale display while refresh is in flight
+      setRequests(prev => prev.map(item =>
+        (item.PK === req.PK && item.SK === req.SK)
+        ? { ...item, status: targetStatus }
         : item
       ));
 
-      // Close modal if open for this item
+      // Close pet modal if it's open for this item
       if (selectedPet?._originItem?.PK === req.PK) {
         setSelectedPet(null);
       }
-      
-      // Refresh data to sync UI from source of truth
-      await fetchAllData();
-      setSelectedIds([]); // Clear bulk selection after individual action to be safe
+
+      setSelectedIds([]);
     } catch (err) {
       console.error("Action failed:", err);
       showNotification("Action failed: " + err.message, "error");
-      await fetchAllData(); // Refresh to sync UI with actual DB state
     } finally {
       setLoading(false);
     }
+
+    // Always refresh after action attempt — separately so a refresh failure
+    // never overwrites the action result notification.
+    try {
+      await fetchAllData();
+    } catch (refreshErr) {
+      console.warn("Post-action refresh failed:", refreshErr);
+      if (actionSucceeded) {
+        // Show a soft warning — don't overwrite the success toast
+        console.warn("Refresh failed after successful action. Data may be stale — reload the page if needed.");
+      }
+    }
   };
+
 
   const handlePurgeRecord = async (item) => {
     const pk = item.PK;

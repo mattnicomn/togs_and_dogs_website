@@ -50,6 +50,20 @@ Three transition gaps that were blocking valid operator workflows:
 | `QUOTED`               | ✅              | **Now unblocked by this fix**        |
 | `APPROVED`             | ✅ idempotent   | Same-status always allowed           |
 
+## UI Feedback & Idempotency Correction (Follow-up)
+
+**Issue:** Successful transitions (like double-clicking Approve, or moving `QUOTED → APPROVED`) would sometimes incorrectly show "Action failed: Meet & Greet must be marked completed". The workflow proceeded correctly in DynamoDB, but the UI showed a stale validation error.
+
+**Root cause:**
+1. **Frontend:** `AdminDashboard.jsx` had `fetchAllData()` inside the same `try/catch` block as the action. A momentary network blip during the refresh would trigger the catch block and display the backend's stale error message.
+2. **Backend:** Idempotent requests (e.g. `APPROVED → APPROVED`) were evaluated against validation rules. An already-approved request bypassed the `QUOTED` guard and hit the M&G check, which failed if M&G wasn't completed, throwing a 400 error back to the UI.
+
+### Changes
+- `AdminDashboard.jsx`: Separated `fetchAllData()` into its own `try/catch` block outside the action submission. Post-action refresh failures now log a non-blocking warning instead of overwriting the success toast.
+- `AdminDashboard.jsx`: Added action-specific, user-friendly success messages ("Visit approved successfully", etc.).
+- `AdminDashboard.jsx`: explicitly clear `error` state before actions.
+- `review_handler.py`: Bypassed validation logic for idempotent status changes (`if current_status != new_status:`). Idempotent submissions now cleanly return 200 without triggering stale validation checks.
+
 ## Deployment
 - Terraform root: `c:\Users\mattn\OneDrive\Desktop\togs_and_dogs_website\infra\prod`
 - 8 Lambda functions updated (all handlers share the same zip).
