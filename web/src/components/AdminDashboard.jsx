@@ -15,7 +15,12 @@ const AdminDashboard = () => {
   const [role, setRole] = useState('unknown');
 
   const [loginData, setLoginData] = useState({ email: '', password: '' });
+  const [authChallenge, setAuthChallenge] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [challengeContext, setChallengeContext] = useState(null);
   const [googleStatus, setGoogleStatus] = useState(null);
+
   const [view, setView] = useState('SCHEDULER'); // SCHEDULER or LIST
   const [selectedPet, setSelectedPet] = useState(null);
   const [assigningId, setAssigningId] = useState(null); 
@@ -207,7 +212,16 @@ const AdminDashboard = () => {
     setLoading(true);
     setError(null);
     try {
-      await signIn(loginData.email, loginData.password);
+      const result = await signIn(loginData.email, loginData.password);
+      if (result && result.challenge === 'NEW_PASSWORD_REQUIRED') {
+        setAuthChallenge('NEW_PASSWORD_REQUIRED');
+        setChallengeContext({
+          userAttributes: result.userAttributes,
+          cognitoUser: result.cognitoUser
+        });
+        setLoading(false);
+        return;
+      }
       const session = await getSession();
       const userRole = getEffectiveRole(session);
       if (['owner', 'admin', 'staff'].includes(userRole)) {
@@ -219,6 +233,7 @@ const AdminDashboard = () => {
         setError("Access denied. Insufficient permissions.");
         setIsAuthenticated(false);
       }
+
     } catch (err) {
       setError(err.message || 'Login failed');
     } finally {
@@ -226,8 +241,52 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleCompleteNewPassword = async (e) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    if (!newPassword) {
+      setError("Please enter a new password.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const { cognitoUser, userAttributes } = challengeContext;
+      cognitoUser.completeNewPasswordChallenge(newPassword, userAttributes, {
+        onSuccess: async (result) => {
+          setAuthChallenge(null);
+          setChallengeContext(null);
+          const session = await getSession();
+          const userRole = getEffectiveRole(session);
+          if (['owner', 'admin', 'staff'].includes(userRole)) {
+            setIsAuthenticated(true);
+            setRole(userRole);
+            fetchAllData();
+            fetchGoogleStatus();
+          } else {
+            setError("Access denied. Insufficient permissions.");
+            setIsAuthenticated(false);
+          }
+          setLoading(false);
+        },
+        onFailure: (err) => {
+          setError(err.message || 'Failed to set new password.');
+          setLoading(false);
+        }
+      });
+    } catch (err) {
+      setError(err.message || 'An error occurred.');
+      setLoading(false);
+    }
+  };
+
+
   const handleLogout = () => {
     signOut();
+
     setIsAuthenticated(false);
     setRequests([]);
   };
@@ -727,12 +786,51 @@ const AdminDashboard = () => {
   };
 
   if (!isAuthenticated) {
+    if (authChallenge === 'NEW_PASSWORD_REQUIRED') {
+      return (
+        <div className="section auth-section">
+          <div className="card auth-card">
+            <h1>Create New Password</h1>
+            <p className="subtitle">For security, please create a new password before continuing.</p>
+            <form onSubmit={handleCompleteNewPassword} className="premium-form">
+              <div className="field">
+                <label>New Password</label>
+                <input 
+                  type="password" 
+                  value={newPassword} 
+                  onChange={(e) => setNewPassword(e.target.value)} 
+                  required 
+                />
+              </div>
+              <div className="field">
+                <label>Confirm New Password</label>
+                <input 
+                  type="password" 
+                  value={confirmPassword} 
+                  onChange={(e) => setConfirmPassword(e.target.value)} 
+                  required 
+                />
+              </div>
+              <button type="submit" className="button-primary" disabled={loading}>
+                {loading ? 'Updating...' : 'Set Password & Sign In'}
+              </button>
+              {error && <p className="error-text">{error}</p>}
+              <button type="button" onClick={() => { setAuthChallenge(null); setError(null); }} className="button-secondary" style={{ marginTop: '16px', width: '100%', padding: '12px' }}>
+                Back to Sign In
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="section auth-section">
         <div className="card auth-card">
           <h1>Staff Portal</h1>
           <p className="subtitle">Please sign in to manage operations.</p>
           <form onSubmit={handleLogin} className="premium-form">
+
             <div className="field">
               <label>Email Address</label>
               <input 

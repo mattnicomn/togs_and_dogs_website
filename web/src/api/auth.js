@@ -20,10 +20,14 @@ export const signIn = (email, password) => {
       onSuccess: (result) => resolve(result),
       onFailure: (err) => reject(err),
       newPasswordRequired: (userAttributes) => {
-        // For this flow, we assume passwords are set to permanent via CLI first
-        reject(new Error("New password required - handle in UI or set permanent via CLI"));
+        resolve({
+          challenge: 'NEW_PASSWORD_REQUIRED',
+          userAttributes,
+          cognitoUser
+        });
       }
     });
+
   });
 };
 
