@@ -23,17 +23,26 @@ const PortalGateway = () => {
               <span className="icon">📅</span>
               <div className="btn-label">
                 <strong>Request Pet Care</strong>
-                <span>New and existing clients</span>
+                <span>Submit a new care request</span>
               </div>
             </Link>
 
             <Link to="/my-bookings" className="button-secondary action-btn">
               <span className="icon">👤</span>
               <div className="btn-label">
-                <strong>Client / Admin Login</strong>
-                <span>View schedule & manage account</span>
+                <strong>My Bookings</strong>
+                <span>View schedule & client portal</span>
               </div>
             </Link>
+
+            <Link to="/admin" className="button-secondary action-btn staff-btn">
+              <span className="icon">🔒</span>
+              <div className="btn-label">
+                <strong>Staff Portal</strong>
+                <span>Internal operational tools</span>
+              </div>
+            </Link>
+
           </div>
         </div>
 
