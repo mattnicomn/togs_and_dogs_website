@@ -24,6 +24,7 @@ def handler(event, context):
         req_id = body.get('req_id') or body.get('request_id')
         client_id = body.get('client_id')
         worker_id = body.get('worker_id')
+        worker_name = body.get('worker_name') or worker_id
 
         from common.auth import get_effective_role, get_claims
         from common.response import error
@@ -111,7 +112,7 @@ def handler(event, context):
             google_event_id = item.get('google_event_id')
             sync_warning = None
             try:
-                new_event_id = sync_calendar_event(item, google_event_id=google_event_id, assigned_worker=worker_id)
+                new_event_id = sync_calendar_event(item, google_event_id=google_event_id, assigned_worker=worker_name)
                 if new_event_id and new_event_id != google_event_id:
                     # Persist the new event ID back to DB
                     try:

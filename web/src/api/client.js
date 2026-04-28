@@ -49,12 +49,13 @@ export const reviewRequest = (requestId, clientId, status, reason = "") =>
     reason 
   }, true);
 
-export const assignWorker = (jobId, reqId, clientId, workerId) => 
+export const assignWorker = (jobId, reqId, clientId, workerId, workerName) => 
   request('/admin/assign', 'POST', { 
     job_id: jobId, 
     req_id: reqId, 
     client_id: clientId,
-    worker_id: workerId 
+    worker_id: workerId,
+    worker_name: workerName
   }, true);
 
 export const getGoogleStatus = () => request('/admin/auth/status', 'GET', null, true);
