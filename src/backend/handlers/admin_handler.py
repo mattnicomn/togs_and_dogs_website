@@ -653,6 +653,9 @@ def handler(event, context):
             if role not in ['owner', 'admin', 'staff']:
                 return error(403, "Forbidden", event)
                 
+            claims = get_claims(event)
+            user_email = (claims.get('email') or "").lower().strip() or claims.get('username') or 'admin-api'
+
             # Archive/Delete/Purge Actions
             body = json.loads(event.get('body', '{}'))
             action = body.get('action')
@@ -662,53 +665,113 @@ def handler(event, context):
             if action in ['ARCHIVE', 'DELETE', 'PURGE'] and role not in ['owner', 'admin']:
                 return error(403, "Forbidden: Insufficient permissions for lifecycle action", event)
 
-            if not (action and pk and sk):
-
-                return bad_request("Missing action, PK, or SK", event)
+            if not action or (not (pk and sk) and 'records' not in body):
+                return bad_request("Missing action, PK, SK, or records array", event)
 
             # --- PURGE: Permanent deletion — only allowed for already-DELETED records ---
             if action == 'PURGE':
                 if role not in ['owner', 'admin']:
                     return error(403, "Forbidden: Only owners and admins can permanently delete records", event)
 
+                records_to_purge = []
+                if 'records' in body:
+                    records_to_purge = body.get('records', [])
+                else:
+                    pk = body.get('PK')
+                    sk = body.get('SK')
+                    if pk and sk:
+                        records_to_purge = [{'PK': pk, 'SK': sk}]
 
-                # Fetch current record to verify status before purging
-                current_item = get_item(pk, sk)
-                if not current_item:
-                    return not_found(f"Record not found: {pk} / {sk}", event)
+                if not records_to_purge:
+                    return bad_request("Missing PK/SK or records array for PURGE action", event)
 
-                current_status = (current_item.get('status') or '').upper()
-                if current_status != 'DELETED':
-                    print(
-                        f"PURGE REJECTED: [{pk}] status is '{current_status}', not DELETED. "
-                        f"Requester: {user_email}"
-                    )
-                    return bad_request(
-                        f"Only records with status DELETED can be permanently removed. "
-                        f"This record is currently '{current_status}'.",
-                        event
-                    )
+                deleted_count = 0
+                skipped_count = 0
+                failed_count = 0
+                failures = []
 
-                # Perform permanent deletion
-                from datetime import timezone
                 from common.db import table as _table
-                try:
-                    _table.delete_item(Key={'PK': pk, 'SK': sk})
-                    print(
-                        f"PURGE COMPLETE: [{pk}] permanently deleted by {user_email} "
-                        f"at {datetime.now(timezone.utc).isoformat()}. "
-                        f"Previous status: DELETED."
-                    )
+
+                for rec in records_to_purge:
+                    item_pk = rec.get('PK')
+                    item_sk = rec.get('SK')
+                    
+                    if not item_pk or not item_sk:
+                        failed_count += 1
+                        failures.append({"record": f"{item_pk}/{item_sk}", "reason": "Missing PK or SK"})
+                        continue
+
+                    # Resolution chain
+                    current_item = get_item(item_pk, item_sk)
+                    if not current_item:
+                        # Fallback 1: Swap PK/SK
+                        current_item = get_item(item_sk, item_pk)
+                        if current_item:
+                            item_pk, item_sk = item_sk, item_pk
+
+                    if not current_item:
+                        # Fallback 2: Scan for matching embedded IDs
+                        from boto3.dynamodb.conditions import Attr
+                        raw_pk_id = item_pk.replace("JOB#", "").replace("REQ#", "")
+                        raw_sk_id = item_sk.replace("JOB#", "").replace("REQ#", "")
+                        
+                        scan_kwargs = {
+                            "FilterExpression": Attr('PK').contains(raw_pk_id) | Attr('SK').contains(raw_pk_id) | Attr('PK').contains(raw_sk_id) | Attr('SK').contains(raw_sk_id)
+                        }
+                        
+                        found_items = []
+                        response = _table.scan(**scan_kwargs)
+                        found_items.extend(response.get('Items', []))
+                        while 'LastEvaluatedKey' in response and not found_items:
+                            scan_kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
+                            response = _table.scan(**scan_kwargs)
+                            found_items.extend(response.get('Items', []))
+                            
+                        if found_items:
+                            current_item = found_items[0]
+                            item_pk = current_item['PK']
+                            item_sk = current_item['SK']
+
+                    if not current_item:
+                        failed_count += 1
+                        failures.append({"record": f"{item_pk}/{item_sk}", "reason": "Record not found"})
+                        continue
+
+                    current_status = (current_item.get('status') or '').upper()
+                    if current_status != 'DELETED':
+                        skipped_count += 1
+                        failures.append({"record": f"{item_pk}/{item_sk}", "reason": f"Record status is {current_status}, not DELETED"})
+                        continue
+
+                    try:
+                        _table.delete_item(Key={'PK': item_pk, 'SK': item_sk})
+                        deleted_count += 1
+                        print(f"PURGE COMPLETE: [{item_pk}] permanently deleted by {user_email}")
+                    except Exception as e:
+                        failed_count += 1
+                        failures.append({"record": f"{item_pk}/{item_sk}", "reason": str(e)})
+
+                if 'records' in body:
+                    return success({
+                        "message": f"Bulk purge complete. Deleted: {deleted_count}, Skipped: {skipped_count}, Failed: {failed_count}",
+                        "deleted_count": deleted_count,
+                        "skipped_count": skipped_count,
+                        "failed_count": failed_count,
+                        "failures": failures
+                    }, event)
+                else:
+                    if failed_count > 0:
+                        return not_found(f"Permanent delete failed: {failures[0]['reason']}: {item_pk} / {item_sk}", event)
+                    if skipped_count > 0:
+                        return bad_request(f"Permanent delete rejected: {failures[0]['reason']}", event)
+                        
                     return success({
                         "message": "Record permanently deleted.",
-                        "PK": pk,
-                        "SK": sk,
-                        "previous_status": current_status,
+                        "PK": item_pk,
+                        "SK": item_sk,
+                        "previous_status": 'DELETED',
                         "purged_by": user_email
                     }, event)
-                except Exception as purge_err:
-                    print(f"ERROR: PURGE failed for [{pk}]: {purge_err}")
-                    return internal_error("Failed to permanently delete record.", event)
 
             # --- Standard soft-state transitions ---
             new_status = None

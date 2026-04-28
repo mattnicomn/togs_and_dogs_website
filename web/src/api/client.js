@@ -108,6 +108,9 @@ export const performAdminAction = (pk, sk, action) =>
 export const purgeRecord = (pk, sk) =>
   request('/admin/requests', 'POST', { PK: pk, SK: sk, action: 'PURGE' }, true);
 
+export const purgeRecordsBulk = (records) =>
+  request('/admin/requests', 'POST', { records, action: 'PURGE' }, true);
+
 export const disconnectGoogle = () => 
   request('/admin/auth/google', 'DELETE', null, true);
 

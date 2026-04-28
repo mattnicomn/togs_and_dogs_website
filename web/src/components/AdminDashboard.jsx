@@ -491,10 +491,12 @@ const AdminDashboard = () => {
   }, [view, statusFilter, timeframeFilter, isAuthenticated]);
 
   const toggleSelectAll = () => {
-    if (selectedIds.length === requests.length) {
-      setSelectedIds([]);
+    const currentIds = requests.map(r => r.PK);
+    const allSelected = currentIds.length > 0 && currentIds.every(id => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(id => !currentIds.includes(id)));
     } else {
-      setSelectedIds(requests.map(r => r.PK));
+      setSelectedIds(prev => [...new Set([...prev, ...currentIds])]);
     }
   };
 
@@ -832,30 +834,42 @@ const AdminDashboard = () => {
     setError(null);
     if (selectedIds.length === 0) return;
     setIsBulkPurging(true);
-    const selectedItems = requests.filter(r => selectedIds.includes(r.PK) && isDeletedRecord(r));
-    const results = { success: 0, failed: 0, skipped: 0 };
-    const purged = [];
-    for (const item of selectedItems) {
-      try {
-        await purgeRecord(item.PK, item.SK);
-        purged.push(item.PK);
-        results.success++;
-      } catch {
-        results.failed++;
-      }
+
+    const selectedItems = requests.filter(r => selectedIds.includes(r.PK) && (r.status || '').toUpperCase() === 'DELETED');
+    
+    if (selectedItems.length === 0) {
+      showNotification("No valid DELETED records selected for permanent delete.", "error");
+      setIsBulkPurging(false);
+      setBulkConfirmModal(null);
+      return;
     }
-    const skippedCount = selectedIds.length - selectedItems.length;
-    results.skipped = skippedCount;
-    setRequests(prev => prev.filter(r => !purged.includes(r.PK)));
-    setSelectedIds([]);
-    setBulkConfirmModal(null);
-    setIsBulkPurging(false);
-    const msg = [
-      results.success > 0 ? `${results.success} permanently deleted` : null,
-      results.failed > 0 ? `${results.failed} failed` : null,
-      results.skipped > 0 ? `${results.skipped} skipped (not DELETED)` : null,
-    ].filter(Boolean).join(', ');
-    showNotification(msg || "Bulk purge complete.", results.failed > 0 ? "error" : "success");
+
+    const payload = selectedItems.map(item => ({ PK: item.PK, SK: item.SK }));
+
+    try {
+      // Import/require purgeRecordsBulk from client
+      const response = await purgeRecordsBulk(payload);
+
+      const deletedPKs = selectedItems.map(item => item.PK);
+      setRequests(prev => prev.filter(r => !deletedPKs.includes(r.PK)));
+      setSelectedIds([]);
+      setBulkConfirmModal(null);
+
+      if (response.failed_count > 0 || response.skipped_count > 0) {
+        showNotification(
+          `Purge completed with issues. Deleted: ${response.deleted_count}, Failed: ${response.failed_count}, Skipped: ${response.skipped_count}`, 
+          "error"
+        );
+      } else {
+        showNotification(response.message || "Bulk purge complete.", "success");
+      }
+    } catch (err) {
+      showNotification("Bulk permanent delete failed: " + err.message, "error");
+      setBulkConfirmModal(null);
+    } finally {
+      setIsBulkPurging(false);
+      fetchAllData();
+    }
   };
 
   const handleProcessCancellation = async (req) => {
@@ -1670,7 +1684,7 @@ const AdminDashboard = () => {
                     <th style={{ width: '40px' }}>
                       <input 
                         type="checkbox" 
-                        checked={requests.length > 0 && selectedIds.length === requests.length}
+                        checked={requests.length > 0 && requests.map(r => r.PK).every(id => selectedIds.includes(id))}
                         onChange={toggleSelectAll}
                         disabled={requests.length === 0}
                       />
