@@ -110,20 +110,30 @@ def _get_valid_token(request_id="UNKNOWN"):
 def _build_event_body(item, assigned_worker=None):
     """Internal: Builds Google Calendar event resource."""
     client_name = item.get('client_name', 'Unknown')
-    summary = f"[TEST] Pet Sitting - {client_name}"
+    pet_name = item.get('pet_names', 'Unknown Pet')
+    service_type = item.get('service_type', 'Service')
+    
+    # Title format: Tog and Dogs - {Pet/Customer Name} - {Service Type}
+    summary = f"Tog and Dogs - {pet_name} / {client_name} - {service_type}"
+    
+    preferred_time = item.get('preferred_time', 'Not Specified')
     
     description = (
-        f"Request ID: {item.get('request_id', 'N/A')}\n"
         f"Client: {client_name}\n"
-        f"Email: {item.get('client_email', 'N/A')}\n"
-        f"Service: {item.get('service_type', 'N/A')}\n"
-        f"Start Date: {item.get('start_date', 'N/A')}\n"
-        f"Worker: {assigned_worker or 'Not Assigned'}\n\n"
+        f"Pet: {pet_name}\n"
+        f"Service: {service_type}\n"
+        f"Assigned Staff: {assigned_worker or 'Not Assigned'}\n"
+        f"Service Window: {preferred_time}\n"
+        f"Request ID: {item.get('request_id', 'N/A')}\n\n"
         f"Notes: {item.get('pet_info', 'None')}"
     )
 
-    # Use all-day event format
+    # Use all-day event format for now since we rely on preferred_time in description
     date_str = item.get('start_date')
+    if not date_str:
+        from datetime import datetime
+        date_str = datetime.now().strftime('%Y-%m-%d')
+        
     return {
         'summary': summary,
         'description': description,
@@ -139,7 +149,7 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
     request_id = item.get('request_id', 'UNKNOWN')
     token = _get_valid_token(request_id)
     if not token:
-        return None
+        raise Exception("Google Calendar token is missing or disconnected.")
 
     event_body = _build_event_body(item, assigned_worker)
     
@@ -169,11 +179,12 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
 
     except urllib.error.HTTPError as he:
         err_body = he.read().decode()
-        print(f"ERROR: [Req:{request_id}] HTTP {he.code} from Google Calendar API: {err_body}")
-        return google_event_id
+        error_msg = f"HTTP {he.code} from Google Calendar API: {err_body}"
+        print(f"ERROR: [Req:{request_id}] {error_msg}")
+        raise Exception(error_msg)
     except Exception as e:
         print(f"ERROR: [Req:{request_id}] Failed to sync Calendar: {e}")
-        return google_event_id # Return original ID if update failed to prevent losing it
+        raise e
 
 def delete_event(google_event_id, request_id="UNKNOWN"):
     """Deletes a Google Calendar event."""

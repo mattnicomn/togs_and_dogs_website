@@ -109,18 +109,41 @@ def handler(event, context):
 
             # Sync to Google Calendar
             google_event_id = item.get('google_event_id')
-            if google_event_id:
-                try:
-                    sync_calendar_event(item, google_event_id=google_event_id, assigned_worker=worker_id)
-                except Exception as g_err:
-                    print(f"CALENDAR_SYNC_WARNING: {g_err}")
+            sync_warning = None
+            try:
+                new_event_id = sync_calendar_event(item, google_event_id=google_event_id, assigned_worker=worker_id)
+                if new_event_id and new_event_id != google_event_id:
+                    # Persist the new event ID back to DB
+                    try:
+                        # Update Request record
+                        table.update_item(
+                            Key={'PK': f"REQ#{req_id}", 'SK': f"CLIENT#{client_id}"},
+                            UpdateExpression="SET google_event_id = :gid",
+                            ExpressionAttributeValues={":gid": new_event_id}
+                        )
+                        # Update Job record if job_id exists
+                        if job_id:
+                            table.update_item(
+                                Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{req_id}"},
+                                UpdateExpression="SET google_event_id = :gid",
+                                ExpressionAttributeValues={":gid": new_event_id}
+                            )
+                    except Exception as db_err:
+                        print(f"WARNING: Failed to save google_event_id to DB: {db_err}")
+            except Exception as g_err:
+                print(f"CALENDAR_SYNC_WARNING: {g_err}")
+                sync_warning = "Assigned successfully, but calendar sync is not connected."
 
-            return success({
-                "message": "Worker assigned successfully",
+            response_body = {
+                "message": "Worker assigned successfully" if not sync_warning else sync_warning,
                 "job_id": job_id,
                 "worker_id": worker_id,
                 "status": new_status
-            }, event)
+            }
+            if sync_warning:
+                response_body["warning"] = sync_warning
+
+            return success(response_body, event)
         except Exception as e:
             print(f"DB_UPDATE_ERROR: {e}")
             return internal_error(f"DB Update failed: {str(e)}", event)

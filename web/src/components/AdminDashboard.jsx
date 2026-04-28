@@ -544,6 +544,7 @@ const AdminDashboard = () => {
   };
 
   const handleBulkUpdate = async () => {
+    setError(null);
     if (!bulkAction || selectedIds.length === 0) return;
     
     setIsBulkUpdating(true);
@@ -605,6 +606,7 @@ const AdminDashboard = () => {
   };
 
   const submitDecision = async () => {
+    setModalError(null);
     if (!decisionModal) return;
     const { item, type } = decisionModal;
     const { reqId, clientId } = resolveIds(item);
@@ -629,6 +631,7 @@ const AdminDashboard = () => {
   };
 
   const handleQuickVerify = async () => {
+    setModalError(null);
     if (!decisionModal) return;
     const { item } = decisionModal;
     const { reqId, clientId } = resolveIds(item);
@@ -652,6 +655,7 @@ const AdminDashboard = () => {
   };
 
   const _handleAdminAction = async (item, action) => {
+    setError(null);
     // Ensuring visibility and automation support by providing direct feedback instead of blocking confirmation
     const pk = item.PK || (item.request_id ? `REQ#${item.request_id}` : null);
     const sk = item.SK || (item.client_id ? `CLIENT#${item.client_id}` : null);
@@ -799,6 +803,7 @@ const AdminDashboard = () => {
 
 
   const handlePurgeRecord = async (item) => {
+    setError(null);
     const pk = item.PK;
     const sk = item.SK;
     if (!pk || !sk) {
@@ -821,6 +826,7 @@ const AdminDashboard = () => {
   };
 
   const handleBulkPurge = async () => {
+    setError(null);
     if (selectedIds.length === 0) return;
     setIsBulkPurging(true);
     const selectedItems = requests.filter(r => selectedIds.includes(r.PK) && isDeletedRecord(r));

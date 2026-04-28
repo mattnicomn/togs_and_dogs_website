@@ -216,25 +216,8 @@ def handler(event, context):
                 except Exception as job_err:
                     print(f"WARNING: [Req:{request_id}] Failed to update linked job: {job_err}")
 
-            # 5. If APPROVED, sync to Google Calendar AND trigger Job creation
-            google_event_id = None
+            # 5. Trigger Job Creation Lambda if APPROVED
             if new_status == 'APPROVED':
-                # Use existing event ID if this is a retry
-                existing_event_id = request_item.get('google_event_id')
-                google_event_id = sync_calendar_event(request_item, google_event_id=existing_event_id)
-                
-                if google_event_id and google_event_id != existing_event_id:
-                    # Persist the new event ID back to DB
-                    try:
-                        table.update_item(
-                            Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
-                            UpdateExpression="SET google_event_id = :gid",
-                            ExpressionAttributeValues={":gid": google_event_id}
-                        )
-                    except Exception as db_err:
-                        print(f"WARNING: [Req:{request_id}] Failed to save google_event_id to DB: {db_err}")
-
-                # 6. Trigger Job Creation Lambda
                 try:
                     lambda_client = boto3.client('lambda')
                     job_fn_name = os.environ.get('JOB_FUNCTION_NAME')
@@ -252,7 +235,7 @@ def handler(event, context):
                 except Exception as invoke_err:
                     print(f"ERROR: [Req:{request_id}] Failed to trigger job creation: {invoke_err}")
 
-            # 7. Send Customer Email (APPROVAL or REJECTION)
+            # 6. Send Customer Email (APPROVAL or REJECTION)
             if new_status in ['APPROVED', 'DECLINED']:
                 client_name = request_item.get('client_name', 'Client')
                 client_email = request_item.get('client_email')
@@ -278,8 +261,7 @@ def handler(event, context):
             return success({
                 "message": f"Request {new_status}",
                 "request_id": request_id,
-                "status": new_status,
-                "google_event_id": google_event_id
+                "status": new_status
             }, event)
 
         except Exception as db_err:
