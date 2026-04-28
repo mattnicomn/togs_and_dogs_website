@@ -70,6 +70,12 @@ export const onboardStaff = (data) => request('/admin/staff/onboard', 'POST', da
 export const linkCognitoUser = (staffId, data) => request(`/admin/staff/${staffId}/link-cognito`, 'POST', data, true);
 export const resendInvite = (staffId) => request(`/admin/staff/${staffId}/resend-invite`, 'POST', null, true);
 
+export const getClients = () => request('/admin/clients', 'GET', null, true);
+export const createClient = (data) => request('/admin/clients', 'POST', data, true);
+export const updateClient = (clientId, data) => request(`/admin/clients/${clientId}`, 'PATCH', data, true);
+export const disableClient = (clientId) => request(`/admin/clients/${clientId}/disable`, 'POST', null, true);
+
+
 
 
 

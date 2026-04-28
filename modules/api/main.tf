@@ -490,7 +490,100 @@ resource "aws_api_gateway_integration" "post_admin_staff_resend_lambda" {
 
 
 
+# --- Phase 5A Client Profile Routes ---
+
+resource "aws_api_gateway_resource" "admin_clients" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin.id
+  path_part   = "clients"
+}
+
+resource "aws_api_gateway_method" "get_admin_clients" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_clients.id
+  http_method   = "GET"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "get_admin_clients_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_clients.id
+  http_method = aws_api_gateway_method.get_admin_clients.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+resource "aws_api_gateway_method" "post_admin_clients" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_clients.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_admin_clients_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_clients.id
+  http_method = aws_api_gateway_method.post_admin_clients.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+resource "aws_api_gateway_resource" "admin_client_id" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_clients.id
+  path_part   = "{client_id}"
+}
+
+resource "aws_api_gateway_method" "patch_admin_client_id" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_client_id.id
+  http_method   = "PATCH"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "patch_admin_client_id_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_client_id.id
+  http_method = aws_api_gateway_method.patch_admin_client_id.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+resource "aws_api_gateway_resource" "admin_client_disable" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_client_id.id
+  path_part   = "disable"
+}
+
+resource "aws_api_gateway_method" "post_admin_client_disable" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_client_disable.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_admin_client_disable_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_client_disable.id
+  http_method = aws_api_gateway_method.post_admin_client_disable.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
 # Admin PUT /admin/cancel/decision
+
 
 resource "aws_api_gateway_resource" "admin_cancel" {
   rest_api_id = aws_api_gateway_rest_api.main.id
@@ -544,7 +637,11 @@ locals {
     "admin_staff_id" : aws_api_gateway_resource.admin_staff_id.id,
     "admin_staff_onboard" : aws_api_gateway_resource.admin_staff_onboard.id,
     "admin_staff_link" : aws_api_gateway_resource.admin_staff_link.id,
-    "admin_staff_resend" : aws_api_gateway_resource.admin_staff_resend.id
+    "admin_staff_resend" : aws_api_gateway_resource.admin_staff_resend.id,
+    "admin_clients" : aws_api_gateway_resource.admin_clients.id,
+    "admin_client_id" : aws_api_gateway_resource.admin_client_id.id,
+    "admin_client_disable" : aws_api_gateway_resource.admin_client_disable.id
+
   }
 
 

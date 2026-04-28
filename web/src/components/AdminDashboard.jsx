@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { signIn, signOut, getSession, getEffectiveRole } from '../api/auth';
 
-import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, purgeRecord, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite } from '../api/client';
+import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, purgeRecord, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, getClients, createClient, updateClient, disableClient } from '../api/client';
+
 
 
 
@@ -37,7 +38,20 @@ const AdminDashboard = () => {
     notes: ''
   });
 
+  const [clientList, setClientList] = useState([]);
+  const [editingClientId, setEditingClientId] = useState(null);
+  const [clientForm, setClientForm] = useState({
+    display_name: '',
+    email: '',
+    phone: '',
+    address: '',
+    emergency_contact: '',
+    notes: ''
+  });
+  const [isSavingClient, setIsSavingClient] = useState(false);
+
   const [isSavingStaff, setIsSavingStaff] = useState(false);
+
 
 
 
@@ -314,6 +328,16 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchClientData = async () => {
+    try {
+      const data = await getClients();
+      setClientList(data.clients || []);
+    } catch (err) {
+      console.error("Failed to fetch client list:", err);
+    }
+  };
+
+
   const handleSaveStaff = async (e) => {
     e.preventDefault();
     if (!staffForm.display_name.trim()) {
@@ -409,6 +433,8 @@ const AdminDashboard = () => {
       setLoading(true);
       if (!startKey) setSelectedIds([]); // Reset selection on fresh fetch
       fetchStaffData();
+      fetchClientData();
+
       
       if (view === 'SCHEDULER') {
 
@@ -991,6 +1017,10 @@ const AdminDashboard = () => {
             {['owner', 'admin'].includes(role) && (
               <button className={view === 'STAFF_MGMT' ? 'active' : ''} onClick={() => setView('STAFF_MGMT')}>Staff Management</button>
             )}
+            {['owner', 'admin'].includes(role) && (
+              <button className={view === 'CLIENT_MGMT' ? 'active' : ''} onClick={() => setView('CLIENT_MGMT')}>Client Management</button>
+            )}
+
 
           </nav>
         </div>
@@ -1319,7 +1349,158 @@ const AdminDashboard = () => {
                 )}
               </div>
             </div>
+          ) : view === 'CLIENT_MGMT' && ['owner', 'admin'].includes(role) ? (
+            <div className="client-management-container card" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h2>{editingClientId ? 'Edit Client Profile' : 'Add New Client Profile'}</h2>
+                {editingClientId && (
+                  <button className="button-secondary" onClick={() => {
+                    setEditingClientId(null);
+                    setClientForm({
+                      display_name: '',
+                      email: '',
+                      phone: '',
+                      address: '',
+                      emergency_contact: '',
+                      notes: ''
+                    });
+                  }}>Cancel Edit</button>
+                )}
+              </div>
+
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                if (!clientForm.display_name.trim() || !clientForm.email.trim()) {
+                  showNotification("Display name and Email are required", "error");
+                  return;
+                }
+                setIsSavingClient(true);
+                try {
+                  if (editingClientId) {
+                    await updateClient(editingClientId, clientForm);
+                    showNotification("Client profile updated successfully", "success");
+                  } else {
+                    await createClient(clientForm);
+                    showNotification("Client profile created successfully", "success");
+                  }
+                  setClientForm({
+                    display_name: '',
+                    email: '',
+                    phone: '',
+                    address: '',
+                    emergency_contact: '',
+                    notes: ''
+                  });
+                  setEditingClientId(null);
+                  await fetchClientData();
+                } catch(err) {
+                  showNotification(err.message || "Failed to save client", "error");
+                } finally {
+                  setIsSavingClient(false);
+                }
+              }} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '40px', backgroundColor: 'var(--surface-color)', padding: '20px', borderRadius: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label>Display Name *</label>
+                  <input type="text" value={clientForm.display_name} onChange={(e) => setClientForm({ ...clientForm, display_name: e.target.value })} required />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label>Email *</label>
+                  <input type="email" value={clientForm.email} onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })} required />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label>Phone</label>
+                  <input type="text" value={clientForm.phone} onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label>Emergency Contact</label>
+                  <input type="text" value={clientForm.emergency_contact} onChange={(e) => setClientForm({ ...clientForm, emergency_contact: e.target.value })} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2' }}>
+                  <label>Address</label>
+                  <textarea rows="2" value={clientForm.address} onChange={(e) => setClientForm({ ...clientForm, address: e.target.value })}></textarea>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2' }}>
+                  <label>Notes</label>
+                  <textarea rows="3" value={clientForm.notes} onChange={(e) => setClientForm({ ...clientForm, notes: e.target.value })}></textarea>
+                </div>
+                <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
+                  <button type="submit" className="button-primary" disabled={isSavingClient}>
+                    {isSavingClient ? 'Saving...' : editingClientId ? 'Save Changes' : 'Create Profile'}
+                  </button>
+                </div>
+              </form>
+
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3>Client Profiles</h3>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--success-color)' }}></span> Active
+                    </span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--text-muted)' }}></span> Disabled
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+                  {clientList.map(c => (
+                    <div key={c.client_id} className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid var(--border)', opacity: c.is_active === false ? 0.6 : 1, position: 'relative' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: c.is_active === false ? 'var(--text-muted)' : 'var(--success-color)', display: 'inline-block' }}></span>
+                            {c.display_name}
+                          </h4>
+                          <p style={{ margin: '4px 0 0 16px', fontSize: '13px', color: 'var(--text-muted)' }}>{c.email}</p>
+                        </div>
+                        <span className="status-chip" style={{ fontSize: '11px', padding: '2px 6px' }}>
+                          Portal: {c.portal_enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: '13px', color: 'var(--text-secondary)', paddingLeft: '16px' }}>
+                        {c.phone && <p style={{ margin: '2px 0' }}>📞 {c.phone}</p>}
+                        {c.address && <p style={{ margin: '2px 0' }}>🏠 {c.address}</p>}
+                        <p style={{ margin: '6px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>Status: {c.cognito_status || 'not_linked'}</p>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
+                        <button className="btn-small" style={{ flex: 1 }} onClick={() => {
+                          setEditingClientId(c.client_id);
+                          setClientForm({
+                            display_name: c.display_name || '',
+                            email: c.email || '',
+                            phone: c.phone || '',
+                            address: c.address || '',
+                            emergency_contact: c.emergency_contact || '',
+                            notes: c.notes || ''
+                          });
+                        }}>Edit</button>
+                        {c.is_active !== false && (
+                          <button className="btn-small error" style={{ flex: 1 }} onClick={async () => {
+                            if (!window.confirm(`Are you sure you want to disable client ${c.display_name}?`)) return;
+                            try {
+                              await disableClient(c.client_id);
+                              showNotification("Client disabled successfully", "success");
+                              await fetchClientData();
+                            } catch(err) {
+                              showNotification(err.message || "Failed to disable client", "error");
+                            }
+                          }}>Disable</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {clientList.length === 0 && (
+                    <p style={{ gridColumn: 'span 3', color: 'var(--text-secondary)', textAlign: 'center', padding: '24px' }}>No client profiles found.</p>
+                  )}
+                </div>
+              </div>
+            </div>
           ) : (
+
 
             <div className="list-view-container card">
               <div className="list-header-bar">

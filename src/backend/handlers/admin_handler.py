@@ -409,7 +409,144 @@ def handler(event, context):
                 return success(staff_profile, event)
 
 
+        if path == '/admin/clients' or path.endswith('/admin/clients'):
+            role = get_effective_role(event)
+            # GET /admin/clients
+            if http_method == 'GET':
+                if role not in ['owner', 'admin', 'staff']:
+                    return error(403, "Forbidden", event)
+                
+                from common.auth import get_current_company_id
+                company_id = get_current_company_id(event)
+                from common.db import table as items_table
+                from boto3.dynamodb.conditions import Key
+                
+                response = items_table.query(
+                    KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("CLIENT#")
+                )
+                client_profiles = response.get('Items', [])
+                return success({"clients": client_profiles}, event)
+
+            # POST /admin/clients
+            if http_method == 'POST':
+                if role not in ['owner', 'admin']:
+                    return error(403, "Forbidden", event)
+                
+                try:
+                    body = json.loads(event.get('body', '{}'))
+                except Exception:
+                    return bad_request("Invalid JSON body", event)
+                    
+                display_name = body.get('display_name', '').strip()
+                email = body.get('email', '').strip().lower()
+                
+                if not display_name or not email:
+                    return bad_request("display_name and email are required", event)
+                    
+                from common.auth import get_current_company_id
+                company_id = get_current_company_id(event)
+                from common.db import table as items_table
+                from boto3.dynamodb.conditions import Key
+                
+                # Check duplicate active email within company_id
+                resp = items_table.query(
+                    KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("CLIENT#")
+                )
+                existing_clients = resp.get('Items', [])
+                for c in existing_clients:
+                    if (c.get('email') or '').lower() == email and c.get('is_active') == True:
+                        return error(409, f"Active client with email {email} already exists", event)
+                        
+                import uuid
+                client_id = f"client_{str(uuid.uuid4())[:8]}"
+                
+                new_profile = {
+                    "PK": f"COMPANY#{company_id}",
+                    "SK": f"CLIENT#{client_id}",
+                    "company_id": company_id,
+                    "client_id": client_id,
+                    "email": email,
+                    "display_name": display_name,
+                    "phone": body.get('phone', '').strip(),
+                    "address": body.get('address', '').strip(),
+                    "emergency_contact": body.get('emergency_contact', '').strip(),
+                    "notes": body.get('notes', '').strip(),
+                    "portal_enabled": False,
+                    "is_active": True,
+                    "cognito_status": "not_linked",
+                    "created_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                }
+                
+                items_table.put_item(Item=new_profile)
+                return success(new_profile, event)
+
+        # PATCH /admin/clients/{client_id} & /disable
+        if '/admin/clients/' in path:
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin']:
+                return error(403, "Forbidden", event)
+                
+            client_id = path_params.get('client_id')
+            if not client_id:
+                client_id = path.split('/')[-1]
+                if client_id == 'disable':
+                    client_id = path.split('/')[-2]
+                    
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
+            from common.db import table as items_table
+            
+            resp = items_table.get_item(Key={"PK": f"COMPANY#{company_id}", "SK": f"CLIENT#{client_id}"})
+            client_profile = resp.get('Item')
+            if not client_profile:
+                return not_found(f"Client profile {client_id} not found", event)
+                
+            if http_method == 'POST' and path.endswith('/disable'):
+                client_profile['is_active'] = False
+                client_profile['portal_enabled'] = False
+                client_profile['updated_at'] = datetime.utcnow().isoformat()
+                items_table.put_item(Item=client_profile)
+                return success(client_profile, event)
+                
+            if http_method == 'PATCH':
+                try:
+                    body = json.loads(event.get('body', '{}'))
+                except Exception:
+                    return bad_request("Invalid JSON body", event)
+                    
+                editable_fields = ['display_name', 'email', 'phone', 'address', 'emergency_contact', 'notes', 'is_active']
+                
+                if 'email' in body:
+                    new_email = body.get('email', '').strip().lower()
+                    if not new_email:
+                        return bad_request("email cannot be blank", event)
+                    if new_email != client_profile.get('email'):
+                        from boto3.dynamodb.conditions import Key
+                        resp_all = items_table.query(
+                            KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("CLIENT#")
+                        )
+                        for c in resp_all.get('Items', []):
+                            if c['SK'] != f"CLIENT#{client_id}" and (c.get('email') or '').lower() == new_email and c.get('is_active') == True:
+                                return error(409, f"Active client with email {new_email} already exists", event)
+                        client_profile['email'] = new_email
+                        
+                if 'display_name' in body:
+                    new_name = body.get('display_name', '').strip()
+                    if not new_name:
+                        return bad_request("display_name cannot be blank", event)
+                    client_profile['display_name'] = new_name
+                    
+                for field in editable_fields:
+                    if field not in ['email', 'display_name'] and field in body:
+                        client_profile[field] = body[field]
+                        
+                client_profile['updated_at'] = datetime.utcnow().isoformat()
+                items_table.put_item(Item=client_profile)
+                return success(client_profile, event)
+
         if http_method == 'GET':
+
 
             request_id = path_params.get('requestId')
 
