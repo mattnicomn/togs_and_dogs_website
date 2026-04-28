@@ -1,40 +1,32 @@
 # Release Notes: RBAC Owner and Client Access Enhancement
 
 ## Overview
-We have successfully developed the enhanced access-control infrastructure for Tog and Dogs.
+We have deployed the full Role-Based Access Control (RBAC) hierarchy.
 
-## Changed Files
-- **`src/backend/common/auth.py`** (Central RBAC engine)
-- **`src/backend/handlers/admin_handler.py`**
-- **`src/backend/handlers/pet_handler.py`**
-- **`src/backend/handlers/assignment_handler.py`**
-- **`src/backend/handlers/cancellation_handler.py`**
-- **`src/backend/handlers/review_handler.py`**
-- **`web/src/api/auth.js`**
-- **`web/src/components/AdminDashboard.jsx`**
-- **`web/src/components/ClientPortal.jsx`**
-- **`web/src/components/CareCard.jsx`**
-- **`scripts/sanity_check.py`**
+- **Commit Hash**: `6370944`
+- **Deployment Date**: 2026-04-28
+- **Production Endpoint**: https://toganddogs.usmissionhero.com/
 
-## Access Model Summary
-We support role verification in Cognito groups across:
-`owner > admin > staff > client`
+## Modified Access Matrix
+- **`owner`**: Complete permissions across administration nodes.
+- **`admin`**: Full operational privileges.
+- **`staff`**: Constrained field visibility.
+- **`client`**: Scope bound to self-data.
 
-- **Owner**: Full access across customer bounds.
-- **Admin**: Full access minus ultimate configurations.
-- **Staff**: Operational constraints only.
-- **Client**: Restricted to personal data bounds.
+## Component Deployment Logs
+### Backend
+Lambda instances synchronized through localized Terraform states securely.
+- `admin_handler`
+- `pet_handler`
+- `assignment_handler`
+- `cancellation_handler`
+- `review_handler`
 
-## Redaction Constraints
-Masking applies directly against:
-`meet_and_greet_notes`, `internal_pricing_notes`, `internal_notes`, `admin_notes`, `staff_notes`, `private_notes`, `pricing_notes`, `discount_rationale`, `owner_comments`, `operational_comments`, `audit_log`.
+### Frontend
+- Bucket Location: `togs-and-dogs-prod-toganddogs-hosting`
+- CloudFront ID: `E35L00QPA2IRCY`
+- Invalidation Path: `/*`
 
-## Cognito Group Directives
-Cognito groups are managed manually in the AWS Console:
-1. Create `owner` and `client`.
-2. Migrate Ryan securely.
-
-## Test Executable Evidence
-Local validation coverage is passed.
-
-Production Context: https://toganddogs.usmissionhero.com/
+## Cognito Alignment
+Execution mappings applied against:
+`owner` group populated successfully.
