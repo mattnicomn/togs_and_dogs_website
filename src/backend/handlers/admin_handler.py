@@ -25,14 +25,95 @@ def handler(event, context):
             from common.db import table as items_table
             from boto3.dynamodb.conditions import Key
             
+            from boto3.dynamodb.conditions import Key
             response = items_table.query(
                 KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("STAFF#")
             )
-
             staff_profiles = response.get('Items', [])
-            # Only return active staff
-            active_staff = [s for s in staff_profiles if s.get('is_active') == True]
-            return success({"staff": active_staff}, event)
+            
+            # Fetch Cognito users for staff
+            import boto3
+            cognito_client = boto3.client('cognito-idp')
+            user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
+            
+            cognito_staff = []
+            try:
+                # Get groups matching Staff, owner, Admin, or company-scoped
+                groups_resp = cognito_client.list_groups(UserPoolId=user_pool_id)
+                target_groups = []
+                for g in groups_resp.get('Groups', []):
+                    g_name = g['GroupName']
+                    g_lower = g_name.lower()
+                    if any(term in g_lower for term in ['staff', 'owner', 'admin']):
+                        target_groups.append(g_name)
+                
+                # Fetch users from those groups
+                seen_usernames = set()
+                for grp in target_groups:
+                    u_resp = cognito_client.list_users_in_group(UserPoolId=user_pool_id, GroupName=grp)
+                    for u in u_resp.get('Users', []):
+                        if u['Username'] not in seen_usernames:
+                            seen_usernames.add(u['Username'])
+                            cognito_staff.append(u)
+            except Exception as e:
+                print(f"Error fetching Cognito staff users: {e}")
+
+            # Merge Cognito + DynamoDB
+            merged_staff = []
+            matched_subs = set()
+            matched_emails = set()
+            
+            # 1. Start with DynamoDB staff records
+            for s in staff_profiles:
+                if s.get('is_active') == True:
+                    # Enrich with Cognito info if possible
+                    s_email = (s.get('email') or '').lower()
+                    s_sub = s.get('cognito_sub')
+                    
+                    cog_match = None
+                    for cu in cognito_staff:
+                        cu_email = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'email'), '').lower()
+                        cu_sub = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'sub'), '')
+                        if (s_sub and s_sub == cu_sub) or (s_email and s_email == cu_email):
+                            cog_match = cu
+                            if cu_sub: matched_subs.add(cu_sub)
+                            if cu_email: matched_emails.add(cu_email)
+                            break
+                            
+                    if cog_match:
+                        s['cognito_status'] = cog_match.get('UserStatus')
+                        s['cognito_username'] = cog_match.get('Username')
+                        if not s.get('cognito_sub'):
+                            s['cognito_sub'] = next((a['Value'] for a in cog_match['Attributes'] if a['Name'] == 'sub'), None)
+                    merged_staff.append(s)
+                    
+            # 2. Add Cognito-only staff users
+            for cu in cognito_staff:
+                cu_email = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'email'), '').lower()
+                cu_sub = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'sub'), '')
+                
+                if cu_sub in matched_subs or cu_email in matched_emails:
+                    continue
+                    
+                virtual_id = f"cognito_{cu['Username']}"
+                v_profile = {
+                    "PK": f"COMPANY#{company_id}",
+                    "SK": f"STAFF#{virtual_id}",
+                    "company_id": company_id,
+                    "staff_id": virtual_id,
+                    "display_name": cu['Username'],
+                    "role": 'Staff',
+                    "email": cu_email,
+                    "cognito_sub": cu_sub,
+                    "is_active": cu.get('Enabled', True),
+                    "is_assignable": False,
+                    "assignment_color": 'var(--staff-ryan)',
+                    "cognito_status": cu.get('UserStatus'),
+                    "is_virtual": True
+                }
+                merged_staff.append(v_profile)
+                
+            return success({"staff": merged_staff}, event)
 
         if http_method == 'POST' and (path == '/admin/staff' or path.endswith('/admin/staff')):
             role = get_effective_role(event)
@@ -519,11 +600,92 @@ def handler(event, context):
                 from common.db import table as items_table
                 from boto3.dynamodb.conditions import Key
                 
+                from boto3.dynamodb.conditions import Key
                 response = items_table.query(
                     KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("CLIENT#")
                 )
                 client_profiles = response.get('Items', [])
-                return success({"clients": client_profiles}, event)
+                
+                # Fetch Cognito users for clients
+                import boto3
+                cognito_client = boto3.client('cognito-idp')
+                user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
+                
+                cognito_clients = []
+                try:
+                    # Get groups matching client or company-scoped client group
+                    groups_resp = cognito_client.list_groups(UserPoolId=user_pool_id)
+                    target_groups = []
+                    for g in groups_resp.get('Groups', []):
+                        g_name = g['GroupName']
+                        g_lower = g_name.lower()
+                        if 'client' in g_lower:
+                            target_groups.append(g_name)
+                    
+                    # Fetch users
+                    seen_usernames = set()
+                    for grp in target_groups:
+                        u_resp = cognito_client.list_users_in_group(UserPoolId=user_pool_id, GroupName=grp)
+                        for u in u_resp.get('Users', []):
+                            if u['Username'] not in seen_usernames:
+                                seen_usernames.add(u['Username'])
+                                cognito_clients.append(u)
+                except Exception as e:
+                    print(f"Error fetching Cognito client users: {e}")
+
+                # Merge
+                merged_clients = []
+                matched_subs = set()
+                matched_emails = set()
+                
+                # 1. DynamoDB Clients
+                for c in client_profiles:
+                    c_email = (c.get('email') or '').lower()
+                    c_sub = c.get('cognito_sub')
+                    
+                    cog_match = None
+                    for cu in cognito_clients:
+                        cu_email = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'email'), '').lower()
+                        cu_sub = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'sub'), '')
+                        if (c_sub and c_sub == cu_sub) or (c_email and c_email == cu_email):
+                            cog_match = cu
+                            if cu_sub: matched_subs.add(cu_sub)
+                            if cu_email: matched_emails.add(cu_email)
+                            break
+                            
+                    if cog_match:
+                        c['cognito_status'] = cog_match.get('UserStatus')
+                        c['cognito_username'] = cog_match.get('Username')
+                        c['portal_enabled'] = True
+                        if not c.get('cognito_sub'):
+                            c['cognito_sub'] = next((a['Value'] for a in cog_match['Attributes'] if a['Name'] == 'sub'), None)
+                    merged_clients.append(c)
+                    
+                # 2. Cognito-only Clients
+                for cu in cognito_clients:
+                    cu_email = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'email'), '').lower()
+                    cu_sub = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'sub'), '')
+                    
+                    if cu_sub in matched_subs or cu_email in matched_emails:
+                        continue
+                        
+                    virtual_id = f"cognito_{cu['Username']}"
+                    v_client = {
+                        "PK": f"COMPANY#{company_id}",
+                        "SK": f"CLIENT#{virtual_id}",
+                        "company_id": company_id,
+                        "client_id": virtual_id,
+                        "display_name": cu['Username'],
+                        "email": cu_email,
+                        "cognito_sub": cu_sub,
+                        "is_active": cu.get('Enabled', True),
+                        "portal_enabled": True,
+                        "cognito_status": cu.get('UserStatus'),
+                        "is_virtual": True
+                    }
+                    merged_clients.append(v_client)
+                    
+                return success({"clients": merged_clients}, event)
 
             # POST /admin/clients
             if http_method == 'POST':

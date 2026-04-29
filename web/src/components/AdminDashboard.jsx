@@ -1449,10 +1449,10 @@ const AdminDashboard = () => {
               <h2>Active Staff List</h2>
               <div className="staff-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
                 {staffList.map(s => (
-                  <div key={s.staff_id} className="staff-profile-card" style={{ border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: 'var(--card-bg)' }}>
+                  <div key={s.staff_id} className="staff-profile-card" style={{ border: s.is_virtual ? '1px dashed #ff9800' : '1px solid var(--border)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: s.is_virtual ? '#fff9c4' : 'var(--card-bg)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span className="dot" style={{ backgroundColor: s.assignment_color || 'var(--staff-unassigned)', width: '16px', height: '16px', borderRadius: '50%' }}></span>
-                      <strong style={{ fontSize: '18px' }}>{s.display_name}</strong>
+                      <strong style={{ fontSize: '18px' }}>{s.display_name} {s.is_virtual && <span style={{ color: '#ff9800', fontSize: '12px', marginLeft: '6px', backgroundColor: '#fff3e0', padding: '2px 6px', borderRadius: '4px' }}>Cognito Only</span>}</strong>
                     </div>
                     <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
                       <p style={{ margin: '2px 0' }}><strong>Role:</strong> {s.role}</p>
@@ -1504,8 +1504,27 @@ const AdminDashboard = () => {
                     </div>
 
                     <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
-                      <button className="btn-small" style={{ flex: 1 }} onClick={() => handleEditStaff(s)}>Edit</button>
-                      <button className="btn-small error" style={{ flex: 1 }} onClick={() => handleDisableStaff(s.staff_id, !!s.cognito_sub)}>Disable</button>
+                      {s.is_virtual ? (
+                        <button className="btn-small" style={{ flex: 1, backgroundColor: '#ff9800', color: 'white' }} onClick={() => {
+                          setStaffForm({
+                            display_name: s.display_name,
+                            role: s.role || 'Staff',
+                            email: s.email,
+                            is_assignable: true,
+                            assignment_color: 'var(--staff-ryan)',
+                            creation_mode: 'onboard',
+                            send_invite: false,
+                            phone: '',
+                            notes: ''
+                          });
+                          showNotification("Form populated for " + s.email, "info");
+                        }}>Create Profile</button>
+                      ) : (
+                        <>
+                          <button className="btn-small" style={{ flex: 1 }} onClick={() => handleEditStaff(s)}>Edit</button>
+                          <button className="btn-small error" style={{ flex: 1 }} onClick={() => handleDisableStaff(s.staff_id, !!s.cognito_sub)}>Disable</button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1611,12 +1630,13 @@ const AdminDashboard = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
                   {clientList.map(c => (
-                    <div key={c.client_id} className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid var(--border)', opacity: c.is_active === false ? 0.6 : 1, position: 'relative' }}>
+                    <div key={c.client_id} className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', border: c.is_virtual ? '1px dashed #ff9800' : '1px solid var(--border)', opacity: c.is_active === false ? 0.6 : 1, position: 'relative', backgroundColor: c.is_virtual ? '#fff9c4' : 'var(--surface-color)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
                           <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: c.is_active === false ? 'var(--text-muted)' : 'var(--success-color)', display: 'inline-block' }}></span>
                             {c.display_name}
+                            {c.is_virtual && <span style={{ color: '#ff9800', fontSize: '11px', marginLeft: '6px', backgroundColor: '#fff3e0', padding: '2px 4px', borderRadius: '4px' }}>Cognito Only</span>}
                           </h4>
                           <p style={{ margin: '4px 0 0 16px', fontSize: '13px', color: 'var(--text-muted)' }}>{c.email}</p>
                         </div>
@@ -1632,28 +1652,44 @@ const AdminDashboard = () => {
                       </div>
 
                       <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
-                        <button className="btn-small" style={{ flex: 1 }} onClick={() => {
-                          setEditingClientId(c.client_id);
-                          setClientForm({
-                            display_name: c.display_name || '',
-                            email: c.email || '',
-                            phone: c.phone || '',
-                            address: c.address || '',
-                            emergency_contact: c.emergency_contact || '',
-                            notes: c.notes || ''
-                          });
-                        }}>Edit</button>
-                        {c.is_active !== false && (
-                          <button className="btn-small error" style={{ flex: 1 }} onClick={async () => {
-                            if (!window.confirm(`Are you sure you want to disable client ${c.display_name}?`)) return;
-                            try {
-                              await disableClient(c.client_id);
-                              showNotification("Client disabled successfully", "success");
-                              await fetchClientData();
-                            } catch(err) {
-                              showNotification(err.message || "Failed to disable client", "error");
-                            }
-                          }}>Disable</button>
+                        {c.is_virtual ? (
+                          <button className="btn-small" style={{ flex: 1, backgroundColor: '#ff9800', color: 'white' }} onClick={() => {
+                            setClientForm({
+                              display_name: c.display_name,
+                              email: c.email,
+                              phone: '',
+                              address: '',
+                              emergency_contact: '',
+                              notes: ''
+                            });
+                            showNotification("Form populated for " + c.email, "info");
+                          }}>Create Profile</button>
+                        ) : (
+                          <>
+                            <button className="btn-small" style={{ flex: 1 }} onClick={() => {
+                              setEditingClientId(c.client_id);
+                              setClientForm({
+                                display_name: c.display_name || '',
+                                email: c.email || '',
+                                phone: c.phone || '',
+                                address: c.address || '',
+                                emergency_contact: c.emergency_contact || '',
+                                notes: c.notes || ''
+                              });
+                            }}>Edit</button>
+                            {c.is_active !== false && (
+                              <button className="btn-small error" style={{ flex: 1 }} onClick={async () => {
+                                if (!window.confirm(`Are you sure you want to disable client ${c.display_name}?`)) return;
+                                try {
+                                  await disableClient(c.client_id);
+                                  showNotification("Client disabled successfully", "success");
+                                  await fetchClientData();
+                                } catch(err) {
+                                  showNotification(err.message || "Failed to disable client", "error");
+                                }
+                              }}>Disable</button>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
