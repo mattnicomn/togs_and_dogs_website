@@ -53,3 +53,16 @@ Enforce secure ownership-based access control for the Client Portal, ensuring lo
 ## Known Limitations & Phase 5D Follow-Up
 - Currently, pets must be mapped back to their clients statically. Phase 5D should expand self-service management for individual pet medical/logistics data via the Portal.
 - Clients can cancel bookings in certain states but cannot modify existing ones. Phase 5D could expose an 'Edit Booking' capability.
+
+## Production Verification
+- **Tests Performed:**
+  - Automated simulation verifying `GET /client/requests`, `POST /client/requests`, `GET /client/pets`.
+  - Admin endpoint isolation assertions (`GET /admin/staff`, `GET /admin/requests`).
+- **Pass/Fail Results:**
+  - Client Isolation: PASS (Client endpoints isolate successfully).
+  - Cross-Role Rejection: PASS (Clients accessing admin paths return 403 Forbidden).
+  - Repeat Client Pre-population: PASS.
+- **Defects Found:** None.
+- **CloudFront Invalidation Status:** Completed (`IF4OOLWC7IWF7IWV76E6L6WMT2`).
+- **Terraform Drift:** None.
+
