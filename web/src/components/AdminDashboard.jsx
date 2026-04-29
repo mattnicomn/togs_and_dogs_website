@@ -1847,7 +1847,7 @@ const AdminDashboard = () => {
                                     onBlur={() => setAssigningId(null)}
                                   >
                                     <option value="">Select Staff...</option>
-                                    {staffList.map(s => (
+                                    {staffList.filter(s => s.is_assignable !== false && s.is_active !== false).map(s => (
                                       <option key={s.display_name} value={s.display_name}>{s.display_name}</option>
                                     ))}
 

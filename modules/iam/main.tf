@@ -198,7 +198,9 @@ resource "aws_iam_policy" "cognito_admin_access" {
         "cognito-idp:AdminDisableUser",
         "cognito-idp:AdminEnableUser",
         "cognito-idp:AdminResetUserPassword",
-        "cognito-idp:ListUsers"
+        "cognito-idp:ListUsers",
+        "cognito-idp:ListGroups",
+        "cognito-idp:ListUsersInGroup"
       ]
       Effect   = "Allow"
       Resource = var.user_pool_arn

@@ -37,26 +37,23 @@ def handler(event, context):
             user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
             
             cognito_staff = []
-            try:
-                # Get groups matching Staff, owner, Admin, or company-scoped
-                groups_resp = cognito_client.list_groups(UserPoolId=user_pool_id)
-                target_groups = []
-                for g in groups_resp.get('Groups', []):
-                    g_name = g['GroupName']
-                    g_lower = g_name.lower()
-                    if any(term in g_lower for term in ['staff', 'owner', 'admin']):
-                        target_groups.append(g_name)
-                
-                # Fetch users from those groups
-                seen_usernames = set()
-                for grp in target_groups:
-                    u_resp = cognito_client.list_users_in_group(UserPoolId=user_pool_id, GroupName=grp)
-                    for u in u_resp.get('Users', []):
-                        if u['Username'] not in seen_usernames:
-                            seen_usernames.add(u['Username'])
-                            cognito_staff.append(u)
-            except Exception as e:
-                print(f"Error fetching Cognito staff users: {e}")
+            # Get groups matching Staff, owner, Admin, or company-scoped
+            groups_resp = cognito_client.list_groups(UserPoolId=user_pool_id)
+            target_groups = []
+            for g in groups_resp.get('Groups', []):
+                g_name = g['GroupName']
+                g_lower = g_name.lower()
+                if any(term in g_lower for term in ['staff', 'owner', 'admin']):
+                    target_groups.append(g_name)
+            
+            # Fetch users from those groups
+            seen_usernames = set()
+            for grp in target_groups:
+                u_resp = cognito_client.list_users_in_group(UserPoolId=user_pool_id, GroupName=grp)
+                for u in u_resp.get('Users', []):
+                    if u['Username'] not in seen_usernames:
+                        seen_usernames.add(u['Username'])
+                        cognito_staff.append(u)
 
             # Merge Cognito + DynamoDB
             merged_staff = []
@@ -612,26 +609,23 @@ def handler(event, context):
                 user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
                 
                 cognito_clients = []
-                try:
-                    # Get groups matching client or company-scoped client group
-                    groups_resp = cognito_client.list_groups(UserPoolId=user_pool_id)
-                    target_groups = []
-                    for g in groups_resp.get('Groups', []):
-                        g_name = g['GroupName']
-                        g_lower = g_name.lower()
-                        if 'client' in g_lower:
-                            target_groups.append(g_name)
-                    
-                    # Fetch users
-                    seen_usernames = set()
-                    for grp in target_groups:
-                        u_resp = cognito_client.list_users_in_group(UserPoolId=user_pool_id, GroupName=grp)
-                        for u in u_resp.get('Users', []):
-                            if u['Username'] not in seen_usernames:
-                                seen_usernames.add(u['Username'])
-                                cognito_clients.append(u)
-                except Exception as e:
-                    print(f"Error fetching Cognito client users: {e}")
+                # Get groups matching client or company-scoped client group
+                groups_resp = cognito_client.list_groups(UserPoolId=user_pool_id)
+                target_groups = []
+                for g in groups_resp.get('Groups', []):
+                    g_name = g['GroupName']
+                    g_lower = g_name.lower()
+                    if 'client' in g_lower:
+                        target_groups.append(g_name)
+                
+                # Fetch users
+                seen_usernames = set()
+                for grp in target_groups:
+                    u_resp = cognito_client.list_users_in_group(UserPoolId=user_pool_id, GroupName=grp)
+                    for u in u_resp.get('Users', []):
+                        if u['Username'] not in seen_usernames:
+                            seen_usernames.add(u['Username'])
+                            cognito_clients.append(u)
 
                 # Merge
                 merged_clients = []
