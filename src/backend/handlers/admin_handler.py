@@ -62,27 +62,26 @@ def handler(event, context):
             
             # 1. Start with DynamoDB staff records
             for s in staff_profiles:
-                if s.get('is_active') == True:
-                    # Enrich with Cognito info if possible
-                    s_email = (s.get('email') or '').lower()
-                    s_sub = s.get('cognito_sub')
-                    
-                    cog_match = None
-                    for cu in cognito_staff:
-                        cu_email = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'email'), '').lower()
-                        cu_sub = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'sub'), '')
-                        if (s_sub and s_sub == cu_sub) or (s_email and s_email == cu_email):
-                            cog_match = cu
-                            if cu_sub: matched_subs.add(cu_sub)
-                            if cu_email: matched_emails.add(cu_email)
-                            break
-                            
-                    if cog_match:
-                        s['cognito_status'] = cog_match.get('UserStatus')
-                        s['cognito_username'] = cog_match.get('Username')
-                        if not s.get('cognito_sub'):
-                            s['cognito_sub'] = next((a['Value'] for a in cog_match['Attributes'] if a['Name'] == 'sub'), None)
-                    merged_staff.append(s)
+                # Enrich with Cognito info if possible
+                s_email = (s.get('email') or '').lower()
+                s_sub = s.get('cognito_sub')
+                
+                cog_match = None
+                for cu in cognito_staff:
+                    cu_email = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'email'), '').lower()
+                    cu_sub = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'sub'), '')
+                    if (s_sub and s_sub == cu_sub) or (s_email and s_email == cu_email):
+                        cog_match = cu
+                        if cu_sub: matched_subs.add(cu_sub)
+                        if cu_email: matched_emails.add(cu_email)
+                        break
+                        
+                if cog_match:
+                    s['cognito_status'] = cog_match.get('UserStatus')
+                    s['cognito_username'] = cog_match.get('Username')
+                    if not s.get('cognito_sub'):
+                        s['cognito_sub'] = next((a['Value'] for a in cog_match['Attributes'] if a['Name'] == 'sub'), None)
+                merged_staff.append(s)
                     
             # 2. Add Cognito-only staff users
             for cu in cognito_staff:
@@ -574,6 +573,76 @@ def handler(event, context):
                 except Exception:
                     return bad_request("Invalid JSON body", event)
                     
+                action = body.get('action')
+                if action:
+                    import boto3
+                    cognito = boto3.client('cognito-idp')
+                    user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
+                    username = staff_profile.get('email') or staff_profile.get('cognito_username') or staff_id.replace('cognito_', '')
+                    
+                    if action == 'disable':
+                        staff_profile['is_active'] = False
+                        staff_profile['is_assignable'] = False
+                        staff_profile['updated_at'] = datetime.utcnow().isoformat()
+                        if staff_profile.get('cognito_sub') or staff_profile.get('email'):
+                            try:
+                                cognito.admin_disable_user(UserPoolId=user_pool_id, Username=username)
+                            except Exception as e:
+                                print(f"Cognito disable fail: {e}")
+                        items_table.put_item(Item=staff_profile)
+                        return success(staff_profile, event)
+                        
+                    elif action == 'enable':
+                        staff_profile['is_active'] = True
+                        staff_profile['updated_at'] = datetime.utcnow().isoformat()
+                        if staff_profile.get('cognito_sub') or staff_profile.get('email'):
+                            try:
+                                cognito.admin_enable_user(UserPoolId=user_pool_id, Username=username)
+                            except Exception as e:
+                                print(f"Cognito enable fail: {e}")
+                        items_table.put_item(Item=staff_profile)
+                        return success(staff_profile, event)
+                        
+                    elif action == 'unlink':
+                        staff_profile.pop('cognito_sub', None)
+                        staff_profile.pop('cognito_username', None)
+                        staff_profile.pop('cognito_status', None)
+                        staff_profile['updated_at'] = datetime.utcnow().isoformat()
+                        items_table.put_item(Item=staff_profile)
+                        return success(staff_profile, event)
+                        
+                    elif action == 'delete_profile':
+                        if staff_profile.get('is_active') == True:
+                            return error(400, "Cannot delete active profile. Disable it first.", event)
+                        from boto3.dynamodb.conditions import Key
+                        jobs_resp = items_table.query(
+                            KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("JOB#")
+                        )
+                        has_upcoming = False
+                        for job in jobs_resp.get('Items', []):
+                            if job.get('staff_id') == staff_id and job.get('status') in ['PENDING', 'ASSIGNED', 'IN_PROGRESS']:
+                                has_upcoming = True
+                                break
+                        if has_upcoming:
+                            return error(400, "Cannot delete staff with active/upcoming assignments.", event)
+                        items_table.delete_item(Key={"PK": f"COMPANY#{company_id}", "SK": f"STAFF#{staff_id}"})
+                        return success({"deleted_profile": staff_id}, event)
+                        
+                    elif action == 'delete_cognito':
+                        try:
+                            cognito.admin_disable_user(UserPoolId=user_pool_id, Username=username)
+                        except Exception: pass
+                        try:
+                            cognito.admin_delete_user(UserPoolId=user_pool_id, Username=username)
+                        except Exception as e:
+                            return internal_error(f"Failed to delete Cognito user: {e}", event)
+                        if 'cognito_status' in staff_profile:
+                            staff_profile['cognito_status'] = 'deleted'
+                            staff_profile.pop('cognito_sub', None)
+                            staff_profile['updated_at'] = datetime.utcnow().isoformat()
+                            items_table.put_item(Item=staff_profile)
+                        return success({"deleted_cognito": username}, event)
+
                 editable_fields = [
                     'display_name', 'role', 'email', 'cognito_sub', 
                     'is_active', 'is_assignable', 'assignment_color', 'phone', 'notes'
@@ -784,7 +853,35 @@ def handler(event, context):
             resp = items_table.get_item(Key={"PK": f"COMPANY#{company_id}", "SK": f"CLIENT#{client_id}"})
             client_profile = resp.get('Item')
             if not client_profile:
-                return not_found(f"Client profile {client_id} not found", event)
+                if client_id.startswith('cognito_'):
+                    username = client_id.replace('cognito_', '')
+                    import boto3
+                    cog_client = boto3.client('cognito-idp')
+                    user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
+                    try:
+                        cog_u = cog_client.admin_get_user(UserPoolId=user_pool_id, Username=username)
+                        cu_email = next((a['Value'] for a in cog_u['UserAttributes'] if a['Name'] == 'email'), '').lower()
+                        cu_sub = next((a['Value'] for a in cog_u['UserAttributes'] if a['Name'] == 'sub'), '')
+                        
+                        client_profile = {
+                            "PK": f"COMPANY#{company_id}",
+                            "SK": f"CLIENT#{client_id}",
+                            "company_id": company_id,
+                            "client_id": client_id,
+                            "display_name": username,
+                            "email": cu_email,
+                            "cognito_sub": cu_sub,
+                            "is_active": cog_u.get('Enabled', True),
+                            "portal_enabled": True,
+                            "created_at": datetime.utcnow().isoformat(),
+                            "updated_at": datetime.utcnow().isoformat()
+                        }
+                    except cog_client.exceptions.UserNotFoundException:
+                        return not_found(f"Client profile {client_id} and Cognito user not found", event)
+                    except Exception as e:
+                        return internal_error(f"Error resolving virtual user: {e}", event)
+                else:
+                    return not_found(f"Client profile {client_id} not found", event)
                 
             if http_method == 'POST' and path.endswith('/disable'):
                 client_profile['is_active'] = False
@@ -799,6 +896,79 @@ def handler(event, context):
                 except Exception:
                     return bad_request("Invalid JSON body", event)
                     
+                action = body.get('action')
+                if action:
+                    import boto3
+                    cognito = boto3.client('cognito-idp')
+                    user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
+                    username = client_profile.get('email') or client_profile.get('cognito_username') or client_id.replace('cognito_', '')
+                    
+                    if action == 'disable':
+                        client_profile['is_active'] = False
+                        client_profile['portal_enabled'] = False
+                        client_profile['updated_at'] = datetime.utcnow().isoformat()
+                        if client_profile.get('cognito_sub') or client_profile.get('email'):
+                            try:
+                                cognito.admin_disable_user(UserPoolId=user_pool_id, Username=username)
+                            except Exception as e:
+                                print(f"Cognito client disable fail: {e}")
+                        items_table.put_item(Item=client_profile)
+                        return success(client_profile, event)
+                        
+                    elif action == 'enable':
+                        client_profile['is_active'] = True
+                        client_profile['portal_enabled'] = True
+                        client_profile['updated_at'] = datetime.utcnow().isoformat()
+                        if client_profile.get('cognito_sub') or client_profile.get('email'):
+                            try:
+                                cognito.admin_enable_user(UserPoolId=user_pool_id, Username=username)
+                            except Exception as e:
+                                print(f"Cognito client enable fail: {e}")
+                        items_table.put_item(Item=client_profile)
+                        return success(client_profile, event)
+                        
+                    elif action == 'unlink':
+                        client_profile.pop('cognito_sub', None)
+                        client_profile.pop('cognito_username', None)
+                        client_profile.pop('cognito_status', None)
+                        client_profile['portal_enabled'] = False
+                        client_profile['updated_at'] = datetime.utcnow().isoformat()
+                        items_table.put_item(Item=client_profile)
+                        return success(client_profile, event)
+                        
+                    elif action == 'delete_profile':
+                        if client_profile.get('is_active') == True:
+                            return error(400, "Cannot delete active profile. Disable it first.", event)
+                        from boto3.dynamodb.conditions import Key
+                        req_resp = items_table.query(
+                            KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("REQ#")
+                        )
+                        has_active = False
+                        for r in req_resp.get('Items', []):
+                            if r.get('client_id') == client_id and r.get('status') not in ['CANCELLED', 'REJECTED']:
+                                has_active = True
+                                break
+                        if has_active:
+                            return error(400, "Cannot delete client with active/unresolved request workflows.", event)
+                        items_table.delete_item(Key={"PK": f"COMPANY#{company_id}", "SK": f"CLIENT#{client_id}"})
+                        return success({"deleted_profile": client_id}, event)
+                        
+                    elif action == 'delete_cognito':
+                        try:
+                            cognito.admin_disable_user(UserPoolId=user_pool_id, Username=username)
+                        except Exception: pass
+                        try:
+                            cognito.admin_delete_user(UserPoolId=user_pool_id, Username=username)
+                        except Exception as e:
+                            return internal_error(f"Failed to delete client Cognito user: {e}", event)
+                        if 'cognito_status' in client_profile:
+                            client_profile['cognito_status'] = 'deleted'
+                            client_profile.pop('cognito_sub', None)
+                            client_profile['portal_enabled'] = False
+                            client_profile['updated_at'] = datetime.utcnow().isoformat()
+                            items_table.put_item(Item=client_profile)
+                        return success({"deleted_cognito": username}, event)
+
                 editable_fields = ['display_name', 'email', 'phone', 'address', 'emergency_contact', 'notes', 'is_active']
                 
                 if 'email' in body:

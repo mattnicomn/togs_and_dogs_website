@@ -198,6 +198,8 @@ resource "aws_iam_policy" "cognito_admin_access" {
         "cognito-idp:AdminDisableUser",
         "cognito-idp:AdminEnableUser",
         "cognito-idp:AdminResetUserPassword",
+        "cognito-idp:AdminDeleteUser",
+        "cognito-idp:AdminListGroupsForUser",
         "cognito-idp:ListUsers",
         "cognito-idp:ListGroups",
         "cognito-idp:ListUsersInGroup"

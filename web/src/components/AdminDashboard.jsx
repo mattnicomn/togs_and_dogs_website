@@ -414,6 +414,56 @@ const AdminDashboard = () => {
       showNotification(err.message || "Failed to disable staff", "error");
     }
   };
+  
+  const executeStaffAction = async (staffId, action) => {
+    let confirmText = "";
+    if (action === 'disable') confirmText = "Are you sure you want to disable access?";
+    if (action === 'enable') confirmText = "Are you sure you want to re-enable access?";
+    if (action === 'unlink') confirmText = "Are you sure you want to unlink Cognito? The profile will no longer map to a login.";
+    if (action === 'delete_profile') confirmText = "Are you sure you want to PERMANENTLY delete this profile? This cannot be undone.";
+    if (action === 'delete_cognito') {
+      const input = window.prompt("Type 'DELETE COGNITO USER' to confirm deleting the Cognito user account:");
+      if (input !== 'DELETE COGNITO USER') {
+        showNotification("Deletion cancelled. Text did not match.", "info");
+        return;
+      }
+    } else if (confirmText && !window.confirm(confirmText)) {
+      return;
+    }
+
+    try {
+      await updateStaff(staffId, { action });
+      showNotification(`Staff action '${action}' completed successfully`, "success");
+      await fetchStaffData();
+    } catch (err) {
+      showNotification(err.message || `Failed to execute ${action}`, "error");
+    }
+  };
+
+  const executeClientAction = async (clientId, action) => {
+    let confirmText = "";
+    if (action === 'disable') confirmText = "Are you sure you want to disable client access?";
+    if (action === 'enable') confirmText = "Are you sure you want to re-enable client access?";
+    if (action === 'unlink') confirmText = "Are you sure you want to unlink Cognito login from this client profile?";
+    if (action === 'delete_profile') confirmText = "Are you sure you want to PERMANENTLY delete this client profile?";
+    if (action === 'delete_cognito') {
+      const input = window.prompt("Type 'DELETE COGNITO USER' to confirm deleting the client login:");
+      if (input !== 'DELETE COGNITO USER') {
+        showNotification("Deletion cancelled. Text did not match.", "info");
+        return;
+      }
+    } else if (confirmText && !window.confirm(confirmText)) {
+      return;
+    }
+
+    try {
+      await updateClient(clientId, { action });
+      showNotification(`Client action '${action}' completed successfully`, "success");
+      await fetchClientData();
+    } catch (err) {
+      showNotification(err.message || `Failed to execute ${action}`, "error");
+    }
+  };
 
 
   const handleEditStaff = (staff) => {
@@ -1503,26 +1553,50 @@ const AdminDashboard = () => {
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
                       {s.is_virtual ? (
-                        <button className="btn-small" style={{ flex: 1, backgroundColor: '#ff9800', color: 'white' }} onClick={() => {
-                          setStaffForm({
-                            display_name: s.display_name,
-                            role: s.role || 'Staff',
-                            email: s.email,
-                            is_assignable: true,
-                            assignment_color: 'var(--staff-ryan)',
-                            creation_mode: 'onboard',
-                            send_invite: false,
-                            phone: '',
-                            notes: ''
-                          });
-                          showNotification("Form populated for " + s.email, "info");
-                        }}>Create Profile</button>
+                        <>
+                          <button className="btn-small" style={{ backgroundColor: 'var(--accent-orange)', color: 'white' }} onClick={() => {
+                            setStaffForm({
+                              display_name: s.display_name,
+                              role: s.role || 'Staff',
+                              email: s.email,
+                              is_assignable: true,
+                              assignment_color: 'var(--staff-ryan)',
+                              creation_mode: 'onboard',
+                              send_invite: false,
+                              phone: '',
+                              notes: ''
+                            });
+                            showNotification("Form populated for " + s.email, "info");
+                          }}>Create Profile</button>
+                          
+                          {s.is_active !== false ? (
+                            <button className="btn-small error" onClick={() => executeStaffAction(s.staff_id, 'disable')}>Disable Cognito</button>
+                          ) : (
+                            <>
+                              <button className="btn-small" style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} onClick={() => executeStaffAction(s.staff_id, 'enable')}>Enable Cognito</button>
+                              <button className="btn-small error" onClick={() => executeStaffAction(s.staff_id, 'delete_cognito')}>Delete Cognito User</button>
+                            </>
+                          )}
+                        </>
                       ) : (
                         <>
-                          <button className="btn-small" style={{ flex: 1 }} onClick={() => handleEditStaff(s)}>Edit</button>
-                          <button className="btn-small error" style={{ flex: 1 }} onClick={() => handleDisableStaff(s.staff_id, !!s.cognito_sub)}>Disable</button>
+                          <button className="btn-small" onClick={() => handleEditStaff(s)}>Edit</button>
+                          
+                          {s.is_active !== false ? (
+                            <button className="btn-small error" onClick={() => executeStaffAction(s.staff_id, 'disable')}>Disable Access</button>
+                          ) : (
+                            <button className="btn-small" style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} onClick={() => executeStaffAction(s.staff_id, 'enable')}>Enable Access</button>
+                          )}
+                          
+                          {s.cognito_sub && (
+                            <button className="btn-small" style={{ backgroundColor: '#2196f3', color: 'white' }} onClick={() => executeStaffAction(s.staff_id, 'unlink')}>Unlink Cognito</button>
+                          )}
+
+                          {s.is_active === false && (
+                            <button className="btn-small error" onClick={() => executeStaffAction(s.staff_id, 'delete_profile')}>Delete Profile</button>
+                          )}
                         </>
                       )}
                     </div>
@@ -1651,22 +1725,33 @@ const AdminDashboard = () => {
                         <p style={{ margin: '6px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>Status: {c.cognito_status || 'not_linked'}</p>
                       </div>
 
-                      <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
                         {c.is_virtual ? (
-                          <button className="btn-small" style={{ flex: 1, backgroundColor: '#ff9800', color: 'white' }} onClick={() => {
-                            setClientForm({
-                              display_name: c.display_name,
-                              email: c.email,
-                              phone: '',
-                              address: '',
-                              emergency_contact: '',
-                              notes: ''
-                            });
-                            showNotification("Form populated for " + c.email, "info");
-                          }}>Create Profile</button>
+                          <>
+                            <button className="btn-small" style={{ backgroundColor: 'var(--accent-orange)', color: 'white' }} onClick={() => {
+                              setClientForm({
+                                display_name: c.display_name,
+                                email: c.email,
+                                phone: '',
+                                address: '',
+                                emergency_contact: '',
+                                notes: ''
+                              });
+                              showNotification("Form populated for " + c.email, "info");
+                            }}>Create Profile</button>
+                            
+                            {c.is_active !== false ? (
+                              <button className="btn-small error" onClick={() => executeClientAction(c.client_id, 'disable')}>Disable Cognito</button>
+                            ) : (
+                              <>
+                                <button className="btn-small" style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} onClick={() => executeClientAction(c.client_id, 'enable')}>Enable Cognito</button>
+                                <button className="btn-small error" onClick={() => executeClientAction(c.client_id, 'delete_cognito')}>Delete Cognito User</button>
+                              </>
+                            )}
+                          </>
                         ) : (
                           <>
-                            <button className="btn-small" style={{ flex: 1 }} onClick={() => {
+                            <button className="btn-small" onClick={() => {
                               setEditingClientId(c.client_id);
                               setClientForm({
                                 display_name: c.display_name || '',
@@ -1677,17 +1762,19 @@ const AdminDashboard = () => {
                                 notes: c.notes || ''
                               });
                             }}>Edit</button>
-                            {c.is_active !== false && (
-                              <button className="btn-small error" style={{ flex: 1 }} onClick={async () => {
-                                if (!window.confirm(`Are you sure you want to disable client ${c.display_name}?`)) return;
-                                try {
-                                  await disableClient(c.client_id);
-                                  showNotification("Client disabled successfully", "success");
-                                  await fetchClientData();
-                                } catch(err) {
-                                  showNotification(err.message || "Failed to disable client", "error");
-                                }
-                              }}>Disable</button>
+                            
+                            {c.is_active !== false ? (
+                              <button className="btn-small error" onClick={() => executeClientAction(c.client_id, 'disable')}>Disable Access</button>
+                            ) : (
+                              <button className="btn-small" style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} onClick={() => executeClientAction(c.client_id, 'enable')}>Enable Access</button>
+                            )}
+
+                            {c.cognito_sub && (
+                              <button className="btn-small" style={{ backgroundColor: '#2196f3', color: 'white' }} onClick={() => executeClientAction(c.client_id, 'unlink')}>Unlink Cognito</button>
+                            )}
+
+                            {c.is_active === false && (
+                              <button className="btn-small error" onClick={() => executeClientAction(c.client_id, 'delete_profile')}>Delete Profile</button>
                             )}
                           </>
                         )}
