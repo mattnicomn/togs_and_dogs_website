@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getSession, signIn, getEffectiveRole } from '../api/auth';
 
-import { getAdminRequests, requestCancellation } from '../api/client';
+import { getClientRequests, requestCancellation } from '../api/client';
 
 import '../Portal.css';
 
@@ -35,17 +35,18 @@ const ClientPortal = () => {
     }
   };
 
-
   const fetchMyBookings = async (activeSession) => {
     if (!activeSession) return;
     try {
       setLoading(true);
-      const userEmail = (activeSession.idToken.payload.email || "").toLowerCase().trim();
-      const data = await getAdminRequests('ALL'); 
-      const myRequests = data.requests || [];
-      // Secondary client-side safety filter (the backend already filters, but this handles edge cases)
-      const filtered = myRequests.filter(r => (r.client_email || "").toLowerCase().trim() === userEmail);
-      setRequests(filtered);
+      const data = await getClientRequests(); 
+      if (data.message === "No local profile linked") {
+        setRequests([]);
+        setError("Your portal account is not yet linked to a client profile. Please contact support.");
+      } else {
+        setRequests(data.requests || []);
+        setError(null);
+      }
     } catch (err) {
       console.error("Fetch failed", err);
     } finally {
@@ -148,9 +149,18 @@ const ClientPortal = () => {
 
   return (
     <div className="client-portal">
-      <div className="portal-header">
-        <h1>My Bookings</h1>
-        <p className="subtitle">View and manage your pet sitting schedule.</p>
+      <div className="portal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1>My Bookings</h1>
+          <p className="subtitle">View and manage your pet sitting schedule.</p>
+        </div>
+        <button 
+          onClick={() => window.location.href = '/intake'} 
+          className="button-primary"
+          style={{ padding: '10px 20px', borderRadius: '8px' }}
+        >
+          + New Request
+        </button>
       </div>
 
       <div className="bookings-list">

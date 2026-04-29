@@ -14,10 +14,22 @@ def handler(event, context):
     try:
         body = json.loads(event.get('body', '{}'))
         
-        # Simple validation
         client_name = body.get('client_name')
         client_email = body.get('client_email')
         start_date = body.get('start_date')
+        
+        # --- CLIENT BOUNDARY: Auto-resolve identity if submitted via /client/requests ---
+        from common.auth import get_effective_role, resolve_client_identity, get_claims
+        role = get_effective_role(event)
+        client_id = body.get('client_id')
+        
+        if event.get('path', '') == '/client/requests' and role == 'client':
+            resolved_id = resolve_client_identity(event)
+            if resolved_id:
+                client_id = resolved_id
+                claims = get_claims(event)
+                client_email = claims.get('email') or client_email
+                # Note: We still might need client_name from the body if the token lacks it.
         
         if not (client_name and client_email and start_date):
             return bad_request("Missing required fields: client_name, client_email, start_date", event)
@@ -25,7 +37,7 @@ def handler(event, context):
         client_email = client_email.lower().strip()
 
         request_id = str(uuid.uuid4())
-        client_id = body.get('client_id', str(uuid.uuid4()))
+        client_id = client_id or body.get('client_id', str(uuid.uuid4()))
         
         from common.auth import get_current_company_id
         company_id = get_current_company_id(event)

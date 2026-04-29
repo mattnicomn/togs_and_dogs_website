@@ -33,6 +33,11 @@ const request = async (path, method = 'GET', data = null, isProtected = false) =
 
 export const submitRequest = (data) => request('/requests', 'POST', data);
 
+// Authenticated Client Portal Calls
+export const getClientRequests = () => request('/client/requests', 'GET', null, true);
+export const submitClientRequest = (data) => request('/client/requests', 'POST', data, true);
+export const getClientPets = () => request('/client/pets', 'GET', null, true);
+
 // Protected Admin Calls
 export const getAdminRequests = (status = 'PENDING_REVIEW', startKey = null, timeframe = null) => {
   let url = `/admin/requests?status=${status}`;

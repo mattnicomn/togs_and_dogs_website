@@ -325,6 +325,74 @@ resource "aws_api_gateway_integration" "post_client_cancel_lambda" {
   uri                     = var.cancellation_handler_invoke_arn
 }
 
+# Client /client/requests
+resource "aws_api_gateway_resource" "client_requests" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.client.id
+  path_part   = "requests"
+}
+
+resource "aws_api_gateway_method" "get_client_requests" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.client_requests.id
+  http_method   = "GET"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "get_client_requests_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.client_requests.id
+  http_method = aws_api_gateway_method.get_client_requests.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+resource "aws_api_gateway_method" "post_client_requests" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.client_requests.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_client_requests_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.client_requests.id
+  http_method = aws_api_gateway_method.post_client_requests.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.intake_handler_invoke_arn
+}
+
+# Client /client/pets
+resource "aws_api_gateway_resource" "client_pets" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.client.id
+  path_part   = "pets"
+}
+
+resource "aws_api_gateway_method" "get_client_pets" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.client_pets.id
+  http_method   = "GET"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "get_client_pets_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.client_pets.id
+  http_method = aws_api_gateway_method.get_client_pets.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.pet_handler_invoke_arn
+}
+
 # Admin GET /admin/staff
 resource "aws_api_gateway_resource" "admin_staff" {
   rest_api_id = aws_api_gateway_rest_api.main.id

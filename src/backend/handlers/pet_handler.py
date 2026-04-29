@@ -15,10 +15,37 @@ def handler(event, context):
         pet_id = path_params.get('petId')
         
         role = get_effective_role(event)
-        if role not in ['owner', 'admin', 'staff']:
+        path = event.get('path', '')
+        
+        # Determine allowed roles
+        allowed_roles = ['owner', 'admin', 'staff']
+        if path.startswith('/client/'):
+            allowed_roles.append('client')
+            
+        if role not in allowed_roles:
             return error(403, "Forbidden", event)
             
         if http_method == 'GET':
+            if path == '/client/pets' and role == 'client':
+                from common.auth import resolve_client_identity
+                client_id = resolve_client_identity(event)
+                if not client_id:
+                    return success({"pets": []}, event)
+                
+                from common.auth import get_current_company_id
+                from boto3.dynamodb.conditions import Attr
+                company_id = get_current_company_id(event)
+                
+                # Fetch all pets for this client via scan (since pets are PK=PET#, SK=CLIENT#{client_id})
+                scan_kwargs = {
+                    "FilterExpression": Attr("client_id").eq(client_id) & Attr("entity_type").eq("PET")
+                }
+                from common.db import table as items_table
+                resp = items_table.scan(**scan_kwargs)
+                items = resp.get('Items', [])
+                items = [sanitize_booking_for_role(item, 'client') for item in items]
+                
+                return success({"pets": items}, event)
 
             if not pet_id:
                 return bad_request("Missing petId in path", event)

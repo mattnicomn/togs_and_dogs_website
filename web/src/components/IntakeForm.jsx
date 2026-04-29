@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { submitRequest } from '../api/client';
+import { submitRequest, submitClientRequest } from '../api/client';
+import { getSession, getEffectiveRole } from '../api/auth';
 import './IntakeForm.css';
 
 const IntakeForm = () => {
@@ -19,6 +20,18 @@ const IntakeForm = () => {
   });
   const [status, setStatus] = useState({ type: '', message: '', requestId: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    getSession().then(s => {
+      if (s && getEffectiveRole(s) === 'client') {
+        setFormData(prev => ({
+          ...prev,
+          client_email: s.idToken.payload.email || '',
+          client_name: s.idToken.payload.name || ''
+        }));
+      }
+    }).catch(() => {});
+  }, []);
 
   const validateStep = () => {
     if (step === 1) {
@@ -55,7 +68,16 @@ const IntakeForm = () => {
     setStatus({ type: 'info', message: 'Submitting your request...' });
     
     try {
-      const result = await submitRequest(formData);
+      const s = await getSession();
+      const role = getEffectiveRole(s);
+      
+      let result;
+      if (s && role === 'client') {
+        result = await submitClientRequest(formData);
+      } else {
+        result = await submitRequest(formData);
+      }
+      
       setStatus({ 
         type: 'success', 
         message: "Request Received!", 

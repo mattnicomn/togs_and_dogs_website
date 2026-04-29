@@ -96,21 +96,71 @@ def sanitize_booking_for_role(record, role):
         'audit_log'
     ]
     
+    # Fields to additionally redact for clients only
+    client_sensitive_fields = [
+        'staff_assignment',
+        'worker_id',
+        'worker_name',
+        'job_id',
+        'assignment_color'
+    ]
+    
     redacted_any = False
     for field in sensitive_fields:
         if field in sanitized:
             sanitized[field] = None
             redacted_any = True
             
+    if role == 'client':
+        for field in client_sensitive_fields:
+            if field in sanitized:
+                sanitized[field] = None
+                redacted_any = True
+        
     if redacted_any:
         sanitized['notes_redacted'] = True
         
-    if role == 'client':
-        # Clients also shouldn't see staff/admin-only metadata
-        # (Prepare for future tenant/business scoping)
-        pass
-        
     return sanitized
+
+def resolve_client_identity(event):
+    """
+    Resolves the logged-in Cognito user to a local client profile.
+    Matches by cognito_sub first, then falls back to verified email.
+    Returns: The client_id string, or None if unlinked/unresolvable.
+    """
+    if get_effective_role(event) != 'client':
+        return None
+        
+    claims = get_claims(event)
+    cognito_sub = claims.get('sub')
+    email = (claims.get('email') or "").lower().strip()
+    
+    if not cognito_sub and not email:
+        return None
+        
+    company_id = get_current_company_id(event)
+    from common.db import table as items_table
+    from boto3.dynamodb.conditions import Key, Attr
+    
+    # Query DynamoDB for matching client profiles
+    resp = items_table.query(
+        KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("CLIENT#")
+    )
+    items = resp.get('Items', [])
+    
+    # 1. Match by exact cognito_sub first
+    for client in items:
+        if client.get('cognito_sub') == cognito_sub:
+            return client.get('client_id')
+            
+    # 2. Fall back to email match (if email is verified)
+    if email and claims.get('email_verified') in [True, 'true']:
+        for client in items:
+            client_email = (client.get('email') or "").lower().strip()
+            if client_email == email:
+                return client.get('client_id')
+                
+    return None
 
 def require_group(event, allowed_groups):
     role = get_effective_role(event)

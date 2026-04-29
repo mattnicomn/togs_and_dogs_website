@@ -15,6 +15,50 @@ def handler(event, context):
         query_params = event.get('queryStringParameters', {}) or {}
         
         path = event.get('path', '')
+        
+        # --- CLIENT PORTAL BOUNDARIES ---
+        if path.startswith('/client/'):
+            role = get_effective_role(event)
+            if role != 'client':
+                # Allow staff/admin to impersonate or access if needed, but primarily client
+                pass
+                
+            from common.auth import resolve_client_identity
+            client_id = resolve_client_identity(event)
+            if not client_id:
+                # If they have no local profile linked, they have no data.
+                return success({"requests": [], "pets": [], "message": "No local profile linked"}, event)
+                
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
+            from common.db import table as items_table
+            from boto3.dynamodb.conditions import Key
+            
+            if http_method == 'GET' and path == '/client/requests':
+                # Fetch only requests belonging to this client using table scan with filter
+                # (Since requests use PK=REQ#..., we scan and filter by client_id)
+                from boto3.dynamodb.conditions import Attr
+                
+                scan_kwargs = {
+                    "FilterExpression": Attr("client_id").eq(client_id) & Attr("entity_type").eq("REQUEST")
+                }
+                
+                response = items_table.scan(**scan_kwargs)
+                items = response.get('Items', [])
+                
+                # Aggressively redact staff notes and pricing metadata
+                items = [sanitize_booking_for_role(item, 'client') for item in items]
+                
+                # Sort newest first based on start_date
+                items.sort(key=lambda x: x.get('start_date', ''), reverse=True)
+                
+                return success({
+                    "requests": items,
+                    "lastKey": None # Pagination omitted for client context locally
+                }, event)
+                
+        # --- END CLIENT PORTAL BOUNDARIES ---
+        
         if http_method == 'GET' and (path == '/admin/staff' or path.endswith('/admin/staff')):
             role = get_effective_role(event)
             if role not in ['owner', 'admin', 'staff']:
