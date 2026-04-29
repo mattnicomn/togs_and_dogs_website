@@ -17,4 +17,6 @@ Seamlessly integrate the approved US Mission Hero branding logo onto the portal 
 - `web/src/App.jsx`
 
 ## Deployment
-- CloudFront Invalidation ID: `ICNX0H0SW333JWC4CI51NBF4CG`
+- CloudFront Invalidation ID: `I9DSGRRB48KY3HR63TYUMAIPJA`
+- Final Verification: The visual layout renders correctly with the new user-uploaded `usmh-logo.png` asset.
+
