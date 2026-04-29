@@ -510,7 +510,37 @@ def handler(event, context):
 
             staff_profile = resp.get('Item')
             if not staff_profile:
-                return not_found(f"Staff profile {staff_id} not found", event)
+                if staff_id.startswith('cognito_'):
+                    username = staff_id.replace('cognito_', '')
+                    import boto3
+                    cog_client = boto3.client('cognito-idp')
+                    user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
+                    try:
+                        cog_u = cog_client.admin_get_user(UserPoolId=user_pool_id, Username=username)
+                        cu_email = next((a['Value'] for a in cog_u['UserAttributes'] if a['Name'] == 'email'), '').lower()
+                        cu_sub = next((a['Value'] for a in cog_u['UserAttributes'] if a['Name'] == 'sub'), '')
+                        
+                        staff_profile = {
+                            "PK": f"COMPANY#{company_id}",
+                            "SK": f"STAFF#{staff_id}",
+                            "company_id": company_id,
+                            "staff_id": staff_id,
+                            "display_name": username,
+                            "role": 'Staff',
+                            "email": cu_email,
+                            "cognito_sub": cu_sub,
+                            "is_active": cog_u.get('Enabled', True),
+                            "is_assignable": False,
+                            "assignment_color": 'var(--staff-ryan)',
+                            "created_at": datetime.utcnow().isoformat(),
+                            "updated_at": datetime.utcnow().isoformat()
+                        }
+                    except cog_client.exceptions.UserNotFoundException:
+                        return not_found(f"Staff profile {staff_id} and Cognito user not found", event)
+                    except Exception as e:
+                        return internal_error(f"Error resolving virtual user: {e}", event)
+                else:
+                    return not_found(f"Staff profile {staff_id} not found", event)
                 
             if http_method == 'DELETE':
                 body = {}
