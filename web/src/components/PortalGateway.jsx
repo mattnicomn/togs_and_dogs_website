@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import usmhLogo from '../assets/usmh-logo.png';
 import './PortalGateway.css';
 
 const PortalGateway = () => {
@@ -50,8 +51,9 @@ const PortalGateway = () => {
           <a href="https://toganddogs.com" className="external-link">
             ← Back to Tog and Dogs Website
           </a>
-          <div className="powered-by">
-            Powered by <span className="usmh-logo">US Mission Hero</span>
+          <div className="powered-by" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '12px' }}>
+            <img src={usmhLogo} alt="US Mission Hero logo" style={{ height: '32px', width: 'auto', objectFit: 'contain' }} />
+            <span>Powered by <span className="usmh-logo">US Mission Hero</span></span>
           </div>
         </footer>
       </div>

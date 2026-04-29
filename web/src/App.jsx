@@ -7,6 +7,7 @@ import ClientPortal from './components/ClientPortal';
 import AdminDashboard from './components/AdminDashboard';
 import GoogleCallback from './components/GoogleCallback';
 import ThemeToggle from './components/ThemeToggle';
+import usmhLogo from './assets/usmh-logo.png';
 import './App.css';
 
 function App() {
@@ -57,8 +58,9 @@ function App() {
                 <span className="badge">Pet Tech CPR Certified</span>
                 <span className="badge">First-Aid Trained</span>
               </div>
-              <div className="usmh-attribution" style={{ marginTop: '24px', fontSize: '0.8rem', opacity: 0.7 }}>
-                Powered by <strong>US Mission Hero</strong>
+              <div className="usmh-attribution" style={{ marginTop: '24px', fontSize: '0.8rem', opacity: 0.7, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <img src={usmhLogo} alt="US Mission Hero logo" style={{ height: '24px', width: 'auto', objectFit: 'contain' }} />
+                <span>Powered by <strong>US Mission Hero</strong></span>
               </div>
             </div>
             <div className="footer-links">
