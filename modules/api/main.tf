@@ -708,8 +708,9 @@ locals {
     "admin_staff_resend" : aws_api_gateway_resource.admin_staff_resend.id,
     "admin_clients" : aws_api_gateway_resource.admin_clients.id,
     "admin_client_id" : aws_api_gateway_resource.admin_client_id.id,
-    "admin_client_disable" : aws_api_gateway_resource.admin_client_disable.id
-
+    "admin_client_disable" : aws_api_gateway_resource.admin_client_disable.id,
+    "client_requests" : aws_api_gateway_resource.client_requests.id,
+    "client_pets" : aws_api_gateway_resource.client_pets.id
   }
 
 
@@ -848,10 +849,15 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.admin_pets,
       aws_api_gateway_resource.admin_pet_id,
       aws_api_gateway_resource.client_cancel,
+      aws_api_gateway_resource.client_requests,
+      aws_api_gateway_resource.client_pets,
       aws_api_gateway_resource.admin_cancel_decision,
       aws_api_gateway_resource.admin_staff,
       aws_api_gateway_resource.admin_staff_id,
       aws_api_gateway_method.post_admin_requests,
+      aws_api_gateway_method.get_client_requests,
+      aws_api_gateway_method.post_client_requests,
+      aws_api_gateway_method.get_client_pets,
 
 
       aws_api_gateway_method.options,
