@@ -7,6 +7,7 @@ from common.response import success, bad_request, internal_error, not_found
 from common.status import RequestStatus, is_valid_transition
 from common.google_calendar import sync_calendar_event
 from common.email import send_transactional_email, get_approval_email_body, get_rejection_email_body
+from common.audit import log_action
 
 def handler(event, context):
     try:
@@ -190,6 +191,17 @@ def handler(event, context):
                 UpdateExpression=update_expr,
                 ExpressionAttributeNames=expr_attr_names,
                 ExpressionAttributeValues=expr_attr_vals
+            )
+            
+            # Audit log
+            log_action(
+                event, 
+                f"REVIEW_{new_status}", 
+                f"REQ#{request_id}", 
+                f"CLIENT#{client_id}", 
+                previous_status=current_status, 
+                new_status=new_status,
+                metadata={"client_name": request_item.get('client_name'), "pet_names": request_item.get('pet_names')}
             )
             
             # Also update the Job record if it exists

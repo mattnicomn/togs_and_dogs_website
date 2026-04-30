@@ -6,6 +6,7 @@ from common.db import get_item, update_status, update_item, table
 from common.response import success, error, bad_request, internal_error
 from common.status import RequestStatus, is_valid_transition
 from common.google_calendar import delete_event
+from common.audit import log_action
 
 # SNS client
 sns = boto3.client('sns')
@@ -149,6 +150,18 @@ def handle_admin_decision(body, event):
                 ":empty_list": []
             }
         )
+        
+        # Audit log
+        log_action(
+            event, 
+            f"CANCEL_DECISION_{decision}", 
+            f"REQ#{request_id}", 
+            f"CLIENT#{client_id}", 
+            previous_status=item.get('status'), 
+            new_status=new_status,
+            metadata={"client_name": item.get('client_name'), "pet_names": item.get('pet_names'), "decision": decision, "note": note}
+        )
+        
         success_db = True
     except Exception as e:
         print(f"Error updating cancellation decision: {e}")

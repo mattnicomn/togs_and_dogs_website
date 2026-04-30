@@ -5,6 +5,8 @@ from datetime import datetime
 from common.db import query_by_status, get_item, update_status
 from common.response import success, bad_request, internal_error, not_found, error
 from common.auth import get_effective_role, sanitize_booking_for_role, get_claims
+from common.audit import log_action
+import uuid
 
 
 
@@ -1176,6 +1178,7 @@ def handler(event, context):
                 if role not in ['owner', 'admin']:
                     return error(403, "Forbidden: Only owners and admins can permanently delete records", event)
 
+                bulk_op_id = str(uuid.uuid4()) if 'records' in body else None
                 records_to_purge = []
                 if 'records' in body:
                     records_to_purge = body.get('records', [])
@@ -1238,21 +1241,25 @@ def handler(event, context):
                     if not current_item:
                         failed_count += 1
                         failures.append({"record": f"{item_pk}/{item_sk}", "reason": "Record not found"})
+                        log_action(event, 'PURGE_FAILED', item_pk, item_sk, success=False, failure_reason="Record not found", bulk_op_id=bulk_op_id)
                         continue
 
                     current_status = (current_item.get('status') or '').upper()
                     if current_status != 'DELETED':
                         skipped_count += 1
                         failures.append({"record": f"{item_pk}/{item_sk}", "reason": f"Record status is {current_status}, not DELETED"})
+                        log_action(event, 'PURGE_REJECTED', item_pk, item_sk, previous_status=current_status, success=False, failure_reason=f"Status is {current_status}", bulk_op_id=bulk_op_id)
                         continue
 
                     try:
                         _table.delete_item(Key={'PK': item_pk, 'SK': item_sk})
                         deleted_count += 1
                         print(f"PURGE COMPLETE: [{item_pk}] permanently deleted by {user_email}")
+                        log_action(event, 'PURGE', item_pk, item_sk, previous_status=current_status, bulk_op_id=bulk_op_id, metadata={"client_name": current_item.get('client_name'), "pet_names": current_item.get('pet_names')})
                     except Exception as e:
                         failed_count += 1
                         failures.append({"record": f"{item_pk}/{item_sk}", "reason": str(e)})
+                        log_action(event, 'PURGE_FAILED', item_pk, item_sk, previous_status=current_status, success=False, failure_reason=str(e), bulk_op_id=bulk_op_id)
 
                 if 'records' in body:
                     return success({
@@ -1288,7 +1295,12 @@ def handler(event, context):
 
             if new_status:
                 from datetime import timezone
+                # Get current record for metadata
+                current_item = get_item(pk, sk)
+                prev_status = current_item.get('status') if current_item else 'unknown'
+                
                 if update_status(pk, sk, new_status, {"action": f"ADMIN_{action}", "timestamp": datetime.now(timezone.utc).isoformat()}):
+                    log_action(event, action, pk, sk, previous_status=prev_status, new_status=new_status, metadata={"client_name": current_item.get('client_name') if current_item else None, "pet_names": current_item.get('pet_names') if current_item else None})
                     return success({"message": f"Record status update to {new_status} success", "status": new_status}, event)
 
             return bad_request(f"Unsupported action: {action}. Please use ARCHIVE, DELETE, PURGE, or a valid terminal status.", event)
