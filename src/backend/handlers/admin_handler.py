@@ -190,7 +190,6 @@ def handler(event, context):
                     return error(409, f"Active staff with display_name {display_name} already exists", event)
 
                     
-            import uuid
             staff_id = f"staff_{str(uuid.uuid4())[:8]}"
             
             new_profile = {
@@ -293,7 +292,6 @@ def handler(event, context):
                         cognito_sub = attr.get('Value')
                         break
                         
-                import uuid
                 staff_id = f"staff_{str(uuid.uuid4())[:8]}"
                 
                 new_profile = {
@@ -373,7 +371,6 @@ def handler(event, context):
                             items_table.put_item(Item=target_profile)
                             return success(target_profile, event)
                         else:
-                            import uuid
                             staff_id = f"staff_{str(uuid.uuid4())[:8]}"
                             
                             new_profile = {
@@ -856,7 +853,6 @@ def handler(event, context):
                     if (c.get('email') or '').lower() == email and c.get('is_active') == True:
                         return error(409, f"Active client with email {email} already exists", event)
                         
-                import uuid
                 client_id = f"client_{str(uuid.uuid4())[:8]}"
                 
                 new_profile = {
