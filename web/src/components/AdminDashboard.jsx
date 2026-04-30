@@ -1483,18 +1483,17 @@ const AdminDashboard = () => {
                 )}
 
                 {staffLinkPrompt && (
-                  <div style={{ gridColumn: 'span 2', backgroundColor: '#fff3e0', padding: '16px', borderRadius: '8px', border: '1px solid #ffe0b2', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <p style={{ margin: 0, color: 'var(--text-primary)' }}>
+                  <div className="existing-user-warning">
+                    <p className="existing-user-warning-title">
                       <strong>Cognito user already exists with this email ({staffLinkPrompt.email}).</strong>
                     </p>
-                    <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)' }}>
+                    <p className="existing-user-warning-body">
                       A login account already exists for this email. You can link it to this staff profile instead.
                     </p>
-                    <div style={{ display: 'flex', gap: '12px' }}>
+                    <div className="existing-user-actions">
                       <button 
                         type="button" 
-                        className="button-primary" 
-                        style={{ padding: '8px 16px', backgroundColor: 'var(--accent-orange)' }}
+                        className="link-existing-user-button" 
                         disabled={isSavingStaff}
                         onClick={async () => {
                           try {
@@ -1525,8 +1524,7 @@ const AdminDashboard = () => {
                       </button>
                       <button 
                         type="button" 
-                        className="button-secondary" 
-                        style={{ padding: '8px 16px' }}
+                        className="existing-user-cancel-button" 
                         onClick={() => setStaffLinkPrompt(null)}
                       >
                         Cancel
