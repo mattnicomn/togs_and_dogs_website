@@ -70,6 +70,13 @@ const AdminDashboard = () => {
   const [purgeModal, setPurgeModal] = useState(null); // { item } — confirmation before permanent delete
   const [purgeConfirmText, setPurgeConfirmText] = useState('');
   const [isBulkPurging, setIsBulkPurging] = useState(false);
+  
+  const capabilities = {
+    canViewScheduler: ['owner', 'admin', 'staff'].includes(role),
+    canViewRequestList: ['owner', 'admin'].includes(role),
+    canManageStaff: ['owner', 'admin'].includes(role),
+    canManageClients: ['owner', 'admin'].includes(role),
+  };
 
   const showNotification = (message, type = 'info') => {
     setNotification({ message, type });
@@ -234,6 +241,8 @@ const AdminDashboard = () => {
           setRole(userRole);
           fetchAllData();
           fetchGoogleStatus();
+        } else if (userRole === 'client') {
+          window.location.href = '/my-bookings';
         } else {
           setError("Access denied. You do not have permission to view the Staff Portal.");
           setIsAuthenticated(false);
@@ -243,6 +252,12 @@ const AdminDashboard = () => {
       console.error("Auth check failed", err);
     }
   };
+
+  useEffect(() => {
+    if (role === 'staff' && view !== 'SCHEDULER') {
+      setView('SCHEDULER');
+    }
+  }, [role, view]);
 
 
   const handleLogin = async (e) => {
@@ -267,6 +282,8 @@ const AdminDashboard = () => {
         setRole(userRole);
         fetchAllData();
         fetchGoogleStatus();
+      } else if (userRole === 'client') {
+        window.location.href = '/my-bookings';
       } else {
         setError("Access denied. Insufficient permissions.");
         setIsAuthenticated(false);
@@ -1185,16 +1202,18 @@ const AdminDashboard = () => {
         <div className="header-left">
           <h1>Tog and Dogs Admin</h1>
           <nav className="view-selector">
-            <button className={view === 'SCHEDULER' ? 'active' : ''} onClick={() => { setView('SCHEDULER'); setStatusFilter('ALL'); }}>Scheduler</button>
-            <button className={view === 'LIST' ? 'active' : ''} onClick={() => setView('LIST')}>Request List</button>
-            {['owner', 'admin'].includes(role) && (
+            {capabilities.canViewScheduler && (
+              <button className={view === 'SCHEDULER' ? 'active' : ''} onClick={() => { setView('SCHEDULER'); setStatusFilter('ALL'); }}>Scheduler</button>
+            )}
+            {capabilities.canViewRequestList && (
+              <button className={view === 'LIST' ? 'active' : ''} onClick={() => setView('LIST')}>Request List</button>
+            )}
+            {capabilities.canManageStaff && (
               <button className={view === 'STAFF_MGMT' ? 'active' : ''} onClick={() => setView('STAFF_MGMT')}>Staff Management</button>
             )}
-            {['owner', 'admin'].includes(role) && (
+            {capabilities.canManageClients && (
               <button className={view === 'CLIENT_MGMT' ? 'active' : ''} onClick={() => setView('CLIENT_MGMT')}>Client Management</button>
             )}
-
-
           </nav>
         </div>
         <div className="header-right">

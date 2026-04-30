@@ -61,7 +61,7 @@ def handler(event, context):
         
         if http_method == 'GET' and (path == '/admin/staff' or path.endswith('/admin/staff')):
             role = get_effective_role(event)
-            if role not in ['owner', 'admin', 'staff']:
+            if role not in ['owner', 'admin']:
                 return error(403, "Forbidden", event)
                 
             from common.auth import get_current_company_id
@@ -732,7 +732,7 @@ def handler(event, context):
             role = get_effective_role(event)
             # GET /admin/clients
             if http_method == 'GET':
-                if role not in ['owner', 'admin', 'staff']:
+                if role not in ['owner', 'admin']:
                     return error(403, "Forbidden", event)
                 
                 from common.auth import get_current_company_id
@@ -1122,8 +1122,8 @@ def handler(event, context):
 
             # INDEXED QUERY: Specific Status
             role = get_effective_role(event)
-            if role not in ['owner', 'admin', 'staff']:
-                return error(403, "Forbidden: Clients cannot query arbitrary statuses", event)
+            if role not in ['owner', 'admin']:
+                return error(403, "Forbidden: Only owners and admins can query specific workflow statuses", event)
                 
             from common.auth import get_current_company_id
             company_id = get_current_company_id(event)
