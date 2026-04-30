@@ -12,7 +12,9 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
   const staffPalette = {};
   if (staffList && staffList.length > 0) {
     staffList.forEach(s => {
-      staffPalette[s.display_name] = s.assignment_color || `var(--staff-${s.display_name.toLowerCase()})`;
+      const color = s.assignment_color || `var(--staff-${(s.display_name || 'unknown').toLowerCase()})`;
+      if (s.email) staffPalette[s.email] = color;
+      if (s.display_name) staffPalette[s.display_name] = color;
     });
   } else {
     staffPalette['Ryan'] = 'var(--staff-ryan)';
@@ -104,8 +106,10 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
           <label>Staff</label>
           <select value={filters.staff} onChange={(e) => setFilters({...filters, staff: e.target.value})}>
             <option value="ALL">All Staff</option>
-            {Object.keys(staffPalette).filter(k=>k!=='Unassigned').map(name => (
-              <option key={name} value={name}>{name}</option>
+            {staffList.map(s => (
+              <option key={s.email || s.display_name} value={s.email || s.display_name}>
+                {s.display_name}
+              </option>
             ))}
             <option value="">Unassigned</option>
           </select>
@@ -166,7 +170,11 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
                   <div className="visit-meta">
                     <span className="visit-time">{job.start_date}</span>
                     <span className="visit-staff" style={{ color: getWorkerColor(job.worker_id) }}>
-                      {job.worker_id ? `Assigned to ${job.worker_id}` : '⚠️ UNASSIGNED'}
+                      {(() => {
+                        if (!job.worker_id) return '⚠️ UNASSIGNED';
+                        const resolved = staffList.find(s => (s.email || s.display_name) === job.worker_id);
+                        return `Assigned to ${resolved ? resolved.display_name : job.worker_id}`;
+                      })()}
                     </span>
                   </div>
                 </div>

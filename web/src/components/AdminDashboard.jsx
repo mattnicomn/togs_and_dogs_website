@@ -25,6 +25,8 @@ const AdminDashboard = () => {
   const [challengeContext, setChallengeContext] = useState(null);
   const [googleStatus, setGoogleStatus] = useState(null);
   const [staffList, setStaffList] = useState([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [staffError, setStaffError] = useState(null);
   const [editingStaffId, setEditingStaffId] = useState(null);
   const [staffLinkPrompt, setStaffLinkPrompt] = useState(null);
   const [staffForm, setStaffForm] = useState({
@@ -323,10 +325,15 @@ const AdminDashboard = () => {
 
   const fetchStaffData = async () => {
     try {
+      setStaffLoading(true);
+      setStaffError(null);
       const data = await getStaff();
       setStaffList(data.staff || []);
     } catch (err) {
       console.error("Failed to fetch staff list:", err);
+      setStaffError(err.message || "Failed to load staff");
+    } finally {
+      setStaffLoading(false);
     }
   };
 
@@ -989,7 +996,11 @@ const AdminDashboard = () => {
 
     try {
       setLoading(true);
-      await assignWorker(jobId || reqId, reqId, clientId, workerId);
+      // Resolve staff name for better tracking/GCal
+      const staff = staffList.find(s => (s.email || s.display_name) === workerId);
+      const workerName = staff ? staff.display_name : workerId;
+
+      await assignWorker(jobId || reqId, reqId, clientId, workerId, workerName);
       setAssigningId(null);
       fetchAllData();
     } catch (err) {
@@ -1975,12 +1986,24 @@ const AdminDashboard = () => {
                                     className="staff-select"
                                     onChange={(e) => handleAssignAction(item, e.target.value)}
                                     onBlur={() => setAssigningId(null)}
+                                    disabled={staffLoading}
                                   >
-                                    <option value="">Select Staff...</option>
-                                    {staffList.filter(s => !s.is_virtual && s.is_assignable !== false && s.is_active !== false).map(s => (
-                                      <option key={s.display_name} value={s.display_name}>{s.display_name}</option>
-                                    ))}
-
+                                    {staffLoading ? (
+                                      <option>Loading staff...</option>
+                                    ) : staffError ? (
+                                      <option>Error loading staff</option>
+                                    ) : staffList.length === 0 ? (
+                                      <option>No staff users found</option>
+                                    ) : (
+                                      <>
+                                        <option value="">Select Staff...</option>
+                                        {staffList.filter(s => s.is_assignable !== false && s.is_active !== false).map(s => (
+                                          <option key={s.email || s.display_name} value={s.email || s.display_name}>
+                                            {s.display_name} {s.email ? `<${s.email}>` : ''}
+                                          </option>
+                                        ))}
+                                      </>
+                                    )}
                                   </select>
                                 ) : (
                                   <button 
@@ -2002,7 +2025,8 @@ const AdminDashboard = () => {
                               </div>
                             );
                           }
-                          return item.worker_id || '---';
+                          const resolvedName = staffList.find(s => (s.email || s.display_name) === item.worker_id)?.display_name || item.worker_id;
+                          return resolvedName || '---';
                         })()}
                       </td>
                       <td>

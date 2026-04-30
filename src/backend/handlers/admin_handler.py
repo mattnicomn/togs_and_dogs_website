@@ -146,7 +146,7 @@ def handler(event, context):
                     "email": cu_email,
                     "cognito_sub": cu_sub,
                     "is_active": cu.get('Enabled', True),
-                    "is_assignable": False,
+                    "is_assignable": True, # Virtual staff are now assignable by default
                     "assignment_color": 'var(--staff-ryan)',
                     "cognito_status": cu.get('UserStatus'),
                     "is_virtual": True
@@ -1087,7 +1087,12 @@ def handler(event, context):
                 filter_expressions.append("(company_id = :cid OR attribute_not_exists(company_id))")
                 expression_values[":cid"] = company_id
 
-                if not is_admin and user_email:
+                if role == 'staff' and user_email:
+                    # Staff only see jobs assigned to them
+                    filter_expressions.append("worker_id = :wid")
+                    expression_values[":wid"] = user_email
+                elif not is_admin and user_email:
+                    # Clients only see their own records
                     filter_expressions.append("client_email = :email")
                     expression_values[":email"] = user_email
                 
