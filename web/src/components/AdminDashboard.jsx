@@ -612,13 +612,13 @@ const AdminDashboard = () => {
     };
 
     const targetStatus = statusMap[action] || action;
-    const isLifecycleAction = ['ARCHIVED', 'DELETED', 'COMPLETED', 'CANCELLED'].includes(targetStatus.toUpperCase());
+    const isLifecycleAction = ['ARCHIVED', 'DELETED'].includes(targetStatus.toUpperCase());
     
     if (isLifecycleAction && req.PK && req.SK) {
-      // Direct record update for terminal states
+      // Direct record update for terminal record-management states (Archive/Trash)
       return performAdminAction(req.PK, req.SK, targetStatus === 'DELETED' ? 'DELETE' : (targetStatus === 'ARCHIVED' ? 'ARCHIVE' : targetStatus));
     } else {
-      // Workflow transition update
+      // Workflow transition update — uses reviewRequest to trigger side effects (emails, jobs, etc.)
       const { reqId, clientId } = resolveIds(req);
       if (!reqId || !clientId) throw new Error("Missing IDs for transition");
       return reviewRequest(reqId, clientId, targetStatus, note);
@@ -1892,16 +1892,19 @@ const AdminDashboard = () => {
                       className="staff-select bulk-select"
                     >
                       <option value="">Choose status...</option>
-                      <option value="PENDING_REVIEW">Requested / Intake</option>
+                      <option value="PENDING_REVIEW">Pending Review</option>
+                      <option value="PROFILE_CREATED">Profile Created</option>
                       <option value="READY_FOR_APPROVAL">New Request</option>
+                      <option value="MEET_GREET_REQUIRED">M&G Required</option>
+                      <option value="VERIFY_MG">M&G Completed</option>
                       <option value="QUOTED">Quoted</option>
                       <option value="APPROVED">Approved</option>
                       <option value="ASSIGNED">Scheduled</option>
-                      <option value="IN_PROGRESS">In Progress</option>
                       <option value="COMPLETED">Completed</option>
                       <option value="CANCELLED">Cancelled</option>
+                      <option value="DECLINED">Declined</option>
                       <option value="ARCHIVED">Archived</option>
-                      <option value="DELETE">Move to Trash / Deleted</option>
+                      <option value="DELETE">Move to Trash</option>
                       <option value="REOPEN_PENDING">Restore to Active</option>
                     </select>
                     <button 

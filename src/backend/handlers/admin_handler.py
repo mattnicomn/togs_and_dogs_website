@@ -1282,7 +1282,7 @@ def handler(event, context):
                 new_status = 'ARCHIVED'
             elif action == 'DELETE':
                 new_status = 'DELETED'
-            elif action in ['COMPLETED', 'CANCELLED', 'ASSIGNED', 'APPROVED', 'PENDING_REVIEW']:
+            elif action in ['COMPLETED', 'CANCELLED', 'ASSIGNED', 'APPROVED', 'PENDING_REVIEW', 'DECLINED', 'PROFILE_CREATED', 'READY_FOR_APPROVAL', 'QUOTED', 'MG_COMPLETED']:
                 # Support direct status mapping for canonical record updates
                 new_status = action
 
