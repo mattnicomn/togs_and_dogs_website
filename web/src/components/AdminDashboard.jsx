@@ -526,6 +526,16 @@ const AdminDashboard = () => {
         if (isActiveFilter && statusFilter !== 'ALL') {
           items = items.filter(r => {
             const stat = (r.status || '').toUpperCase();
+            if (statusFilter === 'NEEDS_ACTION') {
+              return (
+                stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' ||
+                stat === 'MEET_GREET_REQUIRED' || stat === 'NEEDS_MG' ||
+                stat === 'QUOTE_NEEDED' ||
+                stat === 'APPROVED' || stat === 'BOOKED' ||
+                stat === 'CANCELLATION_REQUESTED'
+              );
+            }
+            if (statusFilter === 'READY_FOR_APPROVAL') return stat === 'READY_FOR_APPROVAL' || stat === 'NEW_REQUEST';
             if (statusFilter === 'MEET_GREET_REQUIRED') return stat === 'MEET_GREET_REQUIRED' || stat === 'NEEDS_MG';
             if (statusFilter === 'QUOTED') return stat === 'QUOTED' || stat === 'QUOTE_SENT';
             if (statusFilter === 'ASSIGNED') return stat === 'ASSIGNED' || stat === 'SCHEDULED';
@@ -1050,7 +1060,7 @@ const AdminDashboard = () => {
 
     return (
       <div className="admin-stats-grid">
-        <div className="stat-card" onClick={() => { setView('LIST'); setStatusFilter('PENDING_REVIEW'); }}>
+        <div className="stat-card" onClick={() => { setView('LIST'); setStatusFilter('NEEDS_ACTION'); }}>
           <span className="label">Intake Queue</span>
           <span className="value">{stats.intake}</span>
           <span className="trend neutral">New registrations</span>
@@ -1208,27 +1218,62 @@ const AdminDashboard = () => {
             <div className="filter-group">
               <h4>Quick Filters</h4>
               {[
-                { id: 'PENDING_REVIEW', label: 'Needs Review' },
+                { id: 'NEEDS_ACTION', label: 'Needs Action' },
+                { id: 'READY_FOR_APPROVAL', label: 'New' },
                 { id: 'MEET_GREET_REQUIRED', label: 'Needs M&G' },
-                { id: 'MG_COMPLETED', label: 'M&G Completed' },
-                { id: 'READY_FOR_APPROVAL', label: 'New Requests' },
-                { id: 'QUOTE_NEEDED', label: 'Quote Needed' },
                 { id: 'QUOTED', label: 'Quoted' },
                 { id: 'APPROVED', label: 'Approved' },
                 { id: 'ASSIGNED', label: 'Scheduled' },
                 { id: 'COMPLETED', label: 'Completed' },
-                { id: 'CANCELLED', label: 'Cancelled' },
-                { id: 'ARCHIVED', label: 'Archived' },
-                { id: 'DELETED', label: 'Trash / Deleted' },
                 { id: 'ALL', label: 'All Active' }
               ].map(f => {
                 const count = f.id === 'ALL' 
                   ? requests.filter(r => !['COMPLETED', 'ARCHIVED', 'DELETED', 'CANCELLED', 'DECLINED'].includes((r.status || '').toUpperCase())).length
+                  : f.id === 'NEEDS_ACTION'
+                  ? requests.filter(r => {
+                      const stat = (r.status || '').toUpperCase();
+                      return (
+                        stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' ||
+                        stat === 'MEET_GREET_REQUIRED' || stat === 'NEEDS_MG' ||
+                        stat === 'QUOTE_NEEDED' ||
+                        stat === 'APPROVED' || stat === 'BOOKED' ||
+                        stat === 'CANCELLATION_REQUESTED'
+                      );
+                    }).length
                   : requests.filter(r => (r.status || '').toUpperCase() === f.id || 
+                      (f.id === 'READY_FOR_APPROVAL' && (r.status || '').toUpperCase() === 'NEW_REQUEST') ||
                       (f.id === 'MEET_GREET_REQUIRED' && (r.status || '').toUpperCase() === 'NEEDS_MG') ||
                       (f.id === 'QUOTED' && (r.status || '').toUpperCase() === 'QUOTE_SENT') ||
                       (f.id === 'ASSIGNED' && (r.status || '').toUpperCase() === 'SCHEDULED')
                     ).length;
+                return (
+                  <button 
+                    key={f.id}
+                    className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
+                    onClick={() => setStatusFilter(f.id)}
+                  >
+                    {f.label} <span className="filter-count" style={{ float: 'right', opacity: 0.7, fontSize: '11px', fontWeight: 'bold' }}>({count})</span>
+                  </button>
+                );
+              })}
+
+            </div>
+          )}
+
+          {view === 'LIST' && (
+            <div className="filter-group">
+              <h4>Closed / History</h4>
+              {[
+                { id: 'CANCELLED', label: 'Cancelled' },
+                { id: 'ARCHIVED', label: 'Archived' },
+                { id: 'DELETED', label: 'Trash / Deleted' }
+              ].map(f => {
+                const count = requests.filter(r => {
+                  const stat = (r.status || '').toUpperCase();
+                  if (f.id === 'ARCHIVED') return stat === 'ARCHIVED' || stat === 'ARCHIVE';
+                  if (f.id === 'DELETED') return stat === 'DELETED' || stat === 'TRASH';
+                  return stat === f.id;
+                }).length;
                 return (
                   <button 
                     key={f.id}
@@ -1795,11 +1840,9 @@ const AdminDashboard = () => {
               <div className="list-header-bar">
                 <h2>Request List — {(() => {
                   const filter = [
-                    { id: 'PENDING_REVIEW', label: 'Needs Review' },
+                    { id: 'NEEDS_ACTION', label: 'Needs Action' },
+                    { id: 'READY_FOR_APPROVAL', label: 'New' },
                     { id: 'MEET_GREET_REQUIRED', label: 'Needs M&G' },
-                    { id: 'MG_COMPLETED', label: 'M&G Completed' },
-                    { id: 'READY_FOR_APPROVAL', label: 'New Requests' },
-                    { id: 'QUOTE_NEEDED', label: 'Quote Needed' },
                     { id: 'QUOTED', label: 'Quoted' },
                     { id: 'APPROVED', label: 'Approved' },
                     { id: 'ASSIGNED', label: 'Scheduled' },
