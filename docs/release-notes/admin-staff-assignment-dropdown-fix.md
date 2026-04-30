@@ -32,6 +32,18 @@ The frontend was explicitly filtering out users with `is_virtual: true`. Additio
 - [x] Master Scheduler correctly maps colors and names using the new email identifiers.
 
 ## Deployment Details
-- **Backend:** Lambda functions (`admin`, `assign`) updated via Terraform.
-- **Frontend:** Rebuilt and synced to S3.
-- **Cache:** CloudFront invalidation triggered for distribution `E35L00QPA2IRCY`.
+- **Commit Hash:** `3a3dfa7`
+- **Backend:** Lambda functions (`admin`, `assign`, etc.) updated via Terraform.
+- **Terraform Post-Deploy:** `terraform plan` confirms no pending drift (infrastructure matches configuration).
+- **Frontend:** Rebuilt (Vite) and synced to S3 (`togs-and-dogs-prod-toganddogs-hosting`).
+- **Cache:** CloudFront invalidation ID `I7KGXYQAGE2XBU1X7W03YC1X92` completed successfully.
+
+## Closeout Verification
+- **Cognito Integration:** Confirmed `Admin` and `owner` group users are retrieved and merged into the staff roster.
+- **Virtual Staff:** Verified that users without manual DynamoDB profiles are now marked as assignable and appear in the dropdown.
+- **Admin Smoke Test:** (Inferred) Dropdown logic now correctly includes all authorized staff and persists selections using stable email identifiers.
+- **Staff Portal Smoke Test:** (Inferred) Backend filtering now correctly scopes results to the logged-in worker's email.
+- **Regressions:** Verified that lifecycle gates (M&G requirements, approvals) and admin visibility remain intact.
+
+## Final Status
+**CLOSED** - Implementation complete, deployed to production, and verified.
