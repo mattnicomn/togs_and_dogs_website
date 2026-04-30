@@ -120,7 +120,7 @@ const AdminDashboard = () => {
     if (s === 'CANCELLED') return "Cancelled";
     if (s === 'ARCHIVED' || s === 'ARCHIVE') return "Archived";
     if (s === 'DELETED' || s === 'DELETE' || s === 'TRASH') return "Deleted";
-    return s || "Unknown";
+    return s || "Unknown / Status Missing";
   };
 
   /**
@@ -167,7 +167,7 @@ const AdminDashboard = () => {
     switch (status) {
       case 'PENDING_REVIEW':
       case 'NEEDS_REVIEW':
-        state.actions = ["CREATE_PROFILE", "MEET_GREET", "APPROVE", "CANCEL"];
+        state.actions = ["CREATE_PROFILE", "MEET_GREET", "APPROVE", "CANCEL", "DELETE"];
         break;
       case 'PROFILE_CREATED':
         state.actions = ["MOVE_TO_NEW_REQUEST", "MEET_GREET", "QUOTE", "APPROVE", "CANCEL", "EDIT_PET"];
@@ -1971,8 +1971,14 @@ const AdminDashboard = () => {
                       </td>
                       <td onClick={() => handleSelectPet(item)} className="clickable-cell">
                         <div className="info-stack">
-                          <span className="bold">{item.pet_names || item.pet_name || '---'} ({item.client_name})</span>
-                          <span className="micro-text">{item.service_type}</span>
+                          <span className="bold">
+                            {(!item.pet_names && !item.pet_name && !item.client_name) ? (
+                              <span style={{ color: 'var(--error-color)', fontWeight: 'bold' }}>⚠️ MALFORMED RECORD</span>
+                            ) : (
+                              `${item.pet_names || item.pet_name || '---'} (${item.client_name || 'No Client Name'})`
+                            )}
+                          </span>
+                          <span className="micro-text">{item.service_type || 'Unknown Service'}</span>
                         </div>
                       </td>
                       <td>

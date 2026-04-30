@@ -100,7 +100,7 @@ def handler(event, context):
             print(f"ERROR: Request {request_id} (Client {client_id}) not found.")
             return not_found(f"Request {request_id} not found", event)
  
-        current_status = request_item.get('status')
+        current_status = request_item.get('status') or 'PENDING_REVIEW'
         print(f"INFO: [Req:{request_id}] Transition attempt: {current_status} -> {new_status}")
         
         # 2. Validate transition

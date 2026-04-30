@@ -17,6 +17,7 @@ def handler(event, context):
         client_name = body.get('client_name')
         client_email = body.get('client_email')
         start_date = body.get('start_date')
+        pet_names = body.get('pet_names')
         
         # --- CLIENT BOUNDARY: Auto-resolve identity if submitted via /client/requests ---
         from common.auth import get_effective_role, resolve_client_identity, get_claims
@@ -31,8 +32,8 @@ def handler(event, context):
                 client_email = claims.get('email') or client_email
                 # Note: We still might need client_name from the body if the token lacks it.
         
-        if not (client_name and client_email and start_date):
-            return bad_request("Missing required fields: client_name, client_email, start_date", event)
+        if not (client_name and client_email and start_date and pet_names):
+            return bad_request("Missing required fields: client_name, client_email, start_date, pet_names", event)
 
         client_email = client_email.lower().strip()
 
