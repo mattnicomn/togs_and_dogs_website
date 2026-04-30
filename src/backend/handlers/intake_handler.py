@@ -32,8 +32,17 @@ def handler(event, context):
                 client_email = claims.get('email') or client_email
                 # Note: We still might need client_name from the body if the token lacks it.
         
-        if not (client_name and client_email and start_date and pet_names):
-            return bad_request("Missing required fields: client_name, client_email, start_date, pet_names", event)
+        # Basic validation for required fields (non-empty, non-whitespace)
+        required_fields = {
+            'client_name': client_name,
+            'client_email': client_email,
+            'start_date': start_date,
+            'pet_names': pet_names
+        }
+        
+        missing = [k for k, v in required_fields.items() if not v or (isinstance(v, str) and not v.strip())]
+        if missing:
+            return bad_request(f"Missing or invalid required fields: {', '.join(missing)}", event)
 
         client_email = client_email.lower().strip()
 
