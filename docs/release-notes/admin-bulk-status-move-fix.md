@@ -51,8 +51,16 @@ The bulk dropdown now includes:
   - ID: `I2KXGD62JQMOWO3R84PCI0ZQB2`
   - Status: InProgress (Check status via AWS CLI)
 
-## Validation Results
-- Verified dropdown includes all 13 intended statuses.
-- Verified bulk move to Archived/Deleted clears from All Active.
-- Verified Restore to Active moves records back to Intake.
-- Verified business workflow routing to `review_handler` for side-effect safety.
+## Final Closeout Verification (2026-04-30)
+- **Final Commit Hash:** `7a310c4`
+- **Terraform Plan:** `No changes` (Matches configuration).
+- **CloudFront Invalidation:** `I2KXGD62JQMOWO3R84PCI0ZQB2` (Status: Completed).
+- **Canonical Status Verification:** 
+  - Verified `DELETED` and `MG_COMPLETED` are correctly mapped and used.
+  - Pseudo-status `VERIFY_MEET_GREET` is used for M&G completion to ensure client metadata sync.
+- **Production Smoke Test Results:**
+  - Bulk dropdown labels verified: All 13 labels match quick filters.
+  - Transitions verified: Active → Archived → Trash → Restore → Approved.
+  - Side effects verified: Approval path correctly triggers job creation and notifications.
+  - Staff assignment and Portal visibility verified: No regressions.
+- **Final Status:** CLOSED
