@@ -516,6 +516,31 @@ const AdminDashboard = () => {
     setRequests([]);
   };
 
+  const isDataIssue = (item) => {
+    if (!item) return false;
+    const status = (item.status || "").toUpperCase();
+    const petNames = item.pet_names || item.pet_name || "";
+    const clientName = item.client_name || "";
+    
+    const knownStatuses = [
+      'PENDING_REVIEW', 'NEEDS_REVIEW', 'READY_FOR_APPROVAL', 'NEW_REQUEST',
+      'MEET_GREET_REQUIRED', 'NEEDS_MG', 'VERIFY_MEET_GREET', 'MG_SCHEDULED',
+      'QUOTE_NEEDED', 'QUOTED', 'QUOTE_SENT', 'APPROVED', 'BOOKED',
+      'ASSIGNED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED',
+      'REJECTED', 'DECLINED', 'DENIED', 'ARCHIVED', 'ARCHIVE', 'DELETED', 'TRASH',
+      'PROFILE_CREATED', 'CANCELLATION_REQUESTED', 'CANCELLATION_DENIED'
+    ];
+
+    return (
+      !status || 
+      status === "UNKNOWN" || 
+      !petNames.trim() || 
+      !clientName.trim() ||
+      (petNames === "---" && clientName === "No Client Name") ||
+      !knownStatuses.includes(status)
+    );
+  };
+
   const fetchAllData = async (startKey = null) => {
     try {
       setLoading(true);
@@ -550,6 +575,7 @@ const AdminDashboard = () => {
         if (isActiveFilter && statusFilter !== 'ALL') {
           items = items.filter(r => {
             const stat = (r.status || '').toUpperCase();
+            if (statusFilter === 'DATA_ISSUES') return isDataIssue(r);
             if (statusFilter === 'NEEDS_ACTION') {
               return (
                 stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' ||
@@ -1255,10 +1281,13 @@ const AdminDashboard = () => {
                 { id: 'APPROVED', label: 'Approved' },
                 { id: 'ASSIGNED', label: 'Scheduled' },
                 { id: 'COMPLETED', label: 'Completed' },
-                { id: 'ALL', label: 'All Active' }
+                { id: 'ALL', label: 'All Active' },
+                ...(capabilities.canViewRequestList ? [{ id: 'DATA_ISSUES', label: '⚠️ Data Issues' }] : [])
               ].map(f => {
                 const count = f.id === 'ALL' 
                   ? requests.filter(r => !['COMPLETED', 'ARCHIVED', 'DELETED', 'CANCELLED', 'DECLINED'].includes((r.status || '').toUpperCase())).length
+                  : f.id === 'DATA_ISSUES'
+                  ? requests.filter(r => isDataIssue(r)).length
                   : f.id === 'NEEDS_ACTION'
                   ? requests.filter(r => {
                       const stat = (r.status || '').toUpperCase();
@@ -2115,6 +2144,13 @@ const AdminDashboard = () => {
                       </td>
                     </tr>
                   ))}
+                  {requests.length === 0 && (
+                    <tr>
+                      <td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                        {statusFilter === 'DATA_ISSUES' ? 'No data issue records found.' : 'No records found matching this filter.'}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
 
