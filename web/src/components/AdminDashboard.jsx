@@ -8,6 +8,7 @@ import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiat
 
 import MasterScheduler from './MasterScheduler';
 import CareCard from './CareCard';
+import UserProfile from './UserProfile';
 import '../Admin.css';
 
 
@@ -1243,7 +1244,7 @@ const AdminDashboard = () => {
           </nav>
         </div>
         <div className="header-right">
-          <button onClick={handleLogout} className="button-secondary">Logout Staff</button>
+          <UserProfile />
         </div>
       </header>
 

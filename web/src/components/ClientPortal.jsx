@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getSession, signIn, getEffectiveRole } from '../api/auth';
 
 import { getClientRequests, requestCancellation } from '../api/client';
+import UserProfile from './UserProfile';
 
 import '../Portal.css';
 
@@ -154,13 +155,16 @@ const ClientPortal = () => {
           <h1>My Bookings</h1>
           <p className="subtitle">View and manage your pet sitting schedule.</p>
         </div>
-        <button 
-          onClick={() => window.location.href = '/intake'} 
-          className="button-primary"
-          style={{ padding: '10px 20px', borderRadius: '8px' }}
-        >
-          + New Request
-        </button>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <button 
+            onClick={() => window.location.href = '/intake'} 
+            className="button-primary"
+            style={{ padding: '10px 20px', borderRadius: '8px' }}
+          >
+            + New Request
+          </button>
+          <UserProfile />
+        </div>
       </div>
 
       <div className="bookings-list">
