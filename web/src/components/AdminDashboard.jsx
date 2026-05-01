@@ -73,6 +73,7 @@ const AdminDashboard = () => {
   const [purgeModal, setPurgeModal] = useState(null); // { item } — confirmation before permanent delete
   const [purgeConfirmText, setPurgeConfirmText] = useState('');
   const [isBulkPurging, setIsBulkPurging] = useState(false);
+  const [workflowDropdownOpen, setWorkflowDropdownOpen] = useState(false);
   
   const capabilities = {
     canViewScheduler: ['owner', 'admin', 'staff'].includes(role),
@@ -231,6 +232,51 @@ const AdminDashboard = () => {
     }
 
     return state;
+  };
+
+  const getGuidedActions = (item) => {
+    const { actions } = getWorkflowState(item);
+    const status = (item.status || 'PENDING_REVIEW').toUpperCase();
+    
+    // Define primary action candidates per status
+    const primaryMapping = {
+      'PENDING_REVIEW': 'CREATE_PROFILE',
+      'NEEDS_REVIEW': 'CREATE_PROFILE',
+      'PROFILE_CREATED': (item.meet_and_greet_required !== false) ? 'MEET_GREET' : 'APPROVE',
+      'MEET_GREET_REQUIRED': 'VERIFY_MG',
+      'NEEDS_MG': 'VERIFY_MG',
+      'MG_SCHEDULED': 'VERIFY_MG',
+      'MG_COMPLETED': 'APPROVE',
+      'QUOTE_NEEDED': 'QUOTED',
+      'QUOTE_SENT': 'APPROVE',
+      'QUOTED': 'APPROVE',
+      'READY_FOR_APPROVAL': 'APPROVE',
+      'NEW_REQUEST': 'APPROVE',
+      'APPROVED': 'ASSIGN',
+      'BOOKED': 'ASSIGN',
+      'JOB_CREATED': 'ASSIGN',
+      'ASSIGNED': 'COMPLETE',
+      'SCHEDULED': 'COMPLETE',
+      'IN_PROGRESS': 'COMPLETE',
+      'COMPLETED': 'ARCHIVE',
+      'CANCELLED': 'REOPEN_PENDING',
+      'DECLINED': 'ARCHIVE',
+      'ARCHIVED': 'REOPEN_PENDING',
+      'DELETED': 'REOPEN_PENDING'
+    };
+
+    let primary = primaryMapping[status];
+    if (typeof primary === 'function') primary = primary(item);
+
+    // Filter out actions that aren't allowed by getWorkflowState
+    if (primary && !actions.includes(primary)) {
+        // Fallback if the recommended primary isn't allowed
+        primary = null;
+    }
+
+    const secondary = actions.filter(a => a !== primary && !['EDIT_PET', 'ASSIGN', 'CHANGE_WORKER', 'PURGE_FOREVER'].includes(a));
+    
+    return { primary, secondary };
   };
 
   // Operational States
@@ -2227,49 +2273,87 @@ const AdminDashboard = () => {
               />
             </div>
 
-            <div className="modal-footer">
-              <button onClick={() => { setDecisionModal(null); setModalError(null); }} className="btn-secondary">Cancel</button>
+            <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
+              <button 
+                onClick={() => { setDecisionModal(null); setModalError(null); setWorkflowDropdownOpen(false); }} 
+                className="btn-secondary"
+              >
+                Close
+              </button>
               
               {decisionModal.type === 'APPROVE' ? (
                 <button onClick={submitDecision} className="btn-small success">Approve & Notify</button>
               ) : decisionModal.type === 'DECLINE' ? (
                 <button onClick={submitDecision} className="btn-small danger">Decline & Notify</button>
               ) : decisionModal.type === 'WORKFLOW_REVIEW' ? (
-                <div className="workflow-actions-row">
-                  {getWorkflowState(decisionModal.item).actions.map(action => {
-                    if (action === 'EDIT_PET' || action === 'ASSIGN' || action === 'CHANGE_WORKER' || action === 'PURGE_FOREVER') return null;
-                    
+                <div className="workflow-guided-actions" style={{ display: 'flex', gap: '12px', alignItems: 'center', position: 'relative' }}>
+                  {(() => {
+                    const { primary, secondary } = getGuidedActions(decisionModal.item);
                     const labels = {
                       'APPROVE': 'Approve', 'QUOTE': 'Quote Needed', 'QUOTED': 'Mark Quoted',
-                      'CANCEL': 'Cancel', 'VERIFY_MG': 'Mark M&G Complete',
+                      'CANCEL': 'Cancel Request', 'VERIFY_MG': 'Mark M&G Complete',
                       'REVERT_TO_APPROVED': 'Back to Approved', 'COMPLETE': 'Complete',
                       'REOPEN': 'Reopen', 'REOPEN_PENDING': 'Restore to Active',
                       'ARCHIVE': 'Archive', 'CREATE_PROFILE': 'Create Profile',
                       'MOVE_TO_NEW_REQUEST': 'To New Request', 'DELETE': 'Move to Trash',
                       'MEET_GREET': 'Require Meet & Greet', 'MG_SCHEDULED': 'M&G Scheduled'
                     };
-                    
+
                     const getButtonClass = (act) => {
                       if (act === 'DELETE' || act === 'CANCEL') return 'btn-small danger';
                       if (['APPROVE', 'VERIFY_MG', 'QUOTED'].includes(act)) return 'btn-small success';
                       if (['QUOTE', 'MEET_GREET', 'MG_SCHEDULED'].includes(act)) return 'btn-small highlight';
                       return 'btn-small primary';
                     };
-                    
+
                     return (
-                      <button 
-                        key={action}
-                        onClick={() => {
-                          onReviewAction(decisionModal.item, action, adminNote);
-                          setDecisionModal(null);
-                        }} 
-                        className={getButtonClass(action)}
-                        style={{ marginRight: '8px', marginBottom: '8px' }}
-                      >
-                        {labels[action] || action}
-                      </button>
+                      <>
+                        {secondary.length > 0 && (
+                          <div className="secondary-actions-wrapper" style={{ position: 'relative' }}>
+                            <button 
+                              className="btn-secondary btn-small"
+                              onClick={() => setWorkflowDropdownOpen(!workflowDropdownOpen)}
+                              aria-haspopup="true"
+                              aria-expanded={workflowDropdownOpen}
+                            >
+                              More Actions ▾
+                            </button>
+                            {workflowDropdownOpen && (
+                              <div className="action-dropdown-menu card shadow-lg" style={{ bottom: '100%', top: 'auto', marginBottom: '8px' }}>
+                                {secondary.map(action => (
+                                  <button
+                                    key={action}
+                                    className={`dropdown-item ${['DELETE', 'CANCEL'].includes(action) ? 'dangerous' : ''}`}
+                                    onClick={() => {
+                                      onReviewAction(decisionModal.item, action, adminNote);
+                                      setDecisionModal(null);
+                                      setWorkflowDropdownOpen(false);
+                                    }}
+                                  >
+                                    {labels[action] || action}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {primary && (
+                          <button 
+                            key={primary}
+                            onClick={() => {
+                              onReviewAction(decisionModal.item, primary, adminNote);
+                              setDecisionModal(null);
+                              setWorkflowDropdownOpen(false);
+                            }} 
+                            className={getButtonClass(primary)}
+                          >
+                            {labels[primary] || primary}
+                          </button>
+                        )}
+                      </>
                     );
-                  })}
+                  })()}
                 </div>
               ) : null}
             </div>
