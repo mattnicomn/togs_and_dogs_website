@@ -110,6 +110,16 @@ def handler(event, context):
 
             # Sync to Google Calendar
             google_event_id = item.get('google_event_id')
+            
+            # Fallback: Check the Request record if it's missing from the Job record (e.g. due to race condition during creation)
+            if not google_event_id:
+                print(f"INFO: [Req:{req_id}] google_event_id missing from Job record, checking Request record.")
+                request_rec = get_item(f"REQ#{req_id}", f"CLIENT#{client_id}")
+                if request_rec:
+                    google_event_id = request_rec.get('google_event_id')
+                    if google_event_id:
+                        print(f"INFO: [Req:{req_id}] Found google_event_id in Request record: {google_event_id}")
+            
             sync_warning = None
             try:
                 new_event_id = sync_calendar_event(item, google_event_id=google_event_id, assigned_worker=worker_name)

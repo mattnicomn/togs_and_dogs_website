@@ -79,7 +79,7 @@ def handler(event, context):
             'service_type': request_item.get('service_type'),
             'start_date': request_item.get('start_date'),
             'pet_info': request_item.get('pet_info'),
-            'google_event_id': request_item.get('google_event_id'),
+            'google_event_id': event.get('google_event_id') or request_item.get('google_event_id'),
             'status': JobStatus.JOB_CREATED.value,
             'created_at': datetime.now(timezone.utc).isoformat(),
             'entity_type': 'JOB',

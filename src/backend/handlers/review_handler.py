@@ -230,13 +230,40 @@ def handler(event, context):
 
             # 5. Trigger Job Creation Lambda if APPROVED
             if new_status == 'APPROVED':
+                # 5. Trigger Google Calendar Sync
+                # IMPORTANT: Sync before Job creation so the Job record can inherit the google_event_id
+                event_id_to_pass = request_item.get('google_event_id')
+                try:
+                    print(f"INFO: [Req:{request_id}] Attempting Google Calendar sync (Status: APPROVED)")
+                    
+                    # Sync with existing ID if present to ensure idempotency
+                    new_event_id = sync_calendar_event(request_item, google_event_id=event_id_to_pass)
+                    
+                    if new_event_id and new_event_id != event_id_to_pass:
+                        # Persist the event ID back to the Request record
+                        table.update_item(
+                            Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                            UpdateExpression="SET google_event_id = :gid",
+                            ExpressionAttributeValues={":gid": new_event_id}
+                        )
+                        print(f"INFO: [Req:{request_id}] Persisted new google_event_id: {new_event_id}")
+                        event_id_to_pass = new_event_id
+                    elif new_event_id:
+                        print(f"INFO: [Req:{request_id}] Google Calendar event updated (ID: {new_event_id})")
+                        
+                except Exception as sync_err:
+                    # Graceful failure: Log but don't block the response
+                    print(f"WARNING: [Req:{request_id}] Google Calendar sync failed during approval: {sync_err}")
+
+                # 6. Trigger Job Creation Lambda
                 try:
                     lambda_client = boto3.client('lambda')
                     job_fn_name = os.environ.get('JOB_FUNCTION_NAME')
                     if job_fn_name:
                         payload = {
                             "request_id": request_id,
-                            "client_id": client_id
+                            "client_id": client_id,
+                            "google_event_id": event_id_to_pass
                         }
                         lambda_client.invoke(
                             FunctionName=job_fn_name,
@@ -246,29 +273,6 @@ def handler(event, context):
                         print(f"INFO: [Req:{request_id}] Triggered Job creation (Lambda: {job_fn_name})")
                 except Exception as invoke_err:
                     print(f"ERROR: [Req:{request_id}] Failed to trigger job creation: {invoke_err}")
-
-                # Trigger Google Calendar Sync
-                try:
-                    existing_event_id = request_item.get('google_event_id')
-                    print(f"INFO: [Req:{request_id}] Attempting Google Calendar sync (Status: APPROVED)")
-                    
-                    # Sync with existing ID if present to ensure idempotency
-                    new_event_id = sync_calendar_event(request_item, google_event_id=existing_event_id)
-                    
-                    if new_event_id and new_event_id != existing_event_id:
-                        # Persist the event ID back to the Request record
-                        table.update_item(
-                            Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
-                            UpdateExpression="SET google_event_id = :gid",
-                            ExpressionAttributeValues={":gid": new_event_id}
-                        )
-                        print(f"INFO: [Req:{request_id}] Persisted new google_event_id: {new_event_id}")
-                    elif new_event_id:
-                        print(f"INFO: [Req:{request_id}] Google Calendar event updated (ID: {new_event_id})")
-                        
-                except Exception as sync_err:
-                    # Graceful failure: Log but don't block the response
-                    print(f"WARNING: [Req:{request_id}] Google Calendar sync failed during approval: {sync_err}")
 
             # 6. Send Customer Email (APPROVAL or REJECTION)
             if new_status in ['APPROVED', 'DECLINED']:
