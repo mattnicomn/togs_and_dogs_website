@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { signIn, getSession, getEffectiveRole } from '../api/auth';
 
 import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, getClients, createClient, updateClient, disableClient } from '../api/client';
@@ -14,6 +14,8 @@ import '../Admin.css';
 
 const AdminDashboard = () => {
   const [requests, setRequests] = useState([]);
+  const [allRequests, setAllRequests] = useState([]); // Raw pool for sidebar counts
+  const [openMenuId, setOpenMenuId] = useState(null); // Track which row's action menu is open
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -78,6 +80,16 @@ const AdminDashboard = () => {
     canManageStaff: ['owner', 'admin'].includes(role),
     canManageClients: ['owner', 'admin'].includes(role),
   };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openMenuId && !event.target.closest('.action-menu-container')) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openMenuId]);
 
   const showNotification = (message, type = 'info') => {
     setNotification({ message, type });
@@ -564,7 +576,20 @@ const AdminDashboard = () => {
           data = await getAdminRequests(queryStatus, startKey, timeframeFilter);
         }
 
-        let items = data.requests || [];
+        let rawItems = data.requests || [];
+        
+        // Merge into the global pool for stable sidebar counts
+        setAllRequests(prev => {
+          const combined = [...prev];
+          rawItems.forEach(newItem => {
+            const index = combined.findIndex(ex => ex.PK === newItem.PK);
+            if (index >= 0) combined[index] = newItem;
+            else combined.push(newItem);
+          });
+          return combined;
+        });
+
+        let items = [...rawItems];
 
         if (isActiveFilter && statusFilter !== 'ALL') {
           items = items.filter(r => {
@@ -1279,11 +1304,11 @@ const AdminDashboard = () => {
                 ...(capabilities.canViewRequestList ? [{ id: 'DATA_ISSUES', label: '⚠️ Data Issues' }] : [])
               ].map(f => {
                 const count = f.id === 'ALL' 
-                  ? requests.filter(r => !['COMPLETED', 'ARCHIVED', 'DELETED', 'CANCELLED', 'DECLINED'].includes((r.status || '').toUpperCase())).length
+                  ? allRequests.filter(r => !['COMPLETED', 'ARCHIVED', 'DELETED', 'CANCELLED', 'DECLINED'].includes((r.status || '').toUpperCase())).length
                   : f.id === 'DATA_ISSUES'
-                  ? requests.filter(r => isDataIssue(r)).length
+                  ? allRequests.filter(r => isDataIssue(r)).length
                   : f.id === 'NEEDS_ACTION'
-                  ? requests.filter(r => {
+                  ? allRequests.filter(r => {
                       const stat = (r.status || '').toUpperCase();
                       return (
                         stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' ||
@@ -1293,7 +1318,7 @@ const AdminDashboard = () => {
                         stat === 'CANCELLATION_REQUESTED'
                       );
                     }).length
-                  : requests.filter(r => (r.status || '').toUpperCase() === f.id || 
+                  : allRequests.filter(r => (r.status || '').toUpperCase() === f.id || 
                       (f.id === 'READY_FOR_APPROVAL' && (r.status || '').toUpperCase() === 'NEW_REQUEST') ||
                       (f.id === 'MEET_GREET_REQUIRED' && (r.status || '').toUpperCase() === 'NEEDS_MG') ||
                       (f.id === 'QUOTED' && (r.status || '').toUpperCase() === 'QUOTE_SENT') ||
@@ -1321,7 +1346,7 @@ const AdminDashboard = () => {
                 { id: 'ARCHIVED', label: 'Archived' },
                 { id: 'DELETED', label: 'Trash / Deleted' }
               ].map(f => {
-                const count = requests.filter(r => {
+                const count = allRequests.filter(r => {
                   const stat = (r.status || '').toUpperCase();
                   if (f.id === 'ARCHIVED') return stat === 'ARCHIVED' || stat === 'ARCHIVE';
                   if (f.id === 'DELETED') return stat === 'DELETED' || stat === 'TRASH';
@@ -2079,61 +2104,73 @@ const AdminDashboard = () => {
                         })()}
                       </td>
                       <td>
-                        <div className="btn-group-vertical">
-                           {(() => {
-                             const state = getWorkflowState(item);
-                             return state.actions.map(action => {
-                               if (action === 'EDIT_PET') return null; // Handled by row click
-                               if (action === 'ASSIGN' || action === 'CHANGE_WORKER') return null; // Handled in Staff column
+                        <div className="action-menu-container">
+                          <button 
+                            className="button-secondary btn-small dropdown-trigger" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId(openMenuId === item.PK ? null : item.PK);
+                            }}
+                            aria-haspopup="true"
+                            aria-expanded={openMenuId === item.PK}
+                            aria-label="Request actions"
+                          >
+                            Actions <span className="chevron">▾</span>
+                          </button>
+                          
+                          {openMenuId === item.PK && (
+                            <div className="action-dropdown-menu card shadow-lg">
+                               {(() => {
+                                 const state = getWorkflowState(item);
+                                 const availableActions = state.actions.filter(a => !['EDIT_PET', 'ASSIGN', 'CHANGE_WORKER'].includes(a));
+                                 
+                                 if (availableActions.length === 0) {
+                                   return <div className="dropdown-item empty">No actions available</div>;
+                                 }
 
-                               // PURGE_FOREVER: intercept here — do NOT route through onReviewAction
-                               if (action === 'PURGE_FOREVER') {
-                                 return (
-                                   <button
-                                     key="PURGE_FOREVER"
-                                     onClick={() => setPurgeModal({ item })}
-                                     className="btn-micro purge"
-                                     title="Permanently delete this record — cannot be undone"
-                                   >
-                                     Delete Permanently
-                                   </button>
-                                 );
-                               }
-                               
-                               const labels = {
-                                 'APPROVE': 'Approve',
-                                 'QUOTE': 'Quote',
-                                 'QUOTED': 'Mark Quoted',
-                                 'CANCEL': 'Cancel',
-                                 'VERIFY_MG': 'Verify M&G',
-                                 'REVERT_TO_APPROVED': 'Back to Approved',
-                                 'COMPLETE': 'Complete',
-                                 'REOPEN': 'Reopen',
-                                 'REOPEN_PENDING': 'Restore to Active',
-                                 'ARCHIVE': 'Archive',
-                                 'CREATE_PROFILE': 'Create Profile',
-                                 'MOVE_TO_NEW_REQUEST': 'To New Request',
-                                 'DELETE': 'Move to Trash'
-                               };
-
-                               
-                               const getButtonClass = (act) => {
-                                 if (act === 'DELETE' || act === 'CANCEL') return 'btn-micro urgent';
-                                 if (['APPROVE', 'REOPEN', 'REOPEN_PENDING', 'COMPLETE', 'VERIFY_MG'].includes(act)) return 'btn-micro highlight';
-                                 return 'btn-micro';
-                               };
-                               
-                               return (
-                                 <button 
-                                   key={action}
-                                   onClick={() => onReviewAction(item, action)} 
-                                   className={getButtonClass(action)}
-                                 >
-                                   {labels[action] || action}
-                                 </button>
-                               );
-                             });
-                           })()}
+                                 return availableActions.map(action => {
+                                   // PURGE_FOREVER: distinct logic
+                                   if (action === 'PURGE_FOREVER') {
+                                     return (
+                                       <button
+                                         key="PURGE_FOREVER"
+                                         onClick={(e) => { e.stopPropagation(); setPurgeModal({ item }); setOpenMenuId(null); }}
+                                         className="dropdown-item dangerous"
+                                         title="Permanently delete this record — cannot be undone"
+                                       >
+                                         Delete Permanently
+                                       </button>
+                                     );
+                                   }
+                                   
+                                   const labels = {
+                                     'APPROVE': 'Approve', 'QUOTE': 'Quote', 'QUOTED': 'Mark Quoted',
+                                     'CANCEL': 'Cancel Request', 'VERIFY_MG': 'Verify M&G',
+                                     'REVERT_TO_APPROVED': 'Back to Approved', 'COMPLETE': 'Complete',
+                                     'REOPEN': 'Reopen', 'REOPEN_PENDING': 'Restore to Active',
+                                     'ARCHIVE': 'Archive', 'CREATE_PROFILE': 'Create Profile',
+                                     'MOVE_TO_NEW_REQUEST': 'To New Request', 'DELETE': 'Move to Trash'
+                                   };
+                                   
+                                   const isDangerous = ['DELETE', 'CANCEL'].includes(action);
+                                   
+                                   return (
+                                     <button 
+                                       key={action}
+                                       onClick={(e) => { 
+                                         e.stopPropagation(); 
+                                         onReviewAction(item, action); 
+                                         setOpenMenuId(null); 
+                                       }} 
+                                       className={`dropdown-item ${isDangerous ? 'dangerous' : ''}`}
+                                     >
+                                       {labels[action] || action}
+                                     </button>
+                                   );
+                                 });
+                               })()}
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
