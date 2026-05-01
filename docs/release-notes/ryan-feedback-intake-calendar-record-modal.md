@@ -57,5 +57,30 @@
 - **Frontend**: Vite build synced to `togs-and-dogs-prod-toganddogs-hosting` S3 bucket.
 - **Invalidation**: `/*` path invalidated on distribution `E35L00QPA2IRCY`.
 
+## Final Closeout Verification (2026-05-01)
+
+### 1. Repository & Deployment
+- **Latest Commit**: `60720cf`
+- **CloudFront Invalidation (`ICGNCCAR7U6O0KCGGSVNYJDCDM`)**: **COMPLETED**. Verification performed via production URL, confirming the propagation of the new tabbed UI and intake form changes.
+- **Git Status**: Working tree clean; pushed to `origin/main`.
+
+### 2. Production Smoke Test Results
+- **Public Intake**: "Specific Time Requests" successfully removed. Form submission validated with test record "Buddy (Verification Test)".
+- **Admin Record Modal**: Tabbed interface (7 sections) verified on live production environment.
+- **UX**: Status actions and profile creation buttons are consistently visible and functional across all tabs.
+
+### 3. Cognito & Security Verification
+- **Invitation Logic**: `admin_handler.py` updated to set `DesiredDeliveryMediums=["EMAIL"]`.
+- **SMS Requirements**: Stripped all phone-related attributes from Cognito creation to prevent errors in non-SMS configured environments. Invitations now deliver reliably via email only.
+
+### 4. Google Calendar Sync Test
+- **Test Case**: Buddy (Verification Test).
+- **Configuration**: Scheduled for 2026-05-05 at 14:00 (2:00 PM) for 60 minutes.
+- **Payload Logic**: Confirmed `google_calendar.py` uses `start.dateTime` and `end.dateTime` with `America/New_York` timezone.
+- **Trigger**: Confirmed sync triggers correctly upon staff assignment.
+
+## Remaining Risks & Blockers
+- **None**: All targeted production feedback items are resolved and verified in the live environment.
+
 ---
 *For questions regarding this deployment, contact the dev team or refer to the DECISIONS_LOG.md.*
