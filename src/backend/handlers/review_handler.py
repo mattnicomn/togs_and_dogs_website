@@ -247,6 +247,29 @@ def handler(event, context):
                 except Exception as invoke_err:
                     print(f"ERROR: [Req:{request_id}] Failed to trigger job creation: {invoke_err}")
 
+                # Trigger Google Calendar Sync
+                try:
+                    existing_event_id = request_item.get('google_event_id')
+                    print(f"INFO: [Req:{request_id}] Attempting Google Calendar sync (Status: APPROVED)")
+                    
+                    # Sync with existing ID if present to ensure idempotency
+                    new_event_id = sync_calendar_event(request_item, google_event_id=existing_event_id)
+                    
+                    if new_event_id and new_event_id != existing_event_id:
+                        # Persist the event ID back to the Request record
+                        table.update_item(
+                            Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                            UpdateExpression="SET google_event_id = :gid",
+                            ExpressionAttributeValues={":gid": new_event_id}
+                        )
+                        print(f"INFO: [Req:{request_id}] Persisted new google_event_id: {new_event_id}")
+                    elif new_event_id:
+                        print(f"INFO: [Req:{request_id}] Google Calendar event updated (ID: {new_event_id})")
+                        
+                except Exception as sync_err:
+                    # Graceful failure: Log but don't block the response
+                    print(f"WARNING: [Req:{request_id}] Google Calendar sync failed during approval: {sync_err}")
+
             # 6. Send Customer Email (APPROVAL or REJECTION)
             if new_status in ['APPROVED', 'DECLINED']:
                 client_name = request_item.get('client_name', 'Client')
