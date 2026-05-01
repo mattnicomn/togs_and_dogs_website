@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { signIn, signOut, getSession, getEffectiveRole } from '../api/auth';
+import { signIn, getSession, getEffectiveRole } from '../api/auth';
 
 import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, getClients, createClient, updateClient, disableClient } from '../api/client';
 
@@ -509,13 +509,6 @@ const AdminDashboard = () => {
   };
 
 
-  const handleLogout = () => {
-    signOut();
-
-
-    setIsAuthenticated(false);
-    setRequests([]);
-  };
 
   const isDataIssue = (item) => {
     if (!item) return false;
