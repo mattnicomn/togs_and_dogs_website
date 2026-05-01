@@ -275,7 +275,7 @@ def handler(event, context):
                         {'Name': 'email', 'Value': email},
                         {'Name': 'email_verified', 'Value': 'true'},
                     ],
-                    DesiredDeliveryMediums=['EMAIL'] if body.get('send_invite', True) else []
+                    DesiredDeliveryMediums=['EMAIL']
                 )
                 
                 # Assign to Cognito group
@@ -523,7 +523,8 @@ def handler(event, context):
                 cognito.admin_create_user(
                     UserPoolId=user_pool_id,
                     Username=username,
-                    MessageAction='RESEND'
+                    MessageAction='RESEND',
+                    DesiredDeliveryMediums=['EMAIL']
                 )
                 return success({"message": "Invite resent successfully"}, event)
                 

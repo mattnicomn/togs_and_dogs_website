@@ -108,7 +108,7 @@ def _get_valid_token(request_id="UNKNOWN"):
     return _refresh_access_token(tokens, request_id)
 
 def _build_event_body(item, assigned_worker=None):
-    """Internal: Builds Google Calendar event resource."""
+    """Internal: Builds Google Calendar event resource with exact timing support."""
     client_name = item.get('client_name', 'Unknown')
     pet_name = item.get('pet_names', 'Unknown Pet')
     service_type = item.get('service_type', 'Service')
@@ -116,29 +116,57 @@ def _build_event_body(item, assigned_worker=None):
     # Title format: Tog and Dogs - {Pet/Customer Name} - {Service Type}
     summary = f"Tog and Dogs - {pet_name} / {client_name} - {service_type}"
     
-    preferred_time = item.get('preferred_time', 'Not Specified')
+    scheduled_time = item.get('scheduled_time')
+    scheduled_date = item.get('scheduled_date') or item.get('start_date')
+    duration_mins = int(item.get('scheduled_duration') or 60)
     
     description = (
         f"Client: {client_name}\n"
         f"Pet: {pet_name}\n"
         f"Service: {service_type}\n"
         f"Assigned Staff: {assigned_worker or 'Not Assigned'}\n"
-        f"Service Window: {preferred_time}\n"
+        f"Scheduled Time: {scheduled_time or 'All Day'}\n"
         f"Request ID: {item.get('request_id', 'N/A')}\n\n"
         f"Notes: {item.get('pet_info', 'None')}"
     )
 
-    # Use all-day event format for now since we rely on preferred_time in description
-    date_str = item.get('start_date')
-    if not date_str:
+    timezone = 'America/New_York'
+
+    if scheduled_time and scheduled_date:
+        # Exact timing
+        try:
+            # Combine date and time
+            start_dt_str = f"{scheduled_date}T{scheduled_time}:00"
+            start_dt = datetime.fromisoformat(start_dt_str)
+            
+            from datetime import timedelta
+            end_dt = start_dt + timedelta(minutes=duration_mins)
+            
+            return {
+                'summary': summary,
+                'description': description,
+                'start': { 
+                    'dateTime': start_dt.isoformat(),
+                    'timeZone': timezone
+                },
+                'end': { 
+                    'dateTime': end_dt.isoformat(),
+                    'timeZone': timezone
+                }
+            }
+        except Exception as e:
+            print(f"WARNING: Failed to parse exact timing ({scheduled_date} {scheduled_time}), falling back to all-day: {e}")
+
+    # Fallback to all-day event
+    if not scheduled_date:
         from datetime import datetime
-        date_str = datetime.now().strftime('%Y-%m-%d')
+        scheduled_date = datetime.now().strftime('%Y-%m-%d')
         
     return {
         'summary': summary,
         'description': description,
-        'start': { 'date': date_str },
-        'end': { 'date': date_str }
+        'start': { 'date': scheduled_date },
+        'end': { 'date': scheduled_date }
     }
 
 def sync_calendar_event(item, google_event_id=None, assigned_worker=None):

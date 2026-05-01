@@ -208,15 +208,6 @@ const IntakeForm = () => {
                       <option value="ANYTIME">Anytime (Flexible)</option>
                     </select>
                   </div>
-                  <div className="field">
-                    <label>Specific Time Requests</label>
-                    <input 
-                      type="text" 
-                      value={formData.preferred_time} 
-                      onChange={(e) => setFormData({...formData, preferred_time: e.target.value})} 
-                      placeholder="e.g. Exactly 12:30 PM"
-                    />
-                  </div>
                 </div>
 
                 <div className="form-actions">
