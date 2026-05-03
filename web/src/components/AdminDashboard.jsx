@@ -101,6 +101,16 @@ const AdminDashboard = () => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 5000);
   };
+
+  const isProtectedProfile = (staff) => {
+    if (!staff) return false;
+    return PROTECTED_SUBS.includes(staff.cognito_sub) || PROTECTED_EMAILS.includes(staff.email);
+  };
+
+  const isSelf = (staff) => {
+    if (!staff || !currentUser) return false;
+    return staff.cognito_sub === currentUser.sub || staff.email === currentUser.email;
+  };
   
   const getStatusClass = (status = "") => {
     const s = (status || "").toUpperCase();
