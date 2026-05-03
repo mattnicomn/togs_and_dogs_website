@@ -362,9 +362,19 @@ def handler(event, context):
                                     "profile": target_profile
                                 }, event)
                                 
+                            # Update existing profile with new Cognito link AND form values
                             target_profile['cognito_sub'] = cognito_sub
                             target_profile['cognito_status'] = cog_user.get('UserStatus')
                             target_profile['updated_at'] = datetime.utcnow().isoformat()
+                            
+                            # Preserve form values during link
+                            if 'display_name' in body: target_profile['display_name'] = body['display_name']
+                            if 'role' in body: target_profile['role'] = body['role']
+                            if 'phone' in body: target_profile['phone'] = body['phone']
+                            if 'notes' in body: target_profile['notes'] = body['notes']
+                            if 'is_assignable' in body: target_profile['is_assignable'] = body['is_assignable']
+                            if 'assignment_color' in body: target_profile['assignment_color'] = body['assignment_color']
+                            
                             if not target_profile.get('email'):
                                 target_profile['email'] = email
                             
@@ -473,12 +483,18 @@ def handler(event, context):
                 except Exception as group_err:
                     print(f"Warn: Add to group failed during manual link: {group_err}")
 
-                # Update profile
+                # Update profile with link AND any provided form values
                 staff_profile['cognito_sub'] = cognito_sub
                 if email:
                     staff_profile['email'] = email
                 staff_profile['cognito_status'] = cog_user.get('UserStatus')
                 staff_profile['updated_at'] = datetime.utcnow().isoformat()
+                
+                # Apply other form values if present
+                if 'display_name' in body: staff_profile['display_name'] = body['display_name']
+                if 'role' in body: staff_profile['role'] = body['role']
+                if 'phone' in body: staff_profile['phone'] = body['phone']
+                if 'is_assignable' in body: staff_profile['is_assignable'] = body['is_assignable']
                 
                 items_table.put_item(Item=staff_profile)
                 return success(staff_profile, event)
@@ -725,8 +741,102 @@ def handler(event, context):
                         
                 staff_profile['updated_at'] = datetime.utcnow().isoformat()
                 items_table.put_item(Item=staff_profile)
-                return success(staff_profile, event)
+                
+                # Best-effort Cognito Sync
+                warnings = []
+                if staff_profile.get('cognito_sub') or staff_profile.get('email'):
+                    import boto3
+                    import re
+                    cognito = boto3.client('cognito-idp')
+                    user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
+                    username = staff_profile.get('email') or staff_profile.get('cognito_sub')
+                    
+                    attributes_to_sync = []
+                    if 'display_name' in body:
+                        attributes_to_sync.append({'Name': 'name', 'Value': body['display_name']})
+                    
+                    if 'phone' in body:
+                        phone = body['phone'].strip()
+                        # Simple E.164 check: must start with + followed by digits
+                        if re.match(r'^\+\d{1,15}$', phone):
+                            attributes_to_sync.append({'Name': 'phone_number', 'Value': phone})
+                        elif phone:
+                            warnings.append(f"Cognito phone sync skipped: {phone} is not in E.164 format (+1...)")
+                            
+                    if attributes_to_sync:
+                        try:
+                            cognito.admin_update_user_attributes(
+                                UserPoolId=user_pool_id,
+                                Username=username,
+                                UserAttributes=attributes_to_sync
+                            )
+                        except Exception as cog_err:
+                            print(f"Cognito attribute sync failed: {cog_err}")
+                            warnings.append(f"Cognito sync failed: {str(cog_err)}")
 
+                resp_body = staff_profile
+                if warnings:
+                    resp_body['_warnings'] = warnings
+                    
+                return success(resp_body, event)
+
+
+
+        # --- Account Security Routes ---
+        if http_method == 'POST' and ('/reset-password' in path or '/set-temp-password' in path):
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin']:
+                return error(403, "Forbidden", event)
+                
+            staff_id = path_params.get('staff_id')
+            if not staff_id:
+                staff_id = path.split('/')[-2]
+                
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
+            from common.db import table as items_table
+            
+            resp = items_table.get_item(Key={"PK": f"COMPANY#{company_id}", "SK": f"STAFF#{staff_id}"})
+            staff_profile = resp.get('Item')
+            if not staff_profile:
+                return not_found(f"Staff profile {staff_id} not found", event)
+                
+            username = staff_profile.get('email') or staff_profile.get('cognito_sub') or staff_profile.get('cognito_username')
+            if not username:
+                return bad_request("Staff profile is not linked to a Cognito user", event)
+                
+            import boto3
+            cognito = boto3.client('cognito-idp')
+            user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
+            
+            try:
+                if '/reset-password' in path:
+                    cognito.admin_reset_user_password(
+                        UserPoolId=user_pool_id,
+                        Username=username
+                    )
+                    return success({"message": "Password reset triggered. User will receive an email."}, event)
+                    
+                elif '/set-temp-password' in path:
+                    try:
+                        body = json.loads(event.get('body', '{}'))
+                    except: body = {}
+                    
+                    temp_password = body.get('password')
+                    if not temp_password:
+                        return bad_request("password is required for set-temp-password", event)
+                        
+                    cognito.admin_set_user_password(
+                        UserPoolId=user_pool_id,
+                        Username=username,
+                        Password=temp_password,
+                        Permanent=False # Force change on next login
+                    )
+                    return success({"message": "Temporary password set successfully. User must change it on next login."}, event)
+                    
+            except Exception as e:
+                print(f"Cognito security action error: {e}")
+                return internal_error(str(e), event)
 
         if path == '/admin/clients' or path.endswith('/admin/clients'):
             role = get_effective_role(event)

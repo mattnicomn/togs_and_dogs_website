@@ -75,6 +75,8 @@ export const disableStaff = (staffId, data = null) => request(`/admin/staff/${st
 export const onboardStaff = (data) => request('/admin/staff/onboard', 'POST', data, true);
 export const linkCognitoUser = (staffId, data) => request(`/admin/staff/${staffId}/link-cognito`, 'POST', data, true);
 export const resendInvite = (staffId) => request(`/admin/staff/${staffId}/resend-invite`, 'POST', null, true);
+export const resetStaffPassword = (staffId) => request(`/admin/staff/${staffId}/reset-password`, 'POST', null, true);
+export const setStaffTempPassword = (staffId, password) => request(`/admin/staff/${staffId}/set-temp-password`, 'POST', { password }, true);
 
 export const getClients = () => request('/admin/clients', 'GET', null, true);
 export const createClient = (data) => request('/admin/clients', 'POST', data, true);

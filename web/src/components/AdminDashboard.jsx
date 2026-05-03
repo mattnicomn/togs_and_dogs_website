@@ -437,8 +437,12 @@ const AdminDashboard = () => {
     setIsSavingStaff(true);
     try {
       if (editingStaffId) {
-        await updateStaff(editingStaffId, staffForm);
-        showNotification("Staff updated successfully", "success");
+        const resp = await updateStaff(editingStaffId, staffForm);
+        if (resp && resp._warnings && resp._warnings.length > 0) {
+          showNotification("Profile saved, but " + resp._warnings.join(", "), "info");
+        } else {
+          showNotification("Staff updated successfully", "success");
+        }
       } else {
         if (staffForm.creation_mode === 'onboard') {
           await onboardStaff(staffForm);
@@ -1683,22 +1687,59 @@ const AdminDashboard = () => {
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
                       {s.cognito_sub ? (
-                        ['FORCE_CHANGE_PASSWORD', 'UNCONFIRMED'].includes(s.cognito_status) && (
-                          <button 
-                            className="button-secondary" 
-                            style={{ fontSize: '12px', padding: '6px' }} 
-                            onClick={async () => {
-                              try {
-                                await resendInvite(s.staff_id);
-                                showNotification("Invite resent successfully", "success");
-                              } catch(err) {
-                                showNotification(err.message || "Failed to resend invite", "error");
-                              }
-                            }}
-                          >
-                            Resend Invite
-                          </button>
-                        )
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {['FORCE_CHANGE_PASSWORD', 'UNCONFIRMED'].includes(s.cognito_status) && (
+                            <button 
+                              className="button-secondary" 
+                              style={{ fontSize: '12px', padding: '6px' }} 
+                              onClick={async () => {
+                                try {
+                                  await resendInvite(s.staff_id);
+                                  showNotification("Invite resent successfully", "success");
+                                } catch(err) {
+                                  showNotification(err.message || "Failed to resend invite", "error");
+                                }
+                              }}
+                            >
+                              Resend Invite
+                            </button>
+                          )}
+                          
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
+                            <span style={{ fontSize: '11px', width: '100%', color: 'var(--text-muted)', marginBottom: '2px' }}>Account Security</span>
+                            <button 
+                              className="btn-small" 
+                              style={{ fontSize: '11px', padding: '4px 8px' }}
+                              onClick={async () => {
+                                if (!window.confirm(`Trigger password reset for ${s.email || s.display_name}? This sends a recovery email.`)) return;
+                                try {
+                                  await resetStaffPassword(s.staff_id);
+                                  showNotification("Password reset email triggered", "success");
+                                } catch (err) {
+                                  showNotification(err.message || "Failed to trigger reset", "error");
+                                }
+                              }}
+                            >
+                              Send Reset
+                            </button>
+                            <button 
+                              className="btn-small" 
+                              style={{ fontSize: '11px', padding: '4px 8px' }}
+                              onClick={async () => {
+                                const newPass = window.prompt(`Set temporary password for ${s.email || s.display_name}:`);
+                                if (!newPass) return;
+                                try {
+                                  await setStaffTempPassword(s.staff_id, newPass);
+                                  showNotification("Temp password set. User must change it on next login.", "success");
+                                } catch (err) {
+                                  showNotification(err.message || "Failed to set password", "error");
+                                }
+                              }}
+                            >
+                              Set Temp Pass
+                            </button>
+                          </div>
+                        </div>
                       ) : (
                         <button 
                           className="button-secondary" 
