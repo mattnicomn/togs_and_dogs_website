@@ -2,8 +2,10 @@
 .terraform/
 *.tfstate
 *.tfstate.backup
-*.zip
-tfplan*
+**/*.zip
+**/backend.zip
+**/tfplan
+**/*.tfplan
 
 # Frontend
 dist/
