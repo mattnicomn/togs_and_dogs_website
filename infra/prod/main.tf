@@ -96,9 +96,9 @@ resource "aws_lambda_function" "admin" {
 
   environment {
     variables = {
-      DATA_TABLE_NAME      = module.data.table_name
-      ADMIN_USER_POOL_ID   = module.auth.user_pool_id
-      DEFAULT_COMPANY_ID   = "tog_and_dogs"
+      DATA_TABLE_NAME    = module.data.table_name
+      ADMIN_USER_POOL_ID = module.auth.user_pool_id
+      DEFAULT_COMPANY_ID = "tog_and_dogs"
     }
   }
 
@@ -288,18 +288,18 @@ resource "aws_lambda_permission" "api_cancellation" {
 # ------------------------------------------------------------------------------
 
 module "api" {
-  source                         = "../../modules/api"
-  name_prefix                    = local.name_prefix
-  environment                    = var.environment
-  user_pool_arn                  = module.auth.user_pool_arn
-  intake_handler_invoke_arn      = aws_lambda_function.intake.invoke_arn
-  admin_handler_invoke_arn       = aws_lambda_function.admin.invoke_arn
-  review_handler_invoke_arn      = aws_lambda_function.review.invoke_arn
-  assign_handler_invoke_arn      = aws_lambda_function.assign.invoke_arn
-  google_auth_handler_invoke_arn = aws_lambda_function.google_auth.invoke_arn
-  pet_handler_invoke_arn         = aws_lambda_function.pet.invoke_arn
+  source                          = "../../modules/api"
+  name_prefix                     = local.name_prefix
+  environment                     = var.environment
+  user_pool_arn                   = module.auth.user_pool_arn
+  intake_handler_invoke_arn       = aws_lambda_function.intake.invoke_arn
+  admin_handler_invoke_arn        = aws_lambda_function.admin.invoke_arn
+  review_handler_invoke_arn       = aws_lambda_function.review.invoke_arn
+  assign_handler_invoke_arn       = aws_lambda_function.assign.invoke_arn
+  google_auth_handler_invoke_arn  = aws_lambda_function.google_auth.invoke_arn
+  pet_handler_invoke_arn          = aws_lambda_function.pet.invoke_arn
   cancellation_handler_invoke_arn = aws_lambda_function.cancellation.invoke_arn
-  tags                           = local.common_tags
+  tags                            = local.common_tags
 }
 
 # ------------------------------------------------------------------------------

@@ -39,7 +39,7 @@ resource "aws_cognito_user_pool_client" "admin_client" {
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_flows                  = ["code", "implicit"]
   allowed_oauth_scopes                 = ["email", "openid", "profile"]
-  supported_identity_providers        = ["COGNITO"]
+  supported_identity_providers         = ["COGNITO"]
 }
 
 resource "aws_cognito_user_pool_domain" "admin_domain" {
