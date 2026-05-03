@@ -309,6 +309,12 @@ const AdminDashboard = () => {
     try {
       const session = await getSession();
       if (session) {
+        const payload = session.getIdToken().payload;
+        setCurrentUser({
+          email: payload.email,
+          sub: payload.sub,
+          name: payload.name || payload['custom:display_name'] || null
+        });
         const userRole = getEffectiveRole(session);
         if (['owner', 'admin', 'staff'].includes(userRole)) {
           setIsAuthenticated(true);
@@ -352,6 +358,12 @@ const AdminDashboard = () => {
       const session = await getSession();
       const userRole = getEffectiveRole(session);
       if (['owner', 'admin', 'staff'].includes(userRole)) {
+        const payload = session.getIdToken().payload;
+        setCurrentUser({
+          email: payload.email,
+          sub: payload.sub,
+          name: payload.name || payload['custom:display_name'] || null
+        });
         setIsAuthenticated(true);
         setRole(userRole);
         fetchAllData();
@@ -392,6 +404,12 @@ const AdminDashboard = () => {
           const session = await getSession();
           const userRole = getEffectiveRole(session);
           if (['owner', 'admin', 'staff'].includes(userRole)) {
+            const payload = session.getIdToken().payload;
+            setCurrentUser({
+              email: payload.email,
+              sub: payload.sub,
+              name: payload.name || payload['custom:display_name'] || null
+            });
             setIsAuthenticated(true);
             setRole(userRole);
             fetchAllData();
@@ -1327,7 +1345,10 @@ const AdminDashboard = () => {
           </nav>
         </div>
         <div className="header-right">
-          <UserProfile />
+          <UserProfile 
+            externalCurrentUser={currentUser} 
+            staffProfile={staffList.find(s => s.cognito_sub === currentUser?.sub || (s.email && s.email.toLowerCase() === currentUser?.email?.toLowerCase()))}
+          />
         </div>
       </header>
 
@@ -1551,25 +1572,27 @@ const AdminDashboard = () => {
                     <option value="owner">Owner</option>
                   </select>
                 </div>
-                
                  <div className="field">
-                  <label>{(editingStaffId && isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId))) ? 'Contact Email' : 'Email'} {staffForm.creation_mode === 'onboard' ? '*' : '(Optional)'}</label>
-                  {editingStaffId && isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId)) && (
+                  <label>{editingStaffId ? 'Contact Email' : 'Email'} {staffForm.creation_mode === 'onboard' ? '*' : '(Optional)'}</label>
+                  {editingStaffId && (
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                      Login Identity: {staffList.find(s => s.staff_id === editingStaffId)?.cognito_username || staffList.find(s => s.staff_id === editingStaffId)?.email} (Read-only)
+                      Login Identity: {staffList.find(s => s.staff_id === editingStaffId)?.cognito_username || staffList.find(s => s.staff_id === editingStaffId)?.email || 'N/A'} (Read-only)
                     </div>
                   )}
                   <input 
                     type="email" 
                     value={staffForm.email} 
                     onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })} 
-                    placeholder="staff@example.com"
-                    required={staffForm.creation_mode === 'onboard'}
-                    disabled={editingStaffId && isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId)) && staffForm.creation_mode !== 'onboard'}
+                    placeholder="e.g. ryan@example.com"
+                    disabled={editingStaffId && isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId))}
                     style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
                   />
+                  {editingStaffId && !isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId)) && (
+                    <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                      Note: Changing this only updates the contact email, not the login identity.
+                    </p>
+                  )}
                 </div>
-
                 
                 <div className="field">
                   <label>Assignment Color</label>

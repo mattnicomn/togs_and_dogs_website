@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getSession, getEffectiveRole, signOut } from '../api/auth';
 
-const UserProfile = () => {
+const UserProfile = ({ staffProfile, externalCurrentUser }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [role, setRole] = useState('unknown');
@@ -10,13 +10,20 @@ const UserProfile = () => {
   useEffect(() => {
     const loadUser = async () => {
       try {
+        if (externalCurrentUser) {
+          setUser(externalCurrentUser);
+        }
+        
         const session = await getSession();
         if (session) {
           const payload = session.getIdToken().payload;
-          setUser({
-            email: payload.email,
-            name: payload.name || payload['custom:display_name'] || null,
-          });
+          if (!externalCurrentUser) {
+            setUser({
+              email: payload.email,
+              sub: payload.sub,
+              name: payload.name || payload['custom:display_name'] || null,
+            });
+          }
           setRole(getEffectiveRole(session));
         }
       } catch (err) {
@@ -34,7 +41,7 @@ const UserProfile = () => {
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [externalCurrentUser]);
 
   const handleLogout = () => {
     signOut();
@@ -43,8 +50,14 @@ const UserProfile = () => {
 
   if (!user) return null;
 
-  const displayName = user.name || user.email;
-  const initials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+  // Prefer staff profile display name from DynamoDB
+  const effectiveDisplayName = staffProfile?.display_name || user.name || user.email;
+  const initials = effectiveDisplayName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+
+  // Protection Logic (Sync with backend/AdminDashboard)
+  const PROTECTED_SUBS = ["74b86488-1011-7029-bb6d-dad984e1463c"];
+  const PROTECTED_EMAILS = ["admin@toganddogs.com"];
+  const isProtected = staffProfile && (PROTECTED_SUBS.includes(staffProfile.cognito_sub) || PROTECTED_EMAILS.includes(staffProfile.email));
 
   return (
     <div className="user-profile-container" ref={dropdownRef}>
@@ -55,7 +68,7 @@ const UserProfile = () => {
         aria-expanded={isOpen}
         aria-label="User profile menu"
       >
-        <span className="profile-name">{user.name || user.email}</span>
+        <span className="profile-name">{effectiveDisplayName}</span>
         <div className="profile-avatar">
           {initials}
         </div>
@@ -65,10 +78,18 @@ const UserProfile = () => {
         <div className="profile-dropdown card">
           <div className="dropdown-header">
             <div className="user-info">
-              <span className="user-name">{user.name || 'User'}</span>
-              <span className="user-email">{user.email}</span>
+              <span className="user-name">
+                {effectiveDisplayName}
+                {isProtected && <span style={{ fontSize: '10px', color: 'var(--accent-teal)', marginLeft: '8px', backgroundColor: 'rgba(0, 188, 212, 0.1)', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>PROTECTED</span>}
+              </span>
+              <div className="user-details" style={{ fontSize: '0.85em', marginTop: '6px', lineHeight: '1.4' }}>
+                 <div style={{ color: 'var(--text-secondary)' }}>Login: <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{user.email}</span></div>
+                 {staffProfile?.email && staffProfile.email !== user.email && (
+                   <div style={{ color: 'var(--text-secondary)' }}>Contact: <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{staffProfile.email}</span></div>
+                 )}
+              </div>
             </div>
-            <span className={`role-badge role-${role.toLowerCase()}`}>
+            <span className={`role-badge role-${role.toLowerCase()}`} style={{ alignSelf: 'flex-start' }}>
               {role.charAt(0).toUpperCase() + role.slice(1)}
             </span>
           </div>
