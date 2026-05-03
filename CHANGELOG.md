@@ -5,6 +5,9 @@
 ### Fixed
 - **Production Persistence Bug**: Resolved 'Failed to fetch' and 500 errors on pet record updates by fixing API Gateway CORS and adding `Decimal` serialization support in the backend.
 - **Data Lifecycle**: Fixed a gap where `PET` entities were not being created during the intake approval process.
+- **Security**: Implemented protected admin guardrails to prevent accidental deletion or disabling of platform support accounts.
+- **Staff Management**: Enhanced UI to distinguish protected accounts and prevent self-disabling.
+- **Assignments**: Admin/Owner roles now default to non-assignable state.
 
 ### Added
 - **Interactive Care Card**: Implemented a stateful edit mode in the `CareCard` component, allowing administrators to modify pet names, breeds, ages, and care instructions directly.

@@ -11,15 +11,20 @@ import CareCard from './CareCard';
 import UserProfile from './UserProfile';
 import '../Admin.css';
 
+const PROTECTED_SUBS = ["74b86488-1011-7029-bb6d-dad984e1463c"];
+const PROTECTED_EMAILS = ["admin@toganddogs.com"];
 
 const AdminDashboard = () => {
+
   const [requests, setRequests] = useState([]);
   const [allRequests, setAllRequests] = useState([]); // Raw pool for sidebar counts
   const [openMenuId, setOpenMenuId] = useState(null); // Track which row's action menu is open
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [role, setRole] = useState('unknown');
+  const [currentUser, setCurrentUser] = useState(null); // { email, sub }
+
 
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [authChallenge, setAuthChallenge] = useState(null);
@@ -1528,6 +1533,7 @@ const AdminDashboard = () => {
                   <select 
                     value={staffForm.role} 
                     onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
+                    disabled={editingStaffId && isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId))}
                     style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
                   >
                     <option value="Staff">Staff</option>
@@ -1536,17 +1542,24 @@ const AdminDashboard = () => {
                   </select>
                 </div>
                 
-                <div className="field">
-                  <label>Email {staffForm.creation_mode === 'onboard' ? '*' : '(Optional)'}</label>
+                 <div className="field">
+                  <label>{(editingStaffId && isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId))) ? 'Contact Email' : 'Email'} {staffForm.creation_mode === 'onboard' ? '*' : '(Optional)'}</label>
+                  {editingStaffId && isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId)) && (
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      Login Identity: {staffList.find(s => s.staff_id === editingStaffId)?.cognito_username || staffList.find(s => s.staff_id === editingStaffId)?.email} (Read-only)
+                    </div>
+                  )}
                   <input 
                     type="email" 
                     value={staffForm.email} 
                     onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })} 
                     placeholder="staff@example.com"
                     required={staffForm.creation_mode === 'onboard'}
+                    disabled={editingStaffId && isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId)) && staffForm.creation_mode !== 'onboard'}
                     style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
                   />
                 </div>
+
                 
                 <div className="field">
                   <label>Assignment Color</label>
@@ -1674,6 +1687,8 @@ const AdminDashboard = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span className="dot" style={{ backgroundColor: s.assignment_color || 'var(--staff-unassigned)', width: '16px', height: '16px', borderRadius: '50%' }}></span>
                       <strong style={{ fontSize: '18px' }}>{s.display_name} {s.is_virtual && <span style={{ color: 'var(--accent-orange)', fontSize: '12px', marginLeft: '6px', backgroundColor: 'rgba(255, 152, 0, 0.15)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--accent-orange)' }}>Cognito Only</span>}</strong>
+                      {isProtectedProfile(s) && <span style={{ color: 'var(--accent-teal)', fontSize: '11px', marginLeft: '8px', backgroundColor: 'rgba(0, 188, 212, 0.1)', padding: '2px 8px', borderRadius: '12px', border: '1px solid var(--accent-teal)' }}>Protected Platform Admin</span>}
+                      {isSelf(s) && <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginLeft: '8px' }}>(You)</span>}
                     </div>
                     <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
                       <p style={{ margin: '2px 0' }}><strong>Role:</strong> {s.role}</p>
@@ -1778,13 +1793,24 @@ const AdminDashboard = () => {
                             });
                             showNotification("Form populated for " + s.email, "info");
                           }}>Create Profile</button>
-                          
-                          {s.is_active !== false ? (
-                            <button className="btn-small error" onClick={() => executeStaffAction(s.staff_id, 'disable')}>Disable Cognito</button>
+                                   {s.is_active !== false ? (
+                            <button 
+                              className="btn-small error" 
+                              disabled={isProtectedProfile(s) || isSelf(s)}
+                              onClick={() => executeStaffAction(s.staff_id, 'disable')}
+                            >
+                              Disable Cognito
+                            </button>
                           ) : (
                             <>
                               <button className="btn-small" style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} onClick={() => executeStaffAction(s.staff_id, 'enable')}>Enable Cognito</button>
-                              <button className="btn-small error" onClick={() => executeStaffAction(s.staff_id, 'delete_cognito')}>Delete Cognito User</button>
+                              <button 
+                                className="btn-small error" 
+                                disabled={isProtectedProfile(s) || isSelf(s)}
+                                onClick={() => executeStaffAction(s.staff_id, 'delete_cognito')}
+                              >
+                                Delete Cognito User
+                              </button>
                             </>
                           )}
                         </>
@@ -1793,18 +1819,39 @@ const AdminDashboard = () => {
                           <button className="btn-small" onClick={() => handleEditStaff(s)}>Edit</button>
                           
                           {s.is_active !== false ? (
-                            <button className="btn-small error" onClick={() => executeStaffAction(s.staff_id, 'disable')}>Disable Access</button>
+                            <button 
+                              className="btn-small error" 
+                              disabled={isProtectedProfile(s) || isSelf(s)}
+                              onClick={() => executeStaffAction(s.staff_id, 'disable')}
+                            >
+                              Disable Access
+                            </button>
                           ) : (
                             <button className="btn-small" style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} onClick={() => executeStaffAction(s.staff_id, 'enable')}>Enable Access</button>
                           )}
+
                           
                           {s.cognito_sub && (
-                            <button className="btn-small" style={{ backgroundColor: '#2196f3', color: 'white' }} onClick={() => executeStaffAction(s.staff_id, 'unlink')}>Unlink Cognito</button>
+                            <button 
+                              className="btn-small" 
+                              style={{ backgroundColor: '#2196f3', color: 'white' }} 
+                              disabled={isProtectedProfile(s) || isSelf(s)}
+                              onClick={() => executeStaffAction(s.staff_id, 'unlink')}
+                            >
+                              Unlink Cognito
+                            </button>
                           )}
 
                           {s.is_active === false && (
-                            <button className="btn-small error" onClick={() => executeStaffAction(s.staff_id, 'delete_profile')}>Delete Profile</button>
+                            <button 
+                              className="btn-small error" 
+                              disabled={isProtectedProfile(s) || isSelf(s)}
+                              onClick={() => executeStaffAction(s.staff_id, 'delete_profile')}
+                            >
+                              Delete Profile
+                            </button>
                           )}
+
                         </>
                       )}
                     </div>

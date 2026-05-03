@@ -8,6 +8,22 @@ from common.auth import get_effective_role, sanitize_booking_for_role, get_claim
 from common.audit import log_action
 import uuid
 
+# Protected Accounts (US Mission Hero Platform Support)
+PROTECTED_SUBS = ["74b86488-1011-7029-bb6d-dad984e1463c"]
+PROTECTED_USERNAMES = ["admin@toganddogs.com"]
+
+def is_protected_profile(profile):
+    if not profile:
+        return False
+    # Check by specific hardcoded identifiers
+    if profile.get('cognito_sub') in PROTECTED_SUBS:
+        return True
+    if (profile.get('email') or '').lower() in PROTECTED_USERNAMES:
+        return True
+    return False
+
+
+
 
 
 def handler(event, context):
@@ -202,8 +218,9 @@ def handler(event, context):
                 "email": body.get('email', '').strip() or None,
                 "cognito_sub": body.get('cognito_sub', '').strip() or None,
                 "is_active": True,
-                "is_assignable": body.get('is_assignable', True),
+                "is_assignable": body.get('is_assignable', False) if body.get('role', 'Staff').lower() in ['owner', 'admin'] else body.get('is_assignable', True),
                 "assignment_color": body.get('assignment_color', 'var(--staff-ryan)'),
+
                 "phone": body.get('phone', '').strip() or None,
                 "notes": body.get('notes', '').strip() or None,
                 "created_at": datetime.utcnow().isoformat(),
@@ -304,8 +321,9 @@ def handler(event, context):
                     "email": email,
                     "cognito_sub": cognito_sub,
                     "is_active": True,
-                    "is_assignable": body.get('is_assignable', True),
+                    "is_assignable": body.get('is_assignable', False) if role_input.lower() in ['owner', 'admin'] else body.get('is_assignable', True),
                     "assignment_color": body.get('assignment_color', 'blue'),
+
                     "phone": body.get('phone', '').strip() or None,
                     "cognito_status": "FORCE_CHANGE_PASSWORD",
                     "created_at": datetime.utcnow().isoformat(),
@@ -601,7 +619,17 @@ def handler(event, context):
                 else:
                     return not_found(f"Staff profile {staff_id} not found", event)
                 
+            # --- PROTECTED ACCOUNT GUARDRAILS ---
+            claims = get_claims(event)
+            current_user_sub = claims.get('sub')
+            current_user_email = (claims.get('email') or '').lower().strip()
+            
+            is_protected = is_protected_profile(staff_profile)
+            is_self = (staff_profile.get('cognito_sub') == current_user_sub) or \
+                      (staff_profile.get('email') and staff_profile.get('email').lower().strip() == current_user_email)
+
             if http_method == 'DELETE':
+
                 body = {}
                 try:
                     if event.get('body'):
@@ -609,8 +637,14 @@ def handler(event, context):
                 except Exception:
                     pass
                     
+                if is_protected or is_self:
+                    log_action(event, "BLOCKED_PROTECTED_ACCOUNT_ACTION", f"COMPANY#{company_id}", f"STAFF#{staff_id}", 
+                               metadata={"reason": "Cannot delete protected or self account", "staff_id": staff_id})
+                    return error(403, "Action blocked: This is a protected platform account or your own account.", event)
+
                 staff_profile['is_active'] = False
                 staff_profile['is_assignable'] = False
+
                 staff_profile['updated_at'] = datetime.utcnow().isoformat()
                 
                 if body.get('disable_cognito') == True and (staff_profile.get('cognito_sub') or staff_profile.get('email')):
@@ -640,7 +674,14 @@ def handler(event, context):
                     user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
                     username = staff_profile.get('email') or staff_profile.get('cognito_username') or staff_id.replace('cognito_', '')
                     
+                    if action in ['disable', 'unlink', 'delete_profile', 'delete_cognito']:
+                        if is_protected or is_self:
+                            log_action(event, "BLOCKED_PROTECTED_ACCOUNT_ACTION", f"COMPANY#{company_id}", f"STAFF#{staff_id}", 
+                                       metadata={"action": action, "reason": "Protected/self account protection", "staff_id": staff_id})
+                            return error(403, f"Action '{action}' blocked: This is a protected platform account or your own account.", event)
+
                     if action == 'disable':
+
                         staff_profile['is_active'] = False
                         staff_profile['is_assignable'] = False
                         staff_profile['updated_at'] = datetime.utcnow().isoformat()
@@ -727,7 +768,11 @@ def handler(event, context):
                     
                 for field in editable_fields:
                     if field != 'display_name' and field in body:
+                        # Guardrail: Prevent changing email/sub for protected accounts
+                        if is_protected and field in ['email', 'cognito_sub', 'role']:
+                            continue
                         staff_profile[field] = body[field]
+
                         
                 if body.get('disable_cognito') == True and (staff_profile.get('cognito_sub') or staff_profile.get('email')):
                     import boto3
