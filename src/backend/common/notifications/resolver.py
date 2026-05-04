@@ -8,7 +8,11 @@ def get_client_email(record):
 
 def get_client_name(record):
     """Extracts client name from the record."""
-    return record.get('client_name') or record.get('name', 'Valued Client')
+    return record.get('client_name') or record.get('name') or record.get('client') or 'Valued Client'
+
+def get_pet_names(record):
+    """Extracts pet names from the record."""
+    return record.get('pet_names') or record.get('pet_name') or record.get('pets') or 'your pets'
 
 def get_staff_email(record):
     """Extracts assigned staff email from the record."""
@@ -20,7 +24,7 @@ def get_staff_email(record):
 
 def get_staff_name(record):
     """Extracts assigned staff name from the record."""
-    return record.get('assigned_to_name', 'Team Member')
+    return record.get('assigned_to_name') or record.get('worker_name') or record.get('staff_name') or 'Team Member'
 
 def resolve_notification_recipients(event_type, record, previous_record=None, config=None):
     """

@@ -158,6 +158,7 @@ def handler(event, context):
             # Trigger modular notifications
             # ROBUSTNESS: Ensure notify_event has access to the newly assigned worker_id
             item['worker_id'] = worker_id
+            item['worker_name'] = body.get('worker_name')
             notify_event('STAFF_ASSIGNED', item)
             notify_event('VISIT_SCHEDULED', item)
 

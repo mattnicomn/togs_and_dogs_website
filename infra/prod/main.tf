@@ -123,12 +123,15 @@ resource "aws_lambda_function" "review" {
   memory_size      = 512
 
   environment {
-    variables = {
-      DATA_TABLE_NAME          = module.data.table_name
-      GOOGLE_CLIENT_CREDS_NAME = module.secrets.google_client_creds_arn
-      GOOGLE_USER_TOKENS_NAME  = module.secrets.google_user_tokens_arn
-      JOB_FUNCTION_NAME        = aws_lambda_function.job.function_name
-    }
+    variables = merge(
+      {
+        DATA_TABLE_NAME          = module.data.table_name
+        GOOGLE_CLIENT_CREDS_NAME = module.secrets.google_client_creds_arn
+        GOOGLE_USER_TOKENS_NAME  = module.secrets.google_user_tokens_arn
+        JOB_FUNCTION_NAME        = aws_lambda_function.job.function_name
+      },
+      local.notification_env_vars
+    )
   }
 
   tags = local.common_tags
