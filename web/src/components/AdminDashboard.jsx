@@ -177,6 +177,12 @@ const AdminDashboard = () => {
     return s === 'DELETED' || s === 'TRASH' || s === 'DELETE' || !!item.deleted_at;
   };
   const isActiveRecord = (item) => !isArchivedRecord(item) && !isDeletedRecord(item);
+
+  /**
+   * Selection Helpers
+   * We use a composite key of PK and SK to ensure uniqueness even for malformed records.
+   */
+  const getRecordKey = (item) => `${item.PK || 'NO_PK'}|||${item.SK || 'NO_SK'}`;
   const getWorkflowState = (item) => {
     const status = (item.status || 'PENDING_REVIEW').toUpperCase();
     const workflow = determineWorkflowType(item);
@@ -775,18 +781,19 @@ const AdminDashboard = () => {
   }, [view, statusFilter, timeframeFilter, isAuthenticated]);
 
   const toggleSelectAll = () => {
-    const currentIds = requests.map(r => r.PK);
-    const allSelected = currentIds.length > 0 && currentIds.every(id => selectedIds.includes(id));
+    const currentKeys = requests.map(r => getRecordKey(r));
+    const allSelected = currentKeys.length > 0 && currentKeys.every(key => selectedIds.includes(key));
+    
     if (allSelected) {
-      setSelectedIds(prev => prev.filter(id => !currentIds.includes(id)));
+      setSelectedIds(prev => prev.filter(id => !currentKeys.includes(id)));
     } else {
-      setSelectedIds(prev => [...new Set([...prev, ...currentIds])]);
+      setSelectedIds(prev => [...new Set([...prev, ...currentKeys])]);
     }
   };
 
-  const toggleSelectOne = (id) => {
+  const toggleSelectOne = (key) => {
     setSelectedIds(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+      prev.includes(key) ? prev.filter(i => i !== key) : [...prev, key]
     );
   };
 
@@ -834,9 +841,7 @@ const AdminDashboard = () => {
     if (!bulkAction || selectedIds.length === 0) return;
     
     setIsBulkUpdating(true);
-    const results = { success: 0, failed: 0 };
-    
-    const selectedRequests = requests.filter(r => selectedIds.includes(r.PK));
+    const selectedRequests = requests.filter(r => selectedIds.includes(getRecordKey(r)));
     
     const updates = selectedRequests.map(async (req) => {
       return updateRecordStatus(req, bulkAction, `Bulk update: ${bulkAction}`);
@@ -1119,7 +1124,7 @@ const AdminDashboard = () => {
     if (selectedIds.length === 0) return;
     setIsBulkPurging(true);
 
-    const selectedItems = requests.filter(r => selectedIds.includes(r.PK) && isDeletedRecord(r));
+    const selectedItems = requests.filter(r => selectedIds.includes(getRecordKey(r)) && isDeletedRecord(r));
     
     if (selectedItems.length === 0) {
       showNotification("No valid DELETED records selected for permanent delete.", "error");
@@ -2266,7 +2271,15 @@ const AdminDashboard = () => {
                     <th style={{ width: '40px' }}>
                       <input 
                         type="checkbox" 
-                        checked={requests.length > 0 && requests.map(r => r.PK).every(id => selectedIds.includes(id))}
+                        ref={el => {
+                          if (el) {
+                            const currentKeys = requests.map(r => getRecordKey(r));
+                            const some = currentKeys.some(key => selectedIds.includes(key));
+                            const all = currentKeys.length > 0 && currentKeys.every(key => selectedIds.includes(key));
+                            el.indeterminate = some && !all;
+                          }
+                        }}
+                        checked={requests.length > 0 && requests.map(r => getRecordKey(r)).every(key => selectedIds.includes(key))}
                         onChange={toggleSelectAll}
                         disabled={requests.length === 0}
                       />
@@ -2280,12 +2293,12 @@ const AdminDashboard = () => {
                 </thead>
                 <tbody>
                   {requests.map(item => (
-                    <tr key={item.PK} className={selectedIds.includes(item.PK) ? 'selected-row' : ''}>
+                    <tr key={getRecordKey(item)} className={selectedIds.includes(getRecordKey(item)) ? 'selected-row' : ''}>
                       <td>
                         <input 
                           type="checkbox" 
-                          checked={selectedIds.includes(item.PK)}
-                          onChange={() => toggleSelectOne(item.PK)}
+                          checked={selectedIds.includes(getRecordKey(item))}
+                          onChange={() => toggleSelectOne(getRecordKey(item))}
                         />
                       </td>
                       <td onClick={() => handleSelectPet(item)} className="clickable-cell">
