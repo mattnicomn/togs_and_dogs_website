@@ -171,12 +171,107 @@ const AdminDashboard = () => {
    * NOTE: Currently the backend uses the 'status' field for both workflow phase and lifecycle state.
    * We treat ARCHIVED and DELETED as lifecycle states while others are active workflow statuses.
    */
-  const isArchivedRecord = (item) => (item.status || "").toUpperCase() === 'ARCHIVED';
+  const isArchivedRecord = (item) => (item.status || "").toUpperCase() === 'ARCHIVED' || (item.status || "").toUpperCase() === 'ARCHIVE';
   const isDeletedRecord = (item) => {
     const s = (item.status || "").toUpperCase();
     return s === 'DELETED' || s === 'TRASH' || s === 'DELETE' || !!item.deleted_at;
   };
-  const isActiveRecord = (item) => !isArchivedRecord(item) && !isDeletedRecord(item);
+  const isCancelledRecord = (item) => {
+    const s = (item.status || "").toUpperCase();
+    return s === 'CANCELLED' || s === 'DECLINED' || s === 'REJECTED' || s === 'CANCELLATION_REQUESTED' || s === 'CANCELLATION_DENIED';
+  };
+  const isCompletedRecord = (item) => (item.status || "").toUpperCase() === 'COMPLETED';
+
+  const isDataIssue = (item) => {
+    if (!item) return false;
+    // If it's already deleted or archived, we don't treat it as a primary "data issue" in the intake/booking queues
+    if (isDeletedRecord(item) || isArchivedRecord(item)) return false;
+
+    const status = (item.status || "").toUpperCase();
+    const petNames = item.pet_names || item.pet_name || "";
+    const clientName = item.client_name || "";
+    
+    const knownStatuses = [
+      'PENDING_REVIEW', 'NEEDS_REVIEW', 'READY_FOR_APPROVAL', 'NEW_REQUEST',
+      'MEET_GREET_REQUIRED', 'NEEDS_MG', 'VERIFY_MEET_GREET', 'MG_SCHEDULED',
+      'QUOTE_NEEDED', 'QUOTED', 'QUOTE_SENT', 'APPROVED', 'BOOKED',
+      'ASSIGNED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED',
+      'REJECTED', 'DECLINED', 'DENIED', 'ARCHIVED', 'ARCHIVE', 'DELETED', 'TRASH',
+      'PROFILE_CREATED', 'CANCELLATION_REQUESTED', 'CANCELLATION_DENIED'
+    ];
+
+    return (
+      !status || 
+      status === "UNKNOWN" || 
+      !petNames.trim() || 
+      !clientName.trim() ||
+      (petNames === "---" && clientName === "No Client Name") ||
+      !knownStatuses.includes(status)
+    );
+  };
+
+  const isActiveRecord = (item) => {
+    if (isDeletedRecord(item) || isArchivedRecord(item) || isCompletedRecord(item) || isCancelledRecord(item) || isDataIssue(item)) return false;
+    return true;
+  };
+
+  /**
+   * Filter Predicate Engine
+   * Centralizes filtering logic for both the request list and the sidebar counts.
+   */
+  const getFilterPredicate = (filterKey) => {
+    return (r) => {
+      const stat = (r.status || '').toUpperCase();
+      const workflow = determineWorkflowType(r);
+
+      switch (filterKey) {
+        case 'DATA_ISSUES':
+          return isDataIssue(r);
+        case 'ALL': // All Active
+          return isActiveRecord(r);
+        case 'NEEDS_ACTION':
+          if (!isActiveRecord(r)) return false;
+          return (
+            stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' ||
+            stat === 'MEET_GREET_REQUIRED' || stat === 'NEEDS_MG' ||
+            stat === 'QUOTE_NEEDED' ||
+            stat === 'APPROVED' || stat === 'BOOKED' ||
+            stat === 'CANCELLATION_REQUESTED'
+          );
+        case 'INTAKE_QUEUE':
+          if (!isActiveRecord(r)) return false;
+          return workflow === 'CUSTOMER_INTAKE' && (stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' || stat === 'PROFILE_CREATED');
+        case 'MEET_GREET_REQUIRED':
+          if (!isActiveRecord(r)) return false;
+          return workflow === 'CUSTOMER_INTAKE' && (stat === 'MEET_GREET_REQUIRED' || stat === 'NEEDS_MG' || stat === 'MG_SCHEDULED');
+        case 'READY_FOR_APPROVAL':
+          if (!isActiveRecord(r)) return false;
+          if (workflow === 'CUSTOMER_INTAKE') return stat === 'READY_FOR_APPROVAL' || stat === 'NEW_REQUEST' || stat === 'MG_COMPLETED';
+          return stat === 'READY_FOR_APPROVAL' || stat === 'NEW_REQUEST' || stat === 'APPROVED' || stat === 'BOOKED';
+        case 'BOOKING_QUEUE':
+          if (!isActiveRecord(r)) return false;
+          return workflow === 'VISIT_BOOKING' && (stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' || stat === 'READY_FOR_APPROVAL' || stat === 'NEW_REQUEST' || stat === 'APPROVED' || stat === 'BOOKED');
+        case 'QUOTED':
+          if (!isActiveRecord(r)) return false;
+          return workflow === 'VISIT_BOOKING' && (stat === 'QUOTED' || stat === 'QUOTE_SENT' || stat === 'QUOTE_NEEDED');
+        case 'ASSIGNED':
+          if (!isActiveRecord(r)) return false;
+          return stat === 'ASSIGNED' || stat === 'SCHEDULED' || stat === 'IN_PROGRESS';
+        case 'COMPLETED':
+          return isCompletedRecord(r);
+        case 'CANCELLED':
+          return isCancelledRecord(r);
+        case 'ARCHIVED':
+        case 'ARCHIVE':
+          return isArchivedRecord(r);
+        case 'DELETED':
+        case 'TRASH':
+          return isDeletedRecord(r);
+        default:
+          return stat === filterKey.toUpperCase();
+      }
+    };
+  };
 
   /**
    * Selection Helpers
@@ -650,30 +745,6 @@ const AdminDashboard = () => {
 
 
 
-  const isDataIssue = (item) => {
-    if (!item) return false;
-    const status = (item.status || "").toUpperCase();
-    const petNames = item.pet_names || item.pet_name || "";
-    const clientName = item.client_name || "";
-    
-    const knownStatuses = [
-      'PENDING_REVIEW', 'NEEDS_REVIEW', 'READY_FOR_APPROVAL', 'NEW_REQUEST',
-      'MEET_GREET_REQUIRED', 'NEEDS_MG', 'VERIFY_MEET_GREET', 'MG_SCHEDULED',
-      'QUOTE_NEEDED', 'QUOTED', 'QUOTE_SENT', 'APPROVED', 'BOOKED',
-      'ASSIGNED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED',
-      'REJECTED', 'DECLINED', 'DENIED', 'ARCHIVED', 'ARCHIVE', 'DELETED', 'TRASH',
-      'PROFILE_CREATED', 'CANCELLATION_REQUESTED', 'CANCELLATION_DENIED'
-    ];
-
-    return (
-      !status || 
-      status === "UNKNOWN" || 
-      !petNames.trim() || 
-      !clientName.trim() ||
-      (petNames === "---" && clientName === "No Client Name") ||
-      !knownStatuses.includes(status)
-    );
-  };
 
   const fetchAllData = async (startKey = null) => {
     try {
@@ -718,54 +789,17 @@ const AdminDashboard = () => {
         });
 
         let items = [...rawItems];
-        if (isActiveFilter && statusFilter !== 'ALL') {
-          items = items.filter(r => {
-            const stat = (r.status || '').toUpperCase();
-            const workflow = determineWorkflowType(r);
-            
-            if (statusFilter === 'DATA_ISSUES') return isDataIssue(r);
-            if (statusFilter === 'NEEDS_ACTION') {
-              return (
-                stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' ||
-                stat === 'MEET_GREET_REQUIRED' || stat === 'NEEDS_MG' ||
-                stat === 'QUOTE_NEEDED' ||
-                stat === 'APPROVED' || stat === 'BOOKED' ||
-                stat === 'CANCELLATION_REQUESTED'
-              );
-            }
-            
-            // Workflow-specific queue filtering
-            if (statusFilter === 'INTAKE_QUEUE') {
-              return workflow === 'CUSTOMER_INTAKE' && (stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' || stat === 'PROFILE_CREATED');
-            }
-            if (statusFilter === 'READY_FOR_APPROVAL') {
-              // Context-aware: Onboarding Ready vs Booking Ready
-              if (workflow === 'CUSTOMER_INTAKE') return stat === 'READY_FOR_APPROVAL' || stat === 'NEW_REQUEST' || stat === 'MG_COMPLETED';
-              return stat === 'READY_FOR_APPROVAL' || stat === 'NEW_REQUEST' || stat === 'APPROVED' || stat === 'BOOKED'; // For booking, ready means approved but unassigned
-            }
-            if (statusFilter === 'MEET_GREET_REQUIRED') {
-              return workflow === 'CUSTOMER_INTAKE' && (stat === 'MEET_GREET_REQUIRED' || stat === 'NEEDS_MG' || stat === 'MG_SCHEDULED');
-            }
-            if (statusFilter === 'BOOKING_QUEUE') {
-              return workflow === 'VISIT_BOOKING' && (stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' || stat === 'READY_FOR_APPROVAL' || stat === 'NEW_REQUEST' || stat === 'APPROVED' || stat === 'BOOKED');
-            }
-            if (statusFilter === 'QUOTED') {
-              return workflow === 'VISIT_BOOKING' && (stat === 'QUOTED' || stat === 'QUOTE_SENT' || stat === 'QUOTE_NEEDED');
-            }
-            if (statusFilter === 'ASSIGNED') {
-              return stat === 'ASSIGNED' || stat === 'SCHEDULED' || stat === 'IN_PROGRESS';
-            }
-            
-            return stat === statusFilter.toUpperCase();
-          });
-        } else if (statusFilter === 'ALL') {
-          const exclusionStatuses = ['COMPLETED', 'ARCHIVED', 'DELETED', 'CANCELLED', 'DECLINED'];
-          items = items.filter(r => !exclusionStatuses.includes((r.status || '').toUpperCase()));
+        if (isActiveFilter) {
+          // If we are in an active view, we apply the filter predicate to the fetched items
+          items = items.filter(getFilterPredicate(statusFilter));
+        } else {
+          // For terminal views (Archived/Deleted/etc), the backend already filtered them by status, 
+          // but we apply our local predicate to ensure consistency (e.g. including deleted_at)
+          items = items.filter(getFilterPredicate(statusFilter));
         }
 
         setRequests(items);
         setLastKey(data.lastKey);
-
       }
     } catch (err) {
       setError("Failed to fetch data: " + err.message);
@@ -1448,14 +1482,7 @@ const AdminDashboard = () => {
                   { id: 'MEET_GREET_REQUIRED', label: 'Needs M&G' },
                   { id: 'READY_FOR_APPROVAL', label: 'Ready to Approve' },
                 ].map(f => {
-                  const count = allRequests.filter(r => {
-                    if (determineWorkflowType(r) !== 'CUSTOMER_INTAKE') return false;
-                    const stat = (r.status || '').toUpperCase();
-                    if (f.id === 'INTAKE_QUEUE') return stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' || stat === 'PROFILE_CREATED';
-                    if (f.id === 'MEET_GREET_REQUIRED') return stat === 'MEET_GREET_REQUIRED' || stat === 'NEEDS_MG' || stat === 'MG_SCHEDULED';
-                    if (f.id === 'READY_FOR_APPROVAL') return stat === 'READY_FOR_APPROVAL' || stat === 'NEW_REQUEST' || stat === 'MG_COMPLETED';
-                    return stat === f.id;
-                  }).length;
+                  const count = allRequests.filter(getFilterPredicate(f.id)).length;
                   return (
                     <button 
                       key={f.id}
@@ -1476,14 +1503,7 @@ const AdminDashboard = () => {
                   { id: 'ASSIGNED', label: 'Scheduled Visits' },
                   { id: 'COMPLETED', label: 'Completed' },
                 ].map(f => {
-                  const count = allRequests.filter(r => {
-                    if (determineWorkflowType(r) !== 'VISIT_BOOKING') return false;
-                    const stat = (r.status || '').toUpperCase();
-                    if (f.id === 'BOOKING_QUEUE') return stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' || stat === 'READY_FOR_APPROVAL' || stat === 'NEW_REQUEST' || stat === 'APPROVED' || stat === 'BOOKED';
-                    if (f.id === 'QUOTED') return stat === 'QUOTED' || stat === 'QUOTE_SENT' || stat === 'QUOTE_NEEDED';
-                    if (f.id === 'ASSIGNED') return stat === 'ASSIGNED' || stat === 'SCHEDULED' || stat === 'IN_PROGRESS';
-                    return stat === f.id;
-                  }).length;
+                  const count = allRequests.filter(getFilterPredicate(f.id)).length;
                   return (
                     <button 
                       key={f.id}
@@ -1503,22 +1523,7 @@ const AdminDashboard = () => {
                   { id: 'NEEDS_ACTION', label: 'Needs Action' },
                   ...(capabilities.canViewRequestList ? [{ id: 'DATA_ISSUES', label: '⚠️ Data Issues' }] : [])
                 ].map(f => {
-                  const count = f.id === 'ALL' 
-                    ? allRequests.filter(r => !['COMPLETED', 'ARCHIVED', 'DELETED', 'CANCELLED', 'DECLINED'].includes((r.status || '').toUpperCase())).length
-                    : f.id === 'DATA_ISSUES'
-                    ? allRequests.filter(r => isDataIssue(r)).length
-                    : f.id === 'NEEDS_ACTION'
-                    ? allRequests.filter(r => {
-                        const stat = (r.status || '').toUpperCase();
-                        return (
-                          stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' ||
-                          stat === 'MEET_GREET_REQUIRED' || stat === 'NEEDS_MG' ||
-                          stat === 'QUOTE_NEEDED' ||
-                          stat === 'APPROVED' || stat === 'BOOKED' ||
-                          stat === 'CANCELLATION_REQUESTED'
-                        );
-                      }).length
-                    : allRequests.filter(r => (r.status || '').toUpperCase() === f.id).length;
+                  const count = allRequests.filter(getFilterPredicate(f.id)).length;
                   return (
                     <button 
                       key={f.id}
@@ -1541,12 +1546,7 @@ const AdminDashboard = () => {
                 { id: 'ARCHIVED', label: 'Archived' },
                 { id: 'DELETED', label: 'Trash / Deleted' }
               ].map(f => {
-                const count = allRequests.filter(r => {
-                  const stat = (r.status || '').toUpperCase();
-                  if (f.id === 'ARCHIVED') return stat === 'ARCHIVED' || stat === 'ARCHIVE';
-                  if (f.id === 'DELETED') return stat === 'DELETED' || stat === 'TRASH';
-                  return stat === f.id;
-                }).length;
+                const count = allRequests.filter(getFilterPredicate(f.id)).length;
                 return (
                   <button 
                     key={f.id}
