@@ -905,21 +905,22 @@ const AdminDashboard = () => {
     if (!bulkAction || selectedIds.length === 0) return;
     
     setIsBulkUpdating(true);
-    const selectedRequests = visibleRecords.filter(r => selectedIds.includes(getRecordKey(r)));
+    const selectedRequests = allRequests.filter(r => selectedIds.includes(getRecordKey(r)));
     
     const updates = selectedRequests.map(async (req) => {
       return updateRecordStatus(req, bulkAction, `Bulk update: ${bulkAction}`);
     });
 
     try {
-      const settled = await Promise.allSettled(updates);
-      settled.forEach(res => {
-        if (res.status === 'fulfilled') results.success++;
-        else results.failed++;
-      });
+    const results = { success: 0, failed: 0 };
+    const settled = await Promise.allSettled(updates);
+    settled.forEach(res => {
+      if (res.status === 'fulfilled') results.success++;
+      else results.failed++;
+    });
 
-      if (results.failed > 0) {
-        showNotification(`Bulk update partial: ${results.success} success, ${results.failed} failed.`, "error");
+    if (results.failed > 0) {
+      showNotification(`Bulk update partial: ${results.success} success, ${results.failed} failed.`, "error");
       } else {
         const actionLabel = bulkAction === 'DELETE' ? 'moved to Trash' : 
                            bulkAction === 'REOPEN_PENDING' ? 'restored to Active' : 
@@ -1180,7 +1181,7 @@ const AdminDashboard = () => {
     if (selectedIds.length === 0) return;
     setIsBulkPurging(true);
 
-    const selectedItems = visibleRecords.filter(r => selectedIds.includes(getRecordKey(r)) && isDeletedRecord(r));
+    const selectedItems = allRequests.filter(r => selectedIds.includes(getRecordKey(r)) && isDeletedRecord(r));
     
     if (selectedItems.length === 0) {
       showNotification("No valid DELETED records selected for permanent delete.", "error");
@@ -2226,7 +2227,7 @@ const AdminDashboard = () => {
                   </div>
                   <div className="bulk-actions">
                     {/* Bulk purge — only shown in Trash/Deleted view */}
-                    {(statusFilter === 'DELETED' || statusFilter === 'DATA_ISSUES') && (
+                    {(statusFilter === 'DELETED' || statusFilter === 'TRASH') && (
                       <button
                         className="btn-small purge"
                         disabled={isBulkPurging}
@@ -2241,21 +2242,48 @@ const AdminDashboard = () => {
                       disabled={isBulkUpdating}
                       className="staff-select bulk-select"
                     >
-                      <option value="">Choose status...</option>
-                      <option value="PENDING_REVIEW">Pending Review</option>
-                      <option value="PROFILE_CREATED">Profile Created</option>
-                      <option value="READY_FOR_APPROVAL">New Request</option>
-                      <option value="MEET_GREET_REQUIRED">M&G Required</option>
-                      <option value="VERIFY_MG">M&G Completed</option>
-                      <option value="QUOTED">Quoted</option>
-                      <option value="APPROVED">Approved</option>
-                      <option value="ASSIGNED">Scheduled</option>
-                      <option value="COMPLETED">Completed</option>
-                      <option value="CANCELLED">Cancelled</option>
-                      <option value="DECLINED">Declined</option>
-                      <option value="ARCHIVED">Archived</option>
-                      <option value="DELETE">Move to Trash</option>
-                      <option value="REOPEN_PENDING">Restore to Active</option>
+                      <option value="">Choose action...</option>
+                      {/* Context-aware bulk actions */}
+                      {statusFilter === 'DATA_ISSUES' ? (
+                        <>
+                          <option value="DELETE">Move to Trash</option>
+                        </>
+                      ) : statusFilter === 'DELETED' || statusFilter === 'TRASH' ? (
+                        <>
+                          <option value="REOPEN_PENDING">Restore to Active</option>
+                        </>
+                      ) : statusFilter === 'ARCHIVED' ? (
+                        <>
+                          <option value="REOPEN_PENDING">Restore to Active</option>
+                          <option value="DELETE">Move to Trash</option>
+                        </>
+                      ) : statusFilter === 'CANCELLED' ? (
+                        <>
+                          <option value="ARCHIVED">Archive</option>
+                          <option value="REOPEN_PENDING">Restore to Active</option>
+                          <option value="DELETE">Move to Trash</option>
+                        </>
+                      ) : statusFilter === 'COMPLETED' ? (
+                        <>
+                          <option value="ARCHIVED">Archive</option>
+                          <option value="DELETE">Move to Trash</option>
+                        </>
+                      ) : (
+                        <>
+                          {/* Active record transitions */}
+                          <option value="PENDING_REVIEW">Set to Pending Review</option>
+                          <option value="READY_FOR_APPROVAL">Set to New Request</option>
+                          <option value="MEET_GREET_REQUIRED">Set to M&G Required</option>
+                          <option value="VERIFY_MG">Mark M&G Completed</option>
+                          <option value="QUOTED">Mark as Quoted</option>
+                          <option value="APPROVED">Approve All</option>
+                          <option value="ASSIGNED">Mark as Scheduled</option>
+                          <option value="COMPLETED">Mark as Completed</option>
+                          <option value="CANCELLED">Cancel Requests</option>
+                          <option value="ARCHIVED">Archive</option>
+                          <option value="DELETE">Move to Trash</option>
+                        </>
+                      )}
                     </select>
                     <button 
                       onClick={() => setBulkConfirmModal({ count: selectedIds.length, target: bulkAction })}
