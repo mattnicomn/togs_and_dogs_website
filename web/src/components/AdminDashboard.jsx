@@ -172,7 +172,10 @@ const AdminDashboard = () => {
    * We treat ARCHIVED and DELETED as lifecycle states while others are active workflow statuses.
    */
   const isArchivedRecord = (item) => (item.status || "").toUpperCase() === 'ARCHIVED';
-  const isDeletedRecord = (item) => (item.status || "").toUpperCase() === 'DELETED';
+  const isDeletedRecord = (item) => {
+    const s = (item.status || "").toUpperCase();
+    return s === 'DELETED' || s === 'TRASH' || s === 'DELETE' || !!item.deleted_at;
+  };
   const isActiveRecord = (item) => !isArchivedRecord(item) && !isDeletedRecord(item);
   const getWorkflowState = (item) => {
     const status = (item.status || 'PENDING_REVIEW').toUpperCase();
@@ -183,7 +186,7 @@ const AdminDashboard = () => {
     const state = {
       displayStatus: getStatusLabel(status, item),
       statusClass: getStatusClass(status),
-      isInvalid: isInvalidAssigned,
+      isInvalid: isInvalidAssigned || isDataIssue(item),
       actions: []
     };
 
@@ -191,6 +194,13 @@ const AdminDashboard = () => {
       state.displayStatus = "Needs Assignment";
       state.statusClass = "status-chip status-chip--urgent";
       state.actions = ["ASSIGN", "REVERT_TO_APPROVED", "CANCEL"];
+      return state;
+    }
+
+    if (isDataIssue(item) && !isDeletedRecord(item)) {
+      state.displayStatus = "Data Issue";
+      state.statusClass = "status-chip status-chip--urgent";
+      state.actions = ["DELETE"];
       return state;
     }
 
@@ -1109,7 +1119,7 @@ const AdminDashboard = () => {
     if (selectedIds.length === 0) return;
     setIsBulkPurging(true);
 
-    const selectedItems = requests.filter(r => selectedIds.includes(r.PK) && (r.status || '').toUpperCase() === 'DELETED');
+    const selectedItems = requests.filter(r => selectedIds.includes(r.PK) && isDeletedRecord(r));
     
     if (selectedItems.length === 0) {
       showNotification("No valid DELETED records selected for permanent delete.", "error");
@@ -2202,7 +2212,7 @@ const AdminDashboard = () => {
                   </div>
                   <div className="bulk-actions">
                     {/* Bulk purge — only shown in Trash/Deleted view */}
-                    {statusFilter === 'DELETED' && (
+                    {(statusFilter === 'DELETED' || statusFilter === 'DATA_ISSUES') && (
                       <button
                         className="btn-small purge"
                         disabled={isBulkPurging}
@@ -2284,13 +2294,17 @@ const AdminDashboard = () => {
                             {(() => {
                               const pets = item.pet_names || item.pet_name;
                               const client = item.client_name;
-                              if (!pets && !client) return <span style={{ color: 'var(--error-color)', fontWeight: 'bold' }}>⚠️ MALFORMED RECORD</span>;
+                              if (!pets && !client) return (
+                                <span style={{ color: 'var(--error-color)', fontWeight: 'bold' }}>
+                                  ⚠️ DATA ISSUE: Missing Names {item.request_id ? `(${item.request_id.slice(0,8)})` : ''}
+                                </span>
+                              );
                               if (!pets) return `(No Pet Names) — ${client}`;
                               if (!client) return `${pets} — (No Client Name)`;
                               return `${pets} (${client})`;
                             })()}
                           </span>
-                          <span className="micro-text">{item.service_type || 'Unknown Service'}</span>
+                          <span className="micro-text">{item.service_type || 'UNKNOWN SERVICE'}</span>
                         </div>
                       </td>
                       <td>

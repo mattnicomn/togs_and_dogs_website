@@ -1,4 +1,4 @@
-# Request Record Data Integrity Cleanup
+# Request Record Data Integrity Cleanup (Updated Safety Rules)
 
 ## Issue
 Malformed request records appeared in the Request List as `--- ()` / `UNKNOWN`.
@@ -6,35 +6,25 @@ Malformed request records appeared in the Request List as `--- ()` / `UNKNOWN`.
 ## Root Cause
 Historical/test artifacts plus older permissive intake validation allowed records missing `pet_names` or status to be created in the database.
 
-## Current Request Care status
-The Request Care portal is not malfunctioning after the fix. The intake process has been hardened.
-
 ## Correction
 - **Intake Validation**: Backend now requires `pet_names` for all new intake submissions.
-- **Cleanup Workflow**: Missing-status or malformed records can now be moved to Trash/DELETED by an Admin or Owner.
-- **Purge Guard**: Permanent purge still requires the record to be in the `DELETED` status first.
-- **UI Visibility**: The Admin Dashboard now clearly labels malformed records with `⚠️ MALFORMED RECORD` to distinguish them from valid entries.
+- **Two-Step Cleanup Workflow**: Malformed records must now be "Moved to Trash" before they can be permanently purged.
+- **Deletion Marker**: The "Move to Trash" action now sets `status = DELETED` and a `deleted_at` timestamp marker.
+- **Purge Guard**: Permanent `PURGE` is strictly restricted to records that are already in `DELETED`/`TRASH` status or have a `deleted_at` marker.
+- **UI Visibility**: The Admin Dashboard clearly labels malformed records with `⚠️ DATA ISSUE: Missing Names` (including Request ID) and toggles between "Move to Trash" and "Delete Permanently" based on the record's deletion state.
 
 ## Safety Controls
-- **No Direct Purge**: Direct `PURGE` of missing-status records is prohibited; they must first move through the `DELETED` state.
+- **No Direct Purge**: Direct `PURGE` of missing-status records without a deletion marker is prohibited.
 - **Authorization**: Cleanup actions are restricted to Admin and Owner roles only.
-- **Access Control**: Staff and Client users cannot perform or see these cleanup actions.
 
 ## Affected Records
-- 2 historical/test records with missing status.
-- 1 active legacy intake record missing `pet_names`.
-- 3 already-DELETED legacy records missing `pet_names`.
+- Historical malformed/test records missing status or name fields.
 
 ## Recommended Cleanup
-- Move the first 3 records to Trash.
-- Bulk purge all 6 records only after verification that they are indeed junk, test, or legacy artifacts.
+1. Identify records in the **Data Issues** view.
+2. For records missing status, use the **Move to Trash** action.
+3. Once moved to Trash, verify they are indeed junk artifacts and use **Delete Permanently**.
 
 ## Deployment
 - **Backend/Terraform**: Verified clean and up to date.
-- **Frontend**: Deployed to production.
-- **CloudFront Invalidation ID**: `I8ZUMT5SR55A708HJ8ZP550AH`
-
-## Follow-up
-- Perform a valid Request Care submission test.
-- Verify that submissions with missing pet names are rejected.
-- Execute the final malformed record purge after administrative verification.
+- **Frontend**: Build verification complete.

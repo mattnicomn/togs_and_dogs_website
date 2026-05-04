@@ -23,13 +23,23 @@ def get_item(pk, sk):
         print(f"Error getting item: {e}")
         return None
 
-def update_status(pk, sk, new_status, audit_note=None):
+def update_status(pk, sk, new_status, audit_note=None, extra_attrs=None):
     """Updates the status and adds to the audit log."""
     try:
         update_expr = "SET #stat = :s"
         expr_attr_names = {"#stat": "status"}
         expr_attr_vals = {":s": new_status}
         
+        if extra_attrs:
+            for k, v in extra_attrs.items():
+                # Avoid collision with #stat
+                safe_key = k.replace('-', '_').replace(' ', '_')
+                name_key = f"#extra_{safe_key}"
+                val_key = f":extra_{safe_key}"
+                update_expr += f", {name_key} = {val_key}"
+                expr_attr_names[name_key] = k
+                expr_attr_vals[val_key] = v
+
         if audit_note:
             # Simple append to audit log if implemented as a list
             update_expr += ", audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)"
