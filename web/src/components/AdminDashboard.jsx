@@ -2251,6 +2251,7 @@ const AdminDashboard = () => {
                       ) : statusFilter === 'DELETED' || statusFilter === 'TRASH' ? (
                         <>
                           <option value="REOPEN_PENDING">Restore to Active</option>
+                          <option value="__PURGE__">Delete Permanently</option>
                         </>
                       ) : statusFilter === 'ARCHIVED' ? (
                         <>
