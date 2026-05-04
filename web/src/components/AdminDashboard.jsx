@@ -130,17 +130,31 @@ const AdminDashboard = () => {
     return "status-chip status-chip--archived";
   };
 
-  const getStatusLabel = (status = "") => {
+  const determineWorkflowType = (item) => {
+    if (!item) return 'CUSTOMER_INTAKE';
+    if (item.workflow_type) return item.workflow_type;
+    
+    const status = (item.status || "").toUpperCase();
+    if (['QUOTE_NEEDED', 'QUOTE_SENT', 'QUOTED', 'BOOKED', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(status)) return 'VISIT_BOOKING';
+    if (item.worker_id || item.job_id) return 'VISIT_BOOKING';
+    if (item.service_type && item.start_date && ['WALK_30MIN', 'DROPIN_1HR', 'DROPIN_3HR', 'OVERNIGHT'].includes(item.service_type)) return 'VISIT_BOOKING';
+    
+    return 'CUSTOMER_INTAKE';
+  };
+
+  const getStatusLabel = (status = "", item = null) => {
     const s = (status || "").toUpperCase();
-    if (s === 'PENDING_REVIEW' || s === 'NEEDS_REVIEW') return "Needs Review";
+    const workflow = determineWorkflowType(item);
+
+    if (s === 'PENDING_REVIEW' || s === 'NEEDS_REVIEW') return workflow === 'VISIT_BOOKING' ? "New Request" : "New Registration";
     if (s === 'MEET_GREET_REQUIRED' || s === 'NEEDS_MG') return "Needs M&G";
     if (s === 'MG_SCHEDULED') return "M&G Scheduled";
     if (s === 'MG_COMPLETED') return "M&G Completed";
     if (s === 'PROFILE_CREATED') return "Profile Created";
-    if (s === 'READY_FOR_APPROVAL' || s === 'NEW_REQUEST') return "New Request";
+    if (s === 'READY_FOR_APPROVAL' || s === 'NEW_REQUEST') return workflow === 'VISIT_BOOKING' ? "Booking Ready" : "Onboarding Ready";
     if (s === 'QUOTE_NEEDED') return "Quote Needed";
     if (s === 'QUOTE_SENT' || s === 'QUOTED') return "Quoted";
-    if (s === 'APPROVED' || s === 'BOOKED') return "Approved";
+    if (s === 'APPROVED' || s === 'BOOKED') return workflow === 'VISIT_BOOKING' ? "Booked" : "Approved Client";
     if (s === 'ASSIGNED' || s === 'JOB_CREATED' || s === 'SCHEDULED') return "Scheduled";
     if (s === 'IN_PROGRESS') return "In Progress";
     if (s === 'COMPLETED') return "Completed";
@@ -160,14 +174,14 @@ const AdminDashboard = () => {
   const isArchivedRecord = (item) => (item.status || "").toUpperCase() === 'ARCHIVED';
   const isDeletedRecord = (item) => (item.status || "").toUpperCase() === 'DELETED';
   const isActiveRecord = (item) => !isArchivedRecord(item) && !isDeletedRecord(item);
-
   const getWorkflowState = (item) => {
     const status = (item.status || 'PENDING_REVIEW').toUpperCase();
+    const workflow = determineWorkflowType(item);
     const hasWorker = Boolean(item.worker_id);
     const isInvalidAssigned = status === 'ASSIGNED' && !hasWorker;
 
     const state = {
-      displayStatus: getStatusLabel(status),
+      displayStatus: getStatusLabel(status, item),
       statusClass: getStatusClass(status),
       isInvalid: isInvalidAssigned,
       actions: []
@@ -181,73 +195,88 @@ const AdminDashboard = () => {
     }
 
     // Lifecycle-based Actions
-    // If a record is archived or deleted, its workflow status is terminal and it only supports recovery/trash actions.
     if (isArchivedRecord(item)) {
       state.actions = ["REOPEN_PENDING", "DELETE"];
       return state;
     }
     
     if (isDeletedRecord(item)) {
-      state.actions = ["REOPEN_PENDING", "PURGE_FOREVER"]; // Restore or permanently remove
+      state.actions = ["REOPEN_PENDING", "PURGE_FOREVER"];
       return state;
     }
 
-    // Active Workflow Status Actions
-    switch (status) {
-      case 'PENDING_REVIEW':
-      case 'NEEDS_REVIEW':
-        state.actions = ["CREATE_PROFILE", "MEET_GREET", "APPROVE", "CANCEL", "DELETE"];
-        break;
-      case 'PROFILE_CREATED':
-        state.actions = ["MOVE_TO_NEW_REQUEST", "MEET_GREET", "QUOTE", "APPROVE", "CANCEL", "EDIT_PET"];
-        break;
-      case 'MEET_GREET_REQUIRED':
-      case 'NEEDS_MG':
-        state.actions = ["MG_SCHEDULED", "VERIFY_MG", "CANCEL", "EDIT_PET"];
-        break;
-      case 'MG_SCHEDULED':
-        state.actions = ["VERIFY_MG", "MEET_GREET_REQUIRED", "CANCEL", "EDIT_PET"];
-        break;
-      case 'MG_COMPLETED':
-        state.actions = ["QUOTE", "QUOTED", "APPROVE", "ASSIGN", "CANCEL", "EDIT_PET"];
-        break;
-      case 'QUOTE_NEEDED':
-        state.actions = ["QUOTED", "APPROVE", "CANCEL", "EDIT_PET"];
-        break;
-      case 'QUOTE_SENT':
-      case 'QUOTED':
-        state.actions = ["APPROVE", "CANCEL", "ARCHIVE", "EDIT_PET"];
-        break;
-
-      case 'READY_FOR_APPROVAL':
-      case 'NEW_REQUEST':
-        state.actions = ["QUOTE", "APPROVE", "CANCEL", "EDIT_PET"];
-        break;
-      case 'APPROVED':
-      case 'BOOKED':
-      case 'JOB_CREATED':
-        state.actions = ["ASSIGN", "CANCEL", "ARCHIVE", "EDIT_PET"];
-        break;
-      case 'ASSIGNED':
-      case 'SCHEDULED':
-        state.actions = ["CHANGE_WORKER", "REVERT_TO_APPROVED", "COMPLETE", "CANCEL", "EDIT_PET"];
-        break;
-      case 'IN_PROGRESS':
-        state.actions = ["COMPLETE", "CANCEL", "EDIT_PET"];
-        break;
-      case 'COMPLETED':
-        state.actions = ["REOPEN", "ARCHIVE"];
-        break;
-      case 'CANCELLED':
-      case 'DECLINED':
-        state.actions = ["ARCHIVE", "DELETE"];
-        break;
-      default:
-        state.actions = ["CANCEL", "ARCHIVE"];
+    // Contextual Workflow Actions
+    if (workflow === 'CUSTOMER_INTAKE') {
+      switch (status) {
+        case 'PENDING_REVIEW':
+        case 'NEEDS_REVIEW':
+          state.actions = ["CREATE_PROFILE", "MEET_GREET", "APPROVE", "CANCEL", "DELETE"];
+          break;
+        case 'PROFILE_CREATED':
+          state.actions = ["MOVE_TO_NEW_REQUEST", "MEET_GREET", "APPROVE", "CANCEL"];
+          break;
+        case 'MEET_GREET_REQUIRED':
+        case 'NEEDS_MG':
+          state.actions = ["MG_SCHEDULED", "VERIFY_MG", "CANCEL"];
+          break;
+        case 'MG_SCHEDULED':
+          state.actions = ["VERIFY_MG", "MEET_GREET_REQUIRED", "CANCEL"];
+          break;
+        case 'MG_COMPLETED':
+          state.actions = ["APPROVE", "CANCEL"];
+          break;
+        case 'APPROVED':
+          state.actions = ["ARCHIVE", "DELETE"];
+          break;
+        case 'DECLINED':
+        case 'CANCELLED':
+          state.actions = ["ARCHIVE", "DELETE"];
+          break;
+        default:
+          state.actions = ["ARCHIVE", "DELETE"];
+      }
+    } else {
+      // VISIT_BOOKING
+      switch (status) {
+        case 'PENDING_REVIEW':
+        case 'NEEDS_REVIEW':
+        case 'READY_FOR_APPROVAL':
+        case 'NEW_REQUEST':
+          state.actions = ["QUOTE", "APPROVE", "CANCEL", "EDIT_PET"];
+          break;
+        case 'QUOTE_NEEDED':
+          state.actions = ["QUOTED", "APPROVE", "CANCEL", "EDIT_PET"];
+          break;
+        case 'QUOTED':
+        case 'QUOTE_SENT':
+          state.actions = ["APPROVE", "CANCEL", "EDIT_PET"];
+          break;
+        case 'APPROVED':
+        case 'BOOKED':
+          state.actions = ["ASSIGN", "CANCEL", "ARCHIVE", "EDIT_PET"];
+          break;
+        case 'ASSIGNED':
+        case 'SCHEDULED':
+          state.actions = ["CHANGE_WORKER", "REVERT_TO_APPROVED", "COMPLETE", "CANCEL", "EDIT_PET"];
+          break;
+        case 'IN_PROGRESS':
+          state.actions = ["COMPLETE", "CANCEL", "EDIT_PET"];
+          break;
+        case 'COMPLETED':
+          state.actions = ["REOPEN", "ARCHIVE"];
+          break;
+        case 'CANCELLED':
+        case 'DECLINED':
+          state.actions = ["ARCHIVE", "DELETE"];
+          break;
+        default:
+          state.actions = ["CANCEL", "ARCHIVE"];
+      }
     }
 
     return state;
   };
+
 
   const getGuidedActions = (item) => {
     const { actions } = getWorkflowState(item);
@@ -673,10 +702,11 @@ const AdminDashboard = () => {
         });
 
         let items = [...rawItems];
-
         if (isActiveFilter && statusFilter !== 'ALL') {
           items = items.filter(r => {
             const stat = (r.status || '').toUpperCase();
+            const workflow = determineWorkflowType(r);
+            
             if (statusFilter === 'DATA_ISSUES') return isDataIssue(r);
             if (statusFilter === 'NEEDS_ACTION') {
               return (
@@ -687,10 +717,29 @@ const AdminDashboard = () => {
                 stat === 'CANCELLATION_REQUESTED'
               );
             }
-            if (statusFilter === 'READY_FOR_APPROVAL') return stat === 'READY_FOR_APPROVAL' || stat === 'NEW_REQUEST';
-            if (statusFilter === 'MEET_GREET_REQUIRED') return stat === 'MEET_GREET_REQUIRED' || stat === 'NEEDS_MG';
-            if (statusFilter === 'QUOTED') return stat === 'QUOTED' || stat === 'QUOTE_SENT';
-            if (statusFilter === 'ASSIGNED') return stat === 'ASSIGNED' || stat === 'SCHEDULED';
+            
+            // Workflow-specific queue filtering
+            if (statusFilter === 'INTAKE_QUEUE') {
+              return workflow === 'CUSTOMER_INTAKE' && (stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' || stat === 'PROFILE_CREATED');
+            }
+            if (statusFilter === 'READY_FOR_APPROVAL') {
+              // Context-aware: Onboarding Ready vs Booking Ready
+              if (workflow === 'CUSTOMER_INTAKE') return stat === 'READY_FOR_APPROVAL' || stat === 'NEW_REQUEST' || stat === 'MG_COMPLETED';
+              return stat === 'READY_FOR_APPROVAL' || stat === 'NEW_REQUEST' || stat === 'APPROVED' || stat === 'BOOKED'; // For booking, ready means approved but unassigned
+            }
+            if (statusFilter === 'MEET_GREET_REQUIRED') {
+              return workflow === 'CUSTOMER_INTAKE' && (stat === 'MEET_GREET_REQUIRED' || stat === 'NEEDS_MG' || stat === 'MG_SCHEDULED');
+            }
+            if (statusFilter === 'BOOKING_QUEUE') {
+              return workflow === 'VISIT_BOOKING' && (stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' || stat === 'READY_FOR_APPROVAL' || stat === 'NEW_REQUEST' || stat === 'APPROVED' || stat === 'BOOKED');
+            }
+            if (statusFilter === 'QUOTED') {
+              return workflow === 'VISIT_BOOKING' && (stat === 'QUOTED' || stat === 'QUOTE_SENT' || stat === 'QUOTE_NEEDED');
+            }
+            if (statusFilter === 'ASSIGNED') {
+              return stat === 'ASSIGNED' || stat === 'SCHEDULED' || stat === 'IN_PROGRESS';
+            }
+            
             return stat === statusFilter.toUpperCase();
           });
         } else if (statusFilter === 'ALL') {
@@ -1376,51 +1425,96 @@ const AdminDashboard = () => {
           )}
 
           {view === 'LIST' && (
-            <div className="filter-group">
-              <h4>Quick Filters</h4>
-              {[
-                { id: 'NEEDS_ACTION', label: 'Needs Action' },
-                { id: 'READY_FOR_APPROVAL', label: 'New' },
-                { id: 'MEET_GREET_REQUIRED', label: 'Needs M&G' },
-                { id: 'QUOTED', label: 'Quoted' },
-                { id: 'APPROVED', label: 'Approved' },
-                { id: 'ASSIGNED', label: 'Scheduled' },
-                { id: 'COMPLETED', label: 'Completed' },
-                { id: 'ALL', label: 'All Active' },
-                ...(capabilities.canViewRequestList ? [{ id: 'DATA_ISSUES', label: '⚠️ Data Issues' }] : [])
-              ].map(f => {
-                const count = f.id === 'ALL' 
-                  ? allRequests.filter(r => !['COMPLETED', 'ARCHIVED', 'DELETED', 'CANCELLED', 'DECLINED'].includes((r.status || '').toUpperCase())).length
-                  : f.id === 'DATA_ISSUES'
-                  ? allRequests.filter(r => isDataIssue(r)).length
-                  : f.id === 'NEEDS_ACTION'
-                  ? allRequests.filter(r => {
-                      const stat = (r.status || '').toUpperCase();
-                      return (
-                        stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' ||
-                        stat === 'MEET_GREET_REQUIRED' || stat === 'NEEDS_MG' ||
-                        stat === 'QUOTE_NEEDED' ||
-                        stat === 'APPROVED' || stat === 'BOOKED' ||
-                        stat === 'CANCELLATION_REQUESTED'
-                      );
-                    }).length
-                  : allRequests.filter(r => (r.status || '').toUpperCase() === f.id || 
-                      (f.id === 'READY_FOR_APPROVAL' && (r.status || '').toUpperCase() === 'NEW_REQUEST') ||
-                      (f.id === 'MEET_GREET_REQUIRED' && (r.status || '').toUpperCase() === 'NEEDS_MG') ||
-                      (f.id === 'QUOTED' && (r.status || '').toUpperCase() === 'QUOTE_SENT') ||
-                      (f.id === 'ASSIGNED' && (r.status || '').toUpperCase() === 'SCHEDULED')
-                    ).length;
-                return (
-                  <button 
-                    key={f.id}
-                    className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
-                    onClick={() => setStatusFilter(f.id)}
-                  >
-                    {f.label} <span className="filter-count" style={{ float: 'right', opacity: 0.7, fontSize: '11px', fontWeight: 'bold' }}>({count})</span>
-                  </button>
-                );
-              })}
+            <div className="sidebar-workflows">
+              <div className="filter-group">
+                <h4 className="workflow-title">New Customer Intake</h4>
+                {[
+                  { id: 'INTAKE_QUEUE', label: 'Intake Queue' },
+                  { id: 'MEET_GREET_REQUIRED', label: 'Needs M&G' },
+                  { id: 'READY_FOR_APPROVAL', label: 'Ready to Approve' },
+                ].map(f => {
+                  const count = allRequests.filter(r => {
+                    if (determineWorkflowType(r) !== 'CUSTOMER_INTAKE') return false;
+                    const stat = (r.status || '').toUpperCase();
+                    if (f.id === 'INTAKE_QUEUE') return stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' || stat === 'PROFILE_CREATED';
+                    if (f.id === 'MEET_GREET_REQUIRED') return stat === 'MEET_GREET_REQUIRED' || stat === 'NEEDS_MG' || stat === 'MG_SCHEDULED';
+                    if (f.id === 'READY_FOR_APPROVAL') return stat === 'READY_FOR_APPROVAL' || stat === 'NEW_REQUEST' || stat === 'MG_COMPLETED';
+                    return stat === f.id;
+                  }).length;
+                  return (
+                    <button 
+                      key={f.id}
+                      className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
+                      onClick={() => setStatusFilter(f.id)}
+                    >
+                      {f.label} <span className="filter-count">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
 
+              <div className="filter-group">
+                <h4 className="workflow-title">Visit Requests</h4>
+                {[
+                  { id: 'BOOKING_QUEUE', label: 'Booking Queue' },
+                  { id: 'QUOTED', label: 'Quotes & Payments' },
+                  { id: 'ASSIGNED', label: 'Scheduled Visits' },
+                  { id: 'COMPLETED', label: 'Completed' },
+                ].map(f => {
+                  const count = allRequests.filter(r => {
+                    if (determineWorkflowType(r) !== 'VISIT_BOOKING') return false;
+                    const stat = (r.status || '').toUpperCase();
+                    if (f.id === 'BOOKING_QUEUE') return stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' || stat === 'READY_FOR_APPROVAL' || stat === 'NEW_REQUEST' || stat === 'APPROVED' || stat === 'BOOKED';
+                    if (f.id === 'QUOTED') return stat === 'QUOTED' || stat === 'QUOTE_SENT' || stat === 'QUOTE_NEEDED';
+                    if (f.id === 'ASSIGNED') return stat === 'ASSIGNED' || stat === 'SCHEDULED' || stat === 'IN_PROGRESS';
+                    return stat === f.id;
+                  }).length;
+                  return (
+                    <button 
+                      key={f.id}
+                      className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
+                      onClick={() => setStatusFilter(f.id)}
+                    >
+                      {f.label} <span className="filter-count">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="filter-group">
+                <h4>System</h4>
+                {[
+                  { id: 'ALL', label: 'All Active' },
+                  { id: 'NEEDS_ACTION', label: 'Needs Action' },
+                  ...(capabilities.canViewRequestList ? [{ id: 'DATA_ISSUES', label: '⚠️ Data Issues' }] : [])
+                ].map(f => {
+                  const count = f.id === 'ALL' 
+                    ? allRequests.filter(r => !['COMPLETED', 'ARCHIVED', 'DELETED', 'CANCELLED', 'DECLINED'].includes((r.status || '').toUpperCase())).length
+                    : f.id === 'DATA_ISSUES'
+                    ? allRequests.filter(r => isDataIssue(r)).length
+                    : f.id === 'NEEDS_ACTION'
+                    ? allRequests.filter(r => {
+                        const stat = (r.status || '').toUpperCase();
+                        return (
+                          stat === 'PENDING_REVIEW' || stat === 'NEEDS_REVIEW' ||
+                          stat === 'MEET_GREET_REQUIRED' || stat === 'NEEDS_MG' ||
+                          stat === 'QUOTE_NEEDED' ||
+                          stat === 'APPROVED' || stat === 'BOOKED' ||
+                          stat === 'CANCELLATION_REQUESTED'
+                        );
+                      }).length
+                    : allRequests.filter(r => (r.status || '').toUpperCase() === f.id).length;
+                  return (
+                    <button 
+                      key={f.id}
+                      className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
+                      onClick={() => setStatusFilter(f.id)}
+                    >
+                      {f.label} <span className="filter-count">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 

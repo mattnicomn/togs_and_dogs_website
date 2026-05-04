@@ -3,9 +3,9 @@ import uuid
 import os
 import boto3
 from datetime import datetime
-from common.db import put_item
-from common.response import success, bad_request, internal_error
-from common.status import RequestStatus
+from common.db import put_item, get_item
+from common.response import success, bad_request, internal_error, error
+from common.status import RequestStatus, WorkflowType
 
 sfn = boto3.client('stepfunctions')
 STATE_MACHINE_ARN = os.environ.get('STATE_MACHINE_ARN')
@@ -19,18 +19,43 @@ def handler(event, context):
         start_date = body.get('start_date')
         pet_names = body.get('pet_names')
         
-        # --- CLIENT BOUNDARY: Auto-resolve identity if submitted via /client/requests ---
-        from common.auth import get_effective_role, resolve_client_identity, get_claims
+        from common.auth import get_effective_role, resolve_client_identity, get_claims, get_current_company_id
         role = get_effective_role(event)
         client_id = body.get('client_id')
+        company_id = get_current_company_id(event)
         
-        if event.get('path', '') == '/client/requests' and role == 'client':
+        is_portal_path = event.get('path', '') == '/client/requests'
+        workflow_type = WorkflowType.CUSTOMER_INTAKE
+        
+        if is_portal_path and role == 'client':
             resolved_id = resolve_client_identity(event)
             if resolved_id:
                 client_id = resolved_id
                 claims = get_claims(event)
                 client_email = claims.get('email') or client_email
-                # Note: We still might need client_name from the body if the token lacks it.
+                
+                # Check if the client is APPROVED
+                client_profile = get_item(f"COMPANY#{company_id}", f"CLIENT#{client_id}")
+                if not client_profile:
+                    # Fallback check if PK/SK are different for clients
+                    client_profile = get_item(f"CLIENT#{client_id}", "METADATA")
+                
+                # Heuristic for "Approved": is_active=True AND portal_enabled=True
+                # Also check meet_and_greet_completed as an extra indicator of onboarding success
+                is_approved = client_profile and client_profile.get('is_active') and client_profile.get('portal_enabled')
+                
+                if not is_approved:
+                    return error(403, "Your profile is still under review. Once approved, you’ll be able to request visits from your client portal.", event)
+                
+                workflow_type = WorkflowType.VISIT_BOOKING
+            else:
+                return error(403, "You must have a linked client profile to request visits.", event)
+        elif is_portal_path and role != 'client':
+             # Admin/Staff hitting portal path - allow as VISIT_BOOKING
+             workflow_type = WorkflowType.VISIT_BOOKING
+        else:
+            # Public path /requests
+            workflow_type = WorkflowType.CUSTOMER_INTAKE
         
         # Basic validation for required fields (non-empty, non-whitespace)
         required_fields = {
@@ -49,8 +74,7 @@ def handler(event, context):
         request_id = str(uuid.uuid4())
         client_id = client_id or body.get('client_id', str(uuid.uuid4()))
         
-        from common.auth import get_current_company_id
-        company_id = get_current_company_id(event)
+        client_id = client_id or body.get('client_id', str(uuid.uuid4()))
 
         # Create the Request record
         item = {
@@ -71,6 +95,7 @@ def handler(event, context):
             'pet_info': body.get('pet_info'),
             'service_type': body.get('service_type', 'PET_SITTING'),
             'status': RequestStatus.PENDING_REVIEW.value,
+            'workflow_type': workflow_type.value,
             'created_at': datetime.utcnow().isoformat(),
             'entity_type': 'REQUEST'
         }

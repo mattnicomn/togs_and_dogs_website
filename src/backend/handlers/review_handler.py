@@ -4,10 +4,39 @@ import boto3
 from datetime import datetime, timezone
 from common.db import get_item, update_status, table
 from common.response import success, bad_request, internal_error, not_found
-from common.status import RequestStatus, is_valid_transition
+from common.status import RequestStatus, WorkflowType, is_valid_transition, determine_workflow_type
 from common.google_calendar import sync_calendar_event
 from common.email import send_transactional_email, get_approval_email_body, get_rejection_email_body
 from common.audit import log_action
+
+def handle_notifications(workflow_type, current_status, new_status, request_item, body):
+    """
+    Modular, fail-safe notification dispatcher.
+    Logs instead of blocking if delivery is unconfigured.
+    """
+    request_id = request_item.get('request_id')
+    client_email = request_item.get('client_email')
+    client_name = request_item.get('client_name', 'Client')
+    
+    # 1. Customer Intake Notifications
+    if workflow_type == WorkflowType.CUSTOMER_INTAKE:
+        if new_status == 'APPROVED':
+            print(f"NOTIFY: [Intake Approval] Client {client_name} ({client_email}) approved.")
+            # Placeholder for 'Welcome' email/SMS
+        elif new_status == 'MG_SCHEDULED':
+            print(f"NOTIFY: [M&G Scheduled] Meeting confirmed for {client_name}.")
+            
+    # 2. Visit Booking Notifications
+    elif workflow_type == WorkflowType.VISIT_BOOKING:
+        if new_status == 'APPROVED':
+            print(f"NOTIFY: [Booking Confirmed] Visit for {client_name} confirmed.")
+        elif new_status == 'ASSIGNED':
+            print(f"NOTIFY: [Visit Scheduled] Staff assigned for {client_name}.")
+        elif new_status == 'CANCELLED':
+            print(f"NOTIFY: [Visit Cancelled] Cancellation notice for {client_name}.")
+
+    # Fallback to current transactional email logic (which is already fail-safe)
+    # We keep the legacy logic in the main handler for now to preserve behavior.
 
 def handler(event, context):
     try:
@@ -102,7 +131,8 @@ def handler(event, context):
             return not_found(f"Request {request_id} not found", event)
  
         current_status = request_item.get('status') or 'PENDING_REVIEW'
-        print(f"INFO: [Req:{request_id}] Transition attempt: {current_status} -> {new_status}")
+        workflow_type = determine_workflow_type(request_item)
+        print(f"INFO: [Req:{request_id}] Workflow: {workflow_type.value}, Transition: {current_status} -> {new_status}")
         
         # 2. Validate transition
         if not is_valid_transition('REQUEST', current_status, new_status):
@@ -201,8 +231,11 @@ def handler(event, context):
                 f"CLIENT#{client_id}", 
                 previous_status=current_status, 
                 new_status=new_status,
-                metadata={"client_name": request_item.get('client_name'), "pet_names": request_item.get('pet_names')}
+                metadata={"client_name": request_item.get('client_name'), "pet_names": request_item.get('pet_names'), "workflow_type": workflow_type.value}
             )
+            
+            # 4b. Trigger modular notifications
+            handle_notifications(workflow_type, current_status, new_status, request_item, body)
             
             # Also update the Job record if it exists
             job_id = request_item.get('job_id')

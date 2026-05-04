@@ -1,6 +1,10 @@
 from enum import Enum
 
-class RequestStatus(Enum):
+from enum import Enum
+
+class WorkflowType(Enum):
+    CUSTOMER_INTAKE = "CUSTOMER_INTAKE"
+    VISIT_BOOKING = "VISIT_BOOKING"
     PENDING_REVIEW = "PENDING_REVIEW"
     NEEDS_REVIEW = "PENDING_REVIEW" # Synonym
     MEET_GREET_REQUIRED = "MEET_GREET_REQUIRED"
@@ -218,3 +222,38 @@ def is_valid_transition(entity_type, current_status, new_status):
 
     allowed_next = transitions.get(current_status, [])
     return new_status in allowed_next
+
+def determine_workflow_type(item):
+    """
+    Heuristic to determine the workflow context of a request item.
+    Returns WorkflowType.
+    """
+    if not item:
+        return WorkflowType.CUSTOMER_INTAKE
+        
+    # Explicit override if field exists
+    if item.get('workflow_type') == WorkflowType.VISIT_BOOKING.value:
+        return WorkflowType.VISIT_BOOKING
+    if item.get('workflow_type') == WorkflowType.CUSTOMER_INTAKE.value:
+        return WorkflowType.CUSTOMER_INTAKE
+        
+    # Heuristics for legacy records
+    status = item.get('status', '').upper()
+    
+    # Booking-specific statuses
+    if status in ['QUOTE_NEEDED', 'QUOTE_SENT', 'QUOTED', 'BOOKED', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']:
+        return WorkflowType.VISIT_BOOKING
+        
+    # If it has a worker assigned or a job linked, it's a booking
+    if item.get('worker_id') or item.get('job_id'):
+        return WorkflowType.VISIT_BOOKING
+        
+    # If it has specific service types that aren't the generic 'PET_SITTING' (often default for new)
+    # and has a start date, it's likely a visit request from an existing client
+    if item.get('service_type') and item.get('start_date'):
+        # For legacy, we check if it looks like a specific service request
+        if item.get('service_type') in ['WALK_30MIN', 'DROPIN_1HR', 'DROPIN_3HR', 'OVERNIGHT']:
+            return WorkflowType.VISIT_BOOKING
+            
+    # Default to Intake for PENDING_REVIEW, MEET_GREET_REQUIRED, etc. if no other indicators
+    return WorkflowType.CUSTOMER_INTAKE
