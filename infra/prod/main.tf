@@ -75,10 +75,13 @@ resource "aws_lambda_function" "intake" {
   timeout          = 60
 
   environment {
-    variables = {
-      DATA_TABLE_NAME   = module.data.table_name
-      STATE_MACHINE_ARN = module.workflow.sfn_arn
-    }
+    variables = merge(
+      {
+        DATA_TABLE_NAME   = module.data.table_name
+        STATE_MACHINE_ARN = module.workflow.sfn_arn
+      },
+      local.notification_env_vars
+    )
   }
 
   tags = local.common_tags
@@ -95,11 +98,14 @@ resource "aws_lambda_function" "admin" {
   timeout          = 60
 
   environment {
-    variables = {
-      DATA_TABLE_NAME    = module.data.table_name
-      ADMIN_USER_POOL_ID = module.auth.user_pool_id
-      DEFAULT_COMPANY_ID = "tog_and_dogs"
-    }
+    variables = merge(
+      {
+        DATA_TABLE_NAME    = module.data.table_name
+        ADMIN_USER_POOL_ID = module.auth.user_pool_id
+        DEFAULT_COMPANY_ID = "tog_and_dogs"
+      },
+      local.notification_env_vars
+    )
   }
 
 
@@ -139,11 +145,14 @@ resource "aws_lambda_function" "assign" {
   memory_size      = 512
 
   environment {
-    variables = {
-      DATA_TABLE_NAME          = module.data.table_name
-      GOOGLE_CLIENT_CREDS_NAME = module.secrets.google_client_creds_arn
-      GOOGLE_USER_TOKENS_NAME  = module.secrets.google_user_tokens_arn
-    }
+    variables = merge(
+      {
+        DATA_TABLE_NAME          = module.data.table_name
+        GOOGLE_CLIENT_CREDS_NAME = module.secrets.google_client_creds_arn
+        GOOGLE_USER_TOKENS_NAME  = module.secrets.google_user_tokens_arn
+      },
+      local.notification_env_vars
+    )
   }
 
   tags = local.common_tags
@@ -221,12 +230,15 @@ resource "aws_lambda_function" "cancellation" {
   timeout          = 60
 
   environment {
-    variables = {
-      DATA_TABLE_NAME            = module.data.table_name
-      GOOGLE_CLIENT_CREDS_NAME   = module.secrets.google_client_creds_arn
-      GOOGLE_USER_TOKENS_NAME    = module.secrets.google_user_tokens_arn
-      STAFF_COORDINATION_SNS_ARN = module.notifications.staff_coordination_topic_arn
-    }
+    variables = merge(
+      {
+        DATA_TABLE_NAME            = module.data.table_name
+        GOOGLE_CLIENT_CREDS_NAME   = module.secrets.google_client_creds_arn
+        GOOGLE_USER_TOKENS_NAME    = module.secrets.google_user_tokens_arn
+        STAFF_COORDINATION_SNS_ARN = module.notifications.staff_coordination_topic_arn
+      },
+      local.notification_env_vars
+    )
   }
 
   tags = local.common_tags

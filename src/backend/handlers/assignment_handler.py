@@ -9,6 +9,7 @@ def handler(event, context):
         from common.response import success, bad_request, internal_error, not_found
         from common.status import JobStatus, is_valid_transition
         from common.google_calendar import sync_calendar_event
+        from common.notifications.service import notify_event
     except ImportError as e:
         print(f"FATAL_IMPORT_ERROR: {e}")
         return {
@@ -153,6 +154,10 @@ def handler(event, context):
             }
             if sync_warning:
                 response_body["warning"] = sync_warning
+
+            # Trigger modular notifications
+            notify_event('STAFF_ASSIGNED', item)
+            notify_event('VISIT_SCHEDULED', item)
 
             return success(response_body, event)
         except Exception as e:

@@ -7,6 +7,7 @@ from common.response import success, error, bad_request, internal_error
 from common.status import RequestStatus, is_valid_transition
 from common.google_calendar import delete_event
 from common.audit import log_action
+from common.notifications.service import notify_event
 
 # SNS client
 sns = boto3.client('sns')
@@ -193,6 +194,9 @@ def handle_admin_decision(body, event):
                 fail_msg = f"SNS notification failed: {str(ex)}"
                 print(fail_msg)
                 record_sync_failure(request_id, client_id, "SNS_NOTIFICATION", fail_msg)
+        
+        # 3. New modular notification system
+        notify_event('VISIT_CANCELLED', item)
 
     msg_action = f"{decision.lower()}ed" if decision != 'DENY' else "denied"
     return success({

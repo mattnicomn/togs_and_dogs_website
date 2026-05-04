@@ -3,6 +3,7 @@ import os
 import boto3
 from datetime import datetime
 from common.db import query_by_status, get_item, update_status
+from common.notifications.service import notify_event
 from common.response import success, bad_request, internal_error, not_found, error
 from common.auth import get_effective_role, sanitize_booking_for_role, get_claims
 from common.audit import log_action
@@ -1465,6 +1466,14 @@ def handler(event, context):
                 
                 if update_status(pk, sk, new_status, {"action": f"ADMIN_{action}", "timestamp": now_iso}, extra_attrs=extra_attrs):
                     log_action(event, action, pk, sk, previous_status=prev_status, new_status=new_status, metadata={"client_name": current_item.get('client_name') if current_item else None, "pet_names": current_item.get('pet_names') if current_item else None})
+                    
+                    # Trigger modular notifications for relevant status changes
+                    if new_status == 'APPROVED' and current_item:
+                        if current_item.get('workflow_type') == 'CUSTOMER_INTAKE':
+                            notify_event('CUSTOMER_APPROVED', current_item)
+                    elif new_status == 'CANCELLED' and current_item:
+                        notify_event('VISIT_CANCELLED', current_item)
+                        
                     return success({"message": f"Record status update to {new_status} success", "status": new_status}, event)
 
             return bad_request(f"Unsupported action: {action}. Please use ARCHIVE, DELETE, PURGE, or a valid terminal status.", event)

@@ -6,6 +6,7 @@ from datetime import datetime
 from common.db import put_item, get_item
 from common.response import success, bad_request, internal_error, error
 from common.status import RequestStatus, WorkflowType
+from common.notifications import notify_event
 
 sfn = boto3.client('stepfunctions')
 STATE_MACHINE_ARN = os.environ.get('STATE_MACHINE_ARN')
@@ -116,6 +117,10 @@ def handler(event, context):
                 except Exception as sfn_err:
                     print(f"Error starting Step Function: {sfn_err}")
                     # We continue because the record is saved
+            
+            # Phase 3A: Trigger Notification (Dry Run / Configurable)
+            if workflow_type == WorkflowType.CUSTOMER_INTAKE:
+                notify_event('REQUEST_RECEIVED', item)
             
             return success({
                 "message": "Request submitted successfully",

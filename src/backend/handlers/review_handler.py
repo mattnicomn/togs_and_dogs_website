@@ -8,6 +8,7 @@ from common.status import RequestStatus, WorkflowType, is_valid_transition, dete
 from common.google_calendar import sync_calendar_event
 from common.email import send_transactional_email, get_approval_email_body, get_rejection_email_body
 from common.audit import log_action
+from common.notifications.service import notify_event
 
 def handle_notifications(workflow_type, current_status, new_status, request_item, body):
     """
@@ -21,19 +22,20 @@ def handle_notifications(workflow_type, current_status, new_status, request_item
     # 1. Customer Intake Notifications
     if workflow_type == WorkflowType.CUSTOMER_INTAKE:
         if new_status == 'APPROVED':
-            print(f"NOTIFY: [Intake Approval] Client {client_name} ({client_email}) approved.")
-            # Placeholder for 'Welcome' email/SMS
+            notify_event('CUSTOMER_APPROVED', request_item)
         elif new_status == 'MG_SCHEDULED':
-            print(f"NOTIFY: [M&G Scheduled] Meeting confirmed for {client_name}.")
+            # Placeholder for future M&G specific template
+            pass
             
     # 2. Visit Booking Notifications
     elif workflow_type == WorkflowType.VISIT_BOOKING:
         if new_status == 'APPROVED':
-            print(f"NOTIFY: [Booking Confirmed] Visit for {client_name} confirmed.")
+            pass
         elif new_status == 'ASSIGNED':
-            print(f"NOTIFY: [Visit Scheduled] Staff assigned for {client_name}.")
+            notify_event('STAFF_ASSIGNED', request_item)
+            notify_event('VISIT_SCHEDULED', request_item)
         elif new_status == 'CANCELLED':
-            print(f"NOTIFY: [Visit Cancelled] Cancellation notice for {client_name}.")
+            notify_event('VISIT_CANCELLED', request_item)
 
     # Fallback to current transactional email logic (which is already fail-safe)
     # We keep the legacy logic in the main handler for now to preserve behavior.
