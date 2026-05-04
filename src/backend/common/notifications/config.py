@@ -8,6 +8,9 @@ class NotificationConfig:
     ADMIN_EMAIL = os.environ.get('NOTIFICATION_ADMIN_EMAIL', 'mbn@usmissionhero.com')
     ROUTE_MODE = os.environ.get('NOTIFICATION_ROUTE_MODE', 'event_based')
     
+    REPLY_TO = os.environ.get('NOTIFICATION_REPLY_TO', EMAIL_FROM)
+    PORTAL_URL = os.environ.get('NOTIFICATION_PORTAL_URL', 'https://toganddogs.usmissionhero.com')
+    
     # Flags for specific events
     NOTIFY_ADMIN_ON_REQUEST_RECEIVED = os.environ.get('NOTIFY_ADMIN_ON_REQUEST_RECEIVED', 'true').lower() == 'true'
     NOTIFY_ADMIN_ON_CANCELLED = os.environ.get('NOTIFY_ADMIN_ON_CANCELLED', 'true').lower() == 'true'
@@ -15,6 +18,8 @@ class NotificationConfig:
     NOTIFY_CLIENT_ON_APPROVAL = os.environ.get('NOTIFY_CLIENT_ON_APPROVAL', 'true').lower() == 'true'
     NOTIFY_CLIENT_ON_SCHEDULED = os.environ.get('NOTIFY_CLIENT_ON_SCHEDULED', 'true').lower() == 'true'
     NOTIFY_STAFF_ON_ASSIGNMENT = os.environ.get('NOTIFY_STAFF_ON_ASSIGNMENT', 'true').lower() == 'true'
+    NOTIFY_CLIENT_ON_CANCELLED = os.environ.get('NOTIFY_CLIENT_ON_CANCELLED', 'true').lower() == 'true'
+    NOTIFY_STAFF_ON_CANCELLED = os.environ.get('NOTIFY_STAFF_ON_CANCELLED', 'true').lower() == 'true'
 
     # Testing
     TEST_RECIPIENT_OVERRIDE = os.environ.get('NOTIFICATION_TEST_RECIPIENT_OVERRIDE')

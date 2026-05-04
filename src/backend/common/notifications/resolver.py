@@ -40,37 +40,59 @@ def resolve_notification_recipients(event_type, record, previous_record=None, co
         logger.info(f"NOTIFICATION_SKIP: Skipping event {event_type} for record in status {status}.")
         return []
 
-    # 3. Event-based Routing
+    # 3. Event-based Routing (Respects preference flags)
     if event_type == 'REQUEST_RECEIVED':
-        # Primary: Admin
         if config and config.NOTIFY_ADMIN_ON_REQUEST_RECEIVED:
             recipients.append(config.ADMIN_EMAIL)
+        else:
+            logger.info(f"NOTIFICATION_SKIP_PREF: Admin notification disabled for {event_type}")
             
     elif event_type == 'CUSTOMER_APPROVED':
-        # Primary: Client
-        client_email = get_client_email(record)
-        if client_email:
-            recipients.append(client_email)
+        if config and config.NOTIFY_CLIENT_ON_APPROVAL:
+            client_email = get_client_email(record)
+            if client_email:
+                recipients.append(client_email)
+        else:
+            logger.info(f"NOTIFICATION_SKIP_PREF: Client notification disabled for {event_type}")
             
     elif event_type == 'VISIT_SCHEDULED':
-        # Primary: Client
-        client_email = get_client_email(record)
-        if client_email:
-            recipients.append(client_email)
+        if config and config.NOTIFY_CLIENT_ON_SCHEDULED:
+            client_email = get_client_email(record)
+            if client_email:
+                recipients.append(client_email)
+        else:
+            logger.info(f"NOTIFICATION_SKIP_PREF: Client notification disabled for {event_type}")
             
     elif event_type == 'STAFF_ASSIGNED':
-        # Primary: Staff
-        staff_email = get_staff_email(record)
-        if staff_email:
-            recipients.append(staff_email)
+        if config and config.NOTIFY_STAFF_ON_ASSIGNMENT:
+            staff_email = get_staff_email(record)
+            if staff_email:
+                recipients.append(staff_email)
+        else:
+            logger.info(f"NOTIFICATION_SKIP_PREF: Staff notification disabled for {event_type}")
             
     elif event_type == 'VISIT_CANCELLED':
-        # Primary: Client + Admin (if configured)
-        client_email = get_client_email(record)
-        if client_email:
-            recipients.append(client_email)
+        # Routing to Client
+        if config and config.NOTIFY_CLIENT_ON_CANCELLED:
+            client_email = get_client_email(record)
+            if client_email:
+                recipients.append(client_email)
+        else:
+            logger.info(f"NOTIFICATION_SKIP_PREF: Client notification disabled for {event_type}")
+            
+        # Routing to Staff
+        if config and config.NOTIFY_STAFF_ON_CANCELLED:
+            staff_email = get_staff_email(record)
+            if staff_email:
+                recipients.append(staff_email)
+        else:
+            logger.info(f"NOTIFICATION_SKIP_PREF: Staff notification disabled for {event_type}")
+
+        # Routing to Admin
         if config and config.NOTIFY_ADMIN_ON_CANCELLED:
             recipients.append(config.ADMIN_EMAIL)
+        else:
+            logger.info(f"NOTIFICATION_SKIP_PREF: Admin notification disabled for {event_type}")
             
     elif event_type == 'VISIT_TIME_CHANGED':
         # Primary: Client

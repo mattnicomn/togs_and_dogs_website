@@ -1,72 +1,199 @@
-from .config import NotificationConfig
+import json
 
 class NotificationTemplates:
-    """Templates for different notification events."""
+    """Polished, Tog and Dogs branded notification templates."""
 
     @staticmethod
     def get_template(event_type, context):
         """
-        Returns (subject, body_text, body_html) for a given event and context.
+        Returns (subject, body_text, body_html) for a given event.
         """
-        templates = {
-            'REQUEST_RECEIVED': NotificationTemplates._request_received,
-            'CUSTOMER_APPROVED': NotificationTemplates._customer_approved,
-            'VISIT_SCHEDULED': NotificationTemplates._visit_scheduled,
-            'STAFF_ASSIGNED': NotificationTemplates._staff_assigned,
-            'VISIT_CANCELLED': NotificationTemplates._visit_cancelled,
-            'VISIT_TIME_CHANGED': NotificationTemplates._visit_time_changed
-        }
+        # Normalize data for friendly rendering
+        friendly_context = NotificationTemplates.normalize_context(context)
         
-        template_func = templates.get(event_type)
-        if not template_func:
-            return None, None, None
-            
-        return template_func(context)
+        if event_type == 'REQUEST_RECEIVED':
+            return NotificationTemplates.request_received(friendly_context)
+        elif event_type == 'CUSTOMER_APPROVED':
+            return NotificationTemplates.customer_approved(friendly_context)
+        elif event_type == 'VISIT_SCHEDULED':
+            return NotificationTemplates.visit_scheduled(friendly_context)
+        elif event_type == 'STAFF_ASSIGNED':
+            return NotificationTemplates.staff_assigned(friendly_context)
+        elif event_type == 'VISIT_CANCELLED':
+            return NotificationTemplates.visit_cancelled(friendly_context)
+        elif event_type == 'VISIT_TIME_CHANGED':
+            return NotificationTemplates.visit_time_changed(friendly_context)
+        
+        return None, None, None
 
     @staticmethod
-    def _request_received(ctx):
-        client_name = ctx.get('client_name', 'Valued Client')
-        subject = f"New Service Request Received - {client_name}"
-        text = f"Hello Ryan,\n\nA new service request has been received from {client_name}.\n\nDetails: {ctx.get('details', 'N/A')}"
-        html = f"<html><body><h2>New Service Request</h2><p>A new request has been received from <strong>{client_name}</strong>.</p></body></html>"
-        return subject, text, html
+    def normalize_context(context):
+        """Safely renders friendly labels for raw data."""
+        normalized = dict(context)
+        
+        # 1. Fallbacks for names
+        normalized['client_name'] = context.get('client_name') or 'Valued Client'
+        normalized['staff_name'] = context.get('staff_name') or 'Team Member'
+        normalized['pet_names'] = context.get('pet_names') or 'your pets'
+        
+        # 2. Service type mapping
+        service_type = context.get('service_type', 'PET_SITTING')
+        friendly_services = {
+            'WALK_30MIN': '30-Minute Walk',
+            'WALK_60MIN': '60-Minute Walk',
+            'DROPIN_1HR': '1-Hour Drop-in',
+            'DROPIN_3HR': '3-Hour Drop-in',
+            'OVERNIGHT': 'Overnight Care',
+            'PET_SITTING': 'Pet Sitting',
+            'MEET_GREET': 'Meet & Greet'
+        }
+        normalized['service_label'] = friendly_services.get(service_type, service_type.replace('_', ' ').title())
+        
+        # 3. Date/Time normalization (if present)
+        # Assuming context might have start_date, start_time
+        date_val = context.get('start_date', 'scheduled date')
+        time_val = context.get('start_time')
+        normalized['date_label'] = f"{date_val} at {time_val}" if time_val else date_val
+        
+        return normalized
 
     @staticmethod
-    def _customer_approved(ctx):
-        client_name = ctx.get('client_name', 'Valued Client')
-        subject = "Your Service Request has been Approved!"
-        text = f"Hi {client_name},\n\nGreat news! Your service request has been approved."
-        html = f"<html><body><h2>Great news, {client_name}!</h2><p>Your request has been <strong>APPROVED</strong>.</p></body></html>"
-        return subject, text, html
+    def request_received(ctx):
+        subject = f"New Service Request Received - {ctx['client_name']}"
+        body_text = f"Hi Ryan,\n\nA new service request has been received from {ctx['client_name']} for {ctx['pet_names']}.\n\nService: {ctx['service_label']}\nDate: {ctx['date_label']}\n\nDetails: {ctx['details']}"
+        body_html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+                <h2 style="color: #2c3e50;">New Service Request</h2>
+                <p>Hi Ryan,</p>
+                <p>A new service request has been received from <strong>{ctx['client_name']}</strong> for <strong>{ctx['pet_names']}</strong>.</p>
+                <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                    <p style="margin: 5px 0;"><strong>Service:</strong> {ctx['service_label']}</p>
+                    <p style="margin: 5px 0;"><strong>Date:</strong> {ctx['date_label']}</p>
+                </div>
+                <p><strong>Details:</strong><br/>{ctx['details']}</p>
+                <p style="margin-top: 30px; font-size: 0.9em; color: #777;">Tog and Dogs Internal Notification</p>
+            </div>
+        </body>
+        </html>
+        """
+        return subject, body_text, body_html
 
     @staticmethod
-    def _visit_scheduled(ctx):
-        client_name = ctx.get('client_name', 'Valued Client')
+    def customer_approved(ctx):
+        subject = "Your Tog and Dogs Service Request: Approved!"
+        body_text = f"Hi {ctx['client_name']},\n\nGreat news! Your service request for {ctx['pet_names']} has been approved.\n\nWe've added this to our master schedule and will see you soon!\n\nQuestions? Reply to this email or contact Tog and Dogs directly."
+        body_html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+                <h2 style="color: #27ae60;">Great news, {ctx['client_name']}!</h2>
+                <p>Your service request for <strong>{ctx['pet_names']}</strong> has been <strong>Approved</strong>.</p>
+                <p>We've added this to our master schedule and will see you soon!</p>
+                <div style="background: #e8f5e9; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                    <p style="margin: 5px 0;"><strong>Service:</strong> {ctx['service_label']}</p>
+                    <p style="margin: 5px 0;"><strong>Date:</strong> {ctx['date_label']}</p>
+                </div>
+                <p>Questions? Reply to this email or contact us directly.</p>
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
+                <p style="font-size: 0.9em; color: #777;">Best,<br/>The Tog and Dogs Team</p>
+            </div>
+        </body>
+        </html>
+        """
+        return subject, body_text, body_html
+
+    @staticmethod
+    def visit_scheduled(ctx):
         subject = "Your Visit has been Scheduled"
-        text = f"Hi {client_name},\n\nYour visit has been successfully scheduled."
-        html = f"<html><body><h2>Visit Scheduled</h2><p>Hi {client_name}, your visit is now on our schedule!</p></body></html>"
-        return subject, text, html
+        body_text = f"Hi {ctx['client_name']},\n\nYour upcoming visit for {ctx['pet_names']} has been scheduled with {ctx['staff_name']}.\n\nDate: {ctx['date_label']}\n\nQuestions? Reply to this email or contact Tog and Dogs directly."
+        body_html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+                <h2 style="color: #2980b9;">Visit Scheduled!</h2>
+                <p>Hi {ctx['client_name']},</p>
+                <p>Your upcoming visit for <strong>{ctx['pet_names']}</strong> has been scheduled with <strong>{ctx['staff_name']}</strong>.</p>
+                <div style="background: #ebf5fb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                    <p style="margin: 5px 0;"><strong>Service:</strong> {ctx['service_label']}</p>
+                    <p style="margin: 5px 0;"><strong>Date:</strong> {ctx['date_label']}</p>
+                </div>
+                <p>Questions? Reply to this email or contact us directly.</p>
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
+                <p style="font-size: 0.9em; color: #777;">Best,<br/>The Tog and Dogs Team</p>
+            </div>
+        </body>
+        </html>
+        """
+        return subject, body_text, body_html
 
     @staticmethod
-    def _staff_assigned(ctx):
-        staff_name = ctx.get('staff_name', 'Team Member')
+    def staff_assigned(ctx):
         subject = "New Assignment: Upcoming Visit"
-        text = f"Hi {staff_name},\n\nYou have been assigned a new visit."
-        html = f"<html><body><h2>New Assignment</h2><p>Hi {staff_name}, you have a new assignment.</p></body></html>"
-        return subject, text, html
+        body_text = f"Hi {ctx['staff_name']},\n\nYou have been assigned a new visit for {ctx['client_name']}.\n\nPets: {ctx['pet_names']}\nDate: {ctx['date_label']}\n\nPlease review the details in the staff portal."
+        body_html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+                <h2 style="color: #8e44ad;">New Assignment</h2>
+                <p>Hi {ctx['staff_name']},</p>
+                <p>You have been assigned a new visit for <strong>{ctx['client_name']}</strong>.</p>
+                <div style="background: #f5eef8; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                    <p style="margin: 5px 0;"><strong>Service:</strong> {ctx['service_label']}</p>
+                    <p style="margin: 5px 0;"><strong>Pets:</strong> {ctx['pet_names']}</p>
+                    <p style="margin: 5px 0;"><strong>Date:</strong> {ctx['date_label']}</p>
+                </div>
+                <p>Please review the details in the staff portal for any specific instructions.</p>
+                <p style="margin-top: 30px; font-size: 0.9em; color: #777;">Tog and Dogs Team Management</p>
+            </div>
+        </body>
+        </html>
+        """
+        return subject, body_text, body_html
 
     @staticmethod
-    def _visit_cancelled(ctx):
-        client_name = ctx.get('client_name', 'Valued Client')
+    def visit_cancelled(ctx):
         subject = "Visit Cancellation Confirmation"
-        text = f"Hi {client_name},\n\nThis is to confirm that your visit has been cancelled."
-        html = f"<html><body><h2>Visit Cancelled</h2><p>Hi {client_name}, your visit has been cancelled as requested.</p></body></html>"
-        return subject, text, html
+        body_text = f"Hi {ctx['client_name']},\n\nThis is to confirm that your visit for {ctx['pet_names']} on {ctx['date_label']} has been cancelled.\n\nQuestions? Reply to this email or contact Tog and Dogs directly."
+        body_html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+                <h2 style="color: #c0392b;">Visit Cancelled</h2>
+                <p>Hi {ctx['client_name']},</p>
+                <p>This is to confirm that your visit for <strong>{ctx['pet_names']}</strong> on <strong>{ctx['date_label']}</strong> has been <strong>Cancelled</strong>.</p>
+                <div style="background: #fdf2f2; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                    <p style="margin: 5px 0;"><strong>Service:</strong> {ctx['service_label']}</p>
+                </div>
+                <p>If this was a mistake or you have questions, please reply to this email or contact us directly.</p>
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
+                <p style="font-size: 0.9em; color: #777;">Best,<br/>The Tog and Dogs Team</p>
+            </div>
+        </body>
+        </html>
+        """
+        return subject, body_text, body_html
 
     @staticmethod
-    def _visit_time_changed(ctx):
-        client_name = ctx.get('client_name', 'Valued Client')
-        subject = "Update: Your Visit Time has Changed"
-        text = f"Hi {client_name},\n\nWe wanted to let you know that your visit time has been adjusted."
-        html = f"<html><body><h2>Schedule Update</h2><p>Hi {client_name}, your visit time has been updated.</p></body></html>"
-        return subject, text, html
+    def visit_time_changed(ctx):
+        subject = "Update: Visit Time Changed"
+        body_text = f"Hi {ctx['client_name']},\n\nThere has been a change to the scheduled time for your upcoming visit.\n\nNew Time: {ctx['date_label']}\n\nQuestions? Reply to this email or contact Tog and Dogs directly."
+        body_html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+                <h2 style="color: #f39c12;">Time Change Notification</h2>
+                <p>Hi {ctx['client_name']},</p>
+                <p>There has been a change to the scheduled time for your upcoming visit for <strong>{ctx['pet_names']}</strong>.</p>
+                <div style="background: #fff9eb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                    <p style="margin: 5px 0;"><strong>New Time:</strong> {ctx['date_label']}</p>
+                </div>
+                <p>Questions? Reply to this email or contact us directly.</p>
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
+                <p style="font-size: 0.9em; color: #777;">Best,<br/>The Tog and Dogs Team</p>
+            </div>
+        </body>
+        </html>
+        """
+        return subject, body_text, body_html

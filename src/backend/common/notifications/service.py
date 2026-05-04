@@ -20,11 +20,15 @@ def notify_event(event_type, record, previous_record=None):
             print(f"NOTIFICATION_IDLE: No recipients resolved for {event_type}")
             return
 
-        # 2. Build Context
+        # 2. Build Context (Phase 3B Expanded)
         context = {
             "client_name": get_client_name(record),
             "staff_name": get_staff_name(record),
             "request_id": record.get('request_id'),
+            "pet_names": record.get('pet_names'),
+            "service_type": record.get('service_type'),
+            "start_date": record.get('start_date'),
+            "start_time": record.get('start_time'),
             "details": record.get('details', 'No details provided.')
         }
 

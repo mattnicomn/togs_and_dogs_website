@@ -21,7 +21,14 @@ locals {
     NOTIFICATION_DRY_RUN       = "true"
     NOTIFICATION_EMAIL_FROM    = "notifications@toganddogs.usmissionhero.com"
     NOTIFICATION_ADMIN_EMAIL   = "mbn@usmissionhero.com"
-    NOTIFICATION_ROUTE_MODE    = "event_based"
-    # Individual notification flags can also be added here if needed to override defaults
+    NOTIFICATION_ROUTE_MODE          = "event_based"
+    NOTIFICATION_PORTAL_URL         = "https://toganddogs.usmissionhero.com"
+    NOTIFY_ADMIN_ON_REQUEST_RECEIVED = "true"
+    NOTIFY_CLIENT_ON_APPROVAL       = "true"
+    NOTIFY_CLIENT_ON_SCHEDULED      = "true"
+    NOTIFY_STAFF_ON_ASSIGNMENT      = "true"
+    NOTIFY_CLIENT_ON_CANCELLED      = "true"
+    NOTIFY_STAFF_ON_CANCELLED       = "true"
+    NOTIFY_ADMIN_ON_FAILED_DELIVERY = "true"
   }
 }
