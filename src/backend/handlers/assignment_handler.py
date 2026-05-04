@@ -156,6 +156,8 @@ def handler(event, context):
                 response_body["warning"] = sync_warning
 
             # Trigger modular notifications
+            # ROBUSTNESS: Ensure notify_event has access to the newly assigned worker_id
+            item['worker_id'] = worker_id
             notify_event('STAFF_ASSIGNED', item)
             notify_event('VISIT_SCHEDULED', item)
 
