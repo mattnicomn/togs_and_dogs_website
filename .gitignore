@@ -24,12 +24,15 @@ scratch/
 artifacts/
 verification_evidence_m4.md
 *.log
+web/build_output*.txt
+.vite/
 
 # Python
 __pycache__/
 *.pyc
 
 # Test Artifacts
+.pytest_cache/
 payload*.json
 res*.json
 test*.json
