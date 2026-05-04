@@ -1,10 +1,10 @@
 from enum import Enum
 
-from enum import Enum
-
 class WorkflowType(Enum):
     CUSTOMER_INTAKE = "CUSTOMER_INTAKE"
     VISIT_BOOKING = "VISIT_BOOKING"
+
+class RequestStatus(Enum):
     PENDING_REVIEW = "PENDING_REVIEW"
     NEEDS_REVIEW = "PENDING_REVIEW" # Synonym
     MEET_GREET_REQUIRED = "MEET_GREET_REQUIRED"

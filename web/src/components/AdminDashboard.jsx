@@ -2281,11 +2281,14 @@ const AdminDashboard = () => {
                       <td onClick={() => handleSelectPet(item)} className="clickable-cell">
                         <div className="info-stack">
                           <span className="bold">
-                            {(!item.pet_names && !item.pet_name && !item.client_name) ? (
-                              <span style={{ color: 'var(--error-color)', fontWeight: 'bold' }}>⚠️ MALFORMED RECORD</span>
-                            ) : (
-                              `${item.pet_names || item.pet_name || '---'} (${item.client_name || 'No Client Name'})`
-                            )}
+                            {(() => {
+                              const pets = item.pet_names || item.pet_name;
+                              const client = item.client_name;
+                              if (!pets && !client) return <span style={{ color: 'var(--error-color)', fontWeight: 'bold' }}>⚠️ MALFORMED RECORD</span>;
+                              if (!pets) return `(No Pet Names) — ${client}`;
+                              if (!client) return `${pets} — (No Client Name)`;
+                              return `${pets} (${client})`;
+                            })()}
                           </span>
                           <span className="micro-text">{item.service_type || 'Unknown Service'}</span>
                         </div>
