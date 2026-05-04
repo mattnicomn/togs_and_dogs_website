@@ -78,5 +78,14 @@ def resolve_notification_recipients(event_type, record, previous_record=None, co
         if client_email:
             recipients.append(client_email)
 
-    # Filter out empty/None values
-    return [r for r in recipients if r]
+    # Filter out empty/None values and de-duplicate (case-insensitive)
+    unique_recipients = []
+    seen = set()
+    for r in recipients:
+        if r and isinstance(r, str):
+            r_lower = r.strip().lower()
+            if r_lower not in seen:
+                unique_recipients.append(r.strip())
+                seen.add(r_lower)
+    
+    return unique_recipients
