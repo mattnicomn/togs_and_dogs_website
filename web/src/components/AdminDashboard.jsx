@@ -16,15 +16,13 @@ const PROTECTED_EMAILS = ["admin@toganddogs.com"];
 
 const AdminDashboard = () => {
 
-  const [requests, setRequests] = useState([]);
-  const [allRequests, setAllRequests] = useState([]); // Raw pool for sidebar counts
+  const [allRequests, setAllRequests] = useState([]); // Master pool for all records
   const [openMenuId, setOpenMenuId] = useState(null); // Track which row's action menu is open
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [role, setRole] = useState('unknown');
   const [currentUser, setCurrentUser] = useState(null); // { email, sub }
-
 
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [authChallenge, setAuthChallenge] = useState(null);
@@ -60,13 +58,11 @@ const AdminDashboard = () => {
     notes: ''
   });
   const [isSavingClient, setIsSavingClient] = useState(false);
-
   const [isSavingStaff, setIsSavingStaff] = useState(false);
 
-
-
-
   const [view, setView] = useState('SCHEDULER'); // SCHEDULER or LIST
+  const [statusFilter, setStatusFilter] = useState('PENDING_REVIEW');
+  const [timeframeFilter, setTimeframeFilter] = useState('ALL');
   const [selectedPet, setSelectedPet] = useState(null);
   const [assigningId, setAssigningId] = useState(null); 
   const [modalError, setModalError] = useState(null);
@@ -79,6 +75,8 @@ const AdminDashboard = () => {
   const [purgeConfirmText, setPurgeConfirmText] = useState('');
   const [isBulkPurging, setIsBulkPurging] = useState(false);
   const [workflowDropdownOpen, setWorkflowDropdownOpen] = useState(false);
+  const [decisionModal, setDecisionModal] = useState(null);
+  const [lastKey, setLastKey] = useState(null);
   
   const capabilities = {
     canViewScheduler: ['owner', 'admin', 'staff'].includes(role),
@@ -164,6 +162,94 @@ const AdminDashboard = () => {
     if (s === 'ARCHIVED' || s === 'ARCHIVE') return "Archived";
     if (s === 'DELETED' || s === 'DELETE' || s === 'TRASH') return "Deleted";
     return s || "Unknown / Status Missing";
+  };
+
+  /**
+   * Data Fetching Engine
+   */
+  const fetchGoogleStatus = async () => {
+    try {
+      const status = await getGoogleStatus();
+      setGoogleStatus(status.status);
+    } catch (err) {
+      console.error("Failed to fetch Google status", err);
+    }
+  };
+
+  const fetchStaffData = async () => {
+    try {
+      setStaffLoading(true);
+      setStaffError(null);
+      const data = await getStaff();
+      setStaffList(data.staff || []);
+    } catch (err) {
+      console.error("Failed to fetch staff list:", err);
+      setStaffError(err.message || "Failed to load staff");
+    } finally {
+      setStaffLoading(false);
+    }
+  };
+
+  const fetchClientData = async () => {
+    try {
+      const data = await getClients();
+      setClientList(data.clients || []);
+    } catch (err) {
+      console.error("Failed to fetch client list:", err);
+    }
+  };
+
+  const fetchAllData = async (startKey = null) => {
+    try {
+      setLoading(true);
+      if (!startKey) setSelectedIds([]); // Reset selection on fresh fetch
+      fetchStaffData();
+      fetchClientData();
+
+      if (view === 'SCHEDULER') {
+        const data = await getAdminRequests('ALL');
+        setAllRequests(prev => {
+          const combined = [...prev];
+          (data.requests || []).forEach(newItem => {
+            const index = combined.findIndex(ex => ex.PK === newItem.PK);
+            if (index >= 0) combined[index] = newItem;
+            else combined.push(newItem);
+          });
+          return combined;
+        });
+      } else {
+        const terminalStatuses = ['COMPLETED', 'CANCELLED', 'ARCHIVED', 'DELETED', 'TRASH', 'ARCHIVE'];
+        const isActiveFilter = !terminalStatuses.includes(statusFilter.toUpperCase());
+
+        let queryStatus = statusFilter;
+        if (statusFilter === 'ARCHIVE' || statusFilter === 'ARCHIVED') queryStatus = 'ARCHIVED';
+        if (statusFilter === 'TRASH' || statusFilter === 'DELETED') queryStatus = 'DELETED';
+
+        let data;
+        if (isActiveFilter) {
+          data = await getAdminRequests('ALL', startKey, timeframeFilter);
+        } else {
+          data = await getAdminRequests(queryStatus, startKey, timeframeFilter);
+        }
+
+        let rawItems = data.requests || [];
+        setAllRequests(prev => {
+          const combined = [...prev];
+          rawItems.forEach(newItem => {
+            const index = combined.findIndex(ex => ex.PK === newItem.PK);
+            if (index >= 0) combined[index] = newItem;
+            else combined.push(newItem);
+          });
+          return combined;
+        });
+
+        setLastKey(data.lastKey);
+      }
+    } catch (err) {
+      setError("Failed to fetch data: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   /**
@@ -384,9 +470,41 @@ const AdminDashboard = () => {
           state.actions = ["CANCEL", "ARCHIVE"];
       }
     }
-
     return state;
   };
+
+  /**
+   * Memoized Derived State
+   * visibleRecords and filterCounts are always in sync with allRequests pool.
+   */
+  const visibleRecords = React.useMemo(() => {
+    // Exclude lifecycle/removal statuses from the scheduler timeline if in SCHEDULER view
+    if (view === 'SCHEDULER') {
+        const terminalStatuses = ['ARCHIVED', 'DELETED', 'COMPLETED', 'CANCELLED'];
+        return allRequests.filter(r => !terminalStatuses.includes((r.status || '').toUpperCase()));
+    }
+    // Filter by the current status filter
+    return allRequests.filter(getFilterPredicate(statusFilter));
+  }, [allRequests, statusFilter, view]);
+
+  const filterCounts = React.useMemo(() => {
+    const filters = [
+        'INTAKE_QUEUE', 'MEET_GREET_REQUIRED', 'READY_FOR_APPROVAL',
+        'BOOKING_QUEUE', 'QUOTED', 'ASSIGNED', 'COMPLETED',
+        'ALL', 'NEEDS_ACTION', 'DATA_ISSUES',
+        'CANCELLED', 'ARCHIVED', 'DELETED'
+    ];
+    const counts = {};
+    filters.forEach(f => {
+        counts[f] = allRequests.filter(getFilterPredicate(f)).length;
+    });
+    return counts;
+  }, [allRequests]);
+
+  // Clear stale selections when switching filters
+  React.useEffect(() => {
+    setSelectedIds([]);
+  }, [statusFilter]);
 
 
   const getGuidedActions = (item) => {
@@ -434,11 +552,6 @@ const AdminDashboard = () => {
     return { primary, secondary };
   };
 
-  // Operational States
-  const [statusFilter, setStatusFilter] = useState('PENDING_REVIEW');
-  const [timeframeFilter, setTimeframeFilter] = useState('ALL');
-  const [lastKey, setLastKey] = useState(null);
-  const [decisionModal, setDecisionModal] = useState(null); 
   const [adminNote, setAdminNote] = useState('');
 
   useEffect(() => {
@@ -572,28 +685,6 @@ const AdminDashboard = () => {
   };
 
 
-  const fetchStaffData = async () => {
-    try {
-      setStaffLoading(true);
-      setStaffError(null);
-      const data = await getStaff();
-      setStaffList(data.staff || []);
-    } catch (err) {
-      console.error("Failed to fetch staff list:", err);
-      setStaffError(err.message || "Failed to load staff");
-    } finally {
-      setStaffLoading(false);
-    }
-  };
-
-  const fetchClientData = async () => {
-    try {
-      const data = await getClients();
-      setClientList(data.clients || []);
-    } catch (err) {
-      console.error("Failed to fetch client list:", err);
-    }
-  };
 
 
   const handleSaveStaff = async (e) => {
@@ -746,67 +837,6 @@ const AdminDashboard = () => {
 
 
 
-  const fetchAllData = async (startKey = null) => {
-    try {
-      setLoading(true);
-      if (!startKey) setSelectedIds([]); // Reset selection on fresh fetch
-      fetchStaffData();
-      fetchClientData();
-
-      
-      if (view === 'SCHEDULER') {
-
-        const data = await getAdminRequests('ALL');
-        // Exclude lifecycle/removal statuses from the scheduler timeline
-        const terminalStatuses = ['ARCHIVED', 'DELETED', 'COMPLETED', 'CANCELLED'];
-        setRequests((data.requests || []).filter(r => !terminalStatuses.includes((r.status || '').toUpperCase())));
-      } else {
-        const terminalStatuses = ['COMPLETED', 'CANCELLED', 'ARCHIVED', 'DELETED', 'TRASH', 'ARCHIVE'];
-        const isActiveFilter = !terminalStatuses.includes(statusFilter.toUpperCase());
-
-        let queryStatus = statusFilter;
-        if (statusFilter === 'ARCHIVE' || statusFilter === 'ARCHIVED') queryStatus = 'ARCHIVED';
-        if (statusFilter === 'TRASH' || statusFilter === 'DELETED') queryStatus = 'DELETED';
-
-        let data;
-        if (isActiveFilter) {
-          data = await getAdminRequests('ALL', startKey, timeframeFilter);
-        } else {
-          data = await getAdminRequests(queryStatus, startKey, timeframeFilter);
-        }
-
-        let rawItems = data.requests || [];
-        
-        // Merge into the global pool for stable sidebar counts
-        setAllRequests(prev => {
-          const combined = [...prev];
-          rawItems.forEach(newItem => {
-            const index = combined.findIndex(ex => ex.PK === newItem.PK);
-            if (index >= 0) combined[index] = newItem;
-            else combined.push(newItem);
-          });
-          return combined;
-        });
-
-        let items = [...rawItems];
-        if (isActiveFilter) {
-          // If we are in an active view, we apply the filter predicate to the fetched items
-          items = items.filter(getFilterPredicate(statusFilter));
-        } else {
-          // For terminal views (Archived/Deleted/etc), the backend already filtered them by status, 
-          // but we apply our local predicate to ensure consistency (e.g. including deleted_at)
-          items = items.filter(getFilterPredicate(statusFilter));
-        }
-
-        setRequests(items);
-        setLastKey(data.lastKey);
-      }
-    } catch (err) {
-      setError("Failed to fetch data: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -814,8 +844,8 @@ const AdminDashboard = () => {
     }
   }, [view, statusFilter, timeframeFilter, isAuthenticated]);
 
-  const toggleSelectAll = () => {
-    const currentKeys = requests.map(r => getRecordKey(r));
+   const toggleSelectAll = () => {
+    const currentKeys = visibleRecords.map(r => getRecordKey(r));
     const allSelected = currentKeys.length > 0 && currentKeys.every(key => selectedIds.includes(key));
     
     if (allSelected) {
@@ -875,7 +905,7 @@ const AdminDashboard = () => {
     if (!bulkAction || selectedIds.length === 0) return;
     
     setIsBulkUpdating(true);
-    const selectedRequests = requests.filter(r => selectedIds.includes(getRecordKey(r)));
+    const selectedRequests = visibleRecords.filter(r => selectedIds.includes(getRecordKey(r)));
     
     const updates = selectedRequests.map(async (req) => {
       return updateRecordStatus(req, bulkAction, `Bulk update: ${bulkAction}`);
@@ -1015,14 +1045,6 @@ const AdminDashboard = () => {
     }
   };
 
-  const fetchGoogleStatus = async () => {
-    try {
-      const data = await getGoogleStatus();
-      setGoogleStatus(data.status || 'NOT_CONNECTED');
-    } catch {
-      setGoogleStatus('NOT_CONNECTED');
-    }
-  };
 
   const handleConnectGoogle = async () => {
     try {
@@ -1094,7 +1116,7 @@ const AdminDashboard = () => {
       showNotification(successMsg, "success");
 
       // Reconcile local state immediately to prevent stale display while refresh is in flight
-      setRequests(prev => prev.map(item =>
+      setAllRequests(prev => prev.map(item =>
         (item.PK === req.PK && item.SK === req.SK)
         ? { ...item, status: targetStatus }
         : item
@@ -1142,7 +1164,7 @@ const AdminDashboard = () => {
       setLoading(true);
       await purgeRecord(pk, sk);
       // Remove row from local state immediately
-      setRequests(prev => prev.filter(r => !(r.PK === pk && r.SK === sk)));
+      setAllRequests(prev => prev.filter(r => !(r.PK === pk && r.SK === sk)));
       showNotification("Record permanently deleted.", "success");
       setPurgeModal(null);
     } catch (err) {
@@ -1158,7 +1180,7 @@ const AdminDashboard = () => {
     if (selectedIds.length === 0) return;
     setIsBulkPurging(true);
 
-    const selectedItems = requests.filter(r => selectedIds.includes(getRecordKey(r)) && isDeletedRecord(r));
+    const selectedItems = visibleRecords.filter(r => selectedIds.includes(getRecordKey(r)) && isDeletedRecord(r));
     
     if (selectedItems.length === 0) {
       showNotification("No valid DELETED records selected for permanent delete.", "error");
@@ -1174,7 +1196,7 @@ const AdminDashboard = () => {
       const response = await purgeRecordsBulk(payload);
 
       const deletedPKs = selectedItems.map(item => item.PK);
-      setRequests(prev => prev.filter(r => !deletedPKs.includes(r.PK)));
+      setAllRequests(prev => prev.filter(r => !deletedPKs.includes(r.PK)));
       setSelectedIds([]);
       setBulkConfirmModal(null);
 
@@ -1306,10 +1328,10 @@ const AdminDashboard = () => {
 
   const renderStats = () => {
     const stats = {
-      intake: requests.filter(r => r.status === 'PENDING_REVIEW').length,
-      unassigned: requests.filter(r => (r.status === 'APPROVED' || r.status === 'JOB_CREATED') && !r.worker_id).length,
-      scheduled: requests.filter(r => r.status === 'ASSIGNED' || r.status === 'SCHEDULED' || (r.status === 'JOB_CREATED' && r.worker_id)).length,
-      alerts: requests.filter(r => r.status === 'CANCELLATION_REQUESTED').length
+      intake: allRequests.filter(getFilterPredicate('INTAKE_QUEUE')).length,
+      unassigned: allRequests.filter(r => (r.status === 'APPROVED' || r.status === 'JOB_CREATED') && !r.worker_id && !isDataIssue(r)).length,
+      scheduled: allRequests.filter(getFilterPredicate('ASSIGNED')).length,
+      alerts: allRequests.filter(r => r.status === 'CANCELLATION_REQUESTED').length
     };
 
     return (
@@ -1481,18 +1503,15 @@ const AdminDashboard = () => {
                   { id: 'INTAKE_QUEUE', label: 'Intake Queue' },
                   { id: 'MEET_GREET_REQUIRED', label: 'Needs M&G' },
                   { id: 'READY_FOR_APPROVAL', label: 'Ready to Approve' },
-                ].map(f => {
-                  const count = allRequests.filter(getFilterPredicate(f.id)).length;
-                  return (
-                    <button 
-                      key={f.id}
-                      className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
-                      onClick={() => setStatusFilter(f.id)}
-                    >
-                      {f.label} <span className="filter-count">({count})</span>
-                    </button>
-                  );
-                })}
+                ].map(f => (
+                  <button 
+                    key={f.id}
+                    className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
+                    onClick={() => setStatusFilter(f.id)}
+                  >
+                    {f.label} <span className="filter-count">({filterCounts[f.id] || 0})</span>
+                  </button>
+                ))}
               </div>
 
               <div className="filter-group">
@@ -1502,18 +1521,15 @@ const AdminDashboard = () => {
                   { id: 'QUOTED', label: 'Quotes & Payments' },
                   { id: 'ASSIGNED', label: 'Scheduled Visits' },
                   { id: 'COMPLETED', label: 'Completed' },
-                ].map(f => {
-                  const count = allRequests.filter(getFilterPredicate(f.id)).length;
-                  return (
-                    <button 
-                      key={f.id}
-                      className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
-                      onClick={() => setStatusFilter(f.id)}
-                    >
-                      {f.label} <span className="filter-count">({count})</span>
-                    </button>
-                  );
-                })}
+                ].map(f => (
+                  <button 
+                    key={f.id}
+                    className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
+                    onClick={() => setStatusFilter(f.id)}
+                  >
+                    {f.label} <span className="filter-count">({filterCounts[f.id] || 0})</span>
+                  </button>
+                ))}
               </div>
 
               <div className="filter-group">
@@ -1522,18 +1538,15 @@ const AdminDashboard = () => {
                   { id: 'ALL', label: 'All Active' },
                   { id: 'NEEDS_ACTION', label: 'Needs Action' },
                   ...(capabilities.canViewRequestList ? [{ id: 'DATA_ISSUES', label: '⚠️ Data Issues' }] : [])
-                ].map(f => {
-                  const count = allRequests.filter(getFilterPredicate(f.id)).length;
-                  return (
-                    <button 
-                      key={f.id}
-                      className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
-                      onClick={() => setStatusFilter(f.id)}
-                    >
-                      {f.label} <span className="filter-count">({count})</span>
-                    </button>
-                  );
-                })}
+                ].map(f => (
+                  <button 
+                    key={f.id}
+                    className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
+                    onClick={() => setStatusFilter(f.id)}
+                  >
+                    {f.label} <span className="filter-count">({filterCounts[f.id] || 0})</span>
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -1545,18 +1558,15 @@ const AdminDashboard = () => {
                 { id: 'CANCELLED', label: 'Cancelled' },
                 { id: 'ARCHIVED', label: 'Archived' },
                 { id: 'DELETED', label: 'Trash / Deleted' }
-              ].map(f => {
-                const count = allRequests.filter(getFilterPredicate(f.id)).length;
-                return (
-                  <button 
-                    key={f.id}
-                    className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
-                    onClick={() => setStatusFilter(f.id)}
-                  >
-                    {f.label} <span className="filter-count" style={{ float: 'right', opacity: 0.7, fontSize: '11px', fontWeight: 'bold' }}>({count})</span>
-                  </button>
-                );
-              })}
+              ].map(f => (
+                <button 
+                  key={f.id}
+                  className={`filter-option ${statusFilter === f.id ? 'active' : ''}`}
+                  onClick={() => setStatusFilter(f.id)}
+                >
+                  {f.label} <span className="filter-count" style={{ float: 'right', opacity: 0.7, fontSize: '11px', fontWeight: 'bold' }}>({filterCounts[f.id] || 0})</span>
+                </button>
+              ))}
 
             </div>
           )}
@@ -1590,10 +1600,9 @@ const AdminDashboard = () => {
         </aside>
 
         <main className="admin-main">
-
           {view === 'SCHEDULER' ? (
             <MasterScheduler 
-              items={requests} 
+              items={visibleRecords} 
               staffList={staffList}
               onReview={(req) => {
                 if (req.status === 'CANCELLATION_REQUESTED') {
@@ -2273,15 +2282,15 @@ const AdminDashboard = () => {
                         type="checkbox" 
                         ref={el => {
                           if (el) {
-                            const currentKeys = requests.map(r => getRecordKey(r));
+                            const currentKeys = visibleRecords.map(r => getRecordKey(r));
                             const some = currentKeys.some(key => selectedIds.includes(key));
                             const all = currentKeys.length > 0 && currentKeys.every(key => selectedIds.includes(key));
                             el.indeterminate = some && !all;
                           }
                         }}
-                        checked={requests.length > 0 && requests.map(r => getRecordKey(r)).every(key => selectedIds.includes(key))}
+                        checked={visibleRecords.length > 0 && visibleRecords.map(r => getRecordKey(r)).every(key => selectedIds.includes(key))}
                         onChange={toggleSelectAll}
-                        disabled={requests.length === 0}
+                        disabled={visibleRecords.length === 0}
                       />
                     </th>
                     <th>Customer / Service</th>
@@ -2292,7 +2301,7 @@ const AdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {requests.map(item => (
+                  {visibleRecords.map(item => (
                     <tr key={getRecordKey(item)} className={selectedIds.includes(getRecordKey(item)) ? 'selected-row' : ''}>
                       <td>
                         <input 
@@ -2466,7 +2475,7 @@ const AdminDashboard = () => {
                       </td>
                     </tr>
                   ))}
-                  {requests.length === 0 && (
+                  {visibleRecords.length === 0 && (
                     <tr>
                       <td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                         {statusFilter === 'DATA_ISSUES' ? 'No data issue records found.' : 'No records found matching this filter.'}
@@ -2477,7 +2486,7 @@ const AdminDashboard = () => {
               </table>
 
               <div className="pagination-footer">
-                <span className="small text-muted">Showing {requests.length} records</span>
+                <span className="small text-muted">Showing {visibleRecords.length} records</span>
                 {lastKey && (
                   <button onClick={() => fetchAllData(lastKey)} className="btn-small primary">Next Page →</button>
                 )}
