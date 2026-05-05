@@ -23,6 +23,7 @@ locals {
     NOTIFICATION_ADMIN_EMAIL   = "mbn@usmissionhero.com"
     NOTIFICATION_ROUTE_MODE          = "event_based"
     NOTIFICATION_PORTAL_URL         = "https://toganddogs.usmissionhero.com"
+    NOTIFICATION_TEST_RECIPIENT_OVERRIDE = "" # Empty means no override
     NOTIFY_ADMIN_ON_REQUEST_RECEIVED = "true"
     NOTIFY_CLIENT_ON_APPROVAL       = "true"
     NOTIFY_CLIENT_ON_SCHEDULED      = "true"
