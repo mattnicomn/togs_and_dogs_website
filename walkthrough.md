@@ -52,3 +52,7 @@ Verified on 2026-05-05:
 
 ## Final Smoke Test Summary
 The production portal is now fully aligned with the unified access management framework. All client profiles have parity with staff lifecycle capabilities while maintaining strict data integrity and administrative safety guardrails.
+
+### SES & Notifications Note
+- **Cognito Invites**: Live (dispatched via Cognito's default email channel).
+- **App Lifecycle Alerts**: **DRY-RUN mode is ENABLED** (`NOTIFICATION_DRY_RUN=true`). App-specific alerts are currently logged to CloudWatch rather than dispatched to live recipients, as per production safety protocols.
