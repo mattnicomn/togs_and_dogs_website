@@ -1,5 +1,11 @@
 # SES Production Access Request Package: Tog and Dogs
 
+## Case Tracking
+- **Date Submitted**: 2026-05-05 (Planned)
+- **AWS Case ID**: TBD
+- **Current Status**: **Pending AWS Review**
+- **Next Planned Stage**: Stage 1 (Admin-only `REQUEST_RECEIVED` notifications)
+
 ## 1. Business Use Case
 Tog and Dogs is a professional pet care and dog walking business. We use AWS SES to send transactional notifications to our customers (pet owners) and staff members regarding booking requests, schedule confirmations, and service updates.
 
