@@ -83,6 +83,13 @@ export const createClient = (data) => request('/admin/clients', 'POST', data, tr
 export const updateClient = (clientId, data) => request(`/admin/clients/${clientId}`, 'PATCH', data, true);
 export const disableClient = (clientId) => request(`/admin/clients/${clientId}/disable`, 'POST', null, true);
 
+export const onboardClient = (data) => request('/admin/clients/onboard', 'POST', data, true);
+export const resendClientInvite = (clientId) => request(`/admin/clients/${clientId}/resend-invite`, 'POST', null, true);
+export const resetClientPassword = (clientId) => request(`/admin/clients/${clientId}/reset-password`, 'POST', null, true);
+export const setClientTempPassword = (clientId, password) => request(`/admin/clients/${clientId}/set-temp-password`, 'POST', { password }, true);
+export const linkClientCognitoUser = (clientId, data) => request(`/admin/clients/${clientId}/link-cognito`, 'POST', data, true);
+
+
 
 
 

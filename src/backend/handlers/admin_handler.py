@@ -11,7 +11,7 @@ import uuid
 
 # Protected Accounts (US Mission Hero Platform Support)
 PROTECTED_SUBS = ["74b86488-1011-7029-bb6d-dad984e1463c"]
-PROTECTED_USERNAMES = ["admin@toganddogs.com"]
+PROTECTED_USERNAMES = ["admin@toganddogs.com", "mbn@usmissionhero.com"]
 
 def is_protected_profile(profile):
     if not profile:
@@ -430,6 +430,142 @@ def handler(event, context):
                 print(f"Cognito onboard error: {e}")
                 return internal_error(str(e), event)
 
+        # POST /admin/clients/onboard
+        if http_method == 'POST' and '/admin/clients/onboard' in path:
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin']:
+                return error(403, "Forbidden", event)
+                
+            try:
+                body = json.loads(event.get('body', '{}'))
+            except Exception:
+                return bad_request("Invalid JSON body", event)
+                
+            display_name = body.get('display_name', '').strip()
+            email = body.get('email', '').strip().lower()
+            
+            if not display_name or not email:
+                return bad_request("display_name and email are required", event)
+                
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
+            from common.db import table as items_table
+            from boto3.dynamodb.conditions import Key
+            
+            # Check duplicate active email
+            resp = items_table.query(
+                KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("CLIENT#")
+            )
+            existing_clients = resp.get('Items', [])
+            for c in existing_clients:
+                if c.get('is_active') == True and (c.get('email') or '').lower() == email:
+                    return error(409, f"Active client with email {email} already exists", event)
+
+            import boto3
+            cognito = boto3.client('cognito-idp')
+            user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
+            
+            try:
+                # Create user in FORCE_CHANGE_PASSWORD
+                cog_resp = cognito.admin_create_user(
+                    UserPoolId=user_pool_id,
+                    Username=email,
+                    UserAttributes=[
+                        {'Name': 'email', 'Value': email},
+                        {'Name': 'email_verified', 'Value': 'true'},
+                    ],
+                    DesiredDeliveryMediums=['EMAIL']
+                )
+                
+                # Assign to 'client' group
+                cognito.admin_add_user_to_group(
+                    UserPoolId=user_pool_id,
+                    Username=email,
+                    GroupName='client'
+                )
+                
+                # Fetch Cognito Sub
+                cognito_sub = None
+                for attr in cog_resp.get('User', {}).get('Attributes', []):
+                    if attr.get('Name') == 'sub':
+                        cognito_sub = attr.get('Value')
+                        break
+                        
+                client_id = f"client_{str(uuid.uuid4())[:8]}"
+                
+                new_profile = {
+                    "PK": f"COMPANY#{company_id}",
+                    "SK": f"CLIENT#{client_id}",
+                    "company_id": company_id,
+                    "client_id": client_id,
+                    "display_name": display_name,
+                    "email": email,
+                    "cognito_sub": cognito_sub,
+                    "is_active": True,
+                    "portal_enabled": True,
+                    "phone": body.get('phone', '').strip() or None,
+                    "address": body.get('address', '').strip() or None,
+                    "emergency_contact": body.get('emergency_contact', '').strip() or None,
+                    "notes": body.get('notes', '').strip() or None,
+                    "cognito_status": "FORCE_CHANGE_PASSWORD",
+                    "created_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                }
+                
+                items_table.put_item(Item=new_profile)
+                return success(new_profile, event)
+                
+            except cognito.exceptions.UsernameExistsException:
+                if body.get('mode') in ['create_or_link', 'link_existing']:
+                    try:
+                        cog_user = cognito.admin_get_user(UserPoolId=user_pool_id, Username=email)
+                        cognito_sub = next((a['Value'] for a in cog_user.get('UserAttributes', []) if a['Name'] == 'sub'), None)
+                        
+                        # Ensure in 'client' group
+                        try:
+                            cognito.admin_add_user_to_group(UserPoolId=user_pool_id, Username=email, GroupName='client')
+                        except: pass
+                            
+                        existing_profile = next((c for c in existing_clients if (c.get('email') or '').lower() == email or c.get('cognito_sub') == cognito_sub), None)
+                        
+                        if existing_profile:
+                            existing_profile['cognito_sub'] = cognito_sub
+                            existing_profile['cognito_status'] = cog_user.get('UserStatus')
+                            existing_profile['portal_enabled'] = True
+                            existing_profile['updated_at'] = datetime.utcnow().isoformat()
+                            
+                            # Merge fields if provided
+                            for field in ['display_name', 'phone', 'address', 'emergency_contact', 'notes']:
+                                if field in body: existing_profile[field] = body[field]
+                            
+                            items_table.put_item(Item=existing_profile)
+                            return success(existing_profile, event)
+                        else:
+                            client_id = f"client_{str(uuid.uuid4())[:8]}"
+                            new_profile = {
+                                "PK": f"COMPANY#{company_id}",
+                                "SK": f"CLIENT#{client_id}",
+                                "company_id": company_id,
+                                "client_id": client_id,
+                                "display_name": display_name,
+                                "email": email,
+                                "cognito_sub": cognito_sub,
+                                "is_active": True,
+                                "portal_enabled": True,
+                                "cognito_status": cog_user.get('UserStatus'),
+                                "created_at": datetime.utcnow().isoformat(),
+                                "updated_at": datetime.utcnow().isoformat()
+                            }
+                            items_table.put_item(Item=new_profile)
+                            return success(new_profile, event)
+                    except Exception as e:
+                        return internal_error(f"Failed to link existing client: {e}", event)
+                return error(409, "Cognito user already exists. Use Link Existing User instead.", event)
+            except Exception as e:
+                return internal_error(str(e), event)
+
+
+        # POST /admin/staff/{id}/link-cognito & /admin/clients/{id}/link-cognito
         if http_method == 'POST' and '/link-cognito' in path:
             role = get_effective_role(event)
             if role not in ['owner', 'admin']:
@@ -444,9 +580,51 @@ def handler(event, context):
             if not username:
                 return bad_request("username is required", event)
                 
-            staff_id = path_params.get('staff_id')
-            if not staff_id:
-                staff_id = path.split('/')[-2]
+            is_client_path = '/admin/clients/' in path
+            user_id = path_params.get('client_id' if is_client_path else 'staff_id')
+            if not user_id:
+                user_id = path.split('/')[-2]
+                
+            prefix = 'CLIENT' if is_client_path else 'STAFF'
+            sk = f"{prefix}#{user_id}"
+            
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
+            from common.db import table as items_table
+            
+            resp = items_table.get_item(Key={"PK": f"COMPANY#{company_id}", "SK": sk})
+            user_profile = resp.get('Item')
+            if not user_profile:
+                return not_found(f"Profile {user_id} not found", event)
+                
+            import boto3
+            cognito = boto3.client('cognito-idp')
+            user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
+            
+            try:
+                cog_user = cognito.admin_get_user(UserPoolId=user_pool_id, Username=username)
+                cognito_sub = next((a['Value'] for a in cog_user.get('UserAttributes', []) if a['Name'] == 'sub'), None)
+                
+                # Ensure correct group
+                target_group = 'client' if is_client_path else (user_profile.get('role') or 'Staff')
+                if target_group.lower() == 'owner': target_group = 'owner'
+                elif target_group.lower() == 'admin': target_group = 'Admin'
+                elif target_group.lower() == 'staff': target_group = 'Staff'
+                
+                try:
+                    cognito.admin_add_user_to_group(UserPoolId=user_pool_id, Username=username, GroupName=target_group)
+                except: pass
+                
+                user_profile['cognito_sub'] = cognito_sub
+                user_profile['cognito_status'] = cog_user.get('UserStatus')
+                if is_client_path: user_profile['portal_enabled'] = True
+                user_profile['updated_at'] = datetime.utcnow().isoformat()
+                
+                items_table.put_item(Item=user_profile)
+                return success(user_profile, event)
+            except Exception as e:
+                return internal_error(f"Failed to link Cognito user: {e}", event)
+
                 
             from common.auth import get_current_company_id
             company_id = get_current_company_id(event)
@@ -524,50 +702,7 @@ def handler(event, context):
                 print(f"Cognito link error: {e}")
                 return internal_error(str(e), event)
 
-        if http_method == 'POST' and '/resend-invite' in path:
-            role = get_effective_role(event)
-            if role not in ['owner', 'admin']:
-                return error(403, "Forbidden", event)
-                
-            staff_id = path_params.get('staff_id')
-            if not staff_id:
-                staff_id = path.split('/')[-2]
-                
-            from common.auth import get_current_company_id
-            company_id = get_current_company_id(event)
-            from common.db import table as items_table
-            
-            resp = items_table.get_item(Key={"PK": f"COMPANY#{company_id}", "SK": f"STAFF#{staff_id}"})
 
-            staff_profile = resp.get('Item')
-            if not staff_profile:
-                return not_found(f"Staff profile {staff_id} not found", event)
-                
-            cognito_sub = staff_profile.get('cognito_sub')
-            email = staff_profile.get('email')
-            
-            if not cognito_sub and not email:
-                return bad_request("Staff profile is not linked to a Cognito user", event)
-                
-            username = email or cognito_sub
-            import boto3
-            cognito = boto3.client('cognito-idp')
-            user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
-            
-            try:
-                cognito.admin_create_user(
-                    UserPoolId=user_pool_id,
-                    Username=username,
-                    MessageAction='RESEND',
-                    DesiredDeliveryMediums=['EMAIL']
-                )
-                return success({"message": "Invite resent successfully"}, event)
-                
-            except cognito.exceptions.UserNotFoundException:
-                return not_found(f"Cognito user {username} not found", event)
-            except Exception as e:
-                print(f"Cognito resend error: {e}")
-                return internal_error(str(e), event)
 
         if http_method in ['PATCH', 'DELETE'] and '/admin/staff' in path:
 
@@ -828,28 +963,32 @@ def handler(event, context):
 
 
 
-        # --- Account Security Routes ---
-        if http_method == 'POST' and ('/reset-password' in path or '/set-temp-password' in path):
+        # --- Account Security Routes (Generalized) ---
+        if http_method == 'POST' and ('/reset-password' in path or '/set-temp-password' in path or '/resend-invite' in path):
             role = get_effective_role(event)
             if role not in ['owner', 'admin']:
                 return error(403, "Forbidden", event)
                 
-            staff_id = path_params.get('staff_id')
-            if not staff_id:
-                staff_id = path.split('/')[-2]
+            is_client_path = '/admin/clients/' in path
+            user_id = path_params.get('client_id' if is_client_path else 'staff_id')
+            if not user_id:
+                user_id = path.split('/')[-2]
+                
+            prefix = 'CLIENT' if is_client_path else 'STAFF'
+            sk = f"{prefix}#{user_id}"
                 
             from common.auth import get_current_company_id
             company_id = get_current_company_id(event)
             from common.db import table as items_table
             
-            resp = items_table.get_item(Key={"PK": f"COMPANY#{company_id}", "SK": f"STAFF#{staff_id}"})
-            staff_profile = resp.get('Item')
-            if not staff_profile:
-                return not_found(f"Staff profile {staff_id} not found", event)
+            resp = items_table.get_item(Key={"PK": f"COMPANY#{company_id}", "SK": sk})
+            user_profile = resp.get('Item')
+            if not user_profile:
+                return not_found(f"Profile {user_id} not found", event)
                 
-            username = staff_profile.get('email') or staff_profile.get('cognito_sub') or staff_profile.get('cognito_username')
+            username = user_profile.get('email') or user_profile.get('cognito_sub') or user_profile.get('cognito_username')
             if not username:
-                return bad_request("Staff profile is not linked to a Cognito user", event)
+                return bad_request("Profile is not linked to a Cognito user", event)
                 
             import boto3
             cognito = boto3.client('cognito-idp')
@@ -857,32 +996,32 @@ def handler(event, context):
             
             try:
                 if '/reset-password' in path:
-                    cognito.admin_reset_user_password(
-                        UserPoolId=user_pool_id,
-                        Username=username
-                    )
+                    cognito.admin_reset_user_password(UserPoolId=user_pool_id, Username=username)
                     return success({"message": "Password reset triggered. User will receive an email."}, event)
                     
                 elif '/set-temp-password' in path:
                     try:
                         body = json.loads(event.get('body', '{}'))
                     except: body = {}
-                    
                     temp_password = body.get('password')
-                    if not temp_password:
-                        return bad_request("password is required for set-temp-password", event)
-                        
-                    cognito.admin_set_user_password(
+                    if not temp_password: return bad_request("password is required", event)
+                    cognito.admin_set_user_password(UserPoolId=user_pool_id, Username=username, Password=temp_password, Permanent=False)
+                    return success({"message": "Temporary password set successfully."}, event)
+
+                elif '/resend-invite' in path:
+                    # Resend invite by creating user again with RESEND message action
+                    cognito.admin_create_user(
                         UserPoolId=user_pool_id,
                         Username=username,
-                        Password=temp_password,
-                        Permanent=False # Force change on next login
+                        MessageAction='RESEND',
+                        DesiredDeliveryMediums=['EMAIL']
                     )
-                    return success({"message": "Temporary password set successfully. User must change it on next login."}, event)
+                    return success({"message": "Invitation resent successfully."}, event)
                     
             except Exception as e:
                 print(f"Cognito security action error: {e}")
                 return internal_error(str(e), event)
+
 
         if path == '/admin/clients' or path.endswith('/admin/clients'):
             role = get_effective_role(event)
@@ -1196,7 +1335,36 @@ def handler(event, context):
                         
                 client_profile['updated_at'] = datetime.utcnow().isoformat()
                 items_table.put_item(Item=client_profile)
+
+                # Best-effort Cognito Sync
+                if client_profile.get('cognito_sub') or client_profile.get('email'):
+                    import boto3
+                    import re
+                    cognito = boto3.client('cognito-idp')
+                    user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
+                    username = client_profile.get('email') or client_profile.get('cognito_sub')
+                    
+                    attributes_to_sync = []
+                    if 'display_name' in body:
+                        attributes_to_sync.append({'Name': 'name', 'Value': body['display_name']})
+                    
+                    if 'phone' in body:
+                        phone = body['phone'].strip()
+                        if re.match(r'^\+\d{1,15}$', phone):
+                            attributes_to_sync.append({'Name': 'phone_number', 'Value': phone})
+                            
+                    if attributes_to_sync:
+                        try:
+                            cognito.admin_update_user_attributes(
+                                UserPoolId=user_pool_id,
+                                Username=username,
+                                UserAttributes=attributes_to_sync
+                            )
+                        except Exception as cog_err:
+                            print(f"Cognito client attribute sync failed: {cog_err}")
+
                 return success(client_profile, event)
+
 
         if http_method == 'GET':
 
