@@ -27,7 +27,7 @@ class SESClient:
         # 1. Handle Recipient Override for testing
         final_recipients = recipients
         if self.config.TEST_RECIPIENT_OVERRIDE:
-            logger.info(f"NOTIFICATION_OVERRIDE: Overriding {recipients} with {self.config.TEST_RECIPIENT_OVERRIDE}")
+            print(f"NOTIFICATION_OVERRIDE: Overriding {recipients} with {self.config.TEST_RECIPIENT_OVERRIDE}")
             final_recipients = [self.config.TEST_RECIPIENT_OVERRIDE]
 
         # 2. Prepare Log Data
@@ -62,7 +62,7 @@ class SESClient:
                 },
                 Source=self.config.EMAIL_FROM
             )
-            logger.info(f"NOTIFICATION_SUCCESS: Sent {event_key} to {final_recipients}. MessageId: {response['MessageId']}")
+            print(f"NOTIFICATION_SUCCESS: Sent {event_key} to {final_recipients}. MessageId: {response['MessageId']}")
             return True
 
         except ClientError as e:
