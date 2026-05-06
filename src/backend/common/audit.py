@@ -19,14 +19,20 @@ def log_action(event, action, target_pk, target_sk=None, previous_status=None, n
     audit_id = str(uuid.uuid4())
     timestamp = datetime.now(timezone.utc).isoformat()
     
-    # Extract identifier for PK
-    # If target_pk is REQ#<uuid>, use the uuid for cleaner lookup, 
-    # but for broad searchability we might just use the PK directly or a derivative.
-    # The requirement said PK = AUDIT#<request_id>
-    request_id = target_pk.replace("REQ#", "").replace("JOB#", "")
+    # Normalize the identifier for PK to avoid recursive AUDIT#AUDIT#... prefixing.
+    # We strip any existing known prefixes repeatedly before applying the AUDIT# prefix once.
+    clean_id = target_pk
+    prefixes = ["AUDIT#", "REQ#", "JOB#"]
+    changed = True
+    while changed:
+        changed = False
+        for prefix in prefixes:
+            if clean_id.startswith(prefix):
+                clean_id = clean_id[len(prefix):]
+                changed = True
     
     audit_record = {
-        "PK": f"AUDIT#{request_id}",
+        "PK": f"AUDIT#{clean_id}",
         "SK": f"{timestamp}#{audit_id}",
         "type": "AUDIT",
         "timestamp": timestamp,
