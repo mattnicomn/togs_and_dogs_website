@@ -1,8 +1,11 @@
-- [x] Create `_resolve_admin_record` helper in `admin_handler.py`
-- [x] Refactor `admin_handler.py` to support bulk `DELETE` and `ARCHIVE`
-- [x] Implement `dry_run` and pre-purge summary in `admin_handler.py`
-- [x] Update `AdminDashboard.jsx` to use bulk backend path for `DELETE`/`ARCHIVE`
-- [x] Implement pre-purge summary and confirmation flow in `AdminDashboard.jsx`
-- [x] Verify backend with `py_compile`
-- [x] Verify frontend with `npm run build`
-- [x] Create release notes in `docs/release-notes/admin-data-issues-bulk-cleanup-fix.md`
+# Data Issues Bulk Cleanup Task
+
+- [x] Implement backend record resolution (ID healing) in `admin_handler.py`
+- [x] Enable native bulk processing for "Move to Trash" (DELETE) and ARCHIVE
+- [x] Develop "Dry Run" analysis for permanent purges
+- [x] Enforce safety constraints for DELETED/Trash records only
+- [x] Enhance frontend error reporting in `AdminDashboard.jsx`
+- [x] Deploy backend changes via Terraform
+- [x] Build and deploy frontend to S3/CloudFront
+- [x] Perform production validation and bulk cleanup
+- [x] Document deployment and results in walkthrough.md
