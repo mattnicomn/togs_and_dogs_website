@@ -1055,7 +1055,11 @@ const AdminDashboard = () => {
     setModalError(null);
     try {
       setLoading(true);
-      await reviewRequest(reqId, clientId, type === 'APPROVE' ? 'APPROVED' : 'DECLINED', adminNote);
+      const response = await reviewRequest(reqId, clientId, type === 'APPROVE' ? 'APPROVED' : 'DECLINED', adminNote);
+      
+      const successMsg = response.message || (type === 'APPROVE' ? 'Approved successfully.' : 'Declined successfully.');
+      showNotification(successMsg, response.notification_result?.success === false ? 'warning' : 'success');
+      
       setDecisionModal(null);
       setAdminNote('');
       fetchAllData();

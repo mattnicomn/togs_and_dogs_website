@@ -82,22 +82,34 @@ class NotificationTemplates:
 
     @staticmethod
     def customer_approved(ctx):
-        subject = "Your Tog and Dogs Service Request: Approved!"
-        body_text = f"Hi {ctx['client_name']},\n\nGreat news! Your service request for {ctx['pet_names']} has been approved.\n\nWe've added this to our master schedule and will see you soon!\n\nQuestions? Reply to this email or contact Tog and Dogs directly."
+        subject = "Your Tog & Dogs request was approved"
+        
+        # Friendly date/time or fallback
+        date_time = ctx.get('date_label') or "not yet scheduled"
+        
+        body_text = (
+            f"Hi {ctx['client_name']},\n\n"
+            f"Good news — your Tog & Dogs request for {ctx['pet_names']} has been approved.\n\n"
+            f"Requested date/time:\n{date_time}\n\n"
+            f"Ryan will follow up if any final scheduling details are needed.\n\n"
+            f"Thank you,\n"
+            f"Tog & Dogs"
+        )
+        
         body_html = f"""
         <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
             <div style="max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
-                <h2 style="color: #27ae60;">Great news, {ctx['client_name']}!</h2>
-                <p>Your service request for <strong>{ctx['pet_names']}</strong> has been <strong>Approved</strong>.</p>
-                <p>We've added this to our master schedule and will see you soon!</p>
+                <h2 style="color: #27ae60;">Good news, {ctx['client_name']}!</h2>
+                <p>Your Tog & Dogs request for <strong>{ctx['pet_names']}</strong> has been <strong>approved</strong>.</p>
+                
                 <div style="background: #e8f5e9; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                    <p style="margin: 5px 0;"><strong>Service:</strong> {ctx['service_label']}</p>
-                    <p style="margin: 5px 0;"><strong>Date:</strong> {ctx['date_label']}</p>
+                    <p style="margin: 5px 0;"><strong>Requested date/time:</strong><br/>{date_time}</p>
                 </div>
-                <p>Questions? Reply to this email or contact us directly.</p>
-                <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
-                <p style="font-size: 0.9em; color: #777;">Best,<br/>The Tog and Dogs Team</p>
+                
+                <p>Ryan will follow up if any final scheduling details are needed.</p>
+                
+                <p style="margin-top: 30px;">Thank you,<br/>Tog & Dogs</p>
             </div>
         </body>
         </html>

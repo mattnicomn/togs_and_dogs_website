@@ -21,5 +21,18 @@ class NotificationConfig:
     NOTIFY_CLIENT_ON_CANCELLED = os.environ.get('NOTIFY_CLIENT_ON_CANCELLED', 'true').lower() == 'true'
     NOTIFY_STAFF_ON_CANCELLED = os.environ.get('NOTIFY_STAFF_ON_CANCELLED', 'true').lower() == 'true'
 
+    # Rate Governance (Track B)
+    DAILY_CAP = int(os.environ.get('NOTIFICATION_DAILY_CAP', '100'))
+    PER_MINUTE_CAP = int(os.environ.get('NOTIFICATION_PER_MINUTE_CAP', '5'))
+    SES_PRODUCTION_MODE = os.environ.get('SES_PRODUCTION_MODE', 'false').lower() == 'true'
+
+    # Delivery Mode Configuration
+    # Modes: log_only | ses_sandbox | ses_production | external_provider
+    NOTIFICATION_MODE = os.environ.get('NOTIFICATION_MODE', 'log_only').lower()
+    
+    # Sandbox Safety
+    _sandbox_allowed = os.environ.get('SES_SANDBOX_ALLOWED_RECIPIENTS', '')
+    SES_SANDBOX_ALLOWED_RECIPIENTS = [email.strip().lower() for email in _sandbox_allowed.split(',') if email.strip()]
+
     # Testing
     TEST_RECIPIENT_OVERRIDE = os.environ.get('NOTIFICATION_TEST_RECIPIENT_OVERRIDE')

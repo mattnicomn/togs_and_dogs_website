@@ -13,32 +13,32 @@ from common.notifications.service import notify_event
 def handle_notifications(workflow_type, current_status, new_status, request_item, body):
     """
     Modular, fail-safe notification dispatcher.
-    Logs instead of blocking if delivery is unconfigured.
+    Returns: { "success": bool, "message": str }
     """
-    request_id = request_item.get('request_id')
-    client_email = request_item.get('client_email')
-    client_name = request_item.get('client_name', 'Client')
+    result = {"success": True, "message": "No notification needed."}
     
     # 1. Customer Intake Notifications
     if workflow_type == WorkflowType.CUSTOMER_INTAKE:
         if new_status == 'APPROVED':
-            notify_event('CUSTOMER_APPROVED', request_item)
+            result = notify_event('CUSTOMER_APPROVED', request_item)
         elif new_status == 'MG_SCHEDULED':
             # Placeholder for future M&G specific template
+            pass
+        elif new_status == 'DECLINED':
+            # Placeholder for modular REJECTION
             pass
             
     # 2. Visit Booking Notifications
     elif workflow_type == WorkflowType.VISIT_BOOKING:
         if new_status == 'APPROVED':
-            pass
+            result = notify_event('CUSTOMER_APPROVED', request_item)
         elif new_status == 'ASSIGNED':
             notify_event('STAFF_ASSIGNED', request_item)
             notify_event('VISIT_SCHEDULED', request_item)
         elif new_status == 'CANCELLED':
             notify_event('VISIT_CANCELLED', request_item)
 
-    # Fallback to current transactional email logic (which is already fail-safe)
-    # We keep the legacy logic in the main handler for now to preserve behavior.
+    return result
 
 def handler(event, context):
     try:
@@ -237,7 +237,7 @@ def handler(event, context):
             )
             
             # 4b. Trigger modular notifications
-            handle_notifications(workflow_type, current_status, new_status, request_item, body)
+            notif_result = handle_notifications(workflow_type, current_status, new_status, request_item, body)
             
             # Also update the Job record if it exists
             job_id = request_item.get('job_id')
@@ -309,33 +309,17 @@ def handler(event, context):
                 except Exception as invoke_err:
                     print(f"ERROR: [Req:{request_id}] Failed to trigger job creation: {invoke_err}")
 
-            # 6. Send Customer Email (APPROVAL or REJECTION)
-            if new_status in ['APPROVED', 'DECLINED']:
-                client_name = request_item.get('client_name', 'Client')
-                client_email = request_item.get('client_email')
-                start_date = request_item.get('start_date', 'your requested date')
-                custom_message = body.get('reason', '') # Use the same 'reason' field for the email body
+            # 6. Legacy Customer Email REMOVED (Handled by handle_notifications)
 
-                if client_email:
-                    try:
-                        if new_status == 'APPROVED':
-                            subject = "Your Tog and Dogs Booking Request: APPROVED!"
-                            html = get_approval_email_body(client_name, start_date, custom_message)
-                        else:
-                            subject = "Update regarding your Tog and Dogs request"
-                            html = get_rejection_email_body(client_name, start_date, custom_message)
-                        
-                        send_transactional_email(client_email, subject, html)
-                    except Exception as email_err:
-                        # FAIL GRACEFULLY: Log but don't block the response
-                        print(f"WARNING: [Req:{request_id}] Email notification failed: {email_err}")
-                else:
-                    print(f"INFO: [Req:{request_id}] No client email on file. Skipping notification.")
+            final_msg = f"Request {new_status}."
+            if notif_result and notif_result.get('message'):
+                final_msg = notif_result['message']
 
             return success({
-                "message": f"Request {new_status}",
+                "message": final_msg,
                 "request_id": request_id,
-                "status": new_status
+                "status": new_status,
+                "notification_result": notif_result
             }, event)
 
         except Exception as db_err:
