@@ -38,4 +38,4 @@ Added specific messaging for each state to guide the client on what to expect ne
 
 ## Technical Details
 - **Backend Persistence**: `worker_name` is now persisted during the assignment workflow to ensure it is available for client-side display without requiring additional lookups.
-- **Commit Reference**: `[COMMIT_HASH]`
+- **Commit Reference**: 72ed22a
