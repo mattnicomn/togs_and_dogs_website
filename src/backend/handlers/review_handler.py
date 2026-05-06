@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from common.db import get_item, update_status, table
 from common.response import success, bad_request, internal_error, not_found
 from common.status import RequestStatus, WorkflowType, is_valid_transition, determine_workflow_type
-from common.google_calendar import sync_calendar_event
+from common.google_calendar import sync_calendar_event, delete_event
 from common.email import send_transactional_email, get_approval_email_body, get_rejection_email_body
 from common.audit import log_action
 from common.notifications.service import notify_event
@@ -264,33 +264,61 @@ def handler(event, context):
                     print(f"WARNING: [Req:{request_id}] Failed to update linked job: {job_err}")
 
             # 5. Trigger Job Creation Lambda if APPROVED
-            if new_status == 'APPROVED':
-                # 5. Trigger Google Calendar Sync
-                # IMPORTANT: Sync before Job creation so the Job record can inherit the google_event_id
-                event_id_to_pass = request_item.get('google_event_id')
+            # --- GOOGLE CALENDAR SYNC LOGIC ---
+            calendar_result = None
+            
+            # Merge body updates into request_item for sync logic (e.g. worker_id, schedule changes)
+            sync_data = {**request_item, **body}
+            
+            if new_status in ['APPROVED', 'ASSIGNED', 'BOOKED', 'SCHEDULED']:
                 try:
-                    print(f"INFO: [Req:{request_id}] Attempting Google Calendar sync (Status: APPROVED)")
+                    existing_event_id = request_item.get('google_event_id')
+                    assigned_worker = sync_data.get('worker_id')
                     
-                    # Sync with existing ID if present to ensure idempotency
-                    new_event_id = sync_calendar_event(request_item, google_event_id=event_id_to_pass)
+                    print(f"INFO: [Req:{request_id}] Attempting Google Calendar sync (Status: {new_status})")
+                    calendar_result = sync_calendar_event(sync_data, google_event_id=existing_event_id, assigned_worker=assigned_worker)
                     
-                    if new_event_id and new_event_id != event_id_to_pass:
+                    if calendar_result.get('event_id') and calendar_result.get('event_id') != existing_event_id:
                         # Persist the event ID back to the Request record
                         table.update_item(
                             Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
                             UpdateExpression="SET google_event_id = :gid",
-                            ExpressionAttributeValues={":gid": new_event_id}
+                            ExpressionAttributeValues={":gid": calendar_result['event_id']}
                         )
-                        print(f"INFO: [Req:{request_id}] Persisted new google_event_id: {new_event_id}")
-                        event_id_to_pass = new_event_id
-                    elif new_event_id:
-                        print(f"INFO: [Req:{request_id}] Google Calendar event updated (ID: {new_event_id})")
-                        
+                        print(f"INFO: [Req:{request_id}] Persisted new google_event_id: {calendar_result['event_id']}")
+                    
+                    # Update Job record if it exists
+                    job_id = request_item.get('job_id')
+                    if job_id and calendar_result.get('event_id'):
+                        table.update_item(
+                            Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{request_id}"},
+                            UpdateExpression="SET google_event_id = :gid",
+                            ExpressionAttributeValues={":gid": calendar_result['event_id']}
+                        )
                 except Exception as sync_err:
-                    # Graceful failure: Log but don't block the response
-                    print(f"WARNING: [Req:{request_id}] Google Calendar sync failed during approval: {sync_err}")
+                    print(f"WARNING: [Req:{request_id}] Google Calendar sync failed: {sync_err}")
+                    calendar_result = {"status": "calendar_failed", "message": str(sync_err)}
 
-                # 6. Trigger Job Creation Lambda
+            elif new_status in ['CANCELLED', 'ARCHIVED', 'DELETED']:
+                existing_event_id = request_item.get('google_event_id')
+                if existing_event_id:
+                    try:
+                        success_delete = delete_event(existing_event_id, request_id)
+                        if success_delete:
+                            calendar_result = {"status": "calendar_deleted", "message": "Calendar event deleted."}
+                            # Remove event ID from record
+                            table.update_item(
+                                Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                                UpdateExpression="REMOVE google_event_id"
+                            )
+                        else:
+                            calendar_result = {"status": "calendar_failed", "message": "Failed to delete calendar event."}
+                    except Exception as del_err:
+                        print(f"WARNING: [Req:{request_id}] Calendar delete failed: {del_err}")
+                        calendar_result = {"status": "calendar_failed", "message": str(del_err)}
+
+            # --- JOB CREATION LAMBDA TRIGGER ---
+            if new_status == 'APPROVED':
                 try:
                     lambda_client = boto3.client('lambda')
                     job_fn_name = os.environ.get('JOB_FUNCTION_NAME')
@@ -298,7 +326,7 @@ def handler(event, context):
                         payload = {
                             "request_id": request_id,
                             "client_id": client_id,
-                            "google_event_id": event_id_to_pass
+                            "google_event_id": calendar_result.get('event_id') if calendar_result else request_item.get('google_event_id')
                         }
                         lambda_client.invoke(
                             FunctionName=job_fn_name,
@@ -309,16 +337,21 @@ def handler(event, context):
                 except Exception as invoke_err:
                     print(f"ERROR: [Req:{request_id}] Failed to trigger job creation: {invoke_err}")
 
-            # 6. Legacy Customer Email REMOVED (Handled by handle_notifications)
-
+            # Prepare final message
             final_msg = f"Request {new_status}."
+            if calendar_result and calendar_result.get('message'):
+                final_msg += f" {calendar_result['message']}"
+            
             if notif_result and notif_result.get('message'):
-                final_msg = notif_result['message']
+                # Append notification status if it's informative
+                if "logged" in notif_result['message'].lower() or "sent" in notif_result['message'].lower():
+                    final_msg += f" ({notif_result['message']})"
 
             return success({
                 "message": final_msg,
                 "request_id": request_id,
                 "status": new_status,
+                "calendar_result": calendar_result,
                 "notification_result": notif_result
             }, event)
 

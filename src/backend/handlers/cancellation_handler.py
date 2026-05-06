@@ -173,17 +173,26 @@ def handle_admin_decision(body, event):
 
     # IF APPROVED: Clean up external dependencies
     message_id = None
+    calendar_msg = ""
     if decision == 'APPROVE':
         # 1. Google Calendar Removal
         google_event_id = item.get('google_event_id')
         if google_event_id:
             try:
-                if not delete_event(google_event_id, request_id):
+                if delete_event(google_event_id, request_id):
+                    calendar_msg = "Calendar event deleted."
+                    # Remove event ID from record
+                    table.update_item(
+                        Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                        UpdateExpression="REMOVE google_event_id"
+                    )
+                else:
                     raise Exception("delete_event returned False")
             except Exception as ex:
                 fail_msg = f"GCal cleanup failed: {str(ex)}"
                 print(fail_msg)
                 record_sync_failure(request_id, client_id, "GOOGLE_CALENDAR", fail_msg)
+                calendar_msg = f"Warning: {fail_msg}"
 
         # 2. Worker Notification (SNS)
         worker_id = item.get('worker_id')
@@ -199,8 +208,12 @@ def handle_admin_decision(body, event):
         notify_event('VISIT_CANCELLED', item)
 
     msg_action = f"{decision.lower()}ed" if decision != 'DENY' else "denied"
+    final_msg = f"Cancellation request {msg_action}."
+    if calendar_msg:
+        final_msg += f" {calendar_msg}"
+
     return success({
-        "message": f"Cancellation request {msg_action}.",
+        "message": final_msg,
         "new_status": new_status,
         "sns_message_id": message_id
     }, event)

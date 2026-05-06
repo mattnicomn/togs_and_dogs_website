@@ -1058,7 +1058,8 @@ const AdminDashboard = () => {
       const response = await reviewRequest(reqId, clientId, type === 'APPROVE' ? 'APPROVED' : 'DECLINED', adminNote);
       
       const successMsg = response.message || (type === 'APPROVE' ? 'Approved successfully.' : 'Declined successfully.');
-      showNotification(successMsg, response.notification_result?.success === false ? 'warning' : 'success');
+      const isWarning = response.notification_result?.success === false || response.calendar_result?.status === 'calendar_failed';
+      showNotification(successMsg, isWarning ? 'warning' : 'success');
       
       setDecisionModal(null);
       setAdminNote('');
@@ -1184,7 +1185,7 @@ const AdminDashboard = () => {
 
     try {
       setLoading(true);
-      await updateRecordStatus(req, action, note);
+      const response = await updateRecordStatus(req, action, note);
       actionSucceeded = true;
 
       const statusMap = {
@@ -1197,8 +1198,9 @@ const AdminDashboard = () => {
       };
       const targetStatus = statusMap[action] || action;
 
-      const successMsg = actionSuccessMessages[action] || actionSuccessMessages[targetStatus] || `Status updated to ${getStatusLabel(targetStatus)}.`;
-      showNotification(successMsg, "success");
+      // Use backend message if available (includes calendar sync results), otherwise fallback to local map
+      const successMsg = response?.message || actionSuccessMessages[action] || actionSuccessMessages[targetStatus] || `Status updated to ${getStatusLabel(targetStatus)}.`;
+      showNotification(successMsg, response?.calendar_result?.status === 'calendar_failed' ? 'warning' : 'success');
 
       // Reconcile local state immediately to prevent stale display while refresh is in flight
       setAllRequests(prev => prev.map(item =>
@@ -1324,10 +1326,11 @@ const AdminDashboard = () => {
     
     try {
       setLoading(true);
-      await processCancellationDecision(reqId, clientId, decision, note);
+      const resp = await processCancellationDecision(reqId, clientId, decision, note);
+      showNotification(resp.message || "Cancellation processed.", "success");
       fetchAllData();
     } catch (err) {
-      alert("Cancellation process failed: " + err.message);
+      showNotification("Cancellation process failed: " + err.message, "error");
     } finally {
       setLoading(false);
     }
@@ -1358,11 +1361,12 @@ const AdminDashboard = () => {
       const staff = staffList.find(s => (s.email || s.display_name) === workerId);
       const workerName = staff ? staff.display_name : workerId;
 
-      await assignWorker(jobId || reqId, reqId, clientId, workerId, workerName);
+      const resp = await assignWorker(jobId || reqId, reqId, clientId, workerId, workerName);
+      showNotification(resp.message || "Worker assigned.", resp.calendar_result?.status === 'calendar_failed' ? 'warning' : 'success');
       setAssigningId(null);
       fetchAllData();
     } catch (err) {
-      alert("Assignment failed: " + err.message);
+      showNotification("Assignment failed: " + err.message, "error");
     } finally {
       setLoading(false);
     }

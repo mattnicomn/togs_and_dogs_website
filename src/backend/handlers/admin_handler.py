@@ -2,8 +2,9 @@ import json
 import os
 import boto3
 from datetime import datetime
-from common.db import query_by_status, get_item, update_status
+from common.db import query_by_status, get_item, update_status, table
 from common.notifications.service import notify_event
+from common.google_calendar import sync_calendar_event, delete_event
 from common.response import success, bad_request, internal_error, not_found, error
 from common.auth import get_effective_role, sanitize_booking_for_role, get_claims
 from common.audit import log_action
@@ -1667,6 +1668,30 @@ def handler(event, context):
                         results["success"] += 1
                         log_action(event, action, actual_pk, actual_sk, previous_status=prev_status, new_status=new_status, bulk_op_id=bulk_op_id)
                         
+                        # --- GOOGLE CALENDAR SYNC (ADMIN BULK) ---
+                        try:
+                            if new_status in ['APPROVED', 'ASSIGNED', 'BOOKED', 'SCHEDULED']:
+                                # For bulk, we use the record as-is. If worker_id is being assigned in this bulk action,
+                                # it would need to be in 'extra_attrs' or similar, but bulk actions here seem to be
+                                # status-only or simple transitions.
+                                sync_data = {**current_item, 'status': new_status}
+                                if extra_attrs: sync_data.update(extra_attrs)
+                                
+                                cal_res = sync_calendar_event(sync_data, google_event_id=current_item.get('google_event_id'))
+                                if cal_res.get('event_id') and cal_res.get('event_id') != current_item.get('google_event_id'):
+                                    table.update_item(
+                                        Key={'PK': actual_pk, 'SK': actual_sk},
+                                        UpdateExpression="SET google_event_id = :gid",
+                                        ExpressionAttributeValues={":gid": cal_res['event_id']}
+                                    )
+                            elif new_status in ['CANCELLED', 'ARCHIVED', 'DELETED']:
+                                eid = current_item.get('google_event_id')
+                                if eid:
+                                    if delete_event(eid, actual_pk):
+                                        table.update_item(Key={'PK': actual_pk, 'SK': actual_sk}, UpdateExpression="REMOVE google_event_id")
+                        except Exception as cal_err:
+                            print(f"WARNING: [AdminBulk] Calendar sync failed for {actual_pk}: {cal_err}")
+
                         # Trigger notifications for relevant changes
                         if new_status == 'APPROVED' and current_item.get('workflow_type') == 'CUSTOMER_INTAKE':
                             notify_event('CUSTOMER_APPROVED', current_item)

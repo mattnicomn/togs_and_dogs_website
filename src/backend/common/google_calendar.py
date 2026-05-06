@@ -108,13 +108,25 @@ def _get_valid_token(request_id="UNKNOWN"):
     return _refresh_access_token(tokens, request_id)
 
 def _build_event_body(item, assigned_worker=None):
-    """Internal: Builds Google Calendar event resource with exact timing support."""
+    """
+    Internal: Builds Google Calendar event resource with strict timing support.
+    Returns (body, skip_reason)
+    """
     client_name = item.get('client_name', 'Unknown')
-    pet_name = item.get('pet_names', 'Unknown Pet')
+    pet_names = item.get('pet_names') or item.get('pet_name', 'Unknown Pet')
     service_type = item.get('service_type', 'Service')
-    
+    request_id = item.get('request_id') or item.get('PK', '').replace('REQ#', '').replace('JOB#', '')
+
+    # Validation check for required fields
+    if not request_id:
+        return None, "missing_required_fields (request_id)"
+    if not client_name or client_name == 'Unknown':
+        return None, "missing_required_fields (client_name)"
+    if not pet_names or pet_names == 'Unknown Pet':
+        return None, "missing_required_fields (pet_names)"
+
     # Title format: Tog and Dogs - {Pet/Customer Name} - {Service Type}
-    summary = f"Tog and Dogs - {pet_name} / {client_name} - {service_type}"
+    summary = f"Tog and Dogs - {pet_names} / {client_name} - {service_type}"
     
     scheduled_time = item.get('scheduled_time')
     scheduled_date = item.get('scheduled_date') or item.get('start_date')
@@ -122,27 +134,36 @@ def _build_event_body(item, assigned_worker=None):
     
     description = (
         f"Client: {client_name}\n"
-        f"Pet: {pet_name}\n"
+        f"Pet: {pet_names}\n"
         f"Service: {service_type}\n"
         f"Assigned Staff: {assigned_worker or 'Not Assigned'}\n"
         f"Scheduled Time: {scheduled_time or 'All Day'}\n"
-        f"Request ID: {item.get('request_id', 'N/A')}\n\n"
+        f"Request ID: {request_id}\n\n"
         f"Notes: {item.get('pet_info', 'None')}"
     )
 
     timezone = 'America/New_York'
 
-    if scheduled_time and scheduled_date:
+    # Strict timing check
+    if not scheduled_date:
+        return None, "missing_required_fields (scheduled_date)"
+
+    if scheduled_time:
         # Exact timing
         try:
             # Combine date and time
-            start_dt_str = f"{scheduled_date}T{scheduled_time}:00"
+            # Handle HH:MM or HH:MM:SS
+            time_part = scheduled_time
+            if len(time_part) == 5: # HH:MM
+                time_part += ":00"
+                
+            start_dt_str = f"{scheduled_date}T{time_part}"
             start_dt = datetime.fromisoformat(start_dt_str)
             
             from datetime import timedelta
             end_dt = start_dt + timedelta(minutes=duration_mins)
             
-            return {
+            body = {
                 'summary': summary,
                 'description': description,
                 'start': { 
@@ -154,32 +175,41 @@ def _build_event_body(item, assigned_worker=None):
                     'timeZone': timezone
                 }
             }
+            return body, None
         except Exception as e:
-            print(f"WARNING: Failed to parse exact timing ({scheduled_date} {scheduled_time}), falling back to all-day: {e}")
+            print(f"WARNING: Failed to parse exact timing ({scheduled_date} {scheduled_time}): {e}")
+            return None, "invalid_time_format"
 
-    # Fallback to all-day event
-    if not scheduled_date:
-        from datetime import datetime
-        scheduled_date = datetime.now().strftime('%Y-%m-%d')
-        
-    return {
-        'summary': summary,
-        'description': description,
-        'start': { 'date': scheduled_date },
-        'end': { 'date': scheduled_date }
-    }
+    # If no scheduled_time, we consider it a skip unless explicitly requested as all-day
+    # For Tog and Dogs visits, time is usually required.
+    return None, "missing_scheduled_time"
 
 def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
     """
     Creates or updates a Google Calendar event.
-    Returns: event_id (str) or None on failure.
+    Returns: { "status": str, "event_id": str, "message": str }
     """
-    request_id = item.get('request_id', 'UNKNOWN')
-    token = _get_valid_token(request_id)
-    if not token:
-        raise Exception("Google Calendar token is missing or disconnected.")
+    request_id = item.get('request_id') or item.get('PK', '').replace('REQ#', '').replace('JOB#', 'UNKNOWN')
+    
+    try:
+        token = _get_valid_token(request_id)
+        if not token:
+            return {
+                "status": "calendar_failed",
+                "message": "Google Calendar disconnected or token expired."
+            }
+    except Exception as e:
+        return {
+            "status": "calendar_failed",
+            "message": f"Auth error: {str(e)}"
+        }
 
-    event_body = _build_event_body(item, assigned_worker)
+    event_body, skip_reason = _build_event_body(item, assigned_worker)
+    if skip_reason:
+        return {
+            "status": f"calendar_skipped_{skip_reason}",
+            "message": f"Calendar sync skipped: {skip_reason.replace('_', ' ')}."
+        }
     
     try:
         if google_event_id:
@@ -201,18 +231,33 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
         with urllib.request.urlopen(req) as response:
             res_data = json.loads(response.read().decode())
             new_id = res_data.get('id')
-            action = "Updated" if google_event_id else "Created"
-            print(f"SUCCESS: [Req:{request_id}] {action} Calendar Event: {new_id}")
-            return new_id
+            action = "calendar_updated" if google_event_id else "calendar_created"
+            return {
+                "status": action,
+                "event_id": new_id,
+                "message": f"Calendar event {action.split('_')[1]}."
+            }
 
     except urllib.error.HTTPError as he:
         err_body = he.read().decode()
-        error_msg = f"HTTP {he.code} from Google Calendar API: {err_body}"
+        # Handle 404 if event was deleted externally
+        if he.code == 404 and google_event_id:
+             print(f"WARNING: [Req:{request_id}] Event {google_event_id} not found, attempting re-creation.")
+             return sync_calendar_event(item, google_event_id=None, assigned_worker=assigned_worker)
+             
+        error_msg = f"Google API Error {he.code}: {err_body}"
         print(f"ERROR: [Req:{request_id}] {error_msg}")
-        raise Exception(error_msg)
+        return {
+            "status": "calendar_failed",
+            "message": error_msg
+        }
     except Exception as e:
         print(f"ERROR: [Req:{request_id}] Failed to sync Calendar: {e}")
-        raise e
+        return {
+            "status": "calendar_failed",
+            "message": str(e)
+        }
+
 
 def delete_event(google_event_id, request_id="UNKNOWN"):
     """Deletes a Google Calendar event."""

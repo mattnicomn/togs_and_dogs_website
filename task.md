@@ -1,11 +1,16 @@
-# Data Issues Bulk Cleanup Task
-
-- [x] Implement backend record resolution (ID healing) in `admin_handler.py`
-- [x] Enable native bulk processing for "Move to Trash" (DELETE) and ARCHIVE
-- [x] Develop "Dry Run" analysis for permanent purges
-- [x] Enforce safety constraints for DELETED/Trash records only
-- [x] Enhance frontend error reporting in `AdminDashboard.jsx`
-- [x] Deploy backend changes via Terraform
-- [x] Build and deploy frontend to S3/CloudFront
-- [x] Perform production validation and bulk cleanup
-- [x] Document deployment and results in walkthrough.md
+- `[x]` Refactor `src/backend/common/google_calendar.py`
+    - `[x]` Implement strict field validation in `_build_event_body`
+    - `[x]` Update `sync_calendar_event` to return descriptive status and message
+- `[x]` Update `src/backend/handlers/review_handler.py`
+    - `[x]` Implement conditional sync on `APPROVED`
+    - `[x]` Implement sync on `ASSIGNED`
+    - `[x]` Implement deletion on `CANCELLED`, `DELETED`, `ARCHIVED`
+    - `[x]` Surface calendar results in API response
+- `[x]` Update `src/backend/handlers/admin_handler.py`
+    - `[x]` Integrate calendar sync into bulk status updates
+- `[x]` Update `web/src/components/AdminDashboard.jsx`
+    - `[x]` Display calendar sync feedback to admin
+- `[x]` Verification & Documentation
+    - `[x]` Run build checks
+    - `[x]` Create `docs/release-notes/google-calendar-scheduling-reliability.md`
+    - `[x]` Final validation with test records

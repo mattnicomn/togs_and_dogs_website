@@ -109,10 +109,13 @@ def handler(event, context):
             except Exception as req_err:
                 print(f"REQ_UPDATE_WARNING: {req_err}")
 
+            # Merge body updates into item for sync logic (e.g. worker_id, schedule changes)
+            sync_data = {**item, **body}
+
             # Sync to Google Calendar
             google_event_id = item.get('google_event_id')
             
-            # Fallback: Check the Request record if it's missing from the Job record (e.g. due to race condition during creation)
+            # Fallback: Check the Request record if it's missing from the Job record
             if not google_event_id:
                 print(f"INFO: [Req:{req_id}] google_event_id missing from Job record, checking Request record.")
                 request_rec = get_item(f"REQ#{req_id}", f"CLIENT#{client_id}")
@@ -121,39 +124,42 @@ def handler(event, context):
                     if google_event_id:
                         print(f"INFO: [Req:{req_id}] Found google_event_id in Request record: {google_event_id}")
             
-            sync_warning = None
+            calendar_result = None
             try:
-                new_event_id = sync_calendar_event(item, google_event_id=google_event_id, assigned_worker=worker_name)
-                if new_event_id and new_event_id != google_event_id:
+                calendar_result = sync_calendar_event(sync_data, google_event_id=google_event_id, assigned_worker=worker_name)
+                if calendar_result.get('event_id') and calendar_result.get('event_id') != google_event_id:
                     # Persist the new event ID back to DB
                     try:
                         # Update Request record
                         table.update_item(
                             Key={'PK': f"REQ#{req_id}", 'SK': f"CLIENT#{client_id}"},
                             UpdateExpression="SET google_event_id = :gid",
-                            ExpressionAttributeValues={":gid": new_event_id}
+                            ExpressionAttributeValues={":gid": calendar_result['event_id']}
                         )
                         # Update Job record if job_id exists
                         if job_id:
                             table.update_item(
                                 Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{req_id}"},
                                 UpdateExpression="SET google_event_id = :gid",
-                                ExpressionAttributeValues={":gid": new_event_id}
+                                ExpressionAttributeValues={":gid": calendar_result['event_id']}
                             )
                     except Exception as db_err:
                         print(f"WARNING: Failed to save google_event_id to DB: {db_err}")
             except Exception as g_err:
                 print(f"CALENDAR_SYNC_WARNING: {g_err}")
-                sync_warning = "Assigned successfully, but calendar sync is not connected."
+                calendar_result = {"status": "calendar_failed", "message": str(g_err)}
+
+            final_msg = "Worker assigned successfully."
+            if calendar_result and calendar_result.get('message'):
+                final_msg += f" {calendar_result['message']}"
 
             response_body = {
-                "message": "Worker assigned successfully" if not sync_warning else sync_warning,
+                "message": final_msg,
                 "job_id": job_id,
                 "worker_id": worker_id,
-                "status": new_status
+                "status": new_status,
+                "calendar_result": calendar_result
             }
-            if sync_warning:
-                response_body["warning"] = sync_warning
 
             # Trigger modular notifications
             # ROBUSTNESS: Ensure notify_event has access to the newly assigned worker_id
