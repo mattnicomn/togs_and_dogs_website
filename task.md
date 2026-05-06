@@ -1,23 +1,8 @@
-# Tasks
-
-## Backend Implementation
-- [x] Refactor `admin_handler.py` to generalize account security routes
-- [x] Implement `POST /admin/clients/onboard`
-- [x] Implement client-specific security routes (`resend-invite`, `reset-password`, `set-temp-password`, `link-cognito`)
-- [x] Update `PATCH /admin/clients/{id}` to support lifecycle actions
-- [x] Harden `PATCH /admin/staff/{id}` guardrails (role downgrade prevention)
-
-## Frontend Implementation
-- [x] Update `web/src/api/client.js` with new client access management calls
-- [x] Update `web/src/components/AdminDashboard.jsx` access status logic
-- [x] Update Client Management UI in `AdminDashboard.jsx` (Form & Cards)
-- [x] Align Staff Management UI in `AdminDashboard.jsx` (Labels & Indicators)
-- [x] Refactor event handlers in `AdminDashboard.jsx`
-
-## Verification & Documentation
-- [x] Run `npm run build`
-- [x] Update release notes
-- [x] Final git commit & push
-- [x] Production Deployment (Terraform & S3 Sync)
-- [x] CloudFront Invalidation
-- [x] Production Smoke Test
+- [x] Create `_resolve_admin_record` helper in `admin_handler.py`
+- [x] Refactor `admin_handler.py` to support bulk `DELETE` and `ARCHIVE`
+- [x] Implement `dry_run` and pre-purge summary in `admin_handler.py`
+- [x] Update `AdminDashboard.jsx` to use bulk backend path for `DELETE`/`ARCHIVE`
+- [x] Implement pre-purge summary and confirmation flow in `AdminDashboard.jsx`
+- [x] Verify backend with `py_compile`
+- [x] Verify frontend with `npm run build`
+- [x] Create release notes in `docs/release-notes/admin-data-issues-bulk-cleanup-fix.md`

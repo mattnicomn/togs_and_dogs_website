@@ -79,6 +79,7 @@ const AdminDashboard = () => {
   const [purgeModal, setPurgeModal] = useState(null); // { item } — confirmation before permanent delete
   const [purgeConfirmText, setPurgeConfirmText] = useState('');
   const [isBulkPurging, setIsBulkPurging] = useState(false);
+  const [purgeAnalysis, setPurgeAnalysis] = useState(null);
   const [workflowDropdownOpen, setWorkflowDropdownOpen] = useState(false);
   const [decisionModal, setDecisionModal] = useState(null);
   const [lastKey, setLastKey] = useState(null);
@@ -941,23 +942,48 @@ const AdminDashboard = () => {
     setIsBulkUpdating(true);
     const selectedRequests = allRequests.filter(r => selectedIds.includes(getRecordKey(r)));
     
+    // For terminal lifecycle actions (DELETE/ARCHIVE), use the bulk backend path
+    if (['DELETE', 'ARCHIVE'].includes(bulkAction)) {
+      try {
+        const payload = selectedRequests.map(r => ({ PK: r.PK, SK: r.SK }));
+        const response = await performAdminAction(null, null, bulkAction, payload);
+        
+        if (response.failed > 0) {
+          const reasons = response.failures.map(f => f.reason).join(", ");
+          showNotification(`Bulk ${bulkAction} partial: ${response.success} success, ${response.failed} failed. Reasons: ${reasons}`, "error");
+        } else {
+          showNotification(`Successfully moved ${response.success} records to ${bulkAction === 'DELETE' ? 'Trash' : 'Archive'}.`, "success");
+        }
+        
+        setSelectedIds([]);
+        setBulkAction('');
+        setBulkConfirmModal(null);
+        await fetchAllData();
+      } catch (err) {
+        showNotification(`Bulk ${bulkAction} failed: ` + err.message, "error");
+      } finally {
+        setIsBulkUpdating(false);
+      }
+      return;
+    }
+
+    // Standard workflow transitions still use parallel reviewRequest calls for now
     const updates = selectedRequests.map(async (req) => {
       return updateRecordStatus(req, bulkAction, `Bulk update: ${bulkAction}`);
     });
 
     try {
-    const results = { success: 0, failed: 0 };
-    const settled = await Promise.allSettled(updates);
-    settled.forEach(res => {
-      if (res.status === 'fulfilled') results.success++;
-      else results.failed++;
-    });
+      const results = { success: 0, failed: 0 };
+      const settled = await Promise.allSettled(updates);
+      settled.forEach(res => {
+        if (res.status === 'fulfilled') results.success++;
+        else results.failed++;
+      });
 
-    if (results.failed > 0) {
-      showNotification(`Bulk update partial: ${results.success} success, ${results.failed} failed.`, "error");
+      if (results.failed > 0) {
+        showNotification(`Bulk update partial: ${results.success} success, ${results.failed} failed.`, "error");
       } else {
-        const actionLabel = bulkAction === 'DELETE' ? 'moved to Trash' : 
-                           bulkAction === 'REOPEN_PENDING' ? 'restored to Active' : 
+        const actionLabel = bulkAction === 'REOPEN_PENDING' ? 'restored to Active' : 
                            `updated to ${getStatusLabel(bulkAction)}`;
         showNotification(`Successfully ${actionLabel}: ${results.success} records.`, "success");
       }
@@ -1210,45 +1236,53 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleBulkPurge = async () => {
+  const handleBulkPurge = async (confirm = false) => {
     setError(null);
-    if (selectedIds.length === 0) return;
-    setIsBulkPurging(true);
-
-    const selectedItems = allRequests.filter(r => selectedIds.includes(getRecordKey(r)) && isDeletedRecord(r));
+    const selectedItems = allRequests.filter(r => selectedIds.includes(getRecordKey(r)));
     
-    if (selectedItems.length === 0) {
-      showNotification("No valid DELETED records selected for permanent delete.", "error");
-      setIsBulkPurging(false);
-      setBulkConfirmModal(null);
-      return;
-    }
+    if (selectedItems.length === 0) return;
 
-    const payload = selectedItems.map(item => ({ PK: item.PK, SK: item.SK }));
-
+    setIsBulkPurging(true);
     try {
-      // Import/require purgeRecordsBulk from client
-      const response = await purgeRecordsBulk(payload);
-
-      const deletedPKs = selectedItems.map(item => item.PK);
-      setAllRequests(prev => prev.filter(r => !deletedPKs.includes(r.PK)));
-      setSelectedIds([]);
-      setBulkConfirmModal(null);
-
-      if (response.failed_count > 0 || response.skipped_count > 0) {
-        showNotification(
-          `Purge completed with issues. Deleted: ${response.deleted_count}, Failed: ${response.failed_count}, Skipped: ${response.skipped_count}`, 
-          "error"
-        );
-      } else {
-        showNotification(response.message || "Bulk purge complete.", "success");
+      const payload = selectedItems.map(item => ({ PK: item.PK, SK: item.SK }));
+      
+      // Step 1: Dry Run Analysis
+      if (!confirm) {
+        const response = await purgeRecordsBulk(payload, true); // dry_run = true
+        setPurgeAnalysis(response);
+        setIsBulkPurging(false);
+        return;
       }
+
+      // Step 2: Confirmed Purge (only on purgeable records identified by backend)
+      const purgeableItems = purgeAnalysis.processed || [];
+      if (purgeableItems.length === 0) {
+        showNotification("No records are eligible for permanent deletion.", "warning");
+        setPurgeAnalysis(null);
+        setIsBulkPurging(false);
+        return;
+      }
+
+      const finalPayload = purgeableItems.map(p => ({ PK: p.PK, SK: p.SK }));
+      const response = await purgeRecordsBulk(finalPayload, false); // dry_run = false
+      
+      const deletedPKs = purgeableItems.map(item => item.PK);
+      setAllRequests(prev => prev.filter(r => !deletedPKs.includes(r.PK)));
+      
+      showNotification(`Permanently deleted ${response.success} records.`, "success");
+      if (response.failed > 0) {
+        showNotification(`${response.failed} deletions failed. Check logs.`, "error");
+      }
+
+      setSelectedIds([]);
+      setPurgeAnalysis(null);
+      setBulkConfirmModal(null);
+      await fetchAllData();
     } catch (err) {
-      showNotification("Bulk permanent delete failed: " + err.message, "error");
+      showNotification("Bulk purge failed: " + err.message, "error");
       setBulkConfirmModal(null);
     } finally {
       setIsBulkPurging(false);
-      fetchAllData();
     }
   };
 
@@ -2782,10 +2816,44 @@ const AdminDashboard = () => {
               {bulkConfirmModal.target === '__PURGE__' ? (
                 <>
                   <p className="purge-warning-text">You are about to <strong>permanently delete {bulkConfirmModal.count} record(s)</strong> from the Trash.</p>
-                  <div className="safety-notice">
-                    <p>● Only records currently in DELETED / Trash status will be purged.</p>
-                    <p>● <strong>This cannot be undone.</strong> Records will be removed from the database entirely.</p>
-                  </div>
+                  
+                  {purgeAnalysis ? (
+                    <div className="purge-analysis-summary">
+                      <div className="analysis-item success">
+                        <span>Purgeable:</span> <strong>{purgeAnalysis.success}</strong>
+                      </div>
+                      <div className="analysis-item warning">
+                        <span>Blocked/Skipped:</span> <strong>{purgeAnalysis.skipped}</strong>
+                      </div>
+                      <div className="analysis-item error">
+                        <span>Failed to Resolve:</span> <strong>{purgeAnalysis.failed}</strong>
+                      </div>
+                      
+                      {purgeAnalysis.failures?.length > 0 && (
+                        <div className="analysis-reasons">
+                          <p>Reasons for blocked records:</p>
+                          <ul>
+                            {purgeAnalysis.failures.slice(0, 3).map((f, i) => (
+                              <li key={i}>{f.reason}</li>
+                            ))}
+                            {purgeAnalysis.failures.length > 3 && <li>... and {purgeAnalysis.failures.length - 3} more</li>}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {purgeAnalysis.success > 0 ? (
+                        <p className="final-confirmation-text">Only the {purgeAnalysis.success} purgeable records will be removed.</p>
+                      ) : (
+                        <p className="final-confirmation-text error">None of the selected records are eligible for permanent deletion.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="safety-notice">
+                      <p>● Only records currently in DELETED / Trash status will be purged.</p>
+                      <p>● <strong>This cannot be undone.</strong> Records will be removed from the database entirely.</p>
+                      <p>● Clicking 'Analyze Selection' will verify record eligibility before deletion.</p>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -2809,18 +2877,18 @@ const AdminDashboard = () => {
             <div className="modal-footer">
               <button 
                 className="button-secondary" 
-                onClick={() => setBulkConfirmModal(null)}
-                disabled={isBulkUpdating}
+                onClick={() => { setBulkConfirmModal(null); setPurgeAnalysis(null); }}
+                disabled={isBulkUpdating || isBulkPurging}
               >
                 Cancel
               </button>
               {bulkConfirmModal.target === '__PURGE__' ? (
                 <button
-                  className="btn-small purge"
-                  onClick={handleBulkPurge}
-                  disabled={isBulkPurging}
+                  className={`btn-small purge ${!purgeAnalysis ? 'button-secondary' : ''}`}
+                  onClick={() => handleBulkPurge(!!purgeAnalysis)}
+                  disabled={isBulkPurging || (purgeAnalysis && purgeAnalysis.success === 0)}
                 >
-                  {isBulkPurging ? 'Purging...' : 'Yes, Delete Permanently'}
+                  {isBulkPurging ? (purgeAnalysis ? 'Purging...' : 'Analyzing...') : (purgeAnalysis ? 'Confirm & Purge Permanently' : 'Analyze Selection')}
                 </button>
               ) : (
                 <button 

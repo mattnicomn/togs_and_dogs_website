@@ -1,58 +1,54 @@
-# Walkthrough - Unified Client Access Management
+# Walkthrough - Bulk Data Issues Cleanup Fix
 
-We have successfully unified the Client Access Management framework to achieve full parity with the Staff lifecycle workflows. This includes standardized onboarding, lifecycle actions, and consistent UI indicators.
+I have implemented a robust and safe cleanup workflow for "Data Issues" records in the Admin Portal. This fix addresses the root cause of previous bulk update failures and introduces a secure two-step deletion process.
 
-## Changes Made
+## Root Cause Resolution
+The previous failures (43/70 failed) were primarily due to:
+1.  **Strict ID Matching**: Malformed records with swapped keys or missing identifiers could not be resolved by the backend.
+2.  **Lack of Bulk Support**: The backend processed deletions individually, which was inefficient and lacked the "healing" logic used by the permanent purger.
 
-### Backend (`admin_handler.py`)
-- **Generalized Security Routes**: Refactored password reset, temporary password, and invitation resending into shared utilities that support both `STAFF#` and `CLIENT#` prefixes.
-- **Client Onboarding**: Implemented `POST /admin/clients/onboard` to handle email-based invitations, Cognito user creation, and DynamoDB profile synchronization.
-- **Identity Linking**: Added `POST /admin/clients/{id}/link-cognito` to manually associate existing Cognito users with client profiles.
-- **Guardrails**: Integrated `is_protected_profile` checks to prevent accidental modification or deletion of critical administrative accounts.
+I have implemented `_resolve_admin_record`, a resolution chain that can "heal" malformed records by trying swapped keys and scanning for embedded IDs.
 
-### Frontend API (`client.js`)
-- Added new API wrapper functions: `onboardClient`, `resendClientInvite`, `resetClientPassword`, `setClientTempPassword`, and `linkClientCognitoUser`.
+## Key Changes
 
-### Frontend UI (`AdminDashboard.jsx`)
-- **Shared Status Engine**: Implemented `getAccessStatus` to render consistent visual badges (Active, Invited, Disabled, etc.) for both Staff and Clients.
-- **Enhanced Client Management**:
-    - Added "Invite by Email" / "Onboard" radio options to the client form.
-    - Implemented account security action buttons (Resend Invite, Reset Password, Set Temp Password) on client cards.
-    - Added "Link Login" functionality for existing profiles missing Cognito associations.
-- **Refined Staff Management**: Updated field labels and visual indicators to clearly distinguish between Cognito "Login Identity" and DynamoDB "Profile Contact".
+### 1. Backend: ID Healing & Bulk Support
+Modified `src/backend/handlers/admin_handler.py` to:
+- Support **Bulk Action** for `DELETE` and `ARCHIVE`.
+- Use a **Resolution Chain** to find records even if their identifiers are malformed.
+- Provide a `dry_run` mode for `PURGE` to analyze selection before deleting.
+
+### 2. Frontend: Two-Step Purge & Analysis
+Updated `web/src/components/AdminDashboard.jsx` to:
+- Use a single bulk backend call for moving records to Trash.
+- Add an **Analyze Selection** phase in the Purge modal.
+- Display a summary of **Purgeable**, **Blocked**, and **Failed** records with specific reasons.
 
 ## Verification Results
 
 ### Automated Tests
-- **Frontend Build**: Successfully ran `npm run build` after fixing a minor JSX syntax error and removing a duplicate function declaration.
-- **Backend Validation**: Successfully compiled `admin_handler.py` using `py -m py_compile`. Verified all generalized security routes are correctly mapped.
+- **Backend**: `py -m py_compile src/backend/handlers/admin_handler.py` -> **PASSED**
+- **Frontend**: `npm run build` -> **PASSED**
 
-### Manual & Security Verification
-- **Protected Accounts**: Confirmed `admin@toganddogs.com` and `mbn@usmissionhero.com` are correctly hardcoded as protected in both backend (`admin_handler.py`) and frontend (`AdminDashboard.jsx`).
-- **Onboarding Flow**: Verified the `onboard` vs `profile_only` logic handles Cognito creation correctly.
-- **Status Indicators**: Confirmed `getAccessStatus` maps Cognito and DynamoDB states to consistent UI badges.
+### New UI Components
 
-## Production Deployment Results
+````carousel
+```javascript
+// New Analysis Step in handleBulkPurge
+if (!confirm) {
+  const response = await purgeRecordsBulk(payload, true); // dry_run
+  setPurgeAnalysis(response);
+  return;
+}
+```
+<!-- slide -->
+```python
+# New Resolution Chain in admin_handler.py
+def _resolve_admin_record(pk, sk):
+    # Try direct -> Try swapped -> Scan for embedded IDs
+    ...
+```
+````
 
-### Deployment Details
-- **Environment**: Production (`toganddogs.usmissionhero.com`)
-- **Backend**: Lambda (`togs-and-dogs-prod-admin`) - Deployed via Terraform
-- **Frontend**: S3 (`togs-and-dogs-prod-toganddogs-hosting`) - Synced via AWS CLI
-- **CloudFront Invalidation ID**: `I5XW6W5X0EQOJX39OJ3Z2ZGUB7`
-- **Latest Commit**: `d782274`
-
-### Smoke Test Status: ✅ PASS
-Verified on 2026-05-05:
-- [x] **Owner/Admin Login**: Successfully accessed the dashboard.
-- [x] **Management Views**: Staff and Client management grids load correctly with production data.
-- [x] **Protected Accounts**: `mbn@usmissionhero.com` correctly displays the "Protected Platform Admin" badge and has management buttons disabled.
-- [x] **Access Status**: Client badges (e.g., "Invited", "Active") render accurately based on Cognito state.
-- [x] **Data Persistence**: Confirmed that updating `display_name` in the UI persists across reloads, verifying DynamoDB source-of-truth integrity.
-- [x] **RBAC Enforcement**: Verified that security actions (Resend, Reset, Link) are gated and function as intended.
-
-## Final Smoke Test Summary
-The production portal is now fully aligned with the unified access management framework. All client profiles have parity with staff lifecycle capabilities while maintaining strict data integrity and administrative safety guardrails.
-
-### SES & Notifications Note
-- **Cognito Invites**: Live (dispatched via Cognito's default email channel).
-- **App Lifecycle Alerts**: **DRY-RUN mode is ENABLED** (`NOTIFICATION_DRY_RUN=true`). App-specific alerts are currently logged to CloudWatch rather than dispatched to live recipients, as per production safety protocols.
+## Safety Confirmation
+- **Active Records Unaffected**: The code explicitly checks status before purging and protects records in active states.
+- **Strict Sequencing**: Permanent purge is only allowed for records already in the `DELETED` or `TRASH` state.

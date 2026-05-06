@@ -24,6 +24,52 @@ def is_protected_profile(profile):
     return False
 
 
+def _resolve_admin_record(pk, sk):
+    """
+    Robust record resolution for administrative cleanup.
+    Handles swapped keys and malformed identifiers in 'Data Issues'.
+    """
+    from common.db import get_item, table as _table
+    from boto3.dynamodb.conditions import Attr
+
+    # 1. Direct attempt
+    item = get_item(pk, sk)
+    if item:
+        return item, pk, sk
+
+    # 2. Swapped keys fallback
+    item = get_item(sk, pk)
+    if item:
+        return item, sk, pk
+
+    # 3. ID-healing Scan fallback (for malformed records)
+    # Extracts raw IDs and looks for them in any key field
+    raw_pk_id = pk.replace("JOB#", "").replace("REQ#", "")
+    raw_sk_id = sk.replace("JOB#", "").replace("REQ#", "")
+    
+    if not raw_pk_id and not raw_sk_id:
+        return None, pk, sk
+
+    scan_kwargs = {
+        "FilterExpression": Attr('PK').contains(raw_pk_id) | Attr('SK').contains(raw_pk_id) | \
+                           Attr('PK').contains(raw_sk_id) | Attr('SK').contains(raw_sk_id)
+    }
+    
+    response = _table.scan(**scan_kwargs)
+    found_items = response.get('Items', [])
+    while 'LastEvaluatedKey' in response and not found_items:
+        scan_kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
+        response = _table.scan(**scan_kwargs)
+        found_items.extend(response.get('Items', []))
+        
+    if found_items:
+        # Return first match and its actual keys
+        target = found_items[0]
+        return target, target.get('PK'), target.get('SK')
+
+    return None, pk, sk
+
+
 
 
 
@@ -1482,167 +1528,147 @@ def handler(event, context):
             claims = get_claims(event)
             user_email = (claims.get('email') or "").lower().strip() or claims.get('username') or 'admin-api'
 
-            # Archive/Delete/Purge Actions
+            # --- Archive / Delete / Purge Actions ---
             body = json.loads(event.get('body', '{}'))
-            action = body.get('action')
-            pk = body.get('PK')
-            sk = body.get('SK')
+            action = (body.get('action') or '').upper()
+            dry_run = body.get('dry_run', False)
+            
+            # Resolve target records (single or bulk)
+            records_to_process = []
+            if 'records' in body:
+                records_to_process = body.get('records', [])
+            elif body.get('PK') and body.get('SK'):
+                records_to_process = [{'PK': body.get('PK'), 'SK': body.get('SK')}]
+
+            if not action or not records_to_process:
+                return bad_request("Missing action or records to process", event)
 
             if action in ['ARCHIVE', 'DELETE', 'PURGE'] and role not in ['owner', 'admin']:
                 return error(403, "Forbidden: Insufficient permissions for lifecycle action", event)
 
-            if not action or (not (pk and sk) and 'records' not in body):
-                return bad_request("Missing action, PK, SK, or records array", event)
+            from common.db import table as _table, update_status
+            from datetime import timezone
+            now_iso = datetime.now(timezone.utc).isoformat()
+            
+            results = {
+                "success": 0,
+                "failed": 0,
+                "skipped": 0,
+                "processed": [],
+                "failures": []
+            }
 
-            # --- PURGE: Permanent deletion — only allowed for already-DELETED records ---
+            # --- PURGE: Permanent deletion (Only for DELETED/TRASH records) ---
             if action == 'PURGE':
-                if role not in ['owner', 'admin']:
-                    return error(403, "Forbidden: Only owners and admins can permanently delete records", event)
-
-                bulk_op_id = str(uuid.uuid4()) if 'records' in body else None
-                records_to_purge = []
-                if 'records' in body:
-                    records_to_purge = body.get('records', [])
-                else:
-                    pk = body.get('PK')
-                    sk = body.get('SK')
-                    if pk and sk:
-                        records_to_purge = [{'PK': pk, 'SK': sk}]
-
-                if not records_to_purge:
-                    return bad_request("Missing PK/SK or records array for PURGE action", event)
-
-                deleted_count = 0
-                skipped_count = 0
-                failed_count = 0
-                failures = []
-
-                from common.db import table as _table
-
-                for rec in records_to_purge:
+                bulk_op_id = str(uuid.uuid4()) if len(records_to_process) > 1 else None
+                
+                for rec in records_to_process:
                     item_pk = rec.get('PK')
                     item_sk = rec.get('SK')
                     
                     if not item_pk or not item_sk:
-                        failed_count += 1
-                        failures.append({"record": f"{item_pk}/{item_sk}", "reason": "Missing PK or SK"})
+                        results["failed"] += 1
+                        results["failures"].append({"record": "Unknown", "reason": "Missing PK or SK"})
                         continue
 
-                    # Resolution chain
-                    current_item = get_item(item_pk, item_sk)
+                    # ID Healing Resolution
+                    current_item, actual_pk, actual_sk = _resolve_admin_record(item_pk, item_sk)
+                    
                     if not current_item:
-                        # Fallback 1: Swap PK/SK
-                        current_item = get_item(item_sk, item_pk)
-                        if current_item:
-                            item_pk, item_sk = item_sk, item_pk
-
-                    if not current_item:
-                        # Fallback 2: Scan for matching embedded IDs
-                        from boto3.dynamodb.conditions import Attr
-                        raw_pk_id = item_pk.replace("JOB#", "").replace("REQ#", "")
-                        raw_sk_id = item_sk.replace("JOB#", "").replace("REQ#", "")
-                        
-                        scan_kwargs = {
-                            "FilterExpression": Attr('PK').contains(raw_pk_id) | Attr('SK').contains(raw_pk_id) | Attr('PK').contains(raw_sk_id) | Attr('SK').contains(raw_sk_id)
-                        }
-                        
-                        found_items = []
-                        response = _table.scan(**scan_kwargs)
-                        found_items.extend(response.get('Items', []))
-                        while 'LastEvaluatedKey' in response and not found_items:
-                            scan_kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
-                            response = _table.scan(**scan_kwargs)
-                            found_items.extend(response.get('Items', []))
-                            
-                        if found_items:
-                            current_item = found_items[0]
-                            item_pk = current_item['PK']
-                            item_sk = current_item['SK']
-
-                    if not current_item:
-                        failed_count += 1
-                        failures.append({"record": f"{item_pk}/{item_sk}", "reason": "Record not found"})
-                        log_action(event, 'PURGE_FAILED', item_pk, item_sk, success=False, failure_reason="Record not found", bulk_op_id=bulk_op_id)
+                        results["failed"] += 1
+                        results["failures"].append({"record": f"{item_pk}/{item_sk}", "reason": "Record not found"})
                         continue
 
                     current_status = (current_item.get('status') or '').upper()
-                    # SAFER BEHAVIOR: Only allow PURGE if explicitly DELETED/TRASH 
-                    # OR if malformed (missing status) BUT already has a deleted_at/trash marker.
                     has_trash_marker = current_item.get('deleted_at') or current_item.get('is_deleted')
                     is_purgeable = current_status in ['DELETED', 'TRASH'] or (not current_status and has_trash_marker)
                     
                     if not is_purgeable:
-                        skipped_count += 1
+                        results["skipped"] += 1
                         reason = f"Record status is {current_status or 'MISSING'}. Move to Trash first."
-                        failures.append({"record": f"{item_pk}/{item_sk}", "reason": reason})
-                        log_action(event, 'PURGE_REJECTED', item_pk, item_sk, previous_status=current_status, success=False, failure_reason=reason, bulk_op_id=bulk_op_id)
+                        results["failures"].append({"record": f"{actual_pk}/{actual_sk}", "reason": reason})
+                        continue
+
+                    if dry_run:
+                        results["success"] += 1
+                        results["processed"].append({"PK": actual_pk, "SK": actual_sk, "status": current_status, "purgeable": True})
                         continue
 
                     try:
-                        _table.delete_item(Key={'PK': item_pk, 'SK': item_sk})
-                        deleted_count += 1
-                        print(f"PURGE COMPLETE: [{item_pk}] permanently deleted by {user_email}")
-                        log_action(event, 'PURGE', item_pk, item_sk, previous_status=current_status, bulk_op_id=bulk_op_id, metadata={"client_name": current_item.get('client_name'), "pet_names": current_item.get('pet_names')})
+                        _table.delete_item(Key={'PK': actual_pk, 'SK': actual_sk})
+                        results["success"] += 1
+                        log_action(event, 'PURGE', actual_pk, actual_sk, previous_status=current_status, bulk_op_id=bulk_op_id)
                     except Exception as e:
-                        failed_count += 1
-                        failures.append({"record": f"{item_pk}/{item_sk}", "reason": str(e)})
-                        log_action(event, 'PURGE_FAILED', item_pk, item_sk, previous_status=current_status, success=False, failure_reason=str(e), bulk_op_id=bulk_op_id)
+                        results["failed"] += 1
+                        results["failures"].append({"record": f"{actual_pk}/{actual_sk}", "reason": str(e)})
 
-                if 'records' in body:
-                    return success({
-                        "message": f"Bulk purge complete. Deleted: {deleted_count}, Skipped: {skipped_count}, Failed: {failed_count}",
-                        "deleted_count": deleted_count,
-                        "skipped_count": skipped_count,
-                        "failed_count": failed_count,
-                        "failures": failures
-                    }, event)
-                else:
-                    if failed_count > 0:
-                        return not_found(f"Permanent delete failed: {failures[0]['reason']}: {item_pk} / {item_sk}", event)
-                    if skipped_count > 0:
-                        return bad_request(f"Permanent delete rejected: {failures[0]['reason']}", event)
-                        
-                    return success({
-                        "message": "Record permanently deleted.",
-                        "PK": item_pk,
-                        "SK": item_sk,
-                        "previous_status": 'DELETED',
-                        "purged_by": user_email
-                    }, event)
+                summary_msg = f"Bulk purge {'analysis' if dry_run else 'complete'}. Purgeable: {results['success']}, Skipped: {results['skipped']}, Failed: {results['failed']}"
+                return success({
+                    "message": summary_msg,
+                    **results
+                }, event)
 
-            # --- Standard soft-state transitions ---
+            # --- DELETE / ARCHIVE: Soft lifecycle transitions ---
             new_status = None
-            if action == 'ARCHIVE':
-                new_status = 'ARCHIVED'
-            elif action == 'DELETE':
+            if action == 'DELETE':
                 new_status = 'DELETED'
+            elif action == 'ARCHIVE':
+                new_status = 'ARCHIVED'
             elif action in ['COMPLETED', 'CANCELLED', 'ASSIGNED', 'APPROVED', 'PENDING_REVIEW', 'DECLINED', 'PROFILE_CREATED', 'READY_FOR_APPROVAL', 'QUOTED', 'MG_COMPLETED']:
-                # Support direct status mapping for canonical record updates
                 new_status = action
 
             if new_status:
-                from datetime import timezone
-                now_iso = datetime.now(timezone.utc).isoformat()
-                # Get current record for metadata
-                current_item = get_item(pk, sk)
-                prev_status = current_item.get('status') if current_item else 'unknown'
+                bulk_op_id = str(uuid.uuid4()) if len(records_to_process) > 1 else None
                 
-                extra_attrs = {}
-                if action == 'DELETE':
-                    # Set deleted_at marker for safe purging later
-                    extra_attrs['deleted_at'] = now_iso
-                
-                if update_status(pk, sk, new_status, {"action": f"ADMIN_{action}", "timestamp": now_iso}, extra_attrs=extra_attrs):
-                    log_action(event, action, pk, sk, previous_status=prev_status, new_status=new_status, metadata={"client_name": current_item.get('client_name') if current_item else None, "pet_names": current_item.get('pet_names') if current_item else None})
+                for rec in records_to_process:
+                    item_pk = rec.get('PK')
+                    item_sk = rec.get('SK')
                     
-                    # Trigger modular notifications for relevant status changes
-                    if new_status == 'APPROVED' and current_item:
-                        if current_item.get('workflow_type') == 'CUSTOMER_INTAKE':
-                            notify_event('CUSTOMER_APPROVED', current_item)
-                    elif new_status == 'CANCELLED' and current_item:
-                        notify_event('VISIT_CANCELLED', current_item)
+                    if not item_pk or not item_sk:
+                        results["failed"] += 1
+                        results["failures"].append({"record": "Unknown", "reason": "Missing PK or SK"})
+                        continue
+
+                    # ID Healing Resolution
+                    current_item, actual_pk, actual_sk = _resolve_admin_record(item_pk, item_sk)
+                    
+                    if not current_item:
+                        # For Data Issues, we might want to move to Trash even if not found in a strict way?
+                        # No, if we can't find it via resolution chain, we can't update it.
+                        results["failed"] += 1
+                        results["failures"].append({"record": f"{item_pk}/{item_sk}", "reason": "Record not found (even after healing)"})
+                        continue
+
+                    prev_status = (current_item.get('status') or 'UNKNOWN').upper()
+                    
+                    # Prevent moving active/important records to Trash if they are in a terminal state already (Safety)
+                    if action == 'DELETE' and prev_status in ['COMPLETED', 'ARCHIVED', 'DELETED']:
+                        # They are already in a terminal state or trash
+                        results["skipped"] += 1
+                        results["failures"].append({"record": f"{actual_pk}/{actual_sk}", "reason": f"Already in {prev_status} state"})
+                        continue
+
+                    extra_attrs = {}
+                    if action == 'DELETE':
+                        extra_attrs['deleted_at'] = now_iso
+
+                    if update_status(actual_pk, actual_sk, new_status, {"action": f"ADMIN_{action}", "timestamp": now_iso}, extra_attrs=extra_attrs):
+                        results["success"] += 1
+                        log_action(event, action, actual_pk, actual_sk, previous_status=prev_status, new_status=new_status, bulk_op_id=bulk_op_id)
                         
-                    return success({"message": f"Record status update to {new_status} success", "status": new_status}, event)
+                        # Trigger notifications for relevant changes
+                        if new_status == 'APPROVED' and current_item.get('workflow_type') == 'CUSTOMER_INTAKE':
+                            notify_event('CUSTOMER_APPROVED', current_item)
+                        elif new_status == 'CANCELLED':
+                            notify_event('VISIT_CANCELLED', current_item)
+                    else:
+                        results["failed"] += 1
+                        results["failures"].append({"record": f"{actual_pk}/{actual_sk}", "reason": "Database update failed"})
+
+                return success({
+                    "message": f"Bulk {action} complete. Success: {results['success']}, Failed: {results['failed']}, Skipped: {results['skipped']}",
+                    **results
+                }, event)
 
             return bad_request(f"Unsupported action: {action}. Please use ARCHIVE, DELETE, PURGE, or a valid terminal status.", event)
             

@@ -115,15 +115,15 @@ export const processCancellationDecision = (requestId, clientId, decision, note)
   request('/admin/cancel/decision', 'PUT', { request_id: requestId, client_id: clientId, decision, note }, true);
 
 // Operational Management
-export const performAdminAction = (pk, sk, action) => 
-  request('/admin/requests', 'POST', { PK: pk, SK: sk, action }, true);
+export const performAdminAction = (pk, sk, action, records = null) => 
+  request('/admin/requests', 'POST', { PK: pk, SK: sk, action, records }, true);
 
 // Permanent purge — backend enforces DELETED status guard before removing from DynamoDB
 export const purgeRecord = (pk, sk) =>
   request('/admin/requests', 'POST', { PK: pk, SK: sk, action: 'PURGE' }, true);
 
-export const purgeRecordsBulk = (records) =>
-  request('/admin/requests', 'POST', { records, action: 'PURGE' }, true);
+export const purgeRecordsBulk = (records, dryRun = false) =>
+  request('/admin/requests', 'POST', { records, action: 'PURGE', dry_run: dryRun }, true);
 
 export const disconnectGoogle = () => 
   request('/admin/auth/google', 'DELETE', null, true);
