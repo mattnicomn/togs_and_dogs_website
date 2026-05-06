@@ -247,6 +247,41 @@ resource "aws_lambda_function" "cancellation" {
   tags = local.common_tags
 }
 
+resource "aws_lambda_function" "ses_feedback" {
+  filename         = data.archive_file.backend_zip.output_path
+  function_name    = "${local.name_prefix}-ses-feedback"
+  role             = module.iam.lambda_role_arn
+  handler          = "handlers.notification_feedback_handler.handler"
+  source_code_hash = data.archive_file.backend_zip.output_base64sha256
+  runtime          = "python3.11"
+  memory_size      = 256
+  timeout          = 30
+
+  environment {
+    variables = {
+      DATA_TABLE_NAME = module.data.table_name
+    }
+  }
+
+  tags = local.common_tags
+}
+
+# SNS Trigger for SES Feedback
+resource "aws_sns_topic_subscription" "ses_feedback_trigger" {
+  topic_arn = module.notifications.ses_feedback_topic_arn
+  protocol  = "lambda"
+  endpoint  = aws_lambda_function.ses_feedback.arn
+}
+
+resource "aws_lambda_permission" "sns_ses_feedback" {
+  statement_id  = "AllowSNSSESFeedbackInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ses_feedback.function_name
+  principal     = "sns.amazonaws.com"
+  source_arn    = module.notifications.ses_feedback_topic_arn
+}
+
+
 # API Permissions for Google Auth
 resource "aws_lambda_permission" "api_google_auth" {
   statement_id  = "AllowAPIGatewayInvokeGoogleAuth"

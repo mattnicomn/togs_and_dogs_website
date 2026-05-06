@@ -7,3 +7,9 @@ output "staff_coordination_topic_arn" {
   value       = aws_sns_topic.staff_coordination.arn
   description = "ARN of the staff coordination SNS topic"
 }
+
+output "ses_feedback_topic_arn" {
+  value       = aws_sns_topic.ses_feedback.arn
+  description = "ARN of the SES feedback SNS topic"
+}
+

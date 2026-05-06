@@ -31,5 +31,7 @@ locals {
     NOTIFY_CLIENT_ON_CANCELLED      = "true"
     NOTIFY_STAFF_ON_CANCELLED       = "true"
     NOTIFY_ADMIN_ON_FAILED_DELIVERY = "true"
+    NOTIFICATION_MODE               = "log_only"
+    SES_SANDBOX_ALLOWED_RECIPIENTS  = "mbn@usmissionhero.com"
   }
 }

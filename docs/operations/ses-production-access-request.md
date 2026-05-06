@@ -29,19 +29,18 @@ All emails are transactional and triggered by specific user or administrative ac
 
 ## 5. Recipient Source & Opt-Out
 - **Source**: Recipients are exclusively registered customers who have submitted care requests via our official portal or staff members managed within our internal system.
-- **Preferences**: Granular event-level notification toggles are implemented in our backend, allowing us to disable specific notification types (e.g., staff assignments) independently.
+- **Preferences**: Granular event-level notification toggles are implemented in our backend, allowing us to disable specific notification types independently.
+- **Suppression**: We implement an automated suppression list. Any bounce or complaint event automatically blocks the recipient email address from all future communications.
 
 ## 6. Deliverability & Security
-- **Bounce/Complaint Handling**: We monitor SES metrics. If bounce rates exceed healthy thresholds, we have a global kill-switch (`NOTIFICATIONS_ENABLED=false`) to halt all traffic immediately.
-- **Templates**: Branded HTML and Plain-Text templates are used. No sensitive internal IDs (PII or system secrets) are exposed in the content.
-- **Testing**: We have successfully completed:
-    1. Dry-run validation for all core events.
-    2. Controlled internal live testing using a recipient override (`mbn@usmissionhero.com`).
-    3. Infrastructure rollback validation.
+- **Feedback Loops**: We use an automated feedback loop (SES -> SNS -> Lambda) to process Bounces and Complaints in real-time.
+- **Suppression Table**: A dedicated DynamoDB suppression table prevents re-sending to failed addresses, protecting our sender reputation.
+- **Rate Controls**: We enforce application-level daily and per-minute send caps to ensure volume remains predictable and within approved limits.
+- **Authentication**: We use DKIM and SPF to sign all outgoing communications from `toganddogs.usmissionhero.com`.
 
 ## 7. Previous Denial Remediation (Case: 177686512500473)
-We have since:
-- Fully verified the `toganddogs.usmissionhero.com` domain.
-- Implemented a modular, fail-safe notification architecture.
-- Established clear recipient routing logic that respects business-defined preference flags.
-- Validated all templates for professional branding and clear transactional intent.
+We have since addressed all previous concerns by:
+- **Hardening Identity**: Fully verified the domain and sender identities.
+- **Implementing Controls**: Built a robust, automated feedback and suppression system.
+- **Limiting Scope**: Restricted the initial rollout to Stage 1A (verified admin notifications) only.
+- **Audit Transparency**: Maintained detailed logs and audit trails for all notification events and deliverability metrics.
