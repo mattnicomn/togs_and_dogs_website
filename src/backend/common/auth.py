@@ -100,7 +100,6 @@ def sanitize_booking_for_role(record, role):
     client_sensitive_fields = [
         'staff_assignment',
         'worker_id',
-        'worker_name',
         'job_id',
         'assignment_color'
     ]

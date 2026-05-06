@@ -75,17 +75,19 @@ def handler(event, context):
             # 1. Update JOB record
             table.update_item(
                 Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{req_id}"},
-                UpdateExpression="SET #stat = :s, worker_id = :w, assigned_at = :a, updated_at = :now, updated_by = :ub, audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)",
+                UpdateExpression="SET #stat = :s, worker_id = :w, worker_name = :wn, assigned_at = :a, updated_at = :now, updated_by = :ub, audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)",
                 ExpressionAttributeNames={"#stat": "status"},
                 ExpressionAttributeValues={
                     ":s": new_status,
                     ":w": worker_id,
+                    ":wn": worker_name,
                     ":a": now,
                     ":now": now,
                     ":ub": updated_by,
                     ":n": [{
                         "action": "WORKER_ASSIGNED",
                         "worker_id": worker_id,
+                        "worker_name": worker_name,
                         "timestamp": now,
                         "updated_by": updated_by
                     }],
@@ -97,11 +99,12 @@ def handler(event, context):
             try:
                 table.update_item(
                     Key={'PK': f"REQ#{req_id}", 'SK': f"CLIENT#{item.get('client_id')}"},
-                    UpdateExpression="SET #stat = :s, worker_id = :w, updated_at = :now, updated_by = :ub",
+                    UpdateExpression="SET #stat = :s, worker_id = :w, worker_name = :wn, updated_at = :now, updated_by = :ub",
                     ExpressionAttributeNames={"#stat": "status"},
                     ExpressionAttributeValues={
                         ":s": new_status,
                         ":w": worker_id,
+                        ":wn": worker_name,
                         ":now": now,
                         ":ub": updated_by
                     }
