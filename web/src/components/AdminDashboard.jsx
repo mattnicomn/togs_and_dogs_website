@@ -310,10 +310,30 @@ const AdminDashboard = () => {
     return s === 'CANCELLED' || s === 'DECLINED' || s === 'REJECTED' || s === 'CANCELLATION_REQUESTED' || s === 'CANCELLATION_DENIED';
   };
   const isCompletedRecord = (item) => (item.status || "").toUpperCase() === 'COMPLETED';
+  const isRequestLikeRecord = (item) => {
+    if (!item || !item.PK) return false;
+    const pk = item.PK.toUpperCase();
+    const sk = (item.SK || "").toUpperCase();
+    const type = (item.type || "").toUpperCase();
+
+    // Explicitly exclude system/audit prefixes
+    const systemPrefixes = [
+      'AUDIT#', 'COMPANY#', 'STAFF#', 'CLIENT#', 'CONFIG#', 'PROFILE#', 'LOG#'
+    ];
+    if (systemPrefixes.some(pref => pk.startsWith(pref))) return false;
+    if (type === 'AUDIT' || type === 'SYSTEM') return false;
+
+    // Must look like a request or job (REQ# or JOB# in either key)
+    return pk.includes('REQ#') || pk.includes('JOB#') || sk.includes('REQ#') || sk.includes('JOB#');
+  };
 
   const isDataIssue = (item) => {
     if (!item) return false;
-    // If it's already deleted or archived, we don't treat it as a primary "data issue" in the intake/booking queues
+    
+    // 1. Must be a request-like record (excludes AUDIT, STAFF, etc.)
+    if (!isRequestLikeRecord(item)) return false;
+
+    // 2. If it's already deleted or archived, we don't treat it as a primary "data issue" in the intake/booking queues
     if (isDeletedRecord(item) || isArchivedRecord(item)) return false;
 
     const status = (item.status || "").toUpperCase();

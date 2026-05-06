@@ -1448,14 +1448,20 @@ def handler(event, context):
                 # Filter logic: 
                 # 1. Clients only see their own records
                 # 2. Admins see 'All Active' (excludes DELETED and ARCHIVED) by default in this view
+                # 3. EXCLUSION: Only include records that look like requests or jobs (REQ# or JOB#)
+                #    to prevent system metadata (COMPANY#) or audit logs (AUDIT#) from polluting the list.
                 filter_expressions = []
                 expression_values = {}
+                expression_names = {"#stat": "status"}
 
                 from common.auth import get_current_company_id
                 company_id = get_current_company_id(event)
+                
+                # Scope to company or shared/orphaned records
                 filter_expressions.append("(company_id = :cid OR attribute_not_exists(company_id))")
                 expression_values[":cid"] = company_id
 
+                # Identity Scoping
                 if role == 'staff' and user_email:
                     # Staff only see jobs assigned to them
                     filter_expressions.append("worker_id = :wid")
@@ -1465,16 +1471,21 @@ def handler(event, context):
                     filter_expressions.append("client_email = :email")
                     expression_values[":email"] = user_email
                 
-                # Exclude deleted and archived from the general 'ALL' view
+                # Terminal State Exclusion
                 filter_expressions.append("#stat <> :deleted")
-
                 filter_expressions.append("#stat <> :archived")
                 expression_values[":deleted"] = 'DELETED'
                 expression_values[":archived"] = 'ARCHIVED'
+
+                # Request-Like Filter: Must contain REQ# or JOB# in the PK to be considered for the Request List
+                # This safely ignores AUDIT#, COMPANY#, STAFF#, and CLIENT# records.
+                filter_expressions.append("(contains(PK, :req_tag) OR contains(PK, :job_tag))")
+                expression_values[":req_tag"] = "REQ#"
+                expression_values[":job_tag"] = "JOB#"
                 
                 scan_kwargs["FilterExpression"] = " AND ".join(filter_expressions)
                 scan_kwargs["ExpressionAttributeValues"] = expression_values
-                scan_kwargs["ExpressionAttributeNames"] = {"#stat": "status"}
+                scan_kwargs["ExpressionAttributeNames"] = expression_names
                 
                 if last_key:
                     scan_kwargs["ExclusiveStartKey"] = json.loads(last_key)
