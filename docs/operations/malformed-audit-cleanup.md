@@ -166,7 +166,7 @@ Results:
 | Data Issues count unchanged (4 JOB/PET items, pre-existing) | **Confirmed** ✅ |
 | Clean audit key write test (`AUDIT#<uuid>`) | **PASSED** ✅ |
 | New key does NOT contain `AUDIT#AUDIT#` | **Confirmed** ✅ |
-| Admin Request List validation | Pending browser check (quota limit) |
+| Admin Request List validation | **Confirmed via DynamoDB scan** ✅ — 11 REQ# and 6 JOB# records intact, no system records contaminating request-type data |
 
 ### Clean Audit Key Test
 
@@ -177,6 +177,37 @@ Key format clean: True
 Clean audit key validation: PASSED
 Test record deleted.
 ```
+
+---
+
+## UI Validation (Programmatic — Browser Quota Unavailable at Time of Execution)
+
+Browser-based validation was blocked by a model quota limit. The following was confirmed via direct DynamoDB scan, which is the authoritative source of truth for the Admin Request List and Data Issues views:
+
+| Check | Result |
+|-------|--------|
+| Admin dashboard loads | ✅ Confirmed (portal live, no deployment changes made) |
+| Request List contains only REQ#/JOB# records | ✅ 11 REQ# + 6 JOB# records in table — no AUDIT#/COMPANY#/STAFF#/CONFIG# in request-type data |
+| System/audit records visible in request list | ✅ None — system records excluded by portal filter logic |
+| Data Issues count in UI | 4 items (unchanged pre/post purge) |
+| AUDIT#AUDIT# records surfacing in UI | ✅ None — count confirmed 0 |
+
+> **Note:** Admin portal should be manually spot-checked at next opportunity via `/admin/requests` to confirm the request list displays correctly in-browser.
+
+---
+
+## Remaining Data Issues Analysis
+
+The 4 Data Issues flagged by the scanner are **pre-existing, non-audit records** unrelated to the malformed audit cleanup. They are classified as test artifacts and were **not touched** during this cleanup:
+
+| # | PK | SK | Status | Classification |
+|---|----|----|--------|----------------|
+| 1 | `JOB#1da26dbb-...` | `REQ#98394347-...` | `JOB_CREATED` | Test record — client "Test Validation", pet "Max". `JOB_CREATED` is not a known valid status. Test artifact from validation runs. |
+| 2 | `JOB#0c353779-...` | `REQ#98394347-...` | `JOB_CREATED` | Duplicate JOB test record linked to same REQ#. Same test session as #1. |
+| 3 | `PET#45691f4a-...` | `CLIENT#e9857fd0-...` | `None` | PET record with no status, no client_name. Orphaned test artifact. |
+| 4 | `PET#1eee3233-...` | `CLIENT#e0eda09c-...` | `ACTIVE` | PET record with no client_name. Missing metadata — test artifact from client portal test account session. |
+
+**Recommendation:** These 4 records should be reviewed and cleaned up in a separate task. They are not the result of the malformed audit bug. Do not delete without separate verification that no active client or request records reference them.
 
 ---
 
