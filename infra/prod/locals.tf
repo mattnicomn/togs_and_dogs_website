@@ -32,6 +32,10 @@ locals {
     NOTIFY_STAFF_ON_CANCELLED       = "true"
     NOTIFY_ADMIN_ON_FAILED_DELIVERY = "true"
     NOTIFICATION_MODE               = "log_only"
+    NOTIFICATION_PROVIDER           = "log_only"
+    POSTMARK_SERVER_TOKEN_SECRET_NAME = module.secrets.postmark_token_arn
+    POSTMARK_MESSAGE_STREAM         = "outbound"
+    TRANSACTIONAL_EMAIL_REPLY_TO    = "notifications@toganddogs.usmissionhero.com"
     SES_SANDBOX_ALLOWED_RECIPIENTS  = "mbn@usmissionhero.com"
   }
 }

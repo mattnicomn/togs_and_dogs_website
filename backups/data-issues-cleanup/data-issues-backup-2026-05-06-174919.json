@@ -1,0 +1,191 @@
+[
+  {
+    "record": {
+      "PK": "JOB#1da26dbb-6db7-4bbd-91e7-00aa569273b7",
+      "audit_log": [
+        {
+          "action": "JOB_INITIALIZED",
+          "note": "Automatically created from approved request. Linked Pet: 1eee3233-e09d-4ac5-9562-ce0c93cccff7",
+          "timestamp": "2026-05-06T19:21:04.906806+00:00"
+        }
+      ],
+      "client_email": "mbn@usmissionhero.com",
+      "client_id": "e0eda09c-8fd5-4d52-bc14-f1056f713245",
+      "client_name": "Test Validation",
+      "company_id": "tog_and_dogs",
+      "created_at": "2026-05-06T19:21:04.906788+00:00",
+      "entity_type": "JOB",
+      "google_event_id": null,
+      "pet_id": "1eee3233-e09d-4ac5-9562-ce0c93cccff7",
+      "pet_info": "",
+      "pet_name": "Max",
+      "request_id": "98394347-960a-4b8c-a305-5c9229ede605",
+      "service_type": "PET_SITTING",
+      "start_date": "2026-05-20",
+      "status": "JOB_CREATED",
+      "updated_at": "2026-05-06T19:21:57.744281+00:00",
+      "updated_by": "admin@toganddogs.com",
+      "SK": "REQ#98394347-960a-4b8c-a305-5c9229ede605"
+    },
+    "planned_action": "DELETE",
+    "reason": "Orphaned duplicate job superseded by JOB#0c353779; not referenced by REQ#98394347 as active job_id."
+  },
+  {
+    "record": {
+      "company_id": "tog_and_dogs",
+      "created_at": "2026-05-06T19:21:58.112674+00:00",
+      "entity_type": "JOB",
+      "client_id": "e0eda09c-8fd5-4d52-bc14-f1056f713245",
+      "status": "JOB_CREATED",
+      "client_email": "mbn@usmissionhero.com",
+      "client_name": "Test Validation",
+      "pet_name": "Max",
+      "audit_log": [
+        {
+          "action": "JOB_INITIALIZED",
+          "note": "Automatically created from approved request. Linked Pet: 1eee3233-e09d-4ac5-9562-ce0c93cccff7",
+          "timestamp": "2026-05-06T19:21:58.112691+00:00"
+        }
+      ],
+      "pet_info": "",
+      "start_date": "2026-05-20",
+      "request_id": "98394347-960a-4b8c-a305-5c9229ede605",
+      "pet_id": "1eee3233-e09d-4ac5-9562-ce0c93cccff7",
+      "service_type": "PET_SITTING",
+      "PK": "JOB#0c353779-a12a-42e1-a2da-df19d047b4d7",
+      "google_event_id": null,
+      "SK": "REQ#98394347-960a-4b8c-a305-5c9229ede605"
+    },
+    "planned_action": "UPDATE_STATUS",
+    "reason": "Active job_id on REQ#98394347. JOB_CREATED is not a valid UI lifecycle status."
+  },
+  {
+    "record": {
+      "company_id": "tog_and_dogs",
+      "updated_at": "2026-05-06T20:04:57.272680",
+      "entity_type": "PET",
+      "care_instructions": "None",
+      "client_id": "e9857fd0-d46a-4484-b0cb-814cd0bd38b7",
+      "health": {},
+      "pet_id": "45691f4a-7343-4209-ac2e-6b09ff28029d",
+      "document_links": {},
+      "meet_and_greet_completed": false,
+      "PK": "PET#45691f4a-7343-4209-ac2e-6b09ff28029d",
+      "name": "Calendar Test",
+      "SK": "CLIENT#e9857fd0-d46a-4484-b0cb-814cd0bd38b7"
+    },
+    "planned_action": "DELETE",
+    "reason": "Orphaned test pet with no status and no active REQ/JOB references."
+  },
+  {
+    "record": {
+      "company_id": "tog_and_dogs",
+      "entity_type": "PET",
+      "created_at": "2026-05-06T19:21:04.870089+00:00",
+      "care_instructions": "",
+      "client_id": "e0eda09c-8fd5-4d52-bc14-f1056f713245",
+      "pet_id": "1eee3233-e09d-4ac5-9562-ce0c93cccff7",
+      "status": "ACTIVE",
+      "meet_and_greet_completed": true,
+      "PK": "PET#1eee3233-e09d-4ac5-9562-ce0c93cccff7",
+      "name": "Max",
+      "SK": "CLIENT#e0eda09c-8fd5-4d52-bc14-f1056f713245"
+    },
+    "planned_action": "ENRICH",
+    "reason": "Active test pet missing client_name field; causes Data Issue flag. REQ#98394347 client_name = Test Validation."
+  },
+  {
+    "record": {
+      "PK": "REQ#98394347-960a-4b8c-a305-5c9229ede605",
+      "approval_notification_last_message": "Notification logged only (Dry Run or Disabled).",
+      "approval_notification_mode": "log_only",
+      "approval_notification_sent_at": "2026-05-06T19:21:57.780531+00:00",
+      "approval_notification_status": "Notification logged only (Dry Run or Disabled).",
+      "audit_log": [
+        {
+          "reason": "",
+          "metadata": {
+            "request_id": "98394347-960a-4b8c-a305-5c9229ede605",
+            "client_id": "e0eda09c-8fd5-4d52-bc14-f1056f713245"
+          },
+          "updated_by": "admin@toganddogs.com",
+          "action": "STATUS_CHANGE",
+          "from": "PENDING_REVIEW",
+          "to": "MEET_GREET_REQUIRED",
+          "timestamp": "2026-05-06T19:16:25.983269+00:00"
+        },
+        {
+          "reason": "",
+          "metadata": {
+            "request_id": "98394347-960a-4b8c-a305-5c9229ede605",
+            "client_id": "e0eda09c-8fd5-4d52-bc14-f1056f713245"
+          },
+          "updated_by": "admin@toganddogs.com",
+          "action": "STATUS_CHANGE",
+          "from": "MEET_GREET_REQUIRED",
+          "to": "MG_COMPLETED",
+          "timestamp": "2026-05-06T19:17:39.496781+00:00"
+        },
+        {
+          "reason": "",
+          "metadata": {
+            "request_id": "98394347-960a-4b8c-a305-5c9229ede605",
+            "client_id": "e0eda09c-8fd5-4d52-bc14-f1056f713245"
+          },
+          "updated_by": "admin@toganddogs.com",
+          "action": "STATUS_CHANGE",
+          "from": "MG_COMPLETED",
+          "to": "APPROVED",
+          "timestamp": "2026-05-06T19:21:03.393002+00:00"
+        },
+        {
+          "reason": "",
+          "metadata": {
+            "request_id": "98394347-960a-4b8c-a305-5c9229ede605",
+            "client_id": "e0eda09c-8fd5-4d52-bc14-f1056f713245"
+          },
+          "updated_by": "admin@toganddogs.com",
+          "action": "STATUS_CHANGE",
+          "from": "APPROVED",
+          "to": "APPROVED",
+          "timestamp": "2026-05-06T19:21:57.744281+00:00"
+        }
+      ],
+      "client_email": "mbn@usmissionhero.com",
+      "client_id": "e0eda09c-8fd5-4d52-bc14-f1056f713245",
+      "client_name": "Test Validation",
+      "company_id": "tog_and_dogs",
+      "created_at": "2026-05-06T19:15:10.324753",
+      "end_date": "2026-05-22",
+      "entity_type": "REQUEST",
+      "job_id": "0c353779-a12a-42e1-a2da-df19d047b4d7",
+      "pet_id": "1eee3233-e09d-4ac5-9562-ce0c93cccff7",
+      "pet_info": "",
+      "pet_names": "Max",
+      "preferred_time": "",
+      "request_id": "98394347-960a-4b8c-a305-5c9229ede605",
+      "service_type": "PET_SITTING",
+      "start_date": "2026-05-20",
+      "status": "APPROVED",
+      "timing_notes": "",
+      "updated_at": "2026-05-06T19:21:57.744281+00:00",
+      "updated_by": "admin@toganddogs.com",
+      "visit_window": "ANYTIME",
+      "workflow_type": "CUSTOMER_INTAKE",
+      "SK": "CLIENT#e0eda09c-8fd5-4d52-bc14-f1056f713245"
+    },
+    "planned_action": "READ_ONLY",
+    "reason": "Inspected for context"
+  },
+  {
+    "record": {
+      "PK": "CLIENT#e9857fd0-d46a-4484-b0cb-814cd0bd38b7",
+      "company_id": "tog_and_dogs",
+      "entity_type": "CLIENT",
+      "meet_and_greet_completed": true,
+      "SK": "METADATA"
+    },
+    "planned_action": "READ_ONLY",
+    "reason": "Inspected for context"
+  }
+]

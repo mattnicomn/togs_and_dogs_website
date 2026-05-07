@@ -28,6 +28,11 @@ variable "google_user_tokens_arn" {
   type        = string
 }
 
+variable "postmark_token_arn" {
+  description = "ARN of the Postmark server token secret"
+  type        = string
+}
+
 variable "user_pool_arn" {
   type        = string
   description = "ARN of the Cognito User Pool"

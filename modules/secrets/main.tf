@@ -25,3 +25,9 @@ resource "aws_secretsmanager_secret" "app_secrets" {
   description = "General application secrets"
   tags        = var.tags
 }
+
+resource "aws_secretsmanager_secret" "postmark_token" {
+  name        = "${var.name_prefix}/postmark/server-token"
+  description = "Postmark Server Token for transactional emails"
+  tags        = var.tags
+}

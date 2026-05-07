@@ -3,11 +3,24 @@ from .config import NotificationConfig
 from .templates import NotificationTemplates
 from .resolver import resolve_notification_recipients, get_client_name, get_staff_name
 from .ses_client import SESClient
+from .postmark_client import PostmarkClient
 
 logger = logging.getLogger(__name__)
 
 from datetime import datetime, timezone
 from common.db import table
+
+def get_notification_client(config):
+    """Factory to get the appropriate notification client based on provider."""
+    provider = config.NOTIFICATION_PROVIDER
+    
+    if provider == 'ses':
+        return SESClient(config)
+    elif provider == 'postmark':
+        return PostmarkClient(config)
+    else:
+        # Default to SESClient which handles log_only naturally
+        return SESClient(config)
 
 def notify_event(event_type, record, previous_record=None):
     """
@@ -55,7 +68,7 @@ def notify_event(event_type, record, previous_record=None):
             return {"success": False, "message": msg}
 
         # 4. Dispatch
-        client = SESClient(config)
+        client = get_notification_client(config)
         event_key = f"{request_id}_{event_type}_{record.get('updated_at', 'v1')}"
         
         result = client.send_email(
@@ -72,11 +85,12 @@ def notify_event(event_type, record, previous_record=None):
                 now = datetime.now(timezone.utc).isoformat()
                 table.update_item(
                     Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
-                    UpdateExpression="SET approval_notification_status = :s, approval_notification_sent_at = :t, approval_notification_mode = :m, approval_notification_last_message = :msg",
+                    UpdateExpression="SET approval_notification_status = :s, approval_notification_sent_at = :t, approval_notification_mode = :m, approval_notification_provider = :p, approval_notification_last_message = :msg",
                     ExpressionAttributeValues={
                         ":s": result['message'],
                         ":t": now,
                         ":m": result['mode'],
+                        ":p": result.get('provider', 'unknown'),
                         ":msg": result['message']
                     }
                 )

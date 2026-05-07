@@ -12,3 +12,8 @@ output "app_secrets_arn" {
   value       = aws_secretsmanager_secret.app_secrets.arn
   description = "ARN of the general application secret"
 }
+
+output "postmark_token_arn" {
+  value       = aws_secretsmanager_secret.postmark_token.arn
+  description = "ARN of the Postmark server token secret"
+}

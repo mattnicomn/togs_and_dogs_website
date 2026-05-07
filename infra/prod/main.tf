@@ -22,6 +22,7 @@ module "iam" {
   sfn_arn                 = module.workflow.sfn_arn
   google_client_creds_arn = module.secrets.google_client_creds_arn
   google_user_tokens_arn  = module.secrets.google_user_tokens_arn
+  postmark_token_arn      = module.secrets.postmark_token_arn
   user_pool_arn           = module.auth.user_pool_arn
   tags                    = local.common_tags
 }

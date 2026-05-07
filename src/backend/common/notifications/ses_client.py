@@ -39,6 +39,7 @@ class SESClient:
             "to": final_recipients,
             "subject": subject,
             "mode": mode,
+            "provider": "ses",
             "dry_run": self.config.DRY_RUN,
             "body_preview": body_text[:100] + "..." if body_text else ""
         }
@@ -49,7 +50,9 @@ class SESClient:
             return {
                 "delivered": False,
                 "mode": mode,
-                "message": "Notification logged only (Dry Run or Disabled)."
+                "provider": "ses",
+                "message": "Notification logged only (Dry Run or Disabled).",
+                "message_id": None
             }
 
         # 4. Handle Modes
@@ -58,7 +61,9 @@ class SESClient:
             return {
                 "delivered": False,
                 "mode": mode,
-                "message": "Notification logged only."
+                "provider": "ses",
+                "message": "Notification logged only.",
+                "message_id": None
             }
 
         if mode == 'ses_sandbox':
@@ -71,7 +76,9 @@ class SESClient:
                 return {
                     "delivered": False,
                     "mode": mode,
-                    "message": "Email skipped because SES sandbox mode only allows verified recipients."
+                    "provider": "ses",
+                    "message": "Email skipped because SES sandbox mode only allows verified recipients.",
+                    "message_id": None
                 }
 
         # 5. Live Send (ses_sandbox or ses_production)
@@ -80,7 +87,9 @@ class SESClient:
             return {
                 "delivered": False,
                 "mode": mode,
-                "message": "Notification failed: SES client not initialized."
+                "provider": "ses",
+                "message": "Notification failed: SES client not initialized.",
+                "message_id": None
             }
 
         try:
@@ -95,24 +104,31 @@ class SESClient:
                 },
                 Source=self.config.EMAIL_FROM
             )
-            print(f"NOTIFICATION_SUCCESS: Sent {event_key} to {final_recipients}. MessageId: {response['MessageId']}")
+            message_id = response['MessageId']
+            print(f"NOTIFICATION_SUCCESS: Sent {event_key} via SES to {final_recipients}. MessageId: {message_id}")
             return {
                 "delivered": True,
                 "mode": mode,
-                "message": "Email sent."
+                "provider": "ses",
+                "message": "Email sent.",
+                "message_id": message_id
             }
 
         except ClientError as e:
-            logger.error(f"NOTIFICATION_FAILURE: Failed to send {event_key} to {final_recipients}. Error: {e}")
+            logger.error(f"NOTIFICATION_FAILURE: Failed to send {event_key} via SES to {final_recipients}. Error: {e}")
             return {
                 "delivered": False,
                 "mode": mode,
-                "message": f"Notification failed: {str(e)}"
+                "provider": "ses",
+                "message": f"Notification failed: {str(e)}",
+                "message_id": None
             }
         except Exception as e:
-            logger.error(f"NOTIFICATION_ERROR: Unexpected error sending {event_key}. Error: {e}")
+            logger.error(f"NOTIFICATION_ERROR: Unexpected error sending {event_key} via SES. Error: {e}")
             return {
                 "delivered": False,
                 "mode": mode,
-                "message": "Notification failed due to an unexpected error."
+                "provider": "ses",
+                "message": "Notification failed due to an unexpected error.",
+                "message_id": None
             }

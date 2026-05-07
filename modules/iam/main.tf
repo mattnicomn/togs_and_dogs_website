@@ -81,7 +81,8 @@ resource "aws_iam_policy" "google_secrets_access" {
       Effect = "Allow"
       Resource = [
         var.google_client_creds_arn,
-        var.google_user_tokens_arn
+        var.google_user_tokens_arn,
+        var.postmark_token_arn
       ]
     }]
   })

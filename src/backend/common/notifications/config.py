@@ -29,7 +29,12 @@ class NotificationConfig:
     # Delivery Mode Configuration
     # Modes: log_only | ses_sandbox | ses_production | external_provider
     NOTIFICATION_MODE = os.environ.get('NOTIFICATION_MODE', 'log_only').lower()
+    NOTIFICATION_PROVIDER = os.environ.get('NOTIFICATION_PROVIDER', 'log_only').lower()
     
+    # Postmark Configuration
+    POSTMARK_TOKEN_SECRET_NAME = os.environ.get('POSTMARK_SERVER_TOKEN_SECRET_NAME')
+    POSTMARK_MESSAGE_STREAM = os.environ.get('POSTMARK_MESSAGE_STREAM', 'outbound')
+
     # Sandbox Safety
     _sandbox_allowed = os.environ.get('SES_SANDBOX_ALLOWED_RECIPIENTS', '')
     SES_SANDBOX_ALLOWED_RECIPIENTS = [email.strip().lower() for email in _sandbox_allowed.split(',') if email.strip()]
