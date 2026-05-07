@@ -17,13 +17,13 @@ locals {
 
   # Phase 3A: Notification Configuration
   notification_env_vars = {
-    NOTIFICATIONS_ENABLED                = "false"
-    NOTIFICATION_DRY_RUN                 = "true"
-    NOTIFICATION_EMAIL_FROM              = "notifications@toganddogs.usmissionhero.com"
+    NOTIFICATIONS_ENABLED                = "true"
+    NOTIFICATION_DRY_RUN                 = "false"
+    NOTIFICATION_EMAIL_FROM              = "mbn@usmissionhero.com"
     NOTIFICATION_ADMIN_EMAIL             = "mbn@usmissionhero.com"
     NOTIFICATION_ROUTE_MODE              = "event_based"
     NOTIFICATION_PORTAL_URL              = "https://toganddogs.usmissionhero.com"
-    NOTIFICATION_TEST_RECIPIENT_OVERRIDE = "" # Empty means no override
+    NOTIFICATION_TEST_RECIPIENT_OVERRIDE = "" # Live traffic (Pending Postmark Approval)
     NOTIFY_ADMIN_ON_REQUEST_RECEIVED     = "true"
     NOTIFY_CLIENT_ON_APPROVAL            = "true"
     NOTIFY_CLIENT_ON_SCHEDULED           = "true"
@@ -31,11 +31,11 @@ locals {
     NOTIFY_CLIENT_ON_CANCELLED           = "true"
     NOTIFY_STAFF_ON_CANCELLED            = "true"
     NOTIFY_ADMIN_ON_FAILED_DELIVERY      = "true"
-    NOTIFICATION_MODE                    = "log_only"
-    NOTIFICATION_PROVIDER                = "log_only"
+    NOTIFICATION_MODE                    = "external_provider"
+    NOTIFICATION_PROVIDER                = "postmark"
     POSTMARK_SERVER_TOKEN_SECRET_NAME    = module.secrets.postmark_token_arn
     POSTMARK_MESSAGE_STREAM              = "outbound"
-    TRANSACTIONAL_EMAIL_REPLY_TO         = "notifications@toganddogs.usmissionhero.com"
+    TRANSACTIONAL_EMAIL_REPLY_TO         = "mbn@usmissionhero.com"
     SES_SANDBOX_ALLOWED_RECIPIENTS       = "mbn@usmissionhero.com"
   }
 }
