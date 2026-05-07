@@ -4,7 +4,10 @@
 1. Log in to the Postmark dashboard.
 2. Verify the sender signature for `notifications@toganddogs.usmissionhero.com`.
 3. Configure DKIM/SPF as recommended by Postmark.
-   - **Status (2026-05-07):** PENDING. DKIM record `20260507131533pm._domainkey` not found in `usmissionhero.com` zone.
+   - **Status (2026-05-07):** FAILED/PENDING. Records are not present in the authoritative Route 53 zone for `usmissionhero.com` (Zone ID: `Z0503253SXZ3072RWJHV`) in the `website-infra-sandbox` account.
+   - **Correction Required:** Add the following records to the `usmissionhero.com` zone:
+     - **DKIM (TXT):** `20260507131533pm._domainkey.usmissionhero.com`
+     - **Return-Path (CNAME):** `pm-bounces.usmissionhero.com` -> `pm.mtasv.net`
 4. Note the **Server API Token** from the Server Settings > API Tokens tab.
 
 ## 2. AWS Secrets Manager Setup
