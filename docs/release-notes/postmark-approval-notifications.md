@@ -16,8 +16,17 @@ The following environment variables control the provider:
 - `POSTMARK_MESSAGE_STREAM`: The message stream ID in Postmark (default: `outbound`).
 
 ## Status (2026-05-07)
-- **DNS Verification**: FAILED/PENDING. DKIM and Return-Path records were not found in the authoritative Route 53 zone `Z0503253SXZ3072RWJHV` (`usmissionhero.com`).
-- **Correction Needed**: Ensure `20260507131533pm._domainkey` (TXT) and `pm-bounces` (CNAME) are added to the `website-infra-sandbox` account's Route 53 zone.
-- **Secret Configuration**: VERIFIED. Secret `togs-and-dogs-prod/postmark/server-token` is provisioned as plain text and readable by the application.
-- **Provider Setting**: Production remains in `log_only` mode until DNS verification is complete.
-- **Backend Code**: Verified to support both plain text and JSON-wrapped secrets.
+- **DNS Verification**: VERIFIED. DKIM and Return-Path are successfully propagated and verified in Postmark.
+- **Account Approval**: PENDING. Account is in "Test Mode" and restricted to sending to `usmissionhero.com` until manual approval is granted.
+- **Secret Configuration**: VERIFIED. Secret `togs-and-dogs-prod/postmark/server-token` is provisioned and tested.
+- **Provider Setting**: Postmark is ACTIVE in production (`NOTIFICATION_PROVIDER = "postmark"`).
+- **Test Result**: SUCCESS. Approval notification successfully sent via Postmark (MessageId: `1132e21d-41f1-45e4-8c8c-28fc24df3afa`).
+
+## Rollback Instructions
+To return to `log_only` mode:
+1. Update `infra/prod/locals.tf`:
+   ```hcl
+   NOTIFICATION_PROVIDER = "log_only"
+   NOTIFICATION_MODE     = "log_only"
+   ```
+2. Run `terraform apply`.

@@ -1057,12 +1057,31 @@ def handler(event, context):
 
                 elif '/resend-invite' in path:
                     # Resend invite by creating user again with RESEND message action
-                    cognito.admin_create_user(
-                        UserPoolId=user_pool_id,
-                        Username=username,
-                        MessageAction='RESEND',
-                        DesiredDeliveryMediums=['EMAIL']
-                    )
+                    try:
+                        cognito.admin_create_user(
+                            UserPoolId=user_pool_id,
+                            Username=username,
+                            MessageAction='RESEND',
+                            DesiredDeliveryMediums=['EMAIL']
+                        )
+                    except cognito.exceptions.InvalidParameterException as e:
+                        if "Cannot resend an invitation to a user that is already confirmed" in str(e):
+                            return bad_request("User is already confirmed and active. Use password reset instead.", event)
+                        raise e
+                    
+                    # Send branded welcome email via Postmark if notifications are enabled
+                    try:
+                        notify_event(
+                            event_type='WELCOME_INVITE',
+                            context={
+                                "client_name": user_profile.get('display_name', 'Valued Member'),
+                                "email": username,
+                                "portal_url": os.environ.get('NOTIFICATION_PORTAL_URL', 'https://toganddogs.usmissionhero.com')
+                            }
+                        )
+                    except Exception as notify_err:
+                        print(f"Warning: Failed to send branded welcome email: {notify_err}")
+
                     return success({"message": "Invitation resent successfully."}, event)
                     
             except Exception as e:

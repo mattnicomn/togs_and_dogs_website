@@ -23,6 +23,8 @@ class NotificationTemplates:
             return NotificationTemplates.visit_cancelled(friendly_context)
         elif event_type == 'VISIT_TIME_CHANGED':
             return NotificationTemplates.visit_time_changed(friendly_context)
+        elif event_type == 'WELCOME_INVITE':
+            return NotificationTemplates.welcome_invite(friendly_context)
         
         return None, None, None
 
@@ -204,6 +206,69 @@ class NotificationTemplates:
                 <p>Questions? Reply to this email or contact us directly.</p>
                 <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
                 <p style="font-size: 0.9em; color: #777;">Best,<br/>The Tog and Dogs Team</p>
+            </div>
+        </body>
+        </html>
+        """
+        return subject, body_text, body_html
+
+    @staticmethod
+    def welcome_invite(ctx):
+        subject = "Welcome to Tog & Dogs!"
+        portal_url = ctx.get('portal_url', 'https://toganddogs.usmissionhero.com')
+        user_name = ctx.get('client_name') or ctx.get('staff_name') or 'Valued Member'
+        
+        body_text = (
+            f"Hi {user_name},\n\n"
+            f"Welcome to Tog & Dogs! We've set up your access to our portal where you can manage "
+            f"your account and stay connected with our team.\n\n"
+            f"Access your portal here: {portal_url}\n\n"
+            f"If this is your first time logging in, please check your inbox for a separate email from "
+            f"Tog & Dogs (via Cognito) containing your temporary password.\n\n"
+            f"We look forward to working with you!\n\n"
+            f"Best,\n"
+            f"The Tog & Dogs Team"
+        )
+        
+        body_html = f"""
+        <html>
+        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background-color: #f4f7f6; padding: 20px;">
+            <div style="max-width: 600px; margin: auto; border: 1px solid #e0e0e0; background-color: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #2c3e50; margin: 0; font-size: 28px;">Welcome to Tog & Dogs!</h1>
+                    <div style="width: 50px; height: 4px; background: #27ae60; margin: 15px auto; border-radius: 2px;"></div>
+                </div>
+                
+                <p>Hi <strong>{user_name}</strong>,</p>
+                
+                <p>We're thrilled to have you as part of the Tog & Dogs family! Your portal access is now ready for you to use.</p>
+                
+                <div style="background-color: #f9fdfa; border-left: 4px solid #27ae60; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+                    <p style="margin: 0; font-weight: bold; color: #2c3e50;">In the portal you can:</p>
+                    <ul style="margin: 10px 0 0 0; padding-left: 20px; color: #555;">
+                        <li>Manage your schedule and requests</li>
+                        <li>Update important care details</li>
+                        <li>Stay updated with the latest visit notes</li>
+                        <li>Manage your profile and communication preferences</li>
+                    </ul>
+                </div>
+                
+                <div style="text-align: center; margin: 35px 0;">
+                    <a href="{portal_url}" style="background-color: #27ae60; color: white; padding: 14px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; transition: background-color 0.3s;">Access the Portal</a>
+                </div>
+                
+                <div style="background-color: #fff9eb; border: 1px solid #ffeeba; padding: 15px; border-radius: 8px; font-size: 14px; color: #856404;">
+                    <p style="margin: 0;"><strong>Note for new users:</strong> Please check your inbox for a separate email containing your temporary password. You'll be prompted to set a permanent password upon your first login.</p>
+                </div>
+                
+                <p style="margin-top: 30px;">We look forward to working with you!</p>
+                
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
+                
+                <div style="text-align: center; color: #7f8c8d; font-size: 13px;">
+                    <p style="margin: 5px 0;">&copy; 2026 Tog & Dogs Pet Sitting</p>
+                    <p style="margin: 5px 0;">Providing premium care for your best friends.</p>
+                </div>
             </div>
         </body>
         </html>

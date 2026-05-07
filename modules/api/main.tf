@@ -650,6 +650,81 @@ resource "aws_api_gateway_integration" "post_admin_client_disable_lambda" {
   uri                     = var.admin_handler_invoke_arn
 }
 
+# Admin POST /admin/clients/{client_id}/resend-invite
+resource "aws_api_gateway_resource" "admin_client_resend" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_client_id.id
+  path_part   = "resend-invite"
+}
+
+resource "aws_api_gateway_method" "post_admin_client_resend" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_client_resend.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_admin_client_resend_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_client_resend.id
+  http_method = aws_api_gateway_method.post_admin_client_resend.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+# Admin POST /admin/clients/{client_id}/reset-password
+resource "aws_api_gateway_resource" "admin_client_reset" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_client_id.id
+  path_part   = "reset-password"
+}
+
+resource "aws_api_gateway_method" "post_admin_client_reset" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_client_reset.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_admin_client_reset_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_client_reset.id
+  http_method = aws_api_gateway_method.post_admin_client_reset.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+# Admin POST /admin/clients/{client_id}/set-temp-password
+resource "aws_api_gateway_resource" "admin_client_temp_pw" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_client_id.id
+  path_part   = "set-temp-password"
+}
+
+resource "aws_api_gateway_method" "post_admin_client_temp_pw" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_client_temp_pw.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_admin_client_temp_pw_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_client_temp_pw.id
+  http_method = aws_api_gateway_method.post_admin_client_temp_pw.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
 # Admin PUT /admin/cancel/decision
 
 
@@ -709,6 +784,9 @@ locals {
     "admin_clients" : aws_api_gateway_resource.admin_clients.id,
     "admin_client_id" : aws_api_gateway_resource.admin_client_id.id,
     "admin_client_disable" : aws_api_gateway_resource.admin_client_disable.id,
+    "admin_client_resend" : aws_api_gateway_resource.admin_client_resend.id,
+    "admin_client_reset" : aws_api_gateway_resource.admin_client_reset.id,
+    "admin_client_temp_pw" : aws_api_gateway_resource.admin_client_temp_pw.id,
     "client_requests" : aws_api_gateway_resource.client_requests.id,
     "client_pets" : aws_api_gateway_resource.client_pets.id
   }
@@ -826,6 +904,9 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.post_admin_staff_lambda,
     aws_api_gateway_integration.patch_admin_staff_id_lambda,
     aws_api_gateway_integration.delete_admin_staff_id_lambda,
+    aws_api_gateway_integration.post_admin_client_resend_lambda,
+    aws_api_gateway_integration.post_admin_client_reset_lambda,
+    aws_api_gateway_integration.post_admin_client_temp_pw_lambda,
     aws_api_gateway_integration_response.options_200,
 
 

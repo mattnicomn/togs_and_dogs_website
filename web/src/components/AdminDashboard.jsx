@@ -1911,9 +1911,10 @@ const AdminDashboard = () => {
 
     // Actions that don't need confirmation (resend-invite)
     try {
+      setIsSavingClient(true);
       if (action === 'resend-invite') {
         await resendClientInvite(clientId);
-        showNotification("Invitation resent successfully", "success");
+        showNotification("Invitation resent successfully. A branded welcome email and login credentials have been sent.", "success");
       } else {
         await updateClient(clientId, { action });
         showNotification(`Client action '${action}' completed successfully`, "success");
@@ -1921,6 +1922,8 @@ const AdminDashboard = () => {
       await fetchClientData();
     } catch (err) {
       showNotification(err.message || `Failed to execute ${action}`, "error");
+    } finally {
+      setIsSavingClient(false);
     }
   };
 
