@@ -4,13 +4,14 @@
 1. Log in to the Postmark dashboard.
 2. Verify the sender signature for `notifications@toganddogs.usmissionhero.com`.
 3. Configure DKIM/SPF as recommended by Postmark.
+   - **Status (2026-05-07):** PENDING. DKIM record `20260507131533pm._domainkey` not found in `usmissionhero.com` zone.
 4. Note the **Server API Token** from the Server Settings > API Tokens tab.
 
 ## 2. AWS Secrets Manager Setup
 1. Create a new secret in AWS Secrets Manager.
-2. Name: `togs-and-dogs-prod/postmark/server-token` (or similar prefix for other environments).
-3. Value: Either a plain string containing the token OR a JSON object: `{"token": "YOUR_TOKEN_HERE"}`.
-4. Ensure the Lambda execution role has `secretsmanager:GetSecretValue` permission for this secret (handled by Terraform in `modules/iam/main.tf`).
+2. Name: `togs-and-dogs-prod/postmark/server-token`.
+3. Value: **Plain text token string** (Implementation supports both raw string and JSON `{"token": "..."}`).
+4. Verified: Secret exists and is readable by the Lambda IAM role.
 
 ## 3. Switching Providers
 To activate Postmark in production:

@@ -15,5 +15,8 @@ The following environment variables control the provider:
 - `POSTMARK_SERVER_TOKEN_SECRET_NAME`: ARN or name of the secret in AWS Secrets Manager.
 - `POSTMARK_MESSAGE_STREAM`: The message stream ID in Postmark (default: `outbound`).
 
-## Status
-Production is currently defaulted to `log_only` while final DNS and Postmark sender verification are completed.
+## Status (2026-05-07)
+- **DNS Verification**: PENDING. DKIM and Return-Path records not yet detected in `usmissionhero.com`.
+- **Secret Configuration**: VERIFIED. Secret `togs-and-dogs-prod/postmark/server-token` is provisioned as plain text and readable by the application.
+- **Provider Setting**: Production remains in `log_only` mode until DNS verification is complete.
+- **Backend Code**: Verified to support both plain text and JSON-wrapped secrets.
