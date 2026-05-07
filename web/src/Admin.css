@@ -91,13 +91,13 @@
   display: flex;
   background: var(--bg-muted);
   padding: 4px;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   gap: 4px;
 }
 
 .view-selector button {
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: calc(var(--radius-sm) - 2px);
   font-size: 0.85rem;
   font-weight: 700;
   border: none;
@@ -163,6 +163,18 @@
   gap: 24px;
 }
 
+/* Mobile filter toggle — hidden on desktop */
+.mobile-filter-toggle {
+  display: none;
+}
+
+/* Filter panel content — always visible on desktop */
+.filter-panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 .filter-group {
   display: flex;
   flex-direction: column;
@@ -181,7 +193,7 @@
 
 .filter-option {
   padding: 12px 16px;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--text-main);
@@ -228,7 +240,7 @@
   height: 12px;
   border-radius: 50%;
   flex-shrink: 0;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid rgba(60, 60, 59, 0.1);
 }
 
 /* Modal Overlay & Error Banner */
@@ -249,20 +261,21 @@
 .modal-content {
   background: var(--card-bg);
   padding: 32px;
-  border-radius: 24px;
+  border-radius: var(--radius-md);
   width: 540px;
   max-width: 95%;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 25px 50px -12px rgba(60, 60, 59, 0.25);
   display: flex;
   flex-direction: column;
   gap: 24px;
   border: 1px solid var(--border-color);
+  position: relative;
 }
 
 .modal-error-banner {
   background: #fef2f2;
   border: 1px solid #fee2e2;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -276,6 +289,36 @@
 }
 
 .modal-header h2 { margin: 0; font-size: 1.5rem; font-weight: 800; }
+
+/* Modal close button — base styles (visible at all viewports, critical on mobile) */
+.modal-close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  font-size: 1.25rem;
+  cursor: pointer;
+  z-index: 10;
+  flex-shrink: 0;
+  color: var(--text-primary);
+  line-height: 1;
+  padding: 0;
+  transition: background 0.2s ease;
+}
+
+.modal-close-btn:hover,
+.modal-close-btn:focus {
+  background: var(--bg-muted, #f0f0f0);
+}
 
 .modal-footer {
   display: flex;
@@ -302,7 +345,7 @@
   gap: 16px;
   padding: 24px;
   background: var(--card-bg-muted);
-  border-radius: 20px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
 }
 
@@ -312,7 +355,7 @@
   align-items: center;
   padding: 16px;
   background: var(--card-bg);
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-color);
 }
@@ -386,7 +429,7 @@
   display: inline-block;
   padding: 2px 8px;
   background: var(--bg-muted);
-  border-radius: 4px;
+  border-radius: var(--radius-xs, 4px);
   font-size: 0.65rem;
   font-weight: 800;
   color: var(--text-muted);
@@ -428,7 +471,7 @@
 .dropdown-item {
   width: 100%;
   padding: 10px 16px;
-  border-radius: 8px;
+  border-radius: calc(var(--radius-sm) - 2px);
   font-size: 0.85rem;
   font-weight: 600;
   text-align: left;
@@ -563,12 +606,12 @@
   top: 20px;
   right: 20px;
   padding: 16px 24px;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   gap: 16px;
   z-index: 10001;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 15px -3px rgba(60, 60, 59, 0.1);
   animation: slideIn 0.3s ease-out;
   min-width: 300px;
   justify-content: space-between;
@@ -661,7 +704,7 @@
 .status-select-admin {
   width: 100%;
   padding: 10px;
-  border-radius: 8px;
+  border-radius: calc(var(--radius-sm) - 2px);
   border: 1px solid var(--border-color);
   background: var(--bg-muted);
   color: var(--text-primary);
@@ -717,7 +760,7 @@
 .queue-item {
   padding: 16px;
   background: var(--card-bg-muted);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 16px;
@@ -747,8 +790,8 @@
   font-size: 0.65rem;
   font-weight: 800;
   padding: 2px 8px;
-  border-radius: 4px;
-  background: rgba(0,0,0,0.05);
+  border-radius: var(--radius-xs, 4px);
+  background: rgba(60, 60, 59, 0.05);
   text-transform: uppercase;
   width: fit-content;
 }
@@ -757,6 +800,145 @@
   background: var(--card-bg);
   box-shadow: var(--shadow-sm);
   border-color: var(--accent-color);
+}
+
+/* ===== Button Hierarchy — consistent small button styles ===== */
+
+/* Base .btn-small — neutral default */
+.btn-small {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.btn-small:hover:not(:disabled) {
+  background: var(--bg-muted);
+  border-color: var(--text-secondary);
+}
+
+/* Primary variant — filled/solid, visually prominent */
+.btn-small.primary {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+  font-weight: 700;
+}
+
+.btn-small.primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+/* Primary outline variant — outlined, less prominent than filled */
+.btn-small.primary-outline {
+  background: transparent;
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
+  font-weight: 700;
+}
+
+.btn-small.primary-outline:hover:not(:disabled) {
+  background: var(--primary-soft, rgba(74, 144, 217, 0.08));
+}
+
+/* Secondary variant — subdued, text-like */
+.btn-small.secondary {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  font-weight: 600;
+}
+
+.btn-small.secondary:hover:not(:disabled) {
+  background: var(--bg-muted);
+  color: var(--text-primary);
+}
+
+/* Success variant — positive action */
+.btn-small.success {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1.5px solid #10b981;
+  font-weight: 700;
+}
+
+.btn-small.success:hover:not(:disabled) {
+  background: #10b981;
+  color: white;
+  border-color: #10b981;
+}
+
+/* Error / Destructive variant — warning style, distinguishable without color alone
+   Uses: dashed border + bold weight + ⚠ prefix-ready styling */
+.btn-small.error {
+  background: #fff5f5;
+  color: #991b1b;
+  border: 1.5px dashed #dc2626;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.btn-small.error:hover:not(:disabled) {
+  background: #dc2626;
+  color: white;
+  border-style: solid;
+}
+
+/* Danger variant — alias for error (used in workflow modals) */
+.btn-small.danger {
+  background: #fff5f5;
+  color: #991b1b;
+  border: 1.5px dashed #dc2626;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.btn-small.danger:hover:not(:disabled) {
+  background: #dc2626;
+  color: white;
+  border-style: solid;
+}
+
+/* ===== Button Group Spacing ===== */
+
+/* Related buttons within a group — 8px gap */
+.btn-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Vertical button group */
+.btn-group--vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Separation between unrelated button groups — 24px spacing with subtle divider */
+.btn-group + .btn-group {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-soft, var(--border-color));
+}
+
+/* Horizontal layout: side-by-side unrelated groups */
+.btn-group-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-start;
 }
 
 /* Action Button Utilities */
@@ -769,7 +951,7 @@
 
 .btn-micro {
   padding: 6px 12px;
-  border-radius: 8px;
+  border-radius: calc(var(--radius-sm) - 2px);
   font-size: 0.75rem;
   font-weight: 700;
   border: 1px solid var(--border-color);
@@ -824,14 +1006,15 @@
 
 .btn-small.purge {
   padding: 8px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   font-size: 0.8rem;
   font-weight: 800;
-  border: 1.5px solid #7f1d1d;
+  border: 1.5px dashed #7f1d1d;
   background: #fff5f5;
   color: #7f1d1d;
   cursor: pointer;
   transition: all 0.2s;
+  letter-spacing: 0.01em;
 }
 
 .btn-small.purge:hover:not(:disabled) {
@@ -842,6 +1025,15 @@
 .btn-small.purge:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Protected account / self-account disabled button guardrails */
+.btn-small:disabled,
+.button-primary:disabled,
+.button-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .purge-warning-text {
@@ -924,7 +1116,7 @@
 .bulk-confirm-details {
   background: var(--bg-muted);
   padding: 20px;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
 }
 
@@ -934,7 +1126,7 @@
   text-transform: uppercase;
   background: var(--primary-soft);
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs, 4px);
 }
 
 .safety-notice {
@@ -968,3 +1160,719 @@
   }
 }
 
+/* Tablet breakpoint — two-column stat cards */
+@media (min-width: 481px) and (max-width: 768px) {
+  .admin-stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+}
+
+/* Mobile breakpoint — single-column stat cards, tap targets, font sizes */
+@media (max-width: 480px) {
+  .admin-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .stat-card {
+    padding: 16px;
+  }
+
+  .stat-card .label {
+    font-size: 0.875rem;
+  }
+
+  .stat-card .value {
+    font-size: 1.5rem;
+  }
+
+  .stat-card .trend {
+    font-size: 0.875rem;
+  }
+
+  .admin-header-bar {
+    padding: 12px 16px;
+  }
+
+  .admin-page-container {
+    padding: 12px;
+  }
+
+  /* Minimum tap target size for all interactive elements */
+  .btn-micro,
+  .btn-small,
+  .filter-option,
+  .dropdown-item,
+  .view-selector button,
+  .dropdown-trigger {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 16px;
+  }
+
+  .btn-group-vertical {
+    width: 100%;
+  }
+
+  /* Request List — convert table rows into stacked cards */
+  .request-table {
+    display: block;
+    border-spacing: 0;
+    margin-top: 0;
+  }
+
+  .request-table thead {
+    display: none;
+  }
+
+  .request-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .request-table tbody tr {
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    margin-bottom: 0;
+    border-radius: var(--radius-md, 12px);
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .request-table tbody tr:hover {
+    transform: none;
+  }
+
+  .request-table td {
+    display: block;
+    padding: 8px 0;
+    border: none;
+    border-radius: 0;
+    font-size: 0.875rem;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .request-table td:first-child {
+    border-left: none;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .request-table td:last-child {
+    border-right: none;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  /* Client name, pet name — readable font size with wrapping */
+  .request-table .info-stack .bold {
+    font-size: 1rem;
+    white-space: normal;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .request-table .info-stack .micro-text {
+    font-size: 0.8rem;
+  }
+
+  /* Dates — readable font size */
+  .request-table .info-stack .small {
+    font-size: 0.875rem;
+  }
+
+  .request-table .badge-window {
+    font-size: 0.75rem;
+  }
+
+  /* Status chip — readable at mobile */
+  .request-table .status-chip {
+    font-size: 0.75rem;
+    min-width: auto;
+    white-space: normal;
+    text-align: center;
+    word-wrap: break-word;
+  }
+
+  /* Action buttons — 44x44px tap targets with 8px spacing */
+  .request-table .action-menu-container {
+    padding-top: 8px;
+  }
+
+  .request-table .action-menu-container .dropdown-trigger {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 16px;
+    font-size: 0.875rem;
+  }
+
+  .request-table .action-dropdown-menu {
+    position: relative;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .request-table .action-dropdown-menu .dropdown-item {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 16px;
+    font-size: 0.875rem;
+    margin-bottom: 8px;
+  }
+
+  .request-table .action-dropdown-menu .dropdown-item:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Staff assign button — tap target */
+  .request-table .btn-small {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 16px;
+    font-size: 0.875rem;
+  }
+
+  /* Prevent horizontal overflow on cards */
+  .request-table .info-stack {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .request-table .status-cell {
+    align-items: flex-start;
+  }
+
+  /* Checkbox cell — inline with card */
+  .request-table td input[type="checkbox"] {
+    min-width: 20px;
+    min-height: 20px;
+  }
+
+  /* Scheduler — mobile vertical list layout */
+  .scheduler-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .scheduler-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .filter-bar.card {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .filter-bar .filter-group {
+    width: 100%;
+  }
+
+  .filter-bar .filter-group select,
+  .filter-bar .filter-group input {
+    width: 100%;
+    min-height: 44px;
+    font-size: 0.875rem;
+  }
+
+  .view-toggle button {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 16px;
+  }
+
+  .scheduler-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .scheduler-mobile-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px;
+  }
+
+  .scheduler-mobile-list-header h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .scheduler-mobile-empty {
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    background: var(--card-bg-muted);
+    border-radius: var(--radius-md, 12px);
+    border: 1px dashed var(--border-color);
+  }
+
+  .scheduler-mobile-visits {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .scheduler-mobile-visit-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px;
+    background: var(--card-bg);
+    border-radius: var(--radius-md, 12px);
+    border: 1px solid var(--border-color);
+    border-left: 6px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    min-height: 44px;
+    transition: all 0.2s ease;
+  }
+
+  .scheduler-mobile-visit-card:hover,
+  .scheduler-mobile-visit-card:focus {
+    box-shadow: var(--shadow-soft);
+    border-color: var(--accent-color);
+    outline: none;
+  }
+
+  .scheduler-mobile-visit-card.urgent {
+    border-left-color: var(--danger, #e74c3c);
+    background: var(--card-bg);
+  }
+
+  .scheduler-mobile-visit-date {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .scheduler-mobile-visit-time {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .scheduler-mobile-visit-client {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .scheduler-mobile-visit-pet {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .scheduler-mobile-visit-staff {
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  /* Sidebar queue — stack below on mobile */
+  .sidebar-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .queue-item {
+    min-height: 44px;
+  }
+
+  .queue-item .btn-small {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 16px;
+  }
+
+  /* Mobile filter panel collapse toggle */
+  .mobile-filter-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 44px;
+    padding: 12px 16px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-main);
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md, 12px);
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  .mobile-filter-toggle:hover {
+    background: var(--bg-muted);
+  }
+
+  .filter-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent-color);
+    border-radius: 11px;
+  }
+
+  .filter-panel-content {
+    display: none;
+  }
+
+  .filter-panel-content.filter-panel-open {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* Full-screen mobile modal */
+  .modal-overlay {
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .modal-content {
+    width: 100%;
+    height: 100dvh;
+    max-width: 100%;
+    max-height: 100dvh;
+    border-radius: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px;
+    gap: 16px;
+    box-sizing: border-box;
+  }
+
+  /* Mobile modal close button — sticky top-right, 44x44px tap target */
+  .modal-close-btn {
+    position: sticky;
+    top: 0;
+    align-self: flex-end;
+    min-width: 44px;
+    min-height: 44px;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    font-size: 1.25rem;
+    cursor: pointer;
+    z-index: 10;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(60, 60, 59, 0.1);
+  }
+
+  .modal-close-btn:hover,
+  .modal-close-btn:focus {
+    background: var(--bg-muted);
+    outline: 3px solid var(--primary, #4a90d9);
+    outline-offset: 2px;
+  }
+
+  /* Prevent horizontal overflow in modal */
+  .modal-content * {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .modal-content textarea,
+  .modal-content input,
+  .modal-content select {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Stack form fields and action buttons vertically with 12px+ spacing */
+  .modal-content .field {
+    margin-bottom: 12px;
+  }
+
+  .modal-content .modal-footer {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .modal-content .modal-footer button {
+    min-height: 44px;
+    min-width: 44px;
+    width: 100%;
+    padding: 12px 16px;
+    font-size: 0.9rem;
+  }
+
+  .modal-content .workflow-guided-actions {
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100%;
+  }
+
+  .modal-content .workflow-guided-actions button {
+    min-height: 44px;
+    min-width: 44px;
+    width: 100%;
+    padding: 12px 16px;
+  }
+
+  .modal-content .bulk-confirm-details {
+    overflow-x: hidden;
+  }
+
+  /* Purge confirm modal — stack input and buttons */
+  .modal-content.purge-confirm-modal .purge-confirm-input {
+    width: 100%;
+  }
+
+  .modal-content.purge-confirm-modal .modal-footer {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* ===== Staff Management — single-column card layout ===== */
+  .staff-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .staff-profile-card {
+    padding: 16px !important;
+    border-radius: 12px !important;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  /* Staff card text — minimum 14px font size */
+  .staff-profile-card strong {
+    font-size: 1rem;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .staff-profile-card p {
+    font-size: 0.875rem;
+    margin: 4px 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .staff-profile-card .access-badge {
+    font-size: 0.8rem;
+  }
+
+  /* Staff card buttons — 44x44px tap targets */
+  .staff-profile-card .btn-small,
+  .staff-profile-card .button-secondary,
+  .staff-profile-card .button-primary {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 16px !important;
+    font-size: 0.875rem !important;
+    box-sizing: border-box;
+  }
+
+  /* Staff card action button groups — wrap and space properly */
+  .staff-profile-card div[style*="display: flex"][style*="gap: 8px"],
+  .staff-profile-card div[style*="display: flex"][style*="gap: 6px"] {
+    gap: 8px !important;
+  }
+
+  /* ===== Client Management — single-column card layout ===== */
+  .client-management-container {
+    padding: 16px !important;
+  }
+
+  /* Client form — single column on mobile */
+  .client-management-container form {
+    grid-template-columns: 1fr !important;
+    padding: 16px !important;
+  }
+
+  .client-management-container form .field[style*="gridColumn: 'span 2'"],
+  .client-management-container form div[style*="gridColumn"] {
+    grid-column: span 1 !important;
+  }
+
+  /* Client grid — single column (override inline grid-template-columns) */
+  .client-management-container div[style*="grid"] {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Client cards — readable text and proper sizing */
+  .client-management-container .card {
+    padding: 16px !important;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .client-management-container .card h4 {
+    font-size: 1rem;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .client-management-container .card p {
+    font-size: 0.875rem;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  /* Client card buttons — 44x44px tap targets */
+  .client-management-container .btn-small,
+  .client-management-container .button-secondary,
+  .client-management-container .button-primary {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 16px !important;
+    font-size: 0.875rem !important;
+    box-sizing: border-box;
+  }
+
+  /* Client card action button groups — wrap and space properly */
+  .client-management-container .card div[style*="display: flex"][style*="gap: 8px"],
+  .client-management-container .card div[style*="display: flex"][style*="gap: 6px"] {
+    gap: 8px !important;
+  }
+
+  /* ===== Confirmation dialogs — fully within viewport ===== */
+  /* Already handled by full-screen modal CSS above, but ensure dialog buttons are accessible */
+  .modal-content .button-primary,
+  .modal-content .button-secondary,
+  .modal-content .btn-small {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 16px;
+    font-size: 0.9rem;
+  }
+
+  /* Ensure cancel/close controls are visible and tappable in dialogs */
+  .modal-content .modal-footer .button-secondary,
+  .modal-content .modal-footer .button-primary {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 16px;
+    font-size: 0.9rem;
+    text-align: center;
+  }
+
+  /* ===== Mobile metadata hiding (Req 11.4, 11.5) ===== */
+  /* Hide checkbox column on mobile cards — not essential for quick scanning */
+  .request-table tbody tr td:nth-child(1) {
+    display: none;
+  }
+
+  /* Hide staff assignment column on mobile — supplementary metadata */
+  .request-table tbody tr td:nth-child(5) {
+    display: none;
+  }
+
+  /* De-emphasize service type micro-text — keep but reduce prominence */
+  .request-table .info-stack .micro-text {
+    font-size: 0.7rem;
+    opacity: 0.7;
+    margin-top: 2px;
+  }
+
+  /* De-emphasize visit window badge — keep but reduce prominence */
+  .request-table .badge-window {
+    font-size: 0.65rem;
+    opacity: 0.7;
+    padding: 2px 6px;
+  }
+
+  /* Ensure action dropdown (td:nth-child(6)) remains visible and accessible */
+  .request-table tbody tr td:nth-child(6) {
+    display: block;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+    margin-top: 4px;
+  }
+
+  /* Utility class for hiding elements at mobile viewport */
+  .mobile-hide {
+    display: none !important;
+  }
+}
+
+
+/* ===== Field Group Styling ===== */
+.field-group {
+  padding: 20px;
+  margin-bottom: 24px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: var(--radius-sm);
+  grid-column: span 2;
+}
+
+.field-group + .field-group {
+  margin-top: 24px;
+}
+
+.field-group-heading {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary, #3c3c3b);
+  margin: 0 0 4px 0;
+  padding: 0;
+}
+
+.field-group-helper {
+  font-size: 0.8rem;
+  color: var(--text-muted, #8a8a86);
+  margin: 0 0 16px 0;
+  padding: 0;
+  line-height: 1.4;
+}
+
+/* Mobile responsive field groups */
+@media (max-width: 480px) {
+  .field-group {
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .field-group + .field-group {
+    margin-top: 16px;
+  }
+
+  /* Stack inner grid to single column on mobile */
+  .field-group > div[style*="grid"] {
+    grid-template-columns: 1fr !important;
+  }
+}

@@ -68,6 +68,7 @@ const AdminDashboard = () => {
   const [view, setView] = useState('SCHEDULER'); // SCHEDULER or LIST
   const [statusFilter, setStatusFilter] = useState('PENDING_REVIEW');
   const [timeframeFilter, setTimeframeFilter] = useState('ALL');
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [selectedPet, setSelectedPet] = useState(null);
   const [assigningId, setAssigningId] = useState(null); 
   const [modalError, setModalError] = useState(null);
@@ -83,6 +84,10 @@ const AdminDashboard = () => {
   const [workflowDropdownOpen, setWorkflowDropdownOpen] = useState(false);
   const [decisionModal, setDecisionModal] = useState(null);
   const [lastKey, setLastKey] = useState(null);
+  // Confirmation modal state for staff/client actions (replaces window.confirm/prompt)
+  const [confirmAction, setConfirmAction] = useState(null);
+  // Shape: { type: 'staff'|'client', id: string, action: string, name: string, message: string, consequence: string, variant?: 'confirm'|'disable-choice'|'delete-typed'|'temp-password'|'link-email' }
+  const [confirmTypedInput, setConfirmTypedInput] = useState('');
   
   const capabilities = {
     canViewScheduler: ['owner', 'admin', 'staff'].includes(role),
@@ -100,6 +105,25 @@ const AdminDashboard = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openMenuId]);
+
+  // Scroll lock: prevent background scrolling when any modal is open (mobile iOS Safari fix)
+  useEffect(() => {
+    const isAnyModalOpen = !!(decisionModal || bulkConfirmModal || purgeModal || selectedPet || confirmAction);
+    if (isAnyModalOpen) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [decisionModal, bulkConfirmModal, purgeModal, selectedPet, confirmAction]);
 
   const showNotification = (message, type = 'info') => {
     setNotification({ message, type });
@@ -151,23 +175,23 @@ const AdminDashboard = () => {
     const workflow = determineWorkflowType(item);
 
     if (s === 'PENDING_REVIEW' || s === 'NEEDS_REVIEW') return workflow === 'VISIT_BOOKING' ? "New Request" : "New Registration";
-    if (s === 'MEET_GREET_REQUIRED' || s === 'NEEDS_MG') return "Needs M&G";
+    if (s === 'MEET_GREET_REQUIRED' || s === 'NEEDS_MG') return "Needs Meet & Greet";
     if (s === 'MG_SCHEDULED') return "M&G Scheduled";
     if (s === 'MG_COMPLETED') return "M&G Completed";
     if (s === 'PROFILE_CREATED') return "Profile Created";
     if (s === 'READY_FOR_APPROVAL' || s === 'NEW_REQUEST') return workflow === 'VISIT_BOOKING' ? "Booking Ready" : "Onboarding Ready";
-    if (s === 'QUOTE_NEEDED') return "Quote Needed";
-    if (s === 'QUOTE_SENT' || s === 'QUOTED') return "Quoted";
-    if (s === 'APPROVED' || s === 'BOOKED') return workflow === 'VISIT_BOOKING' ? "Booked" : "Approved Client";
-    if (s === 'ASSIGNED' || s === 'JOB_CREATED' || s === 'SCHEDULED') return "Scheduled";
+    if (s === 'QUOTE_NEEDED') return "Needs Price Quote";
+    if (s === 'QUOTE_SENT' || s === 'QUOTED') return "Price Quote Sent";
+    if (s === 'APPROVED' || s === 'BOOKED') return workflow === 'VISIT_BOOKING' ? "Approved / Ready to Schedule" : "Approved Client";
+    if (s === 'ASSIGNED' || s === 'JOB_CREATED' || s === 'SCHEDULED') return "Scheduled with Staff";
     if (s === 'IN_PROGRESS') return "In Progress";
-    if (s === 'COMPLETED') return "Completed";
+    if (s === 'COMPLETED') return "Visit Completed";
     if (s === 'CANCELLATION_REQUESTED') return "Cancel Requested";
     if (s === 'CANCELLATION_DENIED') return "Cancel Denied";
     if (s === 'CANCELLED') return "Cancelled";
-    if (s === 'ARCHIVED' || s === 'ARCHIVE') return "Archived";
-    if (s === 'DELETED' || s === 'DELETE' || s === 'TRASH') return "Deleted";
-    return s || "Unknown / Status Missing";
+    if (s === 'ARCHIVED' || s === 'ARCHIVE') return "Saved for Records";
+    if (s === 'DELETED' || s === 'DELETE' || s === 'TRASH') return "Trash";
+    return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || "Unknown / Status Missing";
   };
   
   const getAccessStatus = (user) => {
@@ -200,7 +224,7 @@ const AdminDashboard = () => {
 
     // 6. Linked but state unknown
     if (user.cognito_sub) {
-        return { label: 'Cognito Linked', class: 'status-linked' };
+        return { label: 'Login Linked', class: 'status-linked' };
     }
     
     return { label: 'Unknown', class: 'status-no-login' };
@@ -757,7 +781,7 @@ const AdminDashboard = () => {
       return;
     }
     if (staffForm.creation_mode === 'onboard' && !editingStaffId && !staffForm.email.trim()) {
-      showNotification("Email is required for Cognito onboarding", "error");
+      showNotification("Email is required to create a login account", "error");
       return;
     }
     
@@ -773,7 +797,7 @@ const AdminDashboard = () => {
       } else {
         if (staffForm.creation_mode === 'onboard') {
           await onboardStaff(staffForm);
-          showNotification("Staff created and Cognito onboarding triggered", "success");
+          showNotification("Staff created and login account set up", "success");
         } else {
           await createStaff(staffForm);
           showNotification("Staff profile created successfully", "success");
@@ -812,52 +836,262 @@ const AdminDashboard = () => {
   };
 
   const handleDisableStaff = async (staffId, hasCognito) => {
-    let disableCognito = false;
+    const staff = staffList.find(s => s.staff_id === staffId);
+    const staffName = staff?.display_name || 'this staff member';
     if (hasCognito) {
-      const choice = window.confirm("Do you also want to disable this staff member's Cognito login access? \n\nClick OK to disable BOTH the profile and Cognito login.\nClick Cancel to disable ONLY the profile.");
-      disableCognito = choice;
+      setConfirmAction({
+        type: 'staff',
+        id: staffId,
+        action: 'disable_with_choice',
+        name: staffName,
+        message: `Turn off login access for ${staffName}?`,
+        consequence: "Click 'Turn Off Both' to disable the profile AND login access, or 'Profile Only' to disable just the profile.",
+        variant: 'disable-choice',
+        hasCognito: true
+      });
+      setConfirmTypedInput('');
     } else {
-      if (!window.confirm("Are you sure you want to disable this staff profile? They will no longer appear as assignable.")) return;
+      setConfirmAction({
+        type: 'staff',
+        id: staffId,
+        action: 'disable_profile_only',
+        name: staffName,
+        message: `Disable ${staffName}'s staff profile?`,
+        consequence: "They will no longer appear as assignable. This can be reversed by restoring the profile.",
+        variant: 'confirm',
+        hasCognito: false
+      });
+      setConfirmTypedInput('');
     }
-    
+  };
+
+  const executeConfirmAction = async () => {
+    if (!confirmAction) return;
+    const { type, id, action, variant } = confirmAction;
+
+    // Handle the disable-choice variant (staff disable with cognito choice)
+    // This is handled by the two buttons in the modal directly
+    if (variant === 'disable-choice') return;
+
+    // Handle typed delete confirmation
+    if (variant === 'delete-typed') {
+      if (confirmTypedInput !== 'DELETE LOGIN ACCOUNT') {
+        showNotification("Deletion cancelled. Text did not match.", "info");
+        setConfirmAction(null);
+        setConfirmTypedInput('');
+        return;
+      }
+    }
+
+    // Handle temp password
+    if (variant === 'temp-password') {
+      if (!confirmTypedInput.trim()) {
+        setConfirmAction(null);
+        setConfirmTypedInput('');
+        return;
+      }
+      try {
+        if (type === 'staff') {
+          await setStaffTempPassword(id, confirmTypedInput.trim());
+        } else {
+          await setClientTempPassword(id, confirmTypedInput.trim());
+        }
+        showNotification("Temporary password set successfully", "success");
+        if (type === 'staff') await fetchStaffData();
+        else await fetchClientData();
+      } catch (err) {
+        showNotification(err.message || "Failed to set temporary password", "error");
+      }
+      setConfirmAction(null);
+      setConfirmTypedInput('');
+      return;
+    }
+
+    // Handle link email
+    if (variant === 'link-email') {
+      if (!confirmTypedInput.trim()) {
+        setConfirmAction(null);
+        setConfirmTypedInput('');
+        return;
+      }
+      try {
+        if (type === 'staff') {
+          await linkCognitoUser(id, { username: confirmTypedInput.trim() });
+        } else {
+          await linkClientCognitoUser(id, { username: confirmTypedInput.trim() });
+        }
+        showNotification("Login account linked successfully", "success");
+        if (type === 'staff') await fetchStaffData();
+        else await fetchClientData();
+      } catch (err) {
+        showNotification(err.message || "Failed to link user", "error");
+      }
+      setConfirmAction(null);
+      setConfirmTypedInput('');
+      return;
+    }
+
+    // Handle disable_profile_only (from handleDisableStaff without cognito)
+    if (action === 'disable_profile_only') {
+      try {
+        await disableStaff(id, null);
+        showNotification("Staff disabled successfully", "success");
+        await fetchStaffData();
+      } catch (err) {
+        showNotification(err.message || "Failed to disable staff", "error");
+      }
+      setConfirmAction(null);
+      setConfirmTypedInput('');
+      return;
+    }
+
+    // Standard confirm actions for staff/client
     try {
-      await disableStaff(staffId, disableCognito ? { disable_cognito: true } : null);
+      if (type === 'staff') {
+        if (action === 'resend-invite') {
+          await resendInvite(id);
+          showNotification("Invitation resent successfully", "success");
+        } else if (action === 'reset-password') {
+          await resetStaffPassword(id);
+          showNotification("Password reset email triggered", "success");
+        } else if (action === 'delete_cognito') {
+          await updateStaff(id, { action: 'delete_cognito' });
+          showNotification("Staff action 'delete_cognito' completed successfully", "success");
+        } else {
+          await updateStaff(id, { action });
+          showNotification(`Staff action '${action}' completed successfully`, "success");
+        }
+        await fetchStaffData();
+      } else {
+        if (action === 'resend-invite') {
+          await resendClientInvite(id);
+          showNotification("Invitation resent successfully", "success");
+        } else if (action === 'reset-password') {
+          await resetClientPassword(id);
+          showNotification("Password reset email triggered", "success");
+        } else if (action === 'delete_cognito') {
+          await updateClient(id, { action: 'delete_cognito' });
+          showNotification("Client action 'delete_cognito' completed successfully", "success");
+        } else {
+          await updateClient(id, { action });
+          showNotification(`Client action '${action}' completed successfully`, "success");
+        }
+        await fetchClientData();
+      }
+    } catch (err) {
+      showNotification(err.message || `Failed to execute ${action}`, "error");
+    }
+    setConfirmAction(null);
+    setConfirmTypedInput('');
+  };
+
+  const handleDisableStaffWithCognito = async (disableCognito) => {
+    if (!confirmAction) return;
+    const { id } = confirmAction;
+    try {
+      await disableStaff(id, disableCognito ? { disable_cognito: true } : null);
       showNotification("Staff disabled successfully", "success");
       await fetchStaffData();
     } catch (err) {
       showNotification(err.message || "Failed to disable staff", "error");
     }
+    setConfirmAction(null);
+    setConfirmTypedInput('');
   };
   
   const executeStaffAction = async (staffId, action) => {
-    let confirmText = "";
-    if (action === 'disable') confirmText = "Are you sure you want to disable access?";
-    if (action === 'enable') confirmText = "Are you sure you want to re-enable access?";
-    if (action === 'unlink') confirmText = "Are you sure you want to unlink Cognito? The profile will no longer map to a login.";
-    if (action === 'delete_profile') confirmText = "Are you sure you want to PERMANENTLY delete this profile? This cannot be undone.";
-    if (action === 'delete_cognito') {
-      const input = window.prompt("Type 'DELETE COGNITO USER' to confirm deleting the Cognito user account:");
-      if (input !== 'DELETE COGNITO USER') {
-        showNotification("Deletion cancelled. Text did not match.", "info");
+    const staff = staffList.find(s => s.staff_id === staffId);
+    const staffName = staff?.display_name || 'this staff member';
+
+    // Protected account guardrail — block destructive actions
+    const destructiveActions = ['disable', 'delete_cognito', 'delete_profile', 'unlink', 'set-temp-password', 'reset-password'];
+    if (destructiveActions.includes(action)) {
+      if (isProtectedProfile(staff)) {
+        showNotification(`Action blocked: ${staffName} is a protected platform admin and cannot be modified.`, "error");
         return;
       }
-    } else if (confirmText && !window.confirm(confirmText)) {
+      if (isSelf(staff) && ['disable', 'delete_cognito', 'delete_profile'].includes(action)) {
+        showNotification(`Action blocked: You cannot ${action === 'disable' ? 'disable' : 'delete'} your own account.`, "error");
+        return;
+      }
+    }
+
+    if (action === 'disable') {
+      setConfirmAction({
+        type: 'staff', id: staffId, action: 'disable', name: staffName,
+        message: `Turn off login access for ${staffName}?`,
+        consequence: "This prevents them from signing in, but keeps their records. This can be reversed by restoring login access.",
+        variant: 'confirm'
+      });
+      setConfirmTypedInput('');
+      return;
+    }
+    if (action === 'enable') {
+      setConfirmAction({
+        type: 'staff', id: staffId, action: 'enable', name: staffName,
+        message: `Restore login access for ${staffName}?`,
+        consequence: "This allows them to sign in again.",
+        variant: 'confirm'
+      });
+      setConfirmTypedInput('');
+      return;
+    }
+    if (action === 'unlink') {
+      setConfirmAction({
+        type: 'staff', id: staffId, action: 'unlink', name: staffName,
+        message: `Unlink the login account from ${staffName}'s profile?`,
+        consequence: "The profile will remain but will no longer be connected to a login. This can be reversed by linking a login account again.",
+        variant: 'confirm'
+      });
+      setConfirmTypedInput('');
+      return;
+    }
+    if (action === 'delete_profile') {
+      setConfirmAction({
+        type: 'staff', id: staffId, action: 'delete_profile', name: staffName,
+        message: `Permanently delete ${staffName}'s profile?`,
+        consequence: "This cannot be undone.",
+        variant: 'confirm'
+      });
+      setConfirmTypedInput('');
+      return;
+    }
+    if (action === 'delete_cognito') {
+      setConfirmAction({
+        type: 'staff', id: staffId, action: 'delete_cognito', name: staffName,
+        message: `Delete the login account for ${staffName}?`,
+        consequence: "Type 'DELETE LOGIN ACCOUNT' below to confirm. This action permanently removes their login credentials.",
+        variant: 'delete-typed'
+      });
+      setConfirmTypedInput('');
+      return;
+    }
+    if (action === 'set-temp-password') {
+      setConfirmAction({
+        type: 'staff', id: staffId, action: 'set-temp-password', name: staffName,
+        message: `Set a temporary password for ${staffName}`,
+        consequence: "Enter the temporary password below. The user will need to change it on next sign-in.",
+        variant: 'temp-password'
+      });
+      setConfirmTypedInput('');
+      return;
+    }
+    if (action === 'reset-password') {
+      setConfirmAction({
+        type: 'staff', id: staffId, action: 'reset-password', name: staffName,
+        message: `Send a password reset email to ${staffName}?`,
+        consequence: "They will receive an email with instructions to reset their password.",
+        variant: 'confirm'
+      });
+      setConfirmTypedInput('');
       return;
     }
 
+    // Actions that don't need confirmation (resend-invite)
     try {
       if (action === 'resend-invite') {
         await resendInvite(staffId);
         showNotification("Invitation resent successfully", "success");
-      } else if (action === 'reset-password') {
-        await resetStaffPassword(staffId);
-        showNotification("Password reset email triggered", "success");
-      } else if (action === 'set-temp-password') {
-        const pass = window.prompt("Enter temporary password:");
-        if (pass) {
-          await setStaffTempPassword(staffId, pass);
-          showNotification("Temporary password set successfully", "success");
-        }
       } else {
         await updateStaff(staffId, { action });
         showNotification(`Staff action '${action}' completed successfully`, "success");
@@ -1594,34 +1828,92 @@ const AdminDashboard = () => {
   };
 
   const executeClientAction = async (clientId, action) => {
-    let confirmText = "";
-    if (action === 'disable') confirmText = "Are you sure you want to disable client access?";
-    if (action === 'enable') confirmText = "Are you sure you want to re-enable client access?";
-    if (action === 'unlink') confirmText = "Are you sure you want to unlink Cognito login from this client profile?";
-    if (action === 'delete_profile') confirmText = "Are you sure you want to PERMANENTLY delete this client profile?";
-    if (action === 'delete_cognito') {
-      const input = window.prompt("Type 'DELETE COGNITO USER' to confirm deleting the client login:");
-      if (input !== 'DELETE COGNITO USER') {
-        showNotification("Deletion cancelled. Text did not match.", "info");
-        return;
-      }
-    } else if (confirmText && !window.confirm(confirmText)) {
+    const client = clientList.find(c => c.client_id === clientId);
+    const clientName = client?.display_name || 'this client';
+
+    // Protected account guardrail — block destructive actions
+    const destructiveActions = ['disable', 'delete_cognito', 'delete_profile', 'unlink', 'set-temp-password', 'reset-password'];
+    if (destructiveActions.includes(action) && isProtectedProfile(client)) {
+      showNotification(`Action blocked: ${clientName} is a protected platform admin and cannot be modified.`, "error");
       return;
     }
 
+    if (action === 'disable') {
+      setConfirmAction({
+        type: 'client', id: clientId, action: 'disable', name: clientName,
+        message: `Turn off login access for ${clientName}?`,
+        consequence: "This prevents them from signing in, but keeps their records. This can be reversed.",
+        variant: 'confirm'
+      });
+      setConfirmTypedInput('');
+      return;
+    }
+    if (action === 'enable') {
+      setConfirmAction({
+        type: 'client', id: clientId, action: 'enable', name: clientName,
+        message: `Restore login access for ${clientName}?`,
+        consequence: "This allows them to sign in again.",
+        variant: 'confirm'
+      });
+      setConfirmTypedInput('');
+      return;
+    }
+    if (action === 'unlink') {
+      setConfirmAction({
+        type: 'client', id: clientId, action: 'unlink', name: clientName,
+        message: `Unlink the login account from ${clientName}'s profile?`,
+        consequence: "The profile will remain but will no longer be connected to a login.",
+        variant: 'confirm'
+      });
+      setConfirmTypedInput('');
+      return;
+    }
+    if (action === 'delete_profile') {
+      setConfirmAction({
+        type: 'client', id: clientId, action: 'delete_profile', name: clientName,
+        message: `Permanently delete ${clientName}'s profile?`,
+        consequence: "This cannot be undone.",
+        variant: 'confirm'
+      });
+      setConfirmTypedInput('');
+      return;
+    }
+    if (action === 'delete_cognito') {
+      setConfirmAction({
+        type: 'client', id: clientId, action: 'delete_cognito', name: clientName,
+        message: `Delete the login account for ${clientName}?`,
+        consequence: "Type 'DELETE LOGIN ACCOUNT' below to confirm. This action permanently removes their login credentials.",
+        variant: 'delete-typed'
+      });
+      setConfirmTypedInput('');
+      return;
+    }
+    if (action === 'set-temp-password') {
+      setConfirmAction({
+        type: 'client', id: clientId, action: 'set-temp-password', name: clientName,
+        message: `Set a temporary password for ${clientName}`,
+        consequence: "Enter the temporary password below. The user will need to change it on next sign-in.",
+        variant: 'temp-password'
+      });
+      setConfirmTypedInput('');
+      return;
+    }
+    if (action === 'reset-password') {
+      setConfirmAction({
+        type: 'client', id: clientId, action: 'reset-password', name: clientName,
+        message: `Send a password reset email to ${clientName}?`,
+        consequence: "They will receive an email with instructions to reset their password.",
+        variant: 'confirm'
+      });
+      setConfirmTypedInput('');
+      return;
+    }
+
+    // Actions that don't need confirmation (resend-invite)
     try {
       if (action === 'resend-invite') {
         await resendClientInvite(clientId);
         showNotification("Invitation resent successfully", "success");
-      } else if (action === 'reset-password') {
-        await resetClientPassword(clientId);
-        showNotification("Password reset email triggered", "success");
-      } else if (action === 'set-temp-password') {
-        const pass = window.prompt("Enter temporary password:");
-        if (pass) {
-          await setClientTempPassword(clientId, pass);
-          showNotification("Temporary password set successfully", "success");
-        }
       } else {
         await updateClient(clientId, { action });
         showNotification(`Client action '${action}' completed successfully`, "success");
@@ -1664,7 +1956,7 @@ const AdminDashboard = () => {
                 checked={clientForm.creation_mode === 'onboard'} 
                 onChange={(e) => setClientForm({ ...clientForm, creation_mode: e.target.value })}
               />
-              Onboard New Cognito User
+              Create Login & Profile
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
               <input 
@@ -1674,39 +1966,49 @@ const AdminDashboard = () => {
                 checked={clientForm.creation_mode === 'profile_only'} 
                 onChange={(e) => setClientForm({ ...clientForm, creation_mode: e.target.value })}
               />
-              Create Profile Only
+              Create Profile Only (No Login)
             </label>
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label>Display Name *</label>
-          <input type="text" value={clientForm.display_name} onChange={(e) => setClientForm({ ...clientForm, display_name: e.target.value })} required />
+        <div className="field-group">
+          <h4 className="field-group-heading">Login Identity</h4>
+          <p className="field-group-helper">This email address is used for signing in and cannot be changed without affecting login access.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label>Email *</label>
+            <input type="email" value={clientForm.email} onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })} required />
+          </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label>Email *</label>
-          <input type="email" value={clientForm.email} onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })} required />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label>Phone</label>
-          <input type="text" value={clientForm.phone} onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })} />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label>Emergency Contact</label>
-          <input type="text" value={clientForm.emergency_contact} onChange={(e) => setClientForm({ ...clientForm, emergency_contact: e.target.value })} />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2' }}>
-          <label>Address</label>
-          <textarea rows="2" value={clientForm.address} onChange={(e) => setClientForm({ ...clientForm, address: e.target.value })}></textarea>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2' }}>
-          <label>Notes</label>
-          <textarea rows="3" value={clientForm.notes} onChange={(e) => setClientForm({ ...clientForm, notes: e.target.value })}></textarea>
+
+        <div className="field-group">
+          <h4 className="field-group-heading">Profile Details</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label>Display Name *</label>
+              <input type="text" value={clientForm.display_name} onChange={(e) => setClientForm({ ...clientForm, display_name: e.target.value })} required />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label>Phone</label>
+              <input type="text" value={clientForm.phone} onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2' }}>
+              <label>Address</label>
+              <textarea rows="2" value={clientForm.address} onChange={(e) => setClientForm({ ...clientForm, address: e.target.value })}></textarea>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label>Emergency Contact</label>
+              <input type="text" value={clientForm.emergency_contact} onChange={(e) => setClientForm({ ...clientForm, emergency_contact: e.target.value })} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2' }}>
+              <label>Notes</label>
+              <textarea rows="3" value={clientForm.notes} onChange={(e) => setClientForm({ ...clientForm, notes: e.target.value })}></textarea>
+            </div>
+          </div>
         </div>
 
         {clientLinkPrompt && (
           <div className="existing-user-warning" style={{ gridColumn: 'span 2' }}>
-            <p><strong>Cognito user already exists for {clientLinkPrompt.email}.</strong> Link it instead?</p>
+            <p><strong>A login account already exists for {clientLinkPrompt.email}.</strong> Link it instead?</p>
             <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
               <button type="button" className="button-primary" onClick={async () => {
                 try {
@@ -1740,7 +2042,7 @@ const AdminDashboard = () => {
             <div key={c.client_id} className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', border: c.is_virtual ? '1px dashed var(--accent-orange)' : '1px solid var(--border)', opacity: c.is_active === false ? 0.6 : 1, backgroundColor: 'var(--surface-color)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
-                  <h4 style={{ margin: 0 }}>{c.display_name}</h4>
+                  <h4 style={{ margin: 0 }}>{c.display_name}{isProtectedProfile(c) && <span style={{ color: 'var(--accent-teal)', fontSize: '11px', marginLeft: '8px', backgroundColor: 'rgba(0, 188, 212, 0.1)', padding: '2px 8px', borderRadius: '12px', border: '1px solid var(--accent-teal)' }}>Protected Platform Admin</span>}</h4>
                   <p style={{ margin: '4px 0', fontSize: '13px', color: 'var(--text-muted)' }}>{c.email}</p>
                 </div>
                 {(() => {
@@ -1755,30 +2057,27 @@ const AdminDashboard = () => {
                   {c.cognito_sub ? (
                     <>
                       <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Account Security</span>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <div className="btn-group" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         <button className="btn-small" onClick={() => executeClientAction(c.client_id, 'resend-invite')} disabled={!['FORCE_CHANGE_PASSWORD', 'UNCONFIRMED'].includes(c.cognito_status)}>Resend Invite</button>
-                        <button className="btn-small" onClick={() => executeClientAction(c.client_id, 'reset-password')}>Reset Pass</button>
-                        <button className="btn-small" onClick={() => executeClientAction(c.client_id, 'set-temp-password')}>Set Temp</button>
+                        <button className="btn-small" onClick={() => executeClientAction(c.client_id, 'reset-password')} disabled={isProtectedProfile(c)} title={isProtectedProfile(c) ? 'This account is protected and cannot be modified' : undefined}>Send Password Reset Email</button>
+                        <button className="btn-small" onClick={() => executeClientAction(c.client_id, 'set-temp-password')} disabled={isProtectedProfile(c)} title={isProtectedProfile(c) ? 'This account is protected and cannot be modified' : undefined}>Set Temporary Password</button>
                       </div>
                     </>
                   ) : (
-                    <button className="btn-small secondary" onClick={async () => {
-                      const user = prompt("Enter Cognito email to link:");
-                      if (user) {
-                        try {
-                          await linkClientCognitoUser(c.client_id, { username: user });
-                          showNotification("Linked successfully", "success");
-                          fetchClientData();
-                        } catch (err) {
-                          showNotification(err.message, "error");
-                        }
-                      }
-                    }}>Link Login</button>
+                    <button className="btn-small secondary" onClick={() => {
+                      setConfirmAction({
+                        type: 'client', id: c.client_id, action: 'link-email', name: c.display_name || 'this client',
+                        message: `Link a login account to ${c.display_name || 'this client'}`,
+                        consequence: "Enter the existing email address to link as their login account.",
+                        variant: 'link-email'
+                      });
+                      setConfirmTypedInput('');
+                    }}>Link Login Account</button>
                   )}
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
+              <div className="btn-group" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
                 {c.is_virtual ? (
                   <>
                     <button className="btn-small" onClick={() => {
@@ -1794,11 +2093,11 @@ const AdminDashboard = () => {
                       });
                     }}>Create Profile</button>
                     {c.is_active !== false ? (
-                      <button className="btn-small error" onClick={() => executeClientAction(c.client_id, 'disable')}>Disable Cognito</button>
+                      <button className="btn-small error" disabled={isProtectedProfile(c)} title={isProtectedProfile(c) ? 'This account is protected and cannot be modified' : undefined} onClick={() => executeClientAction(c.client_id, 'disable')}>Turn Off Login Access</button>
                     ) : (
                       <>
-                        <button className="btn-small" onClick={() => executeClientAction(c.client_id, 'enable')}>Enable</button>
-                        <button className="btn-small error" onClick={() => executeClientAction(c.client_id, 'delete_cognito')}>Delete Cognito</button>
+                        <button className="btn-small" onClick={() => executeClientAction(c.client_id, 'enable')}>Restore Login Access</button>
+                        <button className="btn-small error" disabled={isProtectedProfile(c)} title={isProtectedProfile(c) ? 'This account is protected and cannot be modified' : undefined} onClick={() => executeClientAction(c.client_id, 'delete_cognito')}>Delete Login Account</button>
                       </>
                     )}
                   </>
@@ -1806,12 +2105,12 @@ const AdminDashboard = () => {
                   <>
                     <button className="btn-small" onClick={() => handleEditClient(c)}>Edit</button>
                     {c.is_active !== false ? (
-                      <button className="btn-small error" onClick={() => executeClientAction(c.client_id, 'disable')}>Disable</button>
+                      <button className="btn-small error" disabled={isProtectedProfile(c)} title={isProtectedProfile(c) ? 'This account is protected and cannot be modified' : undefined} onClick={() => executeClientAction(c.client_id, 'disable')}>Turn Off Login Access</button>
                     ) : (
-                      <button className="btn-small" onClick={() => executeClientAction(c.client_id, 'enable')}>Enable</button>
+                      <button className="btn-small" onClick={() => executeClientAction(c.client_id, 'enable')}>Restore Login Access</button>
                     )}
-                    {c.cognito_sub && <button className="btn-small" onClick={() => executeClientAction(c.client_id, 'unlink')}>Unlink</button>}
-                    {c.is_active === false && <button className="btn-small error" onClick={() => executeClientAction(c.client_id, 'delete_profile')}>Delete</button>}
+                    {c.cognito_sub && <button className="btn-small" disabled={isProtectedProfile(c)} title={isProtectedProfile(c) ? 'This account is protected and cannot be modified' : undefined} onClick={() => executeClientAction(c.client_id, 'unlink')}>Unlink</button>}
+                    {c.is_active === false && <button className="btn-small error" disabled={isProtectedProfile(c)} title={isProtectedProfile(c) ? 'This account is protected and cannot be modified' : undefined} onClick={() => executeClientAction(c.client_id, 'delete_profile')}>Delete</button>}
                   </>
                 )}
               </div>
@@ -1862,6 +2161,20 @@ const AdminDashboard = () => {
       <div className="admin-layout">
 
         <aside className="admin-sidebar card">
+          <button
+            className="mobile-filter-toggle"
+            onClick={() => setMobileFilterOpen(prev => !prev)}
+            aria-expanded={mobileFilterOpen}
+            aria-controls="filter-panel-content"
+          >
+            {mobileFilterOpen ? 'Hide Filters' : 'Show Filters'}
+            {!mobileFilterOpen && ((statusFilter !== 'PENDING_REVIEW' ? 1 : 0) + (timeframeFilter !== 'ALL' ? 1 : 0)) > 0 && (
+              <span className="filter-badge">
+                {(statusFilter !== 'PENDING_REVIEW' ? 1 : 0) + (timeframeFilter !== 'ALL' ? 1 : 0)}
+              </span>
+            )}
+          </button>
+          <div id="filter-panel-content" className={`filter-panel-content ${mobileFilterOpen ? 'filter-panel-open' : ''}`}>
           {view === 'LIST' && (
             <div className="filter-group">
               <h4>Staff Quick View</h4>
@@ -1886,7 +2199,7 @@ const AdminDashboard = () => {
                 <h4 className="workflow-title">New Customer Intake</h4>
                 {[
                   { id: 'INTAKE_QUEUE', label: 'Intake Queue' },
-                  { id: 'MEET_GREET_REQUIRED', label: 'Needs M&G' },
+                  { id: 'MEET_GREET_REQUIRED', label: 'Needs Meet & Greet' },
                   { id: 'READY_FOR_APPROVAL', label: 'Ready to Approve' },
                 ].map(f => (
                   <button 
@@ -1903,9 +2216,9 @@ const AdminDashboard = () => {
                 <h4 className="workflow-title">Visit Requests</h4>
                 {[
                   { id: 'BOOKING_QUEUE', label: 'Booking Queue' },
-                  { id: 'QUOTED', label: 'Quotes & Payments' },
-                  { id: 'ASSIGNED', label: 'Scheduled Visits' },
-                  { id: 'COMPLETED', label: 'Completed' },
+                  { id: 'QUOTED', label: 'Price Quotes' },
+                  { id: 'ASSIGNED', label: 'Scheduled with Staff' },
+                  { id: 'COMPLETED', label: 'Visit Completed' },
                 ].map(f => (
                   <button 
                     key={f.id}
@@ -1941,8 +2254,8 @@ const AdminDashboard = () => {
               <h4>Closed / History</h4>
               {[
                 { id: 'CANCELLED', label: 'Cancelled' },
-                { id: 'ARCHIVED', label: 'Archived' },
-                { id: 'DELETED', label: 'Trash / Deleted' }
+                { id: 'ARCHIVED', label: 'Saved for Records' },
+                { id: 'DELETED', label: 'Trash' }
               ].map(f => (
                 <button 
                   key={f.id}
@@ -1982,6 +2295,7 @@ const AdminDashboard = () => {
               )}
             </div>
           </div>
+          </div>{/* end filter-panel-content */}
         </aside>
 
         <main className="admin-main">
@@ -2035,7 +2349,7 @@ const AdminDashboard = () => {
                         checked={staffForm.creation_mode === 'onboard'} 
                         onChange={(e) => setStaffForm({ ...staffForm, creation_mode: e.target.value })}
                       />
-                      Onboard New Cognito User
+                      Create Login & Profile
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                       <input 
@@ -2045,25 +2359,93 @@ const AdminDashboard = () => {
                         checked={staffForm.creation_mode === 'profile_only'} 
                         onChange={(e) => setStaffForm({ ...staffForm, creation_mode: e.target.value })}
                       />
-                      Create Local Profile Only
+                      Create Profile Only (No Login)
                     </label>
                   </div>
                 )}
 
-                <div className="field">
-                  <label>Display Name *</label>
-                  <input 
-                    type="text" 
-                    value={staffForm.display_name} 
-                    onChange={(e) => setStaffForm({ ...staffForm, display_name: e.target.value })} 
-                    placeholder="e.g. Ryan"
-                    required 
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                  />
+                {/* Group 1: Login Identity */}
+                <div className="field-group" style={{ gridColumn: 'span 2' }}>
+                  <h4 className="field-group-heading">Login Identity</h4>
+                  <p className="field-group-helper">This is the email this person uses to sign in.</p>
+                  <div className="field">
+                    <label>{editingStaffId ? 'Contact Email' : 'Email'} {staffForm.creation_mode === 'onboard' ? '*' : '(Optional)'}</label>
+                    {editingStaffId && (
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                        Login Identity: {staffList.find(s => s.staff_id === editingStaffId)?.cognito_username || staffList.find(s => s.staff_id === editingStaffId)?.email || 'N/A'} (Read-only)
+                      </div>
+                    )}
+                    <input 
+                      type="email" 
+                      value={staffForm.email} 
+                      onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })} 
+                      placeholder="e.g. ryan@example.com"
+                      disabled={editingStaffId && isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId))}
+                      style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                    />
+                    {editingStaffId && !isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId)) && (
+                      <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                        Note: Changing this only updates the contact email, not the login identity.
+                      </p>
+                    )}
+                  </div>
+                  {staffForm.creation_mode === 'onboard' && !editingStaffId && (
+                    <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <input 
+                        type="checkbox" 
+                        id="send_invite_cb"
+                        checked={staffForm.send_invite} 
+                        onChange={(e) => setStaffForm({ ...staffForm, send_invite: e.target.checked })} 
+                      />
+                      <label htmlFor="send_invite_cb" style={{ margin: 0 }}>Send setup email with login instructions</label>
+                    </div>
+                  )}
                 </div>
-                
+
+                {/* Group 2: Profile Details */}
+                <div className="field-group" style={{ gridColumn: 'span 2' }}>
+                  <h4 className="field-group-heading">Profile Details</h4>
+                  <p className="field-group-helper">These details help you identify and contact this person.</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div className="field">
+                      <label>Display Name *</label>
+                      <input 
+                        type="text" 
+                        value={staffForm.display_name} 
+                        onChange={(e) => setStaffForm({ ...staffForm, display_name: e.target.value })} 
+                        placeholder="e.g. Ryan"
+                        required 
+                        style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                      />
+                    </div>
+
+                    <div className="field">
+                      <label>Phone (Optional)</label>
+                      <input 
+                        type="text" 
+                        value={staffForm.phone} 
+                        onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })} 
+                        placeholder="555-123-4567"
+                        style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                      />
+                    </div>
+
+                    <div className="field" style={{ gridColumn: 'span 2' }}>
+                      <label>Notes (Optional)</label>
+                      <input 
+                        type="text" 
+                        value={staffForm.notes} 
+                        onChange={(e) => setStaffForm({ ...staffForm, notes: e.target.value })} 
+                        placeholder="Internal scheduling notes"
+                        style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Scheduling & Access Settings */}
                 <div className="field">
-                  <label>Role</label>
+                  <label>Access Level</label>
                   <select 
                     value={staffForm.role} 
                     onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
@@ -2074,27 +2456,6 @@ const AdminDashboard = () => {
                     <option value="Admin">Admin</option>
                     <option value="owner">Owner</option>
                   </select>
-                </div>
-                 <div className="field">
-                  <label>{editingStaffId ? 'Contact Email' : 'Email'} {staffForm.creation_mode === 'onboard' ? '*' : '(Optional)'}</label>
-                  {editingStaffId && (
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                      Login Identity: {staffList.find(s => s.staff_id === editingStaffId)?.cognito_username || staffList.find(s => s.staff_id === editingStaffId)?.email || 'N/A'} (Read-only)
-                    </div>
-                  )}
-                  <input 
-                    type="email" 
-                    value={staffForm.email} 
-                    onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })} 
-                    placeholder="e.g. ryan@example.com"
-                    disabled={editingStaffId && isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId))}
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                  />
-                  {editingStaffId && !isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId)) && (
-                    <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                      Note: Changing this only updates the contact email, not the login identity.
-                    </p>
-                  )}
                 </div>
                 
                 <div className="field">
@@ -2114,44 +2475,10 @@ const AdminDashboard = () => {
                   </select>
                 </div>
 
-                <div className="field">
-                  <label>Phone (Optional)</label>
-                  <input 
-                    type="text" 
-                    value={staffForm.phone} 
-                    onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })} 
-                    placeholder="555-123-4567"
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                  />
-                </div>
-
-                <div className="field">
-                  <label>Notes (Optional)</label>
-                  <input 
-                    type="text" 
-                    value={staffForm.notes} 
-                    onChange={(e) => setStaffForm({ ...staffForm, notes: e.target.value })} 
-                    placeholder="Internal scheduling notes"
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                  />
-                </div>
-
-                {staffForm.creation_mode === 'onboard' && !editingStaffId && (
-                  <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '10px', gridColumn: 'span 2' }}>
-                    <input 
-                      type="checkbox" 
-                      id="send_invite_cb"
-                      checked={staffForm.send_invite} 
-                      onChange={(e) => setStaffForm({ ...staffForm, send_invite: e.target.checked })} 
-                    />
-                    <label htmlFor="send_invite_cb" style={{ margin: 0 }}>Send setup email via Cognito</label>
-                  </div>
-                )}
-
                 {staffLinkPrompt && (
                   <div className="existing-user-warning">
                     <p className="existing-user-warning-title">
-                      <strong>Cognito user already exists with this email ({staffLinkPrompt.email}).</strong>
+                      <strong>A login account already exists with this email ({staffLinkPrompt.email}).</strong>
                     </p>
                     <p className="existing-user-warning-body">
                       A login account already exists for this email. You can link it to this staff profile instead.
@@ -2222,12 +2549,12 @@ const AdminDashboard = () => {
                   <div key={s.staff_id} className="staff-profile-card" style={{ border: s.is_virtual ? '1px dashed var(--accent-orange)' : '1px solid var(--border)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: 'var(--card-bg)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span className="dot" style={{ backgroundColor: s.assignment_color || 'var(--staff-unassigned)', width: '16px', height: '16px', borderRadius: '50%' }}></span>
-                      <strong style={{ fontSize: '18px' }}>{s.display_name} {s.is_virtual && <span style={{ color: 'var(--accent-orange)', fontSize: '12px', marginLeft: '6px', backgroundColor: 'rgba(255, 152, 0, 0.15)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--accent-orange)' }}>Cognito Only</span>}</strong>
+                      <strong style={{ fontSize: '18px' }}>{s.display_name} {s.is_virtual && <span style={{ color: 'var(--accent-orange)', fontSize: '12px', marginLeft: '6px', backgroundColor: 'rgba(255, 152, 0, 0.15)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--accent-orange)' }}>Login Only</span>}</strong>
                       {isProtectedProfile(s) && <span style={{ color: 'var(--accent-teal)', fontSize: '11px', marginLeft: '8px', backgroundColor: 'rgba(0, 188, 212, 0.1)', padding: '2px 8px', borderRadius: '12px', border: '1px solid var(--accent-teal)' }}>Protected Platform Admin</span>}
                       {isSelf(s) && <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginLeft: '8px' }}>(You)</span>}
                     </div>
                     <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-                      <p style={{ margin: '2px 0' }}><strong>Role:</strong> {s.role}</p>
+                      <p style={{ margin: '2px 0' }}><strong>Access Level:</strong> {s.role}</p>
                       {s.email && <p style={{ margin: '2px 0' }}><strong>Email:</strong> {s.email}</p>}
                       <p style={{ margin: '2px 0' }}><strong>Assignable:</strong> {s.is_assignable !== false ? 'Yes' : 'No'}</p>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '6px 0' }}>
@@ -2242,7 +2569,7 @@ const AdminDashboard = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
                       {s.cognito_sub ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
+                          <div className="btn-group" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
                             <span style={{ fontSize: '11px', width: '100%', color: 'var(--text-muted)', marginBottom: '2px' }}>Account Security</span>
                             <button 
                               className="btn-small" 
@@ -2256,15 +2583,19 @@ const AdminDashboard = () => {
                               className="btn-small" 
                               style={{ fontSize: '11px', padding: '4px 8px' }}
                               onClick={() => executeStaffAction(s.staff_id, 'reset-password')}
+                              disabled={isProtectedProfile(s) || isSelf(s)}
+                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot modify your own account security settings' : undefined}
                             >
-                              Send Reset
+                              Send Password Reset Email
                             </button>
                             <button 
                               className="btn-small" 
                               style={{ fontSize: '11px', padding: '4px 8px' }}
                               onClick={() => executeStaffAction(s.staff_id, 'set-temp-password')}
+                              disabled={isProtectedProfile(s) || isSelf(s)}
+                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot modify your own account security settings' : undefined}
                             >
-                              Set Temp Pass
+                              Set Temporary Password
                             </button>
                           </div>
                         </div>
@@ -2272,24 +2603,22 @@ const AdminDashboard = () => {
                         <button 
                           className="button-secondary" 
                           style={{ fontSize: '12px', padding: '6px' }} 
-                          onClick={async () => {
-                            const username = window.prompt("Enter existing Cognito Email to link:");
-                            if (!username || !username.trim()) return;
-                            try {
-                              await linkCognitoUser(s.staff_id, { username: username.trim() });
-                              showNotification("Cognito user linked successfully", "success");
-                              await fetchStaffData();
-                            } catch(err) {
-                              showNotification(err.message || "Failed to link user", "error");
-                            }
+                          onClick={() => {
+                            setConfirmAction({
+                              type: 'staff', id: s.staff_id, action: 'link-email', name: s.display_name || 'this staff member',
+                              message: `Link a login account to ${s.display_name || 'this staff member'}`,
+                              consequence: "Enter the existing email address to link as their login account.",
+                              variant: 'link-email'
+                            });
+                            setConfirmTypedInput('');
                           }}
                         >
-                          Link Cognito Login
+                          Link Login Account
                         </button>
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
+                    <div className="btn-group" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
                       {s.is_virtual ? (
                         <>
                           <button className="btn-small" style={{ backgroundColor: 'var(--accent-orange)', color: 'white' }} onClick={() => {
@@ -2310,19 +2639,21 @@ const AdminDashboard = () => {
                             <button 
                               className="btn-small error" 
                               disabled={isProtectedProfile(s) || isSelf(s)}
+                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot disable your own account' : undefined}
                               onClick={() => executeStaffAction(s.staff_id, 'disable')}
                             >
-                              Disable Cognito
+                              Turn Off Login Access
                             </button>
                           ) : (
                             <>
-                              <button className="btn-small" style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} onClick={() => executeStaffAction(s.staff_id, 'enable')}>Enable Cognito</button>
+                              <button className="btn-small" style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} onClick={() => executeStaffAction(s.staff_id, 'enable')}>Restore Login Access</button>
                               <button 
                                 className="btn-small error" 
                                 disabled={isProtectedProfile(s) || isSelf(s)}
+                                title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot delete your own account' : undefined}
                                 onClick={() => executeStaffAction(s.staff_id, 'delete_cognito')}
                               >
-                                Delete Cognito User
+                                Delete Login Account
                               </button>
                             </>
                           )}
@@ -2334,27 +2665,30 @@ const AdminDashboard = () => {
                             <button 
                               className="btn-small error" 
                               disabled={isProtectedProfile(s) || isSelf(s)}
+                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot disable your own account' : undefined}
                               onClick={() => executeStaffAction(s.staff_id, 'disable')}
                             >
-                              Disable Access
+                              Turn Off Login Access
                             </button>
                           ) : (
-                            <button className="btn-small" style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} onClick={() => executeStaffAction(s.staff_id, 'enable')}>Enable Access</button>
+                            <button className="btn-small" style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} onClick={() => executeStaffAction(s.staff_id, 'enable')}>Restore Login Access</button>
                           )}
                           {s.cognito_sub && (
                             <button 
                               className="btn-small" 
                               style={{ backgroundColor: '#2196f3', color: 'white' }} 
                               disabled={isProtectedProfile(s) || isSelf(s)}
+                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot modify your own account' : undefined}
                               onClick={() => executeStaffAction(s.staff_id, 'unlink')}
                             >
-                              Unlink Cognito
+                              Unlink Login
                             </button>
                           )}
                           {s.is_active === false && (
                             <button 
                               className="btn-small error" 
                               disabled={isProtectedProfile(s) || isSelf(s)}
+                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot delete your own account' : undefined}
                               onClick={() => executeStaffAction(s.staff_id, 'delete_profile')}
                             >
                               Delete Profile
@@ -2381,14 +2715,14 @@ const AdminDashboard = () => {
                 <h2>Request List — {(() => {
                   const filter = [
                     { id: 'NEEDS_ACTION', label: 'Needs Action' },
-                    { id: 'MEET_GREET_REQUIRED', label: 'Needs M&G' },
-                    { id: 'QUOTED', label: 'Quoted' },
+                    { id: 'MEET_GREET_REQUIRED', label: 'Needs Meet & Greet' },
+                    { id: 'QUOTED', label: 'Price Quotes' },
                     { id: 'APPROVED', label: 'Approved' },
-                    { id: 'ASSIGNED', label: 'Scheduled' },
-                    { id: 'COMPLETED', label: 'Completed' },
+                    { id: 'ASSIGNED', label: 'Scheduled with Staff' },
+                    { id: 'COMPLETED', label: 'Visit Completed' },
                     { id: 'CANCELLED', label: 'Cancelled' },
-                    { id: 'ARCHIVED', label: 'Archived' },
-                    { id: 'DELETED', label: 'Trash / Deleted' },
+                    { id: 'ARCHIVED', label: 'Saved for Records' },
+                    { id: 'DELETED', label: 'Trash' },
                     { id: 'ALL', label: 'All Active' }
                   ].find(f => f.id === statusFilter);
 
@@ -2705,6 +3039,13 @@ const AdminDashboard = () => {
       {decisionModal && (
         <div className="modal-overlay">
           <div className="modal-content">
+            <button
+              className="modal-close-btn"
+              onClick={() => { setDecisionModal(null); setModalError(null); setWorkflowDropdownOpen(false); }}
+              aria-label="Close dialog"
+            >
+              ✕
+            </button>
             <div className="modal-header">
                <h2>
                  {decisionModal.type === 'APPROVE' ? 'Approve Booking' : 
@@ -2835,6 +3176,13 @@ const AdminDashboard = () => {
       {bulkConfirmModal && (
         <div className="modal-overlay">
           <div className="modal-content bulk-confirm-modal">
+            <button
+              className="modal-close-btn"
+              onClick={() => { setBulkConfirmModal(null); setPurgeAnalysis(null); }}
+              aria-label="Close dialog"
+            >
+              ✕
+            </button>
             <div className="modal-header">
               <h2>Confirm Bulk Update</h2>
               <p>You are about to update <strong>{bulkConfirmModal.count}</strong> selected records.</p>
@@ -2942,6 +3290,13 @@ const AdminDashboard = () => {
         return (
           <div className="modal-overlay">
             <div className="modal-content purge-confirm-modal">
+              <button
+                className="modal-close-btn"
+                onClick={() => { setPurgeModal(null); setPurgeConfirmText(''); }}
+                aria-label="Close dialog"
+              >
+                ✕
+              </button>
               <div className="modal-header">
                 <h2>⚠️ Permanently Delete Record?</h2>
                 <p className="purge-warning-text">
@@ -2979,6 +3334,115 @@ const AdminDashboard = () => {
           </div>
         );
       })()}
+
+      {/* Staff/Client Action Confirmation Modal */}
+      {confirmAction && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '480px' }}>
+            <button
+              className="modal-close-btn"
+              onClick={() => { setConfirmAction(null); setConfirmTypedInput(''); }}
+              aria-label="Close dialog"
+            >
+              ✕
+            </button>
+            <div className="modal-header">
+              <h2>{confirmAction.message}</h2>
+              <p style={{ color: 'var(--text-secondary)', marginTop: '8px', lineHeight: '1.5' }}>
+                {confirmAction.consequence}
+              </p>
+            </div>
+
+            {/* Typed input for delete-typed, temp-password, and link-email variants */}
+            {(confirmAction.variant === 'delete-typed' || confirmAction.variant === 'temp-password' || confirmAction.variant === 'link-email') && (
+              <div className="field" style={{ margin: '16px 0 0 0' }}>
+                <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>
+                  {confirmAction.variant === 'delete-typed' && "Type 'DELETE LOGIN ACCOUNT' to confirm:"}
+                  {confirmAction.variant === 'temp-password' && "Temporary password:"}
+                  {confirmAction.variant === 'link-email' && "Email address:"}
+                </label>
+                <input
+                  type={confirmAction.variant === 'temp-password' ? 'text' : confirmAction.variant === 'link-email' ? 'email' : 'text'}
+                  value={confirmTypedInput}
+                  onChange={(e) => setConfirmTypedInput(e.target.value)}
+                  placeholder={
+                    confirmAction.variant === 'delete-typed' ? 'DELETE LOGIN ACCOUNT' :
+                    confirmAction.variant === 'temp-password' ? 'Enter temporary password' :
+                    'e.g. user@example.com'
+                  }
+                  autoFocus
+                  style={{ marginTop: '8px', width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                />
+              </div>
+            )}
+
+            <div className="modal-footer" style={{ marginTop: '20px' }}>
+              <button
+                className="btn-secondary"
+                onClick={() => { setConfirmAction(null); setConfirmTypedInput(''); }}
+              >
+                Cancel
+              </button>
+
+              {/* Disable-choice variant: two action buttons */}
+              {confirmAction.variant === 'disable-choice' ? (
+                <>
+                  <button
+                    className="button-secondary"
+                    onClick={() => handleDisableStaffWithCognito(false)}
+                  >
+                    Profile Only
+                  </button>
+                  <button
+                    className="button-primary"
+                    style={{ backgroundColor: 'var(--error, #d32f2f)', borderColor: 'var(--error, #d32f2f)' }}
+                    onClick={() => handleDisableStaffWithCognito(true)}
+                  >
+                    Turn Off Both
+                  </button>
+                </>
+              ) : confirmAction.variant === 'delete-typed' ? (
+                <button
+                  className="button-primary"
+                  style={{ backgroundColor: 'var(--error, #d32f2f)', borderColor: 'var(--error, #d32f2f)' }}
+                  onClick={executeConfirmAction}
+                  disabled={confirmTypedInput !== 'DELETE LOGIN ACCOUNT'}
+                >
+                  Confirm Delete
+                </button>
+              ) : confirmAction.variant === 'temp-password' ? (
+                <button
+                  className="button-primary"
+                  onClick={executeConfirmAction}
+                  disabled={!confirmTypedInput.trim()}
+                >
+                  Set Password
+                </button>
+              ) : confirmAction.variant === 'link-email' ? (
+                <button
+                  className="button-primary"
+                  onClick={executeConfirmAction}
+                  disabled={!confirmTypedInput.trim()}
+                >
+                  Link Account
+                </button>
+              ) : (
+                <button
+                  className="button-primary"
+                  style={
+                    ['disable', 'delete_profile', 'delete_cognito', 'disable_profile_only'].includes(confirmAction.action)
+                      ? { backgroundColor: 'var(--error, #d32f2f)', borderColor: 'var(--error, #d32f2f)' }
+                      : {}
+                  }
+                  onClick={executeConfirmAction}
+                >
+                  Confirm
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

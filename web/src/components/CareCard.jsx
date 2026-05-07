@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import '../Portal.css';
 
 const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
@@ -13,6 +13,23 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
     scheduled_duration: 60,
     ...pet 
   });
+
+  // Scroll lock: prevent background scrolling when CareCard is open
+  useEffect(() => {
+    const scrollY = window.scrollY;
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.top = `-${scrollY}px`;
+
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.top = '';
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
 
   if (!pet) return null;
 

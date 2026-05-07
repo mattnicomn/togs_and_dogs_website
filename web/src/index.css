@@ -14,7 +14,7 @@
   --card-bg-muted: #f3efe8; /* Slightly deeper cream */
   --text-primary: #3c3c3b; /* Charcoal/Dark Brown */
   --text-secondary: #5a5a58; 
-  --text-muted: #8a8a86;
+  --text-muted: #6a6a66;
   --border-color: #e2dfd9;
   --accent-color: var(--primary);
   --accent-hover: var(--primary-hover);
@@ -38,6 +38,8 @@
   --radius-lg: 40px;
   --radius-md: 20px;
   --radius-sm: 10px;
+  --radius-xs: 4px;
+  --radius-pill: 99px;
   --shadow-soft: 
     0 12px 30px -5px rgba(60, 60, 59, 0.08),
     0 8px 15px -6px rgba(60, 60, 59, 0.04);
@@ -78,7 +80,7 @@
   --card-bg-muted: #2d2d2c;
   --text-primary: #f3efe8;
   --text-secondary: #d2cfc9;
-  --text-muted: #8a8a86;
+  --text-muted: #9a9a96;
   --border-color: rgba(243, 239, 232, 0.1);
   --accent-color: var(--primary);
   --accent-hover: var(--primary-hover);
@@ -259,7 +261,7 @@ input:focus, textarea:focus, select:focus {
 .badge {
   display: inline-flex;
   padding: 6px 16px;
-  border-radius: 99px;
+  border-radius: var(--radius-pill, 99px);
   font-size: 0.85rem;
   font-weight: 700;
   background: var(--accent-soft);
@@ -285,3 +287,73 @@ input:focus, textarea:focus, select:focus {
   }
 }
 
+
+/* ============================================
+   Focus Indicators (WCAG 2.1 AA Keyboard Navigation)
+   ============================================ */
+
+/* Global :focus-visible for all interactive elements */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible,
+[role="button"]:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--primary, #c28b1e);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Dark mode focus indicator — ensure visibility on dark backgrounds */
+:root.dark button:focus-visible,
+:root.dark a:focus-visible,
+:root.dark input:focus-visible,
+:root.dark select:focus-visible,
+:root.dark textarea:focus-visible,
+:root.dark [tabindex]:focus-visible,
+:root.dark [role="button"]:focus-visible,
+:root.dark summary:focus-visible {
+  outline: 3px solid var(--primary, #c28b1e);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ============================================
+   Hover States for Interactive Elements
+   ============================================ */
+
+/* Generic link hover */
+a:hover {
+  opacity: 0.85;
+}
+
+/* Buttons without existing hover states */
+button:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+/* ============================================
+   Minimum Font Size Enforcement (14px / 0.875rem)
+   ============================================ */
+
+body {
+  font-size: max(14px, 1rem);
+}
+
+/* Ensure interactive element labels are at least 14px */
+button,
+a,
+label,
+select,
+input,
+textarea {
+  font-size: max(0.875rem, 14px);
+}
+
+/* Override for small utility text that should still be readable */
+.badge,
+.field label {
+  font-size: max(0.85rem, 14px);
+}

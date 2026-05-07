@@ -1,8 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import '../Admin.css';
 
 const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [] }) => {
   const [viewMode, setViewMode] = useState('DAY'); // DAY or WEEK
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 480);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 480);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   const [filters, setFilters] = useState({
     staff: 'ALL',
     status: 'ALL',
@@ -76,6 +83,31 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
     return dateMatch;
   });
 
+  // Sort filtered jobs chronologically (nearest upcoming first) for mobile view
+  const sortedJobs = [...filteredJobs].sort((a, b) => {
+    const dateA = a.start_date || '';
+    const dateB = b.start_date || '';
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+    const timeA = a.start_time || a.window_start || '';
+    const timeB = b.start_time || b.window_start || '';
+    return timeA.localeCompare(timeB);
+  });
+
+  // Helper to resolve staff display name
+  const resolveStaffName = (workerId) => {
+    if (!workerId) return 'Unassigned';
+    const resolved = staffList.find(s => (s.email || s.display_name) === workerId);
+    return resolved ? resolved.display_name : workerId;
+  };
+
+  // Helper to format visit time for mobile display
+  const formatVisitTime = (job) => {
+    if (job.start_time) return job.start_time;
+    if (job.window_start) return job.window_start;
+    if (job.window_type) return job.window_type;
+    return '';
+  };
+
   const pendingIntake = items.filter(i => ['PENDING_REVIEW', 'MEET_GREET_REQUIRED', 'PROFILE_CREATED', 'READY_FOR_APPROVAL'].includes(i.status));
   const pendingChanges = items.filter(i => i.status === 'CANCELLATION_REQUESTED');
 
@@ -146,42 +178,78 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
       </div>
 
       <div className="scheduler-grid">
-        <div className="timeline-view card">
-          <div className="card-header">
-            <h3>{viewMode} Dispatcher Timeline</h3>
-            <span className="badge-light">{filteredJobs.length} Visits</span>
-          </div>
-          <div className="timeline-container">
-            {filteredJobs.length === 0 ? (
-              <p className="empty-state">No matching visits found.</p>
+        {isMobile ? (
+          /* Mobile: vertically scrollable list */
+          <div className="scheduler-mobile-list">
+            <div className="scheduler-mobile-list-header">
+              <h3>{viewMode === 'DAY' ? "Today's" : "This Week's"} Visits</h3>
+              <span className="badge-light">{sortedJobs.length}</span>
+            </div>
+            {sortedJobs.length === 0 ? (
+              <p className="scheduler-mobile-empty">No visits scheduled for the selected {viewMode === 'DAY' ? 'day' : 'week'}.</p>
             ) : (
-              filteredJobs.map(job => (
-                <div 
-                  key={job.PK} 
-                  className={`scheduled-visit ${!job.worker_id ? 'urgent' : ''}`} 
-                  style={{ borderLeftColor: getWorkerColor(job.worker_id) }}
-                  onClick={() => onSelectPet(job)}
-                  title="Click to view Care Card"
-                >
-                  <div className="visit-main">
-                    <span className="visit-pet">{job.pet_name || job.client_name}</span>
-                    <span className="visit-type">{job.window_type || job.service_type}</span>
+              <div className="scheduler-mobile-visits">
+                {sortedJobs.map(job => (
+                  <div
+                    key={job.PK}
+                    className={`scheduler-mobile-visit-card ${!job.worker_id ? 'urgent' : ''}`}
+                    style={{ borderLeftColor: getWorkerColor(job.worker_id) }}
+                    onClick={() => onSelectPet(job)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectPet(job); }}
+                  >
+                    <div className="scheduler-mobile-visit-date">{job.start_date}</div>
+                    <div className="scheduler-mobile-visit-time">{formatVisitTime(job)}</div>
+                    <div className="scheduler-mobile-visit-client">{job.client_name || 'Unknown Client'}</div>
+                    <div className="scheduler-mobile-visit-pet">{job.pet_name || ''}</div>
+                    <div className="scheduler-mobile-visit-staff" style={{ color: getWorkerColor(job.worker_id) }}>
+                      {!job.worker_id ? '⚠️ Unassigned' : resolveStaffName(job.worker_id)}
+                    </div>
                   </div>
-                  <div className="visit-meta">
-                    <span className="visit-time">{job.start_date}</span>
-                    <span className="visit-staff" style={{ color: getWorkerColor(job.worker_id) }}>
-                      {(() => {
-                        if (!job.worker_id) return '⚠️ UNASSIGNED';
-                        const resolved = staffList.find(s => (s.email || s.display_name) === job.worker_id);
-                        return `Assigned to ${resolved ? resolved.display_name : job.worker_id}`;
-                      })()}
-                    </span>
-                  </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
-        </div>
+        ) : (
+          /* Desktop: timeline view */
+          <div className="timeline-view card">
+            <div className="card-header">
+              <h3>{viewMode} Dispatcher Timeline</h3>
+              <span className="badge-light">{filteredJobs.length} Visits</span>
+            </div>
+            <div className="timeline-container">
+              {filteredJobs.length === 0 ? (
+                <p className="empty-state">No matching visits found.</p>
+              ) : (
+                filteredJobs.map(job => (
+                  <div 
+                    key={job.PK} 
+                    className={`scheduled-visit ${!job.worker_id ? 'urgent' : ''}`} 
+                    style={{ borderLeftColor: getWorkerColor(job.worker_id) }}
+                    onClick={() => onSelectPet(job)}
+                    title="Click to view Care Card"
+                  >
+                    <div className="visit-main">
+                      <span className="visit-pet">{job.pet_name || job.client_name}</span>
+                      <span className="visit-type">{job.window_type || job.service_type}</span>
+                    </div>
+                    <div className="visit-meta">
+                      <span className="visit-time">{job.start_date}</span>
+                      <span className="visit-staff" style={{ color: getWorkerColor(job.worker_id) }}>
+                        {(() => {
+                          if (!job.worker_id) return '⚠️ UNASSIGNED';
+                          const resolved = staffList.find(s => (s.email || s.display_name) === job.worker_id);
+                          return `Assigned to ${resolved ? resolved.display_name : job.worker_id}`;
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="sidebar-queue">
           {pendingChanges.length > 0 && (
