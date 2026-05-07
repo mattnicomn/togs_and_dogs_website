@@ -73,18 +73,28 @@ resource "aws_iam_policy" "google_secrets_access" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Action = [
-        "secretsmanager:GetSecretValue",
-        "secretsmanager:PutSecretValue"
-      ]
-      Effect = "Allow"
-      Resource = [
-        var.google_client_creds_arn,
-        var.google_user_tokens_arn,
-        var.postmark_token_arn
-      ]
-    }]
+    Statement = [
+      {
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:PutSecretValue"
+        ]
+        Effect = "Allow"
+        Resource = [
+          var.google_client_creds_arn,
+          var.google_user_tokens_arn
+        ]
+      },
+      {
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Effect = "Allow"
+        Resource = [
+          var.postmark_token_arn
+        ]
+      }
+    ]
   })
 }
 
