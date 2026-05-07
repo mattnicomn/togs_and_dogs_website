@@ -79,7 +79,6 @@ def handler(event, context):
             'service_type': request_item.get('service_type'),
             'start_date': request_item.get('start_date'),
             'pet_info': request_item.get('pet_info'),
-            'google_event_id': event.get('google_event_id') or request_item.get('google_event_id'),
             'status': JobStatus.JOB_CREATED.value,
             'created_at': datetime.now(timezone.utc).isoformat(),
             'entity_type': 'JOB',
@@ -89,6 +88,10 @@ def handler(event, context):
                 "note": f"Automatically created from approved request. Linked Pet: {pet_id}"
             }]
         }
+        
+        event_id = event.get('google_event_id') or request_item.get('google_event_id')
+        if event_id:
+            item['google_event_id'] = event_id
         
         if put_item(item):
             print(f"Job {job_id} created successfully. Pet: {pet_id}")

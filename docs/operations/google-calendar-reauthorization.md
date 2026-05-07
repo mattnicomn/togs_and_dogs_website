@@ -38,3 +38,9 @@ A final end-to-end programmatic validation was performed to confirm Google Calen
 - **Backend Edge Case (Race Condition):** If an admin clicked "Assign" precisely at the exact millisecond after clicking "Approve", the async Job Creation Lambda (`job_handler`) might not have finished resolving the `job_id`. This could cause `assignment_handler` to create an orphaned Job record and momentarily duplicate Calendar events if the operation was repeated rapidly. This only manifests during split-second programmatic testing; the natural UI delay (polling for the Job ID) safely mitigates this for human operators.
 
 **Status:** The Google Calendar integration is fully verified and stable for production use.
+
+## Hardening Update (May 2026)
+Following the final validation, a targeted backend hardening fix was implemented to completely mitigate the identified edge-case race condition:
+1. **Idempotent Job Resolution:** The `assignment_handler` was updated to dynamically query for existing Job records via table scan if the UI invokes an assignment before the `job_id` is linked to the Request.
+2. **Graceful Degradation:** If the Job is still initializing, the API now returns a clean `404 Not Found` with instructions to wait, rather than creating an orphaned record.
+3. **Null Handling:** Removed an issue where `job_handler` could persist a DynamoDB `NULL` value for `google_event_id`, which previously obscured fallback lookups during calendar syncs.

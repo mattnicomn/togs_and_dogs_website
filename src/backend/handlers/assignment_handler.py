@@ -44,7 +44,6 @@ def handler(event, context):
             from common.response import bad_request
             return bad_request(f"Missing fields. Required: [job_id, req_id, client_id, worker_id]", event)
 
-        # Get current state
         # ROBUSTNESS: Handle case where UI sends REQ ID as JOB ID before sync
         actual_job_id = job_id
         if job_id == req_id or job_id.startswith('REQ#'):
@@ -52,14 +51,26 @@ def handler(event, context):
             request_rec = get_item(f"REQ#{req_id}", f"CLIENT#{body.get('client_id')}")
             if request_rec and request_rec.get('job_id'):
                 actual_job_id = request_rec.get('job_id')
-                print(f"INFO: Resolved Job ID: {actual_job_id}")
+                print(f"INFO: Resolved Job ID from Request: {actual_job_id}")
+            else:
+                print("INFO: RACE_CONDITION_DETECTED - Request has no job_id yet. Attempting table scan for orphaned JOB record.")
+                # We do a fast scan on the SK to find the Job since it might be created but not linked
+                from boto3.dynamodb.conditions import Attr
+                response = table.scan(
+                    FilterExpression=Attr('SK').eq(f"REQ#{req_id}") & Attr('entity_type').eq('JOB')
+                )
+                items = response.get('Items', [])
+                if items:
+                    # Choose the canonical one (prefer active/first)
+                    actual_job_id = items[0].get('PK').replace('JOB#', '')
+                    print(f"WARNING: RESOLVED_CANONICAL_JOB via scan: {actual_job_id}")
+                    if len(items) > 1:
+                        print(f"WARNING: Multiple JOB records found for REQ#{req_id}. Using {actual_job_id}")
 
         item = get_item(f"JOB#{actual_job_id}", f"REQ#{req_id}")
         if not item:
-            # Fallback: Maybe it's still a REQUEST and hasn't been turned into a JOB yet?
-            # Or the job_id mapping is truly missing.
             print(f"ERROR: Job JOB#{actual_job_id} REQ#{req_id} not found")
-            return not_found(f"Job {actual_job_id} not found. Please ensure request is approved.", event)
+            return not_found(f"Job {actual_job_id} not found. Please wait a moment for the request to be approved and initialized.", event)
 
         job_id = actual_job_id # Ensure we use the resolved one for updates
         current_status = item.get('status')
