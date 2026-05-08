@@ -48,3 +48,26 @@ Before handing the portal over to the primary stakeholders, please perform this 
 - [ ] Note: The backend logs indicate `Google Calendar disconnected or token expired`. If Ryan expects calendar syncing, he will need to re-authenticate the Google account through the portal.
 
 Once these visual checks are completed, the system is fully validated and operational!
+
+
+---
+
+## Deployment Log
+
+### 2026-05-08 — Fix: Admin Action Payload for Single Record Moves
+
+**Commit:** `54d7831` — `fix: correct admin action payload for single record moves`
+
+**Issue:** "Saved for Records" (ARCHIVED) section failed when moving records to Trash with error: "Action failed: Missing action or records to process"
+
+**Root Cause:** `performAdminAction` in `web/src/api/client.js` always included `records: null` in the JSON payload for single-record calls. The backend checks `if 'records' in body` first — since the key existed with null value, it took that branch and got `None` (falsy), triggering the validation error instead of falling through to the `PK`/`SK` path.
+
+**Fix:** Rebuilt `performAdminAction` to construct a clean payload — only includes `records` when it's a bulk operation, only includes `PK`/`SK` for single-record operations.
+
+**Files Changed:** `web/src/api/client.js`
+
+**Deployment:**
+- S3 sync: `togs-and-dogs-prod-toganddogs-hosting` ✓
+- CloudFront invalidation: `I4QII7L0C5V0IUC5EUA6YVF0JS` (InProgress @ 2026-05-08T14:53:57Z)
+
+**Safety:** Permanent purge protections unchanged — records must be in DELETED/TRASH status before purge is allowed.
