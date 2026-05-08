@@ -1030,16 +1030,41 @@ def handler(event, context):
             
             resp = items_table.get_item(Key={"PK": f"COMPANY#{company_id}", "SK": sk})
             user_profile = resp.get('Item')
-            if not user_profile:
+            
+            # Fallback for virtual users (Cognito only)
+            if not user_profile and user_id.startswith('cognito_'):
+                username = user_id.replace('cognito_', '')
+                user_profile = {
+                    "display_name": username,
+                    "email": username, # Default to username, will be refined if needed
+                    "is_virtual": True
+                }
+            elif not user_profile:
                 return not_found(f"Profile {user_id} not found", event)
-                
-            username = user_profile.get('email') or user_profile.get('cognito_sub') or user_profile.get('cognito_username')
-            if not username:
-                return bad_request("Profile is not linked to a Cognito user", event)
                 
             import boto3
             cognito = boto3.client('cognito-idp')
             user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
+            
+            # Resolve actual email/username for security actions
+            if user_profile.get('is_virtual'):
+                try:
+                    cog_user = cognito.admin_get_user(UserPoolId=user_pool_id, Username=user_profile['display_name'])
+                    username = cog_user.get('Username')
+                    # Update profile with actual email from attributes for notification
+                    for attr in cog_user.get('UserAttributes', []):
+                        if attr['Name'] == 'email':
+                            user_profile['email'] = attr['Value']
+                        if attr['Name'] == 'name' or attr['Name'] == 'nickname':
+                            user_profile['display_name'] = attr['Value']
+                except Exception as e:
+                    print(f"Virtual user resolution error: {e}")
+                    username = user_profile['display_name']
+            else:
+                username = user_profile.get('email') or user_profile.get('cognito_sub') or user_profile.get('cognito_username')
+            
+            if not username:
+                return bad_request("Profile is not linked to a Cognito user", event)
             
             try:
                 if '/reset-password' in path:

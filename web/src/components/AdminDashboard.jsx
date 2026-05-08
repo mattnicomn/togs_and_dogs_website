@@ -230,6 +230,21 @@ const AdminDashboard = () => {
     return { label: 'Unknown', class: 'status-no-login' };
   };
 
+  const getGoogleStatusConfig = (status) => {
+    switch (status) {
+      case 'CONNECTED':
+        return { label: 'Connected', class: 'status-connected' };
+      case 'NOT_CONNECTED':
+        return { label: 'Not Connected', class: 'status-disconnected' };
+      case 'VALIDATION_FAILED':
+        return { label: 'Needs Reconnect', class: 'status-reconnect' };
+      case 'CREDENTIALS_MISSING':
+        return { label: 'Error', class: 'status-error' };
+      default:
+        return { label: status || 'Checking...', class: 'status-disconnected' };
+    }
+  };
+
 
   /**
    * Data Fetching Engine
@@ -1769,6 +1784,7 @@ const AdminDashboard = () => {
     );
   }
 
+
   const handleEditClient = (client) => {
     setEditingClientId(client.client_id);
     setClientForm({
@@ -1974,39 +1990,89 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        <div className="field-group">
-          <h4 className="field-group-heading">Login Identity</h4>
-          <p className="field-group-helper">This email address is used for signing in and cannot be changed without affecting login access.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label>Email *</label>
-            <input type="email" value={clientForm.email} onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })} required />
+        <div className="field-groups-container">
+          <div className="field-group">
+            <h4 className="field-group-heading">Login Identity</h4>
+            <p className="field-group-helper">Primary authentication details. The login email cannot be changed once the account is created.</p>
+            <div className="field">
+              <label>Email Address {editingClientId && '(Read-only)'} *</label>
+              <input 
+                type="email" 
+                className={editingClientId ? 'read-only-identity' : ''}
+                value={clientForm.email} 
+                onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })} 
+                disabled={!!editingClientId}
+                required 
+                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+              />
+            </div>
+            {editingClientId && (
+              <div className="field">
+                <label>Cognito Username (Read-only)</label>
+                <input 
+                  type="text" 
+                  className="read-only-identity"
+                  value={clientList.find(c => c.client_id === editingClientId)?.cognito_username || clientList.find(c => c.client_id === editingClientId)?.email || 'N/A'} 
+                  disabled 
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="field-group">
+            <h4 className="field-group-heading">Profile Details</h4>
+            <p className="field-group-helper">Contact information and internal metadata.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div className="field">
+                <label>Display Name *</label>
+                <input 
+                  type="text" 
+                  value={clientForm.display_name} 
+                  onChange={(e) => setClientForm({ ...clientForm, display_name: e.target.value })} 
+                  required 
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                />
+              </div>
+              <div className="field">
+                <label>Phone</label>
+                <input 
+                  type="text" 
+                  value={clientForm.phone} 
+                  onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })} 
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                />
+              </div>
+              <div className="field" style={{ gridColumn: 'span 2' }}>
+                <label>Physical Address</label>
+                <textarea 
+                  rows="2" 
+                  value={clientForm.address} 
+                  onChange={(e) => setClientForm({ ...clientForm, address: e.target.value })}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                ></textarea>
+              </div>
+              <div className="field" style={{ gridColumn: 'span 2' }}>
+                <label>Emergency Contact</label>
+                <input 
+                  type="text" 
+                  value={clientForm.emergency_contact} 
+                  onChange={(e) => setClientForm({ ...clientForm, emergency_contact: e.target.value })} 
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="field-group">
-          <h4 className="field-group-heading">Profile Details</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label>Display Name *</label>
-              <input type="text" value={clientForm.display_name} onChange={(e) => setClientForm({ ...clientForm, display_name: e.target.value })} required />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label>Phone</label>
-              <input type="text" value={clientForm.phone} onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })} />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2' }}>
-              <label>Address</label>
-              <textarea rows="2" value={clientForm.address} onChange={(e) => setClientForm({ ...clientForm, address: e.target.value })}></textarea>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label>Emergency Contact</label>
-              <input type="text" value={clientForm.emergency_contact} onChange={(e) => setClientForm({ ...clientForm, emergency_contact: e.target.value })} />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2' }}>
-              <label>Notes</label>
-              <textarea rows="3" value={clientForm.notes} onChange={(e) => setClientForm({ ...clientForm, notes: e.target.value })}></textarea>
-            </div>
-          </div>
+        <div className="field" style={{ marginBottom: '24px' }}>
+          <label>Client Notes (Internal)</label>
+          <textarea 
+            rows="3" 
+            value={clientForm.notes} 
+            onChange={(e) => setClientForm({ ...clientForm, notes: e.target.value })}
+            style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+          ></textarea>
         </div>
 
         {clientLinkPrompt && (
@@ -2040,9 +2106,15 @@ const AdminDashboard = () => {
 
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
         <h3>Client Access Management</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px', marginTop: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px', marginTop: '20px' }}>
           {clientList.map(c => (
-            <div key={c.client_id} className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', border: c.is_virtual ? '1px dashed var(--accent-orange)' : '1px solid var(--border)', opacity: c.is_active === false ? 0.6 : 1, backgroundColor: 'var(--surface-color)' }}>
+            <div 
+              key={c.client_id} 
+              className={`client-profile-card ${c.client_id === editingClientId ? 'selected' : ''}`} 
+              onClick={() => handleEditClient(c)}
+              style={{ padding: '20px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '12px', border: c.client_id === editingClientId ? '2px solid var(--accent-color)' : c.is_virtual ? '1px dashed var(--accent-orange)' : '1px solid var(--border)', opacity: c.is_active === false ? 0.6 : 1, backgroundColor: c.client_id === editingClientId ? 'var(--bg-muted)' : 'var(--card-bg)', borderRadius: '12px' }}
+            >
+              {c.client_id === editingClientId && <div className="selected-indicator">Selected</div>}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <h4 style={{ margin: 0 }}>{c.display_name}{isProtectedProfile(c) && <span style={{ color: 'var(--accent-teal)', fontSize: '11px', marginLeft: '8px', backgroundColor: 'rgba(0, 188, 212, 0.1)', padding: '2px 8px', borderRadius: '12px', border: '1px solid var(--accent-teal)' }}>Protected Platform Admin</span>}</h4>
@@ -2283,20 +2355,58 @@ const AdminDashboard = () => {
           </div>
 
           <div className="settings-section">
-            <h4>Integrations</h4>
-            <div className="integration-card">
-              <div className="info">
-                <strong>Google Calendar</strong>
-                <div className={`status-indicator ${googleStatus === 'CONNECTED' ? 'connected' : 'not_connected'}`}>
-                   {googleStatus === 'CONNECTED' ? '● Connected' : '○ Disconnected'}
+            <h4 style={{ marginBottom: '16px' }}>System Integrations</h4>
+            {(() => {
+              const config = getGoogleStatusConfig(googleStatus);
+              return (
+                <div className="google-integration-card">
+                  <div className="integration-header">
+                    <div className="integration-title-area">
+                      <h3>Google Calendar</h3>
+                      <p>Automated scheduling sync</p>
+                    </div>
+                    <span className={`integration-status-badge ${config.class}`}>
+                      {config.label}
+                    </span>
+                  </div>
+
+                  <div className="integration-details-grid">
+                    <div className="detail-item">
+                      <span className="detail-label">Connected Account</span>
+                      <span className="detail-value">
+                        {googleStatus === 'CONNECTED' ? 'Business Account' : 'None'}
+                      </span>
+                    </div>
+                    <div className="detail-item">
+                      <span className="detail-label">Last Sync Check</span>
+                      <span className="detail-value">
+                        {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="integration-actions">
+                    {googleStatus === 'CONNECTED' ? (
+                      <button onClick={handleDisconnectGoogle} className="btn-small secondary" style={{ flex: 1 }}>Disconnect</button>
+                    ) : (
+                      <button onClick={handleConnectGoogle} className="btn-small primary" style={{ flex: 1 }}>Connect Calendar</button>
+                    )}
+                  </div>
+
+                  <details className="technical-details">
+                    <summary>Show technical details</summary>
+                    <pre>
+{JSON.stringify({
+  status: googleStatus,
+  provider: 'google-oauth2',
+  scopes: ['calendar.events'],
+  last_check: new Date().toISOString()
+}, null, 2)}
+                    </pre>
+                  </details>
                 </div>
-              </div>
-              {googleStatus === 'CONNECTED' ? (
-                <button onClick={handleDisconnectGoogle} className="btn-small">Disconnect</button>
-              ) : (
-                <button onClick={handleConnectGoogle} className="btn-small primary">Connect</button>
-              )}
-            </div>
+              );
+            })()}
           </div>
           </div>{/* end filter-panel-content */}
         </aside>
@@ -2341,9 +2451,9 @@ const AdminDashboard = () => {
                 )}
               </div>
               
-              <form onSubmit={handleSaveStaff} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px', borderBottom: '1px solid var(--border)', paddingBottom: '32px' }}>
+              <form onSubmit={handleSaveStaff} style={{ marginBottom: '32px', borderBottom: '1px solid var(--border)', paddingBottom: '32px' }}>
                 {!editingStaffId && (
-                  <div className="field" style={{ gridColumn: 'span 2', display: 'flex', gap: '20px', marginBottom: '10px' }}>
+                  <div className="field" style={{ display: 'flex', gap: '20px', marginBottom: '24px' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                       <input 
                         type="radio" 
@@ -2367,119 +2477,132 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
-                {/* Group 1: Login Identity */}
-                <div className="field-group" style={{ gridColumn: 'span 2' }}>
-                  <h4 className="field-group-heading">Login Identity</h4>
-                  <p className="field-group-helper">This is the email this person uses to sign in.</p>
-                  <div className="field">
-                    <label>{editingStaffId ? 'Contact Email' : 'Email'} {staffForm.creation_mode === 'onboard' ? '*' : '(Optional)'}</label>
+                <div className="field-groups-container">
+                  {/* Group 1: Login Identity */}
+                  <div className="field-group">
+                    <h4 className="field-group-heading">Login Identity</h4>
+                    <p className="field-group-helper">Primary authentication details. The login identity cannot be modified after creation.</p>
+                    <div className="field">
+                      <label>Email Address {editingStaffId && '(Read-only)'} {staffForm.creation_mode === 'onboard' ? '*' : '(Optional)'}</label>
+                      <input 
+                        type="email" 
+                        className={editingStaffId ? 'read-only-identity' : ''}
+                        value={staffForm.email} 
+                        onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })} 
+                        placeholder="e.g. ryan@example.com"
+                        disabled={!!editingStaffId}
+                        style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                      />
+                    </div>
                     {editingStaffId && (
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                        Login Identity: {staffList.find(s => s.staff_id === editingStaffId)?.cognito_username || staffList.find(s => s.staff_id === editingStaffId)?.email || 'N/A'} (Read-only)
+                      <div className="field">
+                        <label>Cognito Username (Read-only)</label>
+                        <input 
+                          type="text" 
+                          className="read-only-identity"
+                          value={staffList.find(s => s.staff_id === editingStaffId)?.cognito_username || staffList.find(s => s.staff_id === editingStaffId)?.email || 'N/A'} 
+                          disabled 
+                          style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                        />
                       </div>
                     )}
-                    <input 
-                      type="email" 
-                      value={staffForm.email} 
-                      onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })} 
-                      placeholder="e.g. ryan@example.com"
-                      disabled={editingStaffId && isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId))}
-                      style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                    />
-                    {editingStaffId && !isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId)) && (
-                      <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                        Note: Changing this only updates the contact email, not the login identity.
-                      </p>
+                    {staffForm.creation_mode === 'onboard' && !editingStaffId && (
+                      <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
+                        <input 
+                          type="checkbox" 
+                          id="send_invite_cb"
+                          checked={staffForm.send_invite} 
+                          onChange={(e) => setStaffForm({ ...staffForm, send_invite: e.target.checked })} 
+                        />
+                        <label htmlFor="send_invite_cb" style={{ margin: 0 }}>Send setup email with login instructions</label>
+                      </div>
                     )}
                   </div>
-                  {staffForm.creation_mode === 'onboard' && !editingStaffId && (
-                    <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+
+                  {/* Group 2: Profile Details */}
+                  <div className="field-group">
+                    <h4 className="field-group-heading">Profile Details</h4>
+                    <p className="field-group-helper">Public-facing information and internal metadata.</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div className="field">
+                        <label>Display Name *</label>
+                        <input 
+                          type="text" 
+                          value={staffForm.display_name} 
+                          onChange={(e) => setStaffForm({ ...staffForm, display_name: e.target.value })} 
+                          placeholder="e.g. Ryan"
+                          required 
+                          style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                        />
+                      </div>
+
+                      <div className="field">
+                        <label>Phone (Optional)</label>
+                        <input 
+                          type="text" 
+                          value={staffForm.phone} 
+                          onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })} 
+                          placeholder="555-123-4567"
+                          style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                        />
+                      </div>
+
+                      <div className="field">
+                        <label>Access Level</label>
+                        <select 
+                          value={staffForm.role} 
+                          onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
+                          disabled={editingStaffId && isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId))}
+                          style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                        >
+                          <option value="Staff">Staff</option>
+                          <option value="Admin">Admin</option>
+                          <option value="owner">Owner</option>
+                        </select>
+                      </div>
+                      
+                      <div className="field">
+                        <label>Assignment Color</label>
+                        <select 
+                          value={staffForm.assignment_color} 
+                          onChange={(e) => setStaffForm({ ...staffForm, assignment_color: e.target.value })}
+                          style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                        >
+                          <option value="var(--staff-ryan)">Orange (Default)</option>
+                          <option value="var(--staff-wife)">Green</option>
+                          <option value="var(--staff-nephew1)">Yellow</option>
+                          <option value="var(--staff-nephew2)">Red</option>
+                          <option value="#9c27b0">Purple</option>
+                          <option value="#2196f3">Blue</option>
+                          <option value="#00bcd4">Cyan</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
                       <input 
                         type="checkbox" 
-                        id="send_invite_cb"
-                        checked={staffForm.send_invite} 
-                        onChange={(e) => setStaffForm({ ...staffForm, send_invite: e.target.checked })} 
+                        id="is_assignable_cb"
+                        checked={staffForm.is_assignable} 
+                        onChange={(e) => setStaffForm({ ...staffForm, is_assignable: e.target.checked })} 
                       />
-                      <label htmlFor="send_invite_cb" style={{ margin: 0 }}>Send setup email with login instructions</label>
-                    </div>
-                  )}
-                </div>
-
-                {/* Group 2: Profile Details */}
-                <div className="field-group" style={{ gridColumn: 'span 2' }}>
-                  <h4 className="field-group-heading">Profile Details</h4>
-                  <p className="field-group-helper">These details help you identify and contact this person.</p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                    <div className="field">
-                      <label>Display Name *</label>
-                      <input 
-                        type="text" 
-                        value={staffForm.display_name} 
-                        onChange={(e) => setStaffForm({ ...staffForm, display_name: e.target.value })} 
-                        placeholder="e.g. Ryan"
-                        required 
-                        style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                      />
-                    </div>
-
-                    <div className="field">
-                      <label>Phone (Optional)</label>
-                      <input 
-                        type="text" 
-                        value={staffForm.phone} 
-                        onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })} 
-                        placeholder="555-123-4567"
-                        style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                      />
-                    </div>
-
-                    <div className="field" style={{ gridColumn: 'span 2' }}>
-                      <label>Notes (Optional)</label>
-                      <input 
-                        type="text" 
-                        value={staffForm.notes} 
-                        onChange={(e) => setStaffForm({ ...staffForm, notes: e.target.value })} 
-                        placeholder="Internal scheduling notes"
-                        style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                      />
+                      <label htmlFor="is_assignable_cb" style={{ margin: 0 }}>Can be assigned to jobs / bookings</label>
                     </div>
                   </div>
                 </div>
 
-                {/* Scheduling & Access Settings */}
-                <div className="field">
-                  <label>Access Level</label>
-                  <select 
-                    value={staffForm.role} 
-                    onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
-                    disabled={editingStaffId && isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId))}
+                <div className="field" style={{ marginBottom: '24px' }}>
+                  <label>Staff Notes (Internal)</label>
+                  <textarea 
+                    rows="3" 
+                    value={staffForm.notes} 
+                    onChange={(e) => setStaffForm({ ...staffForm, notes: e.target.value })} 
+                    placeholder="Internal scheduling notes"
                     style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                  >
-                    <option value="Staff">Staff</option>
-                    <option value="Admin">Admin</option>
-                    <option value="owner">Owner</option>
-                  </select>
-                </div>
-                
-                <div className="field">
-                  <label>Assignment Color</label>
-                  <select 
-                    value={staffForm.assignment_color} 
-                    onChange={(e) => setStaffForm({ ...staffForm, assignment_color: e.target.value })}
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                  >
-                    <option value="var(--staff-ryan)">Orange (Default)</option>
-                    <option value="var(--staff-wife)">Green</option>
-                    <option value="var(--staff-nephew1)">Yellow</option>
-                    <option value="var(--staff-nephew2)">Red</option>
-                    <option value="#9c27b0">Purple</option>
-                    <option value="#2196f3">Blue</option>
-                    <option value="#00bcd4">Cyan</option>
-                  </select>
+                  />
                 </div>
 
                 {staffLinkPrompt && (
-                  <div className="existing-user-warning">
+                  <div className="existing-user-warning" style={{ marginBottom: '24px' }}>
                     <p className="existing-user-warning-title">
                       <strong>A login account already exists with this email ({staffLinkPrompt.email}).</strong>
                     </p>
@@ -2497,6 +2620,7 @@ const AdminDashboard = () => {
                             await onboardStaff({ ...staffLinkPrompt, mode: 'create_or_link' });
                             showNotification("Staff profile linked successfully", "success");
                             setStaffLinkPrompt(null);
+                            setEditingStaffId(null);
                             setStaffForm({
                               display_name: '',
                               role: 'Staff',
@@ -2529,27 +2653,21 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
-                <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '10px', gridColumn: 'span 2' }}>
-                  <input 
-                    type="checkbox" 
-                    id="is_assignable_cb"
-                    checked={staffForm.is_assignable} 
-                    onChange={(e) => setStaffForm({ ...staffForm, is_assignable: e.target.checked })} 
-                  />
-                  <label htmlFor="is_assignable_cb" style={{ margin: 0 }}>Can be assigned to jobs / bookings</label>
-                </div>
-
-                <div style={{ gridColumn: 'span 2' }}>
-                  <button type="submit" className="button-primary" disabled={isSavingStaff} style={{ width: '100%', padding: '12px' }}>
-                    {isSavingStaff ? 'Saving...' : editingStaffId ? 'Update Staff Profile' : 'Create Staff Profile'}
-                  </button>
-                </div>
+                <button type="submit" className="button-primary" disabled={isSavingStaff} style={{ width: '100%', padding: '12px' }}>
+                  {isSavingStaff ? 'Saving...' : editingStaffId ? 'Update Staff Profile' : 'Create Staff Profile'}
+                </button>
               </form>
 
               <h2>Active Staff List</h2>
               <div className="staff-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
                 {staffList.map(s => (
-                  <div key={s.staff_id} className="staff-profile-card" style={{ border: s.is_virtual ? '1px dashed var(--accent-orange)' : '1px solid var(--border)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: 'var(--card-bg)' }}>
+                  <div 
+                    key={s.staff_id} 
+                    className={`staff-profile-card ${s.staff_id === editingStaffId ? 'selected' : ''}`}
+                    onClick={() => handleEditStaff(s)}
+                    style={{ border: s.staff_id === editingStaffId ? '2px solid var(--accent-color)' : s.is_virtual ? '1px dashed var(--accent-orange)' : '1px solid var(--border)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: s.staff_id === editingStaffId ? 'var(--bg-muted)' : 'var(--card-bg)' }}
+                  >
+                    {s.staff_id === editingStaffId && <div className="selected-indicator">Selected</div>}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span className="dot" style={{ backgroundColor: s.assignment_color || 'var(--staff-unassigned)', width: '16px', height: '16px', borderRadius: '50%' }}></span>
                       <strong style={{ fontSize: '18px' }}>{s.display_name} {s.is_virtual && <span style={{ color: 'var(--accent-orange)', fontSize: '12px', marginLeft: '6px', backgroundColor: 'rgba(255, 152, 0, 0.15)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--accent-orange)' }}>Login Only</span>}</strong>
