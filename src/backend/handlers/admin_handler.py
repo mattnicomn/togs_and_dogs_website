@@ -1697,11 +1697,15 @@ def handler(event, context):
 
                     prev_status = (current_item.get('status') or 'UNKNOWN').upper()
                     
-                    # Prevent moving active/important records to Trash if they are in a terminal state already (Safety)
-                    if action == 'DELETE' and prev_status in ['COMPLETED', 'ARCHIVED', 'DELETED']:
-                        # They are already in a terminal state or trash
+                    # Safety: Only skip if already in the target status or already DELETED
+                    if action == 'DELETE' and prev_status == 'DELETED':
                         results["skipped"] += 1
-                        results["failures"].append({"record": f"{actual_pk}/{actual_sk}", "reason": f"Already in {prev_status} state"})
+                        results["failures"].append({"record": f"{actual_pk}/{actual_sk}", "reason": "Already in Trash"})
+                        continue
+                    
+                    if action == 'ARCHIVE' and prev_status == 'ARCHIVED':
+                        results["skipped"] += 1
+                        results["failures"].append({"record": f"{actual_pk}/{actual_sk}", "reason": "Already Archived"})
                         continue
 
                     extra_attrs = {}

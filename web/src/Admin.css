@@ -759,6 +759,8 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
 .integration-title-area h3 {
@@ -784,6 +786,7 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border: 1px solid transparent;
+  white-space: nowrap;
 }
 
 .status-connected { 
@@ -810,9 +813,9 @@
 
 .integration-details-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  padding: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+  padding: 16px;
   background: var(--bg-muted);
   border-radius: var(--radius-sm);
 }
@@ -877,6 +880,11 @@
 .integration-actions {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.integration-actions button {
+  min-width: 140px;
 }
 
 @keyframes pulse {
@@ -885,13 +893,42 @@
   100% { opacity: 1; }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1200px) {
+  .google-integration-card {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 900px) {
   .field-groups-container {
     grid-template-columns: 1fr;
   }
   
   .integration-details-grid {
     grid-template-columns: 1fr;
+  }
+
+  .integration-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .integration-status-badge {
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .staff-management-container, .client-management-container {
+    padding: 16px !important;
+  }
+
+  .field-groups-container {
+    gap: 16px;
+  }
+
+  .integration-actions button {
+    width: 100%;
   }
 }
 

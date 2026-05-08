@@ -1217,9 +1217,10 @@ const AdminDashboard = () => {
         const payload = selectedRequests.map(r => ({ PK: r.PK, SK: r.SK }));
         const response = await performAdminAction(null, null, bulkAction, payload);
         
-        if (response.failed > 0) {
+        if (response.failed > 0 || response.skipped > 0) {
           const reasons = response.failures.map(f => f.reason).join(", ");
-          showNotification(`Bulk ${bulkAction} partial: ${response.success} success, ${response.failed} failed. Reasons: ${reasons}`, "error");
+          const summary = `Bulk ${bulkAction}: ${response.success} success, ${response.skipped} skipped, ${response.failed} failed.`;
+          showNotification(`${summary} Reasons: ${reasons}`, response.success > 0 ? "info" : "error");
         } else {
           showNotification(`Successfully moved ${response.success} records to ${bulkAction === 'DELETE' ? 'Trash' : 'Archive'}.`, "success");
         }
@@ -2378,7 +2379,7 @@ const AdminDashboard = () => {
                       </span>
                     </div>
                     <div className="detail-item">
-                      <span className="detail-label">Last Sync Check</span>
+                      <span className="detail-label">Last Checked</span>
                       <span className="detail-value">
                         {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
