@@ -60,16 +60,15 @@ class PostmarkClient:
             print(f"NOTIFICATION_OVERRIDE: Overriding {recipients} with {self.config.TEST_RECIPIENT_OVERRIDE}")
             final_recipients = [self.config.TEST_RECIPIENT_OVERRIDE]
 
-        # 2. Prepare Log Data
+        # 2. Prepare Safe Log Data (No full emails or bodies)
+        recipient_domains = list(set([r.split('@')[-1] for r in final_recipients if '@' in r]))
         log_payload = {
             "event_key": event_key,
-            "from": self.config.EMAIL_FROM,
-            "to": final_recipients,
-            "subject": subject,
+            "recipient_domains": recipient_domains,
+            "subject_preview": subject[:30] + "..." if subject else "",
             "mode": mode,
             "provider": provider,
-            "dry_run": self.config.DRY_RUN,
-            "body_preview": body_text[:100] + "..." if body_text else ""
+            "dry_run": self.config.DRY_RUN
         }
 
         # 3. Dry Run / Disabled Global check
@@ -157,7 +156,7 @@ class PostmarkClient:
                 "delivered": False,
                 "mode": mode,
                 "provider": provider,
-                "message": f"Notification failed: {reason}",
+                "message": f"Postmark delivery failed: {reason}. Please verify sender signature or domain configuration.",
                 "message_id": None
             }
         except Exception as e:

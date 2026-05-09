@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { signIn, getSession, getEffectiveRole } from '../api/auth';
 
-import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser } from '../api/client';
+import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData } from '../api/client';
+import * as XLSX from 'xlsx';
 
 
 
@@ -84,6 +85,7 @@ const AdminDashboard = () => {
   const [workflowDropdownOpen, setWorkflowDropdownOpen] = useState(false);
   const [decisionModal, setDecisionModal] = useState(null);
   const [lastKey, setLastKey] = useState(null);
+  const [exportModal, setExportModal] = useState(false);
   // Confirmation modal state for staff/client actions (replaces window.confirm/prompt)
   const [confirmAction, setConfirmAction] = useState(null);
   // Shape: { type: 'staff'|'client', id: string, action: string, name: string, message: string, consequence: string, variant?: 'confirm'|'disable-choice'|'delete-typed'|'temp-password'|'link-email' }
@@ -94,6 +96,7 @@ const AdminDashboard = () => {
     canViewRequestList: ['owner', 'admin'].includes(role),
     canManageStaff: ['owner', 'admin'].includes(role),
     canManageClients: ['owner', 'admin'].includes(role),
+    canExportData: ['owner', 'admin'].includes(role),
   };
 
   useEffect(() => {
@@ -1205,6 +1208,136 @@ const AdminDashboard = () => {
       const { reqId, clientId } = resolveIds(req);
       if (!reqId || !clientId) throw new Error("Missing IDs for transition");
       return reviewRequest(reqId, clientId, targetStatus, note);
+    }
+  };
+
+  const handleExportData = async () => {
+    try {
+      setLoading(true);
+      const data = await getExportData();
+      
+      const workbook = XLSX.utils.book_new();
+      
+      // 1. Export Summary
+      const summaryData = [
+        ["Tog & Dogs Offline Backup"],
+        ["Generated At", new Date().toLocaleString()],
+        [],
+        ["Entity", "Count"],
+        ["Requests", data.requests?.length || 0],
+        ["Clients", data.clients?.length || 0],
+        ["Pets", data.pets?.length || 0],
+        ["Staff", data.staff?.length || 0],
+        ["Jobs", data.jobs?.length || 0]
+      ];
+      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(workbook, summarySheet, "Export Summary");
+
+      // Helper to map fields for Requests
+      const mapRequest = (r) => ({
+        "Request ID": r.request_id || r.PK?.replace('REQ#', ''),
+        "Status": r.status,
+        "Client Name": r.client_name,
+        "Client Email": r.client_email,
+        "Client Phone": r.client_phone || r.phone,
+        "Pet Name(s)": r.pet_names,
+        "Service Type": r.service_type,
+        "Requested Dates": `${r.start_date}${r.end_date ? ' to ' + r.end_date : ''}`,
+        "Scheduled Date/Time": r.scheduled_at || r.preferred_time,
+        "Assigned Staff": r.worker_name || r.assigned_worker,
+        "Service Location": r.service_location || r.address,
+        "Meet & Greet": r.meet_and_greet_completed ? "Completed" : (r.meet_and_greet_required ? "Required" : "N/A"),
+        "Quote Status": r.quote_status || (r.quote_sent_date ? "Sent" : "None"),
+        "Admin Notes": r.admin_notes || r.notes,
+        "Created Date": r.created_at,
+        "Last Updated": r.updated_at
+      });
+
+      // 2. All Requests
+      if (data.requests?.length) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(data.requests.map(mapRequest)), "All Requests");
+      }
+
+      // 3. Active Requests
+      const active = (data.requests || []).filter(r => isActiveRecord(r));
+      if (active.length) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(active.map(mapRequest)), "Active Requests");
+      }
+
+      // 4. Scheduled
+      const scheduled = (data.requests || []).filter(r => ['ASSIGNED', 'SCHEDULED', 'BOOKED'].includes(r.status?.toUpperCase()));
+      if (scheduled.length) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(scheduled.map(mapRequest)), "Scheduled");
+      }
+
+      // 5. Completed
+      const completed = (data.requests || []).filter(r => r.status?.toUpperCase() === 'COMPLETED');
+      if (completed.length) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(completed.map(mapRequest)), "Completed");
+      }
+
+      // 6. Clients
+      if (data.clients?.length) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(data.clients.map(c => ({
+          "Client ID": c.client_id || c.SK?.replace('CLIENT#', ''),
+          "Name": c.display_name,
+          "Email": c.email,
+          "Phone": c.phone,
+          "Address": c.address,
+          "Emergency Contact": c.emergency_contact,
+          "Notes": c.notes,
+          "Joined At": c.created_at
+        }))), "Clients");
+      }
+
+      // 7. Pets
+      if (data.pets?.length) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(data.pets.map(p => ({
+          "Pet ID": p.pet_id || p.PK?.replace('PET#', ''),
+          "Client ID": p.client_id,
+          "Name": p.name,
+          "Breed": p.breed,
+          "Age": p.age,
+          "Care Instructions": p.care_instructions,
+          "Behavior": p.behavior,
+          "Health": p.health,
+          "Meet & Greet": p.meet_and_greet_completed ? "Completed" : "Pending"
+        }))), "Pets");
+      }
+
+      // 8. Staff Assignments
+      if (data.jobs?.length) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(data.jobs.map(j => ({
+          "Job ID": j.job_id || j.PK?.replace('JOB#', ''),
+          "Request ID": j.request_id || j.SK?.replace('REQ#', ''),
+          "Status": j.status,
+          "Staff Name": j.worker_name,
+          "Assigned At": j.assigned_at,
+          "Updated At": j.updated_at
+        }))), "Staff Assignments");
+      }
+
+      // 9. Cancelled / Archived / Trash
+      const junk = (data.requests || []).filter(r => isCancelledRecord(r) || isArchivedRecord(r) || isDeletedRecord(r));
+      if (junk.length) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(junk.map(mapRequest)), "Cancelled-Archived-Trash");
+      }
+
+      // Generate Filename
+      const now = new Date();
+      const datePart = now.toISOString().split('T')[0];
+      const timePart = now.getHours().toString().padStart(2, '0') + now.getMinutes().toString().padStart(2, '0');
+      const fileName = `tog-and-dogs-offline-backup-${datePart}-${timePart}.xlsx`;
+      
+      XLSX.writeFile(workbook, fileName);
+      
+      showNotification("Offline backup generated successfully.", "success");
+      setExportModal(false);
+    } catch (err) {
+      console.error("Export failed:", err);
+      showNotification("Export failed: " + err.message, "error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -2350,6 +2483,18 @@ const AdminDashboard = () => {
                 </button>
               ))}
 
+            </div>
+          )}
+
+          {capabilities.canExportData && (
+            <div className="filter-group">
+              <h4>Data Management</h4>
+              <button 
+                className="filter-option"
+                onClick={() => setExportModal(true)}
+              >
+                📥 Download Offline Backup
+              </button>
             </div>
           )}
 
@@ -3569,6 +3714,53 @@ const AdminDashboard = () => {
                   Confirm
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Confirmation Modal */}
+      {exportModal && (
+        <div className="modal-overlay">
+          <div className="modal-content card" style={{ maxWidth: '450px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Download Offline Backup</h2>
+              <button className="btn-close" onClick={() => setExportModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '15px' }}>
+                You are about to download a complete offline backup of all operational records, including:
+              </p>
+              <ul style={{ paddingLeft: '20px', marginBottom: '15px', color: 'var(--text-secondary)' }}>
+                <li>All Client contact information</li>
+                <li>All Pet care records</li>
+                <li>All Service requests and schedules</li>
+                <li>Staff assignment history</li>
+              </ul>
+              <div className="alert alert-warning" style={{ 
+                backgroundColor: 'rgba(255, 152, 0, 0.1)', 
+                border: '1px solid rgba(255, 152, 0, 0.3)',
+                padding: '12px',
+                borderRadius: '8px',
+                display: 'flex',
+                gap: '10px'
+              }}>
+                <span style={{ fontSize: '20px' }}>⚠️</span>
+                <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.4' }}>
+                  <strong>Security Reminder:</strong> This file contains sensitive private information. 
+                  Ensure it is stored securely and handled in compliance with privacy guidelines.
+                </p>
+              </div>
+            </div>
+            <div className="modal-footer" style={{ marginTop: '20px' }}>
+              <button className="btn-secondary" onClick={() => setExportModal(false)}>Cancel</button>
+              <button 
+                className="button-primary" 
+                onClick={handleExportData}
+                disabled={loading}
+              >
+                {loading ? 'Preparing Backup...' : 'Confirm & Download'}
+              </button>
             </div>
           </div>
         </div>

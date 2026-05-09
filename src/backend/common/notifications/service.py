@@ -1,4 +1,5 @@
 import logging
+import json
 from .config import NotificationConfig
 from .templates import NotificationTemplates
 from .resolver import resolve_notification_recipients, get_client_name, get_staff_name
@@ -11,18 +12,26 @@ from datetime import datetime, timezone
 from common.db import table
 
 def get_notification_client(config):
-    """Factory to get the appropriate notification client based on provider."""
+    """
+    Factory to get the appropriate notification client based on provider.
+    Strictly prioritizes Postmark in production.
+    """
     provider = config.NOTIFICATION_PROVIDER
     
-    if provider == 'ses':
-        return SESClient(config)
-    elif provider == 'postmark':
+    if provider == 'postmark':
         return PostmarkClient(config)
+    elif provider == 'ses':
+        # SES is currently restricted to sandbox/explicit enablement
+        return SESClient(config)
+    elif provider == 'log_only':
+        return SESClient(config)
     else:
-        # Default to SESClient which handles log_only naturally
+        # If unknown, default to log_only via SESClient to prevent accidental delivery
+        logger.warning(f"NOTIFICATION_CONFIG_WARNING: Unknown provider '{provider}'. Defaulting to log_only.")
+        config.NOTIFICATION_MODE = 'log_only'
         return SESClient(config)
 
-def notify_event(event_type, record, previous_record=None):
+def notify_event(event_type, record=None, previous_record=None, **kwargs):
     """
     Main entry point for dispatching notifications.
     Safe and non-blocking.
@@ -30,6 +39,16 @@ def notify_event(event_type, record, previous_record=None):
     """
     try:
         config = NotificationConfig()
+        
+        # Support both positional 'record' and keyword 'context' (used for welcomes)
+        if record is None and 'context' in kwargs:
+            record = kwargs.get('context')
+            
+        if not record:
+            msg = f"Notification skipped: No record or context provided for {event_type}."
+            print(f"NOTIFICATION_IDLE: {msg}")
+            return {"success": False, "message": msg}
+
         request_id = record.get('request_id')
         client_id = record.get('client_id')
         
@@ -48,19 +67,26 @@ def notify_event(event_type, record, previous_record=None):
             print(f"NOTIFICATION_IDLE: {msg}")
             return {"success": True, "message": msg}
 
-        from .resolver import get_pet_names
-        context = {
-            "client_name": get_client_name(record),
-            "staff_name": get_staff_name(record),
-            "request_id": request_id,
-            "pet_names": get_pet_names(record),
-            "service_type": record.get('service_type'),
-            "start_date": record.get('start_date'),
-            "start_time": record.get('start_time'),
-            "details": record.get('details', 'No details provided.')
-        }
-
         # 3. Get Templates
+        is_welcome_event = event_type in ['WELCOME_INVITE_CLIENT', 'WELCOME_INVITE_STAFF', 'WELCOME_INVITE']
+        
+        if is_welcome_event:
+            # For welcome events, the 'record' (or context) already contains the necessary fields
+            context = record
+        else:
+            # For standard booking events, we build the context from the DynamoDB record
+            from .resolver import get_pet_names
+            context = {
+                "client_name": get_client_name(record),
+                "staff_name": get_staff_name(record),
+                "request_id": request_id,
+                "pet_names": get_pet_names(record),
+                "service_type": record.get('service_type'),
+                "start_date": record.get('start_date'),
+                "start_time": record.get('start_time'),
+                "details": record.get('details', 'No details provided.')
+            }
+        
         subject, body_text, body_html = NotificationTemplates.get_template(event_type, context)
         if not subject:
             msg = f"Notification failed: No template for {event_type}."
@@ -97,6 +123,21 @@ def notify_event(event_type, record, previous_record=None):
             except Exception as db_err:
                 print(f"WARNING: Failed to update notification metadata for {request_id}: {db_err}")
 
+        # 6. Log Safe Metadata
+        try:
+            recipient_domains = list(set([r.split('@')[-1] for r in recipients if '@' in r]))
+            log_meta = {
+                "event_type": event_type,
+                "provider": result.get('provider', 'unknown'),
+                "mode": result.get('mode', 'unknown'),
+                "recipient_domains": recipient_domains,
+                "status": "success" if result.get('delivered') else "failed",
+                "message_id": result.get('message_id') if result.get('delivered') else None
+            }
+            print(f"NOTIFICATION_METADATA: {json.dumps(log_meta)}")
+        except Exception as log_err:
+            print(f"WARNING: Failed to log notification metadata: {log_err}")
+            
         return {"success": result.get('delivered', False) or 'logged' in result.get('message', '').lower(), "message": result['message']}
 
     except Exception as e:

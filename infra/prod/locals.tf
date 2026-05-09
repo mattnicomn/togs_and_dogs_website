@@ -19,11 +19,12 @@ locals {
   notification_env_vars = {
     NOTIFICATIONS_ENABLED                = "true"
     NOTIFICATION_DRY_RUN                 = "false"
-    NOTIFICATION_EMAIL_FROM              = "mbn@usmissionhero.com"
+    NOTIFICATION_EMAIL_FROM              = "support@usmissionhero.com"
+    NOTIFICATION_EMAIL_FROM_NAME         = "Tog & Dogs Support"
     NOTIFICATION_ADMIN_EMAIL             = "mbn@usmissionhero.com"
     NOTIFICATION_ROUTE_MODE              = "event_based"
     NOTIFICATION_PORTAL_URL              = "https://toganddogs.usmissionhero.com"
-    NOTIFICATION_TEST_RECIPIENT_OVERRIDE = "" # Live traffic (Pending Postmark Approval)
+    NOTIFICATION_TEST_RECIPIENT_OVERRIDE = "" # Live traffic
     NOTIFY_ADMIN_ON_REQUEST_RECEIVED     = "true"
     NOTIFY_CLIENT_ON_APPROVAL            = "true"
     NOTIFY_CLIENT_ON_SCHEDULED           = "true"
@@ -35,7 +36,7 @@ locals {
     NOTIFICATION_PROVIDER                = "postmark"
     POSTMARK_SERVER_TOKEN_SECRET_NAME    = module.secrets.postmark_token_arn
     POSTMARK_MESSAGE_STREAM              = "outbound"
-    TRANSACTIONAL_EMAIL_REPLY_TO         = "mbn@usmissionhero.com"
+    NOTIFICATION_REPLY_TO                = "support@usmissionhero.com"
     SES_SANDBOX_ALLOWED_RECIPIENTS       = "mbn@usmissionhero.com"
   }
 }

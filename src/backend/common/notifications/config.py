@@ -4,11 +4,12 @@ class NotificationConfig:
     """Central configuration for notifications."""
     ENABLED = os.environ.get('NOTIFICATIONS_ENABLED', 'false').lower() == 'true'
     DRY_RUN = os.environ.get('NOTIFICATION_DRY_RUN', 'true').lower() == 'true'
-    EMAIL_FROM = os.environ.get('NOTIFICATION_EMAIL_FROM', 'notifications@toganddogs.usmissionhero.com')
+    EMAIL_FROM = os.environ.get('NOTIFICATION_EMAIL_FROM', 'support@usmissionhero.com')
+    EMAIL_FROM_NAME = os.environ.get('NOTIFICATION_EMAIL_FROM_NAME', 'Tog & Dogs Support')
     ADMIN_EMAIL = os.environ.get('NOTIFICATION_ADMIN_EMAIL', 'mbn@usmissionhero.com')
     ROUTE_MODE = os.environ.get('NOTIFICATION_ROUTE_MODE', 'event_based')
     
-    REPLY_TO = os.environ.get('NOTIFICATION_REPLY_TO', EMAIL_FROM)
+    REPLY_TO = os.environ.get('NOTIFICATION_REPLY_TO', 'support@usmissionhero.com')
     PORTAL_URL = os.environ.get('NOTIFICATION_PORTAL_URL', 'https://toganddogs.usmissionhero.com')
     
     # Flags for specific events
@@ -28,8 +29,8 @@ class NotificationConfig:
 
     # Delivery Mode Configuration
     # Modes: log_only | ses_sandbox | ses_production | external_provider
-    NOTIFICATION_MODE = os.environ.get('NOTIFICATION_MODE', 'log_only').lower()
-    NOTIFICATION_PROVIDER = os.environ.get('NOTIFICATION_PROVIDER', 'log_only').lower()
+    NOTIFICATION_MODE = os.environ.get('NOTIFICATION_MODE', 'external_provider').lower()
+    NOTIFICATION_PROVIDER = os.environ.get('NOTIFICATION_PROVIDER', 'postmark').lower()
     
     # Postmark Configuration
     POSTMARK_TOKEN_SECRET_NAME = os.environ.get('POSTMARK_SERVER_TOKEN_SECRET_NAME')

@@ -136,3 +136,5 @@ export const purgeRecordsBulk = (records, dryRun = false) =>
 export const disconnectGoogle = () => 
   request('/admin/auth/google', 'DELETE', null, true);
 
+export const getExportData = () => request('/admin/export-data', 'GET', null, true);
+

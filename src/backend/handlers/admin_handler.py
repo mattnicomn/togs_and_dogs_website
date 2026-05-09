@@ -150,6 +150,48 @@ def handler(event, context):
                 
         # --- END CLIENT PORTAL BOUNDARIES ---
         
+        if http_method == 'GET' and path == '/admin/export-data':
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin']:
+                return error(403, "Forbidden", event)
+            
+            from common.db import table as _table
+            
+            # Fetch all records for backup
+            # Low-volume operational scale allows for periodic admin scans
+            scan_kwargs = {}
+            response = _table.scan(**scan_kwargs)
+            items = response.get('Items', [])
+            while 'LastEvaluatedKey' in response:
+                scan_kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
+                response = _table.scan(**scan_kwargs)
+                items.extend(response.get('Items', []))
+            
+            # Categorize by entity type or key pattern
+            requests = [i for i in items if i.get('entity_type') == 'REQUEST']
+            pets = [i for i in items if i.get('entity_type') == 'PET']
+            jobs = [i for i in items if i.get('entity_type') == 'JOB']
+            
+            # Clients and Staff share COMPANY# PK
+            clients = [i for i in items if i.get('SK', '').startswith('CLIENT#') and i.get('PK', '').startswith('COMPANY#')]
+            staff = [i for i in items if i.get('SK', '').startswith('STAFF#') and i.get('PK', '').startswith('COMPANY#')]
+            
+            # Audit the export action
+            log_action(event, 'EXPORT_BACKUP', 'SYSTEM', 'DATA_BACKUP', metadata={
+                "request_count": len(requests),
+                "client_count": len(clients),
+                "pet_count": len(pets),
+                "staff_count": len(staff)
+            })
+            
+            return success({
+                "requests": requests,
+                "clients": clients,
+                "pets": pets,
+                "staff": staff,
+                "jobs": jobs
+            }, event)
+        
         if http_method == 'GET' and (path == '/admin/staff' or path.endswith('/admin/staff')):
             role = get_effective_role(event)
             if role not in ['owner', 'admin']:
@@ -412,7 +454,7 @@ def handler(event, context):
 
                 # Send branded welcome email with the temporary password
                 try:
-                    notify_event(
+                    result = notify_event(
                         event_type='WELCOME_INVITE_STAFF',
                         context={
                             "staff_name": display_name,
@@ -421,8 +463,11 @@ def handler(event, context):
                             "portal_url": os.environ.get('NOTIFICATION_PORTAL_URL', 'https://toganddogs.usmissionhero.com')
                         }
                     )
+                    if not result.get('success'):
+                        return error(500, f"Staff account was prepared, but the welcome email could not be sent. {result.get('message', '')}", event)
                 except Exception as notify_err:
                     print(f"Warning: Branded staff invite failed: {notify_err}")
+                    return error(500, f"Staff account was prepared, but an unexpected error occurred while sending the email: {str(notify_err)}", event)
 
                 return success(new_profile, event)
                 
@@ -613,7 +658,7 @@ def handler(event, context):
 
                 # Send branded welcome email with the temporary password
                 try:
-                    notify_event(
+                    result = notify_event(
                         event_type='WELCOME_INVITE_CLIENT',
                         context={
                             "client_name": display_name,
@@ -622,8 +667,11 @@ def handler(event, context):
                             "portal_url": os.environ.get('NOTIFICATION_PORTAL_URL', 'https://toganddogs.usmissionhero.com')
                         }
                     )
+                    if not result.get('success'):
+                        return error(500, f"Client profile was prepared, but the welcome email could not be sent. {result.get('message', '')}", event)
                 except Exception as notify_err:
                     print(f"Warning: Branded client invite failed: {notify_err}")
+                    return error(500, f"Client profile was prepared, but an unexpected error occurred while sending the email: {str(notify_err)}", event)
 
                 return success(new_profile, event)
                 
@@ -1165,7 +1213,7 @@ def handler(event, context):
                     try:
                         is_client_path = '/admin/clients/' in path
                         event_type = 'WELCOME_INVITE_CLIENT' if is_client_path else 'WELCOME_INVITE_STAFF'
-                        notify_event(
+                        result = notify_event(
                             event_type=event_type,
                             context={
                                 "client_name": user_profile.get('display_name') if is_client_path else None,
@@ -1175,8 +1223,11 @@ def handler(event, context):
                                 "portal_url": os.environ.get('NOTIFICATION_PORTAL_URL', 'https://toganddogs.usmissionhero.com')
                             }
                         )
+                        if not result.get('success'):
+                            return error(500, f"Invite was prepared, but the email could not be sent. Please check notification delivery logs or recipient suppression status. Error: {result.get('message', '')}", event)
                     except Exception as notify_err:
                         print(f"Warning: Failed to send branded resend email: {notify_err}")
+                        return error(500, f"Invite was prepared, but an unexpected error occurred while sending the email: {str(notify_err)}", event)
 
                     return success({"message": "Invitation resent successfully with new temporary password."}, event)
                     

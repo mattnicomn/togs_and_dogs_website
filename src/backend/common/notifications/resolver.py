@@ -34,7 +34,9 @@ def resolve_notification_recipients(event_type, record, previous_record=None, co
     recipients = []
     
     # 1. Check for Data Issues / Malformed
-    if record.get('is_data_issue') or not record.get('request_id'):
+    is_welcome_event = event_type in ['WELCOME_INVITE_CLIENT', 'WELCOME_INVITE_STAFF', 'WELCOME_INVITE']
+    
+    if record.get('is_data_issue') or (not is_welcome_event and not record.get('request_id')):
         logger.info(f"NOTIFICATION_SKIP: Skipping event {event_type} for malformed record.")
         return []
 
@@ -99,10 +101,17 @@ def resolve_notification_recipients(event_type, record, previous_record=None, co
             logger.info(f"NOTIFICATION_SKIP_PREF: Admin notification disabled for {event_type}")
             
     elif event_type == 'VISIT_TIME_CHANGED':
-        # Primary: Client
         client_email = get_client_email(record)
         if client_email:
             recipients.append(client_email)
+
+    elif event_type in ['WELCOME_INVITE_CLIENT', 'WELCOME_INVITE_STAFF', 'WELCOME_INVITE']:
+        # Extract email from record/context
+        email = get_client_email(record)
+        if email:
+            recipients.append(email)
+        else:
+            logger.warning(f"NOTIFICATION_RESOLVE_FAIL: No email found in context for {event_type}")
 
     # 4. Filter out empty/None values, de-duplicate (case-insensitive), and CHECK SUPPRESSION
     from .suppression import is_suppressed
