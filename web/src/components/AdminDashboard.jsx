@@ -939,7 +939,11 @@ const AdminDashboard = () => {
         if (type === 'staff') await fetchStaffData();
         else await fetchClientData();
       } catch (err) {
-        showNotification(err.message || "Failed to link user", "error");
+        let errorMsg = err.message || "Failed to link user";
+        if (errorMsg === "Failed to fetch") {
+          errorMsg = "Link request could not reach the backend. Please verify the API route is deployed and try again.";
+        }
+        showNotification(errorMsg, "error");
       }
       setConfirmAction(null);
       setConfirmTypedInput('');
@@ -1837,7 +1841,11 @@ const AdminDashboard = () => {
       if (err.message && err.message.includes("Cognito user already exists")) {
         setClientLinkPrompt({ ...clientForm });
       } else {
-        showNotification(err.message || "Failed to save client", "error");
+        let errorMsg = err.message || "Failed to save client";
+        if (errorMsg === "Failed to fetch") {
+          errorMsg = "Client onboarding request could not reach the backend. Please verify the API route is deployed and try again.";
+        }
+        showNotification(errorMsg, "error");
       }
     } finally {
       setIsSavingClient(false);
@@ -2371,7 +2379,7 @@ const AdminDashboard = () => {
                     </span>
                   </div>
 
-                  <div className="integration-details-grid">
+                  <div className="integration-details-list">
                     <div className="detail-item">
                       <span className="detail-label">Connected Account</span>
                       <span className="detail-value">

@@ -725,6 +725,56 @@ resource "aws_api_gateway_integration" "post_admin_client_temp_pw_lambda" {
   uri                     = var.admin_handler_invoke_arn
 }
 
+# Admin POST /admin/clients/onboard
+resource "aws_api_gateway_resource" "admin_clients_onboard" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_clients.id
+  path_part   = "onboard"
+}
+
+resource "aws_api_gateway_method" "post_admin_clients_onboard" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_clients_onboard.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_admin_clients_onboard_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_clients_onboard.id
+  http_method = aws_api_gateway_method.post_admin_clients_onboard.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+# Admin POST /admin/clients/{client_id}/link-cognito
+resource "aws_api_gateway_resource" "admin_clients_link" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_client_id.id
+  path_part   = "link-cognito"
+}
+
+resource "aws_api_gateway_method" "post_admin_clients_link" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_clients_link.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_admin_clients_link_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_clients_link.id
+  http_method = aws_api_gateway_method.post_admin_clients_link.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
 # Admin PUT /admin/cancel/decision
 
 
@@ -787,6 +837,8 @@ locals {
     "admin_client_resend" : aws_api_gateway_resource.admin_client_resend.id,
     "admin_client_reset" : aws_api_gateway_resource.admin_client_reset.id,
     "admin_client_temp_pw" : aws_api_gateway_resource.admin_client_temp_pw.id,
+    "admin_clients_onboard" : aws_api_gateway_resource.admin_clients_onboard.id,
+    "admin_clients_link" : aws_api_gateway_resource.admin_clients_link.id,
     "client_requests" : aws_api_gateway_resource.client_requests.id,
     "client_pets" : aws_api_gateway_resource.client_pets.id
   }
@@ -907,6 +959,8 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.post_admin_client_resend_lambda,
     aws_api_gateway_integration.post_admin_client_reset_lambda,
     aws_api_gateway_integration.post_admin_client_temp_pw_lambda,
+    aws_api_gateway_integration.post_admin_clients_onboard_lambda,
+    aws_api_gateway_integration.post_admin_clients_link_lambda,
     aws_api_gateway_integration_response.options_200,
 
 
@@ -935,6 +989,8 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.admin_cancel_decision,
       aws_api_gateway_resource.admin_staff,
       aws_api_gateway_resource.admin_staff_id,
+      aws_api_gateway_resource.admin_clients_onboard,
+      aws_api_gateway_resource.admin_clients_link,
       aws_api_gateway_method.post_admin_requests,
       aws_api_gateway_method.get_client_requests,
       aws_api_gateway_method.post_client_requests,

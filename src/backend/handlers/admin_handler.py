@@ -9,6 +9,31 @@ from common.response import success, bad_request, internal_error, not_found, err
 from common.auth import get_effective_role, sanitize_booking_for_role, get_claims
 from common.audit import log_action
 import uuid
+import secrets
+import string
+
+def generate_temp_password(length=12):
+    """Generates a secure temporary password meeting Cognito complexity requirements."""
+    # Ensure at least one of each required type
+    lower = string.ascii_lowercase
+    upper = string.ascii_uppercase
+    digits = string.digits
+    special = "!@#$%^&*"
+    
+    password = [
+        secrets.choice(lower),
+        secrets.choice(upper),
+        secrets.choice(digits),
+        secrets.choice(special)
+    ]
+    
+    # Fill the rest
+    all_chars = lower + upper + digits + special
+    password += [secrets.choice(all_chars) for _ in range(length - 4)]
+    
+    # Shuffle
+    secrets.SystemRandom().shuffle(password)
+    return ''.join(password)
 
 # Protected Accounts (US Mission Hero Platform Support)
 PROTECTED_SUBS = ["74b86488-1011-7029-bb6d-dad984e1463c"]
@@ -332,14 +357,19 @@ def handler(event, context):
                 elif role_input.lower() == 'admin':
                     cognito_group = 'Admin'
                     
+                # Generate a secure temporary password and suppress Cognito's default email
+                temp_password = generate_temp_password()
+                
                 # Create user in FORCE_CHANGE_PASSWORD
                 cog_resp = cognito.admin_create_user(
                     UserPoolId=user_pool_id,
                     Username=email,
+                    TemporaryPassword=temp_password,
                     UserAttributes=[
                         {'Name': 'email', 'Value': email},
                         {'Name': 'email_verified', 'Value': 'true'},
                     ],
+                    MessageAction='SUPPRESS', # Suppress Cognito's default invite
                     DesiredDeliveryMediums=['EMAIL']
                 )
                 
@@ -379,6 +409,21 @@ def handler(event, context):
                 }
                 
                 items_table.put_item(Item=new_profile)
+
+                # Send branded welcome email with the temporary password
+                try:
+                    notify_event(
+                        event_type='WELCOME_INVITE_STAFF',
+                        context={
+                            "staff_name": display_name,
+                            "email": email,
+                            "temp_password": temp_password,
+                            "portal_url": os.environ.get('NOTIFICATION_PORTAL_URL', 'https://toganddogs.usmissionhero.com')
+                        }
+                    )
+                except Exception as notify_err:
+                    print(f"Warning: Branded staff invite failed: {notify_err}")
+
                 return success(new_profile, event)
                 
             except cognito.exceptions.UsernameExistsException:
@@ -513,14 +558,19 @@ def handler(event, context):
             user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
             
             try:
+                # Generate a secure temporary password and suppress Cognito's default email
+                temp_password = generate_temp_password()
+                
                 # Create user in FORCE_CHANGE_PASSWORD
                 cog_resp = cognito.admin_create_user(
                     UserPoolId=user_pool_id,
                     Username=email,
+                    TemporaryPassword=temp_password,
                     UserAttributes=[
                         {'Name': 'email', 'Value': email},
                         {'Name': 'email_verified', 'Value': 'true'},
                     ],
+                    MessageAction='SUPPRESS', # Suppress Cognito's default invite
                     DesiredDeliveryMediums=['EMAIL']
                 )
                 
@@ -560,6 +610,21 @@ def handler(event, context):
                 }
                 
                 items_table.put_item(Item=new_profile)
+
+                # Send branded welcome email with the temporary password
+                try:
+                    notify_event(
+                        event_type='WELCOME_INVITE_CLIENT',
+                        context={
+                            "client_name": display_name,
+                            "email": email,
+                            "temp_password": temp_password,
+                            "portal_url": os.environ.get('NOTIFICATION_PORTAL_URL', 'https://toganddogs.usmissionhero.com')
+                        }
+                    )
+                except Exception as notify_err:
+                    print(f"Warning: Branded client invite failed: {notify_err}")
+
                 return success(new_profile, event)
                 
             except cognito.exceptions.UsernameExistsException:
@@ -1081,33 +1146,39 @@ def handler(event, context):
                     return success({"message": "Temporary password set successfully."}, event)
 
                 elif '/resend-invite' in path:
-                    # Resend invite by creating user again with RESEND message action
+                    # Generate a new secure temporary password for the resend
+                    temp_password = generate_temp_password()
+                    
+                    # Reset the user's password to the new temporary one (this does not send an email)
                     try:
-                        cognito.admin_create_user(
+                        cognito.admin_set_user_password(
                             UserPoolId=user_pool_id,
                             Username=username,
-                            MessageAction='RESEND',
-                            DesiredDeliveryMediums=['EMAIL']
+                            Password=temp_password,
+                            Permanent=False
                         )
-                    except cognito.exceptions.InvalidParameterException as e:
-                        if "Cannot resend an invitation to a user that is already confirmed" in str(e):
-                            return bad_request("User is already confirmed and active. Use password reset instead.", event)
-                        raise e
-                    
-                    # Send branded welcome email via Postmark if notifications are enabled
+                    except Exception as e:
+                        print(f"Resend password reset failed: {e}")
+                        return internal_error(f"Could not reset temporary password: {str(e)}", event)
+
+                    # Send ONE branded welcome email containing the new temporary password
                     try:
+                        is_client_path = '/admin/clients/' in path
+                        event_type = 'WELCOME_INVITE_CLIENT' if is_client_path else 'WELCOME_INVITE_STAFF'
                         notify_event(
-                            event_type='WELCOME_INVITE',
+                            event_type=event_type,
                             context={
-                                "client_name": user_profile.get('display_name', 'Valued Member'),
+                                "client_name": user_profile.get('display_name') if is_client_path else None,
+                                "staff_name": user_profile.get('display_name') if not is_client_path else None,
                                 "email": username,
+                                "temp_password": temp_password,
                                 "portal_url": os.environ.get('NOTIFICATION_PORTAL_URL', 'https://toganddogs.usmissionhero.com')
                             }
                         )
                     except Exception as notify_err:
-                        print(f"Warning: Failed to send branded welcome email: {notify_err}")
+                        print(f"Warning: Failed to send branded resend email: {notify_err}")
 
-                    return success({"message": "Invitation resent successfully."}, event)
+                    return success({"message": "Invitation resent successfully with new temporary password."}, event)
                     
             except Exception as e:
                 print(f"Cognito security action error: {e}")

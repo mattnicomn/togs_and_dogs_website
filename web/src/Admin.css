@@ -745,14 +745,19 @@
 
 /* Google Integration Card Redesign */
 .google-integration-card {
-  padding: 28px;
+  padding: 20px;
   background: var(--card-bg);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-md);
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  overflow-wrap: break-word;
 }
 
 .integration-header {
@@ -765,8 +770,10 @@
 
 .integration-title-area h3 {
   margin: 0 0 4px 0;
-  font-size: 1.25rem;
+  font-size: 1.35rem;
   font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.2;
 }
 
 .integration-title-area p {
@@ -811,13 +818,12 @@
   border-color: #fecaca; 
 }
 
-.integration-details-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+.integration-details-list {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-  padding: 16px;
-  background: var(--bg-muted);
-  border-radius: var(--radius-sm);
+  padding: 0;
+  background: transparent;
 }
 
 .detail-item {
@@ -827,23 +833,27 @@
 }
 
 .detail-label {
-  font-size: 0.7rem;
-  font-weight: 800;
+  font-size: 0.75rem;
+  font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  margin-bottom: 2px;
 }
 
 .detail-value {
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 600;
   color: var(--text-primary);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 100%;
 }
 
 .technical-details {
   border-top: 1px solid var(--border-soft);
-  margin-top: 8px;
-  padding-top: 16px;
+  margin-top: 16px;
+  padding-top: 20px;
 }
 
 .technical-details summary {
@@ -874,6 +884,9 @@
   border-radius: var(--radius-sm);
   font-size: 0.75rem;
   overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
   line-height: 1.5;
 }
 
@@ -884,7 +897,12 @@
 }
 
 .integration-actions button {
-  min-width: 140px;
+  min-width: 0;
+  width: 100%;
+  padding: 10px 16px;
+  font-weight: 700;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 @keyframes pulse {
@@ -895,7 +913,8 @@
 
 @media (max-width: 1200px) {
   .google-integration-card {
-    padding: 20px;
+    padding: 16px;
+    gap: 12px;
   }
 }
 
@@ -904,17 +923,22 @@
     grid-template-columns: 1fr;
   }
   
-  .integration-details-grid {
-    grid-template-columns: 1fr;
+  .integration-details-list {
+    gap: 12px;
   }
 
   .integration-header {
     flex-direction: column;
     align-items: flex-start;
+    gap: 12px;
   }
 
   .integration-status-badge {
     align-self: flex-start;
+  }
+
+  .integration-title-area h3 {
+    font-size: 1.2rem;
   }
 }
 
