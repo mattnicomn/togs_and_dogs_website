@@ -1330,15 +1330,8 @@ const AdminDashboard = () => {
       const fileName = `TogAndDogs_Offline_Backup_${datePart}_${timePart}.xlsx`;
       
       // Use a robust binary-safe download method
-      const s2ab = (s) => {
-        const buf = new ArrayBuffer(s.length);
-        const view = new Uint8Array(buf);
-        for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
-        return buf;
-      };
-
-      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'binary' });
-      const blob = new Blob([s2ab(wbout)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = URL.createObjectURL(blob);
       
       const link = document.createElement('a');
