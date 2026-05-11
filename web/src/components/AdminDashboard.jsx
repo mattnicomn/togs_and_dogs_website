@@ -1333,10 +1333,6 @@ const AdminDashboard = () => {
       const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       
-      console.log("Export filename:", fileName);
-      console.log("Export MIME:", blob.type);
-      console.log("Export size:", blob.size);
-
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
