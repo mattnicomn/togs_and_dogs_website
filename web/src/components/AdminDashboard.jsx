@@ -1329,20 +1329,31 @@ const AdminDashboard = () => {
       const timePart = now.getHours().toString().padStart(2, '0') + now.getMinutes().toString().padStart(2, '0');
       const fileName = `TogAndDogs_Offline_Backup_${datePart}_${timePart}.xlsx`;
       
-      // Use a more robust download method with Blob
-      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      
+      // Use a robust binary-safe download method
+      const s2ab = (s) => {
+        const buf = new ArrayBuffer(s.length);
+        const view = new Uint8Array(buf);
+        for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
+        return buf;
+      };
+
+      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'binary' });
+      const blob = new Blob([s2ab(wbout)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = URL.createObjectURL(blob);
+      
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', fileName);
       document.body.appendChild(link);
+      
+      // Trigger download
       link.click();
       
-      // Cleanup
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 100);
+      // Cleanup with slight delay to ensure browser registers the download attributes
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 200);
       
       showNotification("Offline backup generated successfully.", "success");
       setExportModal(false);
