@@ -1215,9 +1215,27 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       const data = await getExportData();
-      
+
+      // Sanitize any value to a flat string/number/boolean suitable for an Excel cell.
+      // DynamoDB records may contain nested objects, arrays, Decimals, or nulls
+      // that SheetJS cannot serialize to valid cell values.
+      const sanitize = (v) => {
+        if (v === null || v === undefined) return "";
+        if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") return v;
+        if (Array.isArray(v)) return v.map(item => typeof item === "object" ? JSON.stringify(item) : String(item)).join(", ");
+        if (typeof v === "object") return JSON.stringify(v);
+        return String(v);
+      };
+      const sanitizeRow = (row) => {
+        const clean = {};
+        for (const [key, val] of Object.entries(row)) {
+          clean[key] = sanitize(val);
+        }
+        return clean;
+      };
+
       const workbook = XLSX.utils.book_new();
-      
+
       // 1. Export Summary
       const summaryData = [
         ["Tog & Dogs Offline Backup"],
@@ -1230,19 +1248,18 @@ const AdminDashboard = () => {
         ["Staff", data.staff?.length || 0],
         ["Jobs", data.jobs?.length || 0]
       ];
-      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-      XLSX.utils.book_append_sheet(workbook, summarySheet, "Export Summary");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(summaryData), "Export Summary");
 
       // Helper to map fields for Requests
-      const mapRequest = (r) => ({
+      const mapRequest = (r) => sanitizeRow({
         "Request ID": r.request_id || r.PK?.replace('REQ#', ''),
         "Status": r.status,
         "Client Name": r.client_name,
         "Client Email": r.client_email,
         "Client Phone": r.client_phone || r.phone,
-        "Pet Name(s)": r.pet_names,
+        "Pet Name(s)": Array.isArray(r.pet_names) ? r.pet_names.join(", ") : r.pet_names,
         "Service Type": r.service_type,
-        "Requested Dates": `${r.start_date}${r.end_date ? ' to ' + r.end_date : ''}`,
+        "Requested Dates": `${r.start_date || ""}${r.end_date ? " to " + r.end_date : ""}`,
         "Scheduled Date/Time": r.scheduled_at || r.preferred_time,
         "Assigned Staff": r.worker_name || r.assigned_worker,
         "Service Location": r.service_location || r.address,
@@ -1254,100 +1271,92 @@ const AdminDashboard = () => {
       });
 
       // 2. All Requests
-      if (data.requests?.length) {
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(data.requests.map(mapRequest)), "All Requests");
-      }
+      const allReqs = (data.requests || []).map(mapRequest);
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(allReqs.length ? allReqs : [{}]), "All Requests");
 
       // 3. Active Requests
-      const active = (data.requests || []).filter(r => isActiveRecord(r));
-      if (active.length) {
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(active.map(mapRequest)), "Active Requests");
-      }
+      const activeReqs = (data.requests || []).filter(r => isActiveRecord(r)).map(mapRequest);
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(activeReqs.length ? activeReqs : [{}]), "Active Requests");
 
       // 4. Scheduled
-      const scheduled = (data.requests || []).filter(r => ['ASSIGNED', 'SCHEDULED', 'BOOKED'].includes(r.status?.toUpperCase()));
-      if (scheduled.length) {
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(scheduled.map(mapRequest)), "Scheduled");
-      }
+      const scheduledReqs = (data.requests || []).filter(r => ['ASSIGNED', 'SCHEDULED', 'BOOKED'].includes(r.status?.toUpperCase())).map(mapRequest);
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(scheduledReqs.length ? scheduledReqs : [{}]), "Scheduled");
 
       // 5. Completed
-      const completed = (data.requests || []).filter(r => r.status?.toUpperCase() === 'COMPLETED');
-      if (completed.length) {
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(completed.map(mapRequest)), "Completed");
-      }
+      const completedReqs = (data.requests || []).filter(r => r.status?.toUpperCase() === 'COMPLETED').map(mapRequest);
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(completedReqs.length ? completedReqs : [{}]), "Completed");
 
       // 6. Clients
-      if (data.clients?.length) {
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(data.clients.map(c => ({
-          "Client ID": c.client_id || c.SK?.replace('CLIENT#', ''),
-          "Name": c.display_name,
-          "Email": c.email,
-          "Phone": c.phone,
-          "Address": c.address,
-          "Emergency Contact": c.emergency_contact,
-          "Notes": c.notes,
-          "Joined At": c.created_at
-        }))), "Clients");
-      }
+      const clientRows = (data.clients || []).map(c => sanitizeRow({
+        "Client ID": c.client_id || c.SK?.replace('CLIENT#', ''),
+        "Name": c.display_name,
+        "Email": c.email,
+        "Phone": c.phone,
+        "Address": c.address,
+        "Emergency Contact": c.emergency_contact,
+        "Notes": c.notes,
+        "Joined At": c.created_at
+      }));
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(clientRows.length ? clientRows : [{}]), "Clients");
 
       // 7. Pets
-      if (data.pets?.length) {
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(data.pets.map(p => ({
-          "Pet ID": p.pet_id || p.PK?.replace('PET#', ''),
-          "Client ID": p.client_id,
-          "Name": p.name,
-          "Breed": p.breed,
-          "Age": p.age,
-          "Care Instructions": p.care_instructions,
-          "Behavior": p.behavior,
-          "Health": p.health,
-          "Meet & Greet": p.meet_and_greet_completed ? "Completed" : "Pending"
-        }))), "Pets");
-      }
+      const petRows = (data.pets || []).map(p => sanitizeRow({
+        "Pet ID": p.pet_id || p.PK?.replace('PET#', ''),
+        "Client ID": p.client_id,
+        "Name": p.name,
+        "Breed": p.breed,
+        "Age": p.age,
+        "Care Instructions": p.care_instructions,
+        "Behavior": p.behavior,
+        "Health": p.health,
+        "Meet & Greet": p.meet_and_greet_completed ? "Completed" : "Pending"
+      }));
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(petRows.length ? petRows : [{}]), "Pets");
 
       // 8. Staff Assignments
-      if (data.jobs?.length) {
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(data.jobs.map(j => ({
-          "Job ID": j.job_id || j.PK?.replace('JOB#', ''),
-          "Request ID": j.request_id || j.SK?.replace('REQ#', ''),
-          "Status": j.status,
-          "Staff Name": j.worker_name,
-          "Assigned At": j.assigned_at,
-          "Updated At": j.updated_at
-        }))), "Staff Assignments");
-      }
+      const jobRows = (data.jobs || []).map(j => sanitizeRow({
+        "Job ID": j.job_id || j.PK?.replace('JOB#', ''),
+        "Request ID": j.request_id || j.SK?.replace('REQ#', ''),
+        "Status": j.status,
+        "Staff Name": j.worker_name,
+        "Assigned At": j.assigned_at,
+        "Updated At": j.updated_at
+      }));
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(jobRows.length ? jobRows : [{}]), "Staff Assignments");
 
       // 9. Cancelled / Archived / Trash
-      const junk = (data.requests || []).filter(r => isCancelledRecord(r) || isArchivedRecord(r) || isDeletedRecord(r));
-      if (junk.length) {
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(junk.map(mapRequest)), "Cancelled-Archived-Trash");
-      }
+      const junkReqs = (data.requests || []).filter(r => isCancelledRecord(r) || isArchivedRecord(r) || isDeletedRecord(r)).map(mapRequest);
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(junkReqs.length ? junkReqs : [{}]), "Cancelled-Archived-Trash");
 
-      // Generate Filename
+      // Generate filename with timestamp
       const now = new Date();
-      const datePart = now.toISOString().split('T')[0];
-      const timePart = now.getHours().toString().padStart(2, '0') + now.getMinutes().toString().padStart(2, '0');
-      const fileName = `TogAndDogs_Offline_Backup_${datePart}_${timePart}.xlsx`;
-      
-      // Use a robust binary-safe download method
-      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const url = URL.createObjectURL(blob);
-      
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', fileName);
-      document.body.appendChild(link);
-      
-      // Trigger download
-      link.click();
-      
-      // Cleanup with slight delay to ensure browser registers the download attributes
-      setTimeout(() => {
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }, 200);
-      
+      const pad2 = (n) => String(n).padStart(2, '0');
+      const fileName = `TogAndDogs_Offline_Backup_${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}_${pad2(now.getHours())}${pad2(now.getMinutes())}.xlsx`;
+
+      // Write workbook to ArrayBuffer and create Blob
+      const wbArrayBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbArrayBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+
+      // Trigger download via hidden anchor
+      const blobUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.style.display = 'none';
+      anchor.href = blobUrl;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+
+      // Use requestAnimationFrame to ensure the anchor is in the DOM before clicking
+      requestAnimationFrame(() => {
+        anchor.click();
+        // Delay cleanup so Chrome fully registers the download name and reads the blob
+        setTimeout(() => {
+          URL.revokeObjectURL(blobUrl);
+          anchor.remove();
+        }, 1500);
+      });
+
       showNotification("Offline backup generated successfully.", "success");
       setExportModal(false);
     } catch (err) {

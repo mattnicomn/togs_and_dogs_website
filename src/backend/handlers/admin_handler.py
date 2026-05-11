@@ -167,14 +167,14 @@ def handler(event, context):
                 response = _table.scan(**scan_kwargs)
                 items.extend(response.get('Items', []))
             
-            # Categorize by entity type or key pattern
-            requests = [i for i in items if i.get('entity_type') == 'REQUEST']
-            pets = [i for i in items if i.get('entity_type') == 'PET']
-            jobs = [i for i in items if i.get('entity_type') == 'JOB']
+            # Categorize by entity type or key pattern (robust fallbacks)
+            requests = [i for i in items if i.get('entity_type') == 'REQUEST' or i.get('PK', '').startswith('REQ#')]
+            pets = [i for i in items if i.get('entity_type') == 'PET' or i.get('PK', '').startswith('PET#')]
+            jobs = [i for i in items if i.get('entity_type') == 'JOB' or i.get('PK', '').startswith('JOB#')]
             
             # Clients and Staff share COMPANY# PK
-            clients = [i for i in items if i.get('SK', '').startswith('CLIENT#') and i.get('PK', '').startswith('COMPANY#')]
-            staff = [i for i in items if i.get('SK', '').startswith('STAFF#') and i.get('PK', '').startswith('COMPANY#')]
+            clients = [i for i in items if (i.get('SK', '').startswith('CLIENT#') and i.get('PK', '').startswith('COMPANY#')) or i.get('entity_type') == 'CLIENT']
+            staff = [i for i in items if (i.get('SK', '').startswith('STAFF#') and i.get('PK', '').startswith('COMPANY#')) or i.get('entity_type') == 'STAFF']
             
             # Audit the export action
             log_action(event, 'EXPORT_BACKUP', 'SYSTEM', 'DATA_BACKUP', metadata={
