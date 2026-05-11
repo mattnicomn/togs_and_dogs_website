@@ -1327,9 +1327,21 @@ const AdminDashboard = () => {
       const now = new Date();
       const datePart = now.toISOString().split('T')[0];
       const timePart = now.getHours().toString().padStart(2, '0') + now.getMinutes().toString().padStart(2, '0');
-      const fileName = `tog-and-dogs-offline-backup-${datePart}-${timePart}.xlsx`;
+      const fileName = `TogAndDogs_Offline_Backup_${datePart}_${timePart}.xlsx`;
       
-      XLSX.writeFile(workbook, fileName);
+      // Use a more robust download method with Blob
+      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
       
       showNotification("Offline backup generated successfully.", "success");
       setExportModal(false);
