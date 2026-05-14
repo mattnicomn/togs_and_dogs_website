@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '../Portal.css';
 
-const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
+const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList = [], onAssign }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState((pet._originItem?.status || '').toUpperCase());
@@ -13,6 +13,25 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
     scheduled_duration: 60,
     ...pet 
   });
+
+  // Release 4E: Staff assignment state
+  const [isAssigning, setIsAssigning] = useState(false);
+
+  // Release 4B: Multi-pet support — track which pet is selected
+  const allPets = (pet._allPets && pet._allPets.length > 0) ? pet._allPets : [pet];
+  const [activePetIndex, setActivePetIndex] = useState(0);
+  const activePet = allPets[activePetIndex] || pet;
+  const hasMultiplePets = allPets.length > 1;
+
+  // Release 4B: Improved name fallback logic
+  // Prioritizes actual pet names over the client name (common in legacy records)
+  const activePetDisplayName = 
+    (activePet.name && activePet.name !== pet.client_name ? activePet.name : null) || 
+    activePet.pet_name || 
+    pet.pet_names || 
+    (pet._originItem && (pet._originItem.pet_names || pet._originItem.pet_name)) ||
+    activePet.name || 
+    'Pet';
 
   // Scroll lock: prevent background scrolling when CareCard is open
   useEffect(() => {
@@ -47,12 +66,16 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSave = () => {
-    onUpdate(formData);
-    if (pet._originItem && onStatusUpdate && selectedStatus !== pet._originItem.status) {
-      onStatusUpdate(pet._originItem, selectedStatus, statusNote || "Status updated via record edit.");
+  const handleSave = async () => {
+    try {
+      await onUpdate(formData);
+      if (pet._originItem && onStatusUpdate && selectedStatus !== pet._originItem.status) {
+        await onStatusUpdate(pet._originItem, selectedStatus, statusNote || "Status updated via record edit.");
+      }
+      setIsEditing(false);
+    } catch (e) {
+      console.error(e);
     }
-    setIsEditing(false);
   };
 
   const handleCancel = () => {
@@ -66,20 +89,20 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
         return (
           <div className="tab-content">
             <div className="pet-identity">
-              {pet.photo_url ? (
-                <img src={pet.photo_url} alt={pet.name} className="pet-avatar-large" />
+              {activePet.photo_url ? (
+                <img src={activePet.photo_url} alt={activePet.name} className="pet-avatar-large" />
               ) : (
-                <div className="pet-placeholder-large">{pet.name?.[0]}</div>
+                <div className="pet-placeholder-large">{activePet.name?.[0]}</div>
               )}
               <div>
-                <h2>{isEditing ? <input value={formData.name || ''} onChange={e => handleInputChange('name', e.target.value)} className="form-control-inline" /> : pet.name}</h2>
+                <h2>{isEditing ? <input value={formData.name || ''} onChange={e => handleInputChange('name', e.target.value)} className="form-control-inline" /> : activePetDisplayName}</h2>
                 <p className="subtitle">
                   {isEditing ? (
                     <span className="edit-inline-group">
                       <input value={formData.breed || ''} onChange={e => handleInputChange('breed', e.target.value)} placeholder="Breed" />
                       <input type="number" value={formData.age || ''} onChange={e => handleInputChange('age', parseInt(e.target.value))} placeholder="Age" />
                     </span>
-                  ) : `${pet.breed || 'Unknown Breed'} • ${pet.age || '?'} years old`}
+                  ) : `${activePet.species ? activePet.species + ' • ' : ''}${activePet.breed || 'Unknown Breed'} • ${activePet.age || '?'} years old`}
                 </p>
               </div>
             </div>
@@ -87,7 +110,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
             <div className="summary-cards" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '32px' }}>
               <div className="content-box">
                 <h4>Health Summary</h4>
-                <p>{pet.care_instructions || 'No specific instructions.'}</p>
+                <p>{activePet.care_instructions || 'No specific instructions.'}</p>
               </div>
               <div className="content-box">
                 <h4>Status Overview</h4>
@@ -127,7 +150,8 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
 
                 <div className="field">
                   <label>Requested Window</label>
-                  <p>{pet.visit_window || 'ANYTIME'}</p>
+                  {/* Release 2: Display multi-select visit windows with backward compat */}
+                  <p>{(pet.visit_windows || [pet.visit_window || 'ANYTIME']).join(', ')}</p>
                 </div>
               </div>
             </section>
@@ -137,12 +161,35 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
       case 'care':
         return (
           <div className="tab-content">
-            <section className="card-section">
+            {/* Release 4B: Show structured per-pet notes from activePet */}
+            {(activePet.feeding_notes || activePet.medication_notes || activePet.behavior_notes) && (
+              <>
+                {activePet.feeding_notes && (
+                  <section className="card-section">
+                    <h3>Feeding Notes</h3>
+                    <div className="content-box"><p>{activePet.feeding_notes}</p></div>
+                  </section>
+                )}
+                {activePet.medication_notes && (
+                  <section className="card-section" style={{ marginTop: '24px' }}>
+                    <h3>Medication Notes</h3>
+                    <div className="content-box"><p>{activePet.medication_notes}</p></div>
+                  </section>
+                )}
+                {activePet.behavior_notes && (
+                  <section className="card-section" style={{ marginTop: '24px' }}>
+                    <h3>Behavior Notes</h3>
+                    <div className="content-box"><p>{activePet.behavior_notes}</p></div>
+                  </section>
+                )}
+              </>
+            )}
+            <section className="card-section" style={{ marginTop: '24px' }}>
               <h3>Behavior & Personality</h3>
               <div className="content-box">
                 {isEditing ? (
                   <textarea rows="4" value={formData.behavior || ''} onChange={e => handleInputChange('behavior', e.target.value)} />
-                ) : <p>{pet.behavior || 'No behavioral notes.'}</p>}
+                ) : <p>{activePet.behavior || 'No behavioral notes.'}</p>}
               </div>
             </section>
             <section className="card-section" style={{ marginTop: '24px' }}>
@@ -150,7 +197,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
               <div className="content-box">
                 {isEditing ? (
                   <textarea rows="4" value={formData.care_instructions || ''} onChange={e => handleInputChange('care_instructions', e.target.value)} />
-                ) : <p>{pet.care_instructions || 'No specific instructions.'}</p>}
+                ) : <p>{activePet.care_instructions || 'No specific instructions.'}</p>}
               </div>
             </section>
           </div>
@@ -159,6 +206,26 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
       case 'emergency':
         return (
           <div className="tab-content">
+            {/* Release 4B: Household-level vet/emergency from request or client profile */}
+            {(pet._originItem?.vet_info || pet._originItem?.emergency_contact_info) && (
+              <section className="card-section" style={{ marginBottom: '24px' }}>
+                <h3>Household Vet & Emergency</h3>
+                <div className="content-box">
+                  {pet._originItem?.vet_info && (
+                    <div style={{ marginBottom: '12px' }}>
+                      <p><strong>{pet._originItem.vet_info.vet_name || ''}{pet._originItem.vet_info.clinic_name ? ` — ${pet._originItem.vet_info.clinic_name}` : ''}</strong></p>
+                      {pet._originItem.vet_info.clinic_phone && <p>📞 {pet._originItem.vet_info.clinic_phone}</p>}
+                      {pet._originItem.vet_info.clinic_address && <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{pet._originItem.vet_info.clinic_address}</p>}
+                    </div>
+                  )}
+                  {pet._originItem?.emergency_contact_info && (
+                    <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: '12px' }}>
+                      <p><strong>Emergency:</strong> {pet._originItem.emergency_contact_info.name || ''} {pet._originItem.emergency_contact_info.phone ? `— ${pet._originItem.emergency_contact_info.phone}` : ''}</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
             <div className="grid-2">
               <section className="card-section">
                 <h3>Primary Vet</h3>
@@ -170,8 +237,8 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
                     </div>
                   ) : (
                     <>
-                      <p><strong>{pet.health?.vet_name || 'Not specified'}</strong></p>
-                      {pet.health?.vet_phone && <a href={`tel:${pet.health.vet_phone}`} className="action-link">📞 {pet.health.vet_phone}</a>}
+                      <p><strong>{activePet.health?.vet_name || 'Not specified'}</strong></p>
+                      {activePet.health?.vet_phone && <a href={`tel:${activePet.health.vet_phone}`} className="action-link">📞 {activePet.health.vet_phone}</a>}
                     </>
                   )}
                 </div>
@@ -186,19 +253,29 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
                     </div>
                   ) : (
                     <>
-                      <p><strong>{pet.health?.emergency_name || 'Not specified'}</strong></p>
-                      {pet.health?.emergency_phone && <a href={`tel:${pet.health.emergency_phone}`} className="action-link">📞 {pet.health.emergency_phone}</a>}
+                      <p><strong>{activePet.health?.emergency_name || 'Not specified'}</strong></p>
+                      {activePet.health?.emergency_phone && <a href={`tel:${activePet.health.emergency_phone}`} className="action-link">📞 {activePet.health.emergency_phone}</a>}
                     </>
                   )}
                 </div>
               </section>
             </div>
+            {/* Release 4B: Per-pet vet/emergency notes */}
+            {(activePet.vet_notes || activePet.emergency_notes) && (
+              <section className="card-section" style={{ marginTop: '24px' }}>
+                <h3>Per-Pet Notes — {activePet.name}</h3>
+                <div className="content-box">
+                  {activePet.vet_notes && <p><strong>Vet Notes:</strong> {activePet.vet_notes}</p>}
+                  {activePet.emergency_notes && <p style={{ marginTop: '8px' }}><strong>Emergency Notes:</strong> {activePet.emergency_notes}</p>}
+                </div>
+              </section>
+            )}
             <section className="card-section" style={{ marginTop: '24px' }}>
               <h3>Logistics & Access</h3>
               <div className="content-box">
                 {isEditing ? (
                   <textarea rows="3" value={formData.logistics || ''} onChange={e => handleInputChange('logistics', e.target.value)} placeholder="Key location, codes, etc." />
-                ) : <p className="prominent-note">{pet.logistics || 'No access instructions.'}</p>}
+                ) : <p className="prominent-note">{activePet.logistics || pet.logistics || 'No access instructions.'}</p>}
               </div>
             </section>
           </div>
@@ -224,12 +301,60 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
                 <div className="grid-2">
                   <div className="price-display">
                     <label className="micro-text">Quote Amount</label>
-                    <p className="price-large">${pet.quote_amount || '0.00'}</p>
+                    {/* Release 4D: Editable quote amount */}
+                    {isEditing ? (
+                      <input type="number" step="0.01" min="0" value={formData.quote_amount || ''} onChange={e => handleInputChange('quote_amount', e.target.value ? parseFloat(e.target.value) : 0)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '1.1rem' }} placeholder="0.00" />
+                    ) : (
+                      <p className="price-large">${activePet.quote_amount || '0.00'}</p>
+                    )}
                   </div>
                   <div className="price-display">
                     <label className="micro-text">Payment Status</label>
-                    <p><strong>{pet.payment_status || 'Not Quoted'}</strong></p>
+                    {/* Release 4D: Editable payment status dropdown */}
+                    {isEditing ? (
+                      <select value={formData.payment_status || 'Not Quoted'} onChange={e => handleInputChange('payment_status', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                        <option value="Not Quoted">Not Requested</option>
+                        <option value="Quote Sent">Quote Sent</option>
+                        <option value="Payment Pending">Payment Pending</option>
+                        <option value="Accepted">Accepted</option>
+                        <option value="Deposit Paid">Deposit Paid</option>
+                        <option value="Partially Paid">Partially Paid</option>
+                        <option value="Paid in Full">Paid in Full</option>
+                        <option value="Refunded">Refunded</option>
+                        <option value="Waived">Waived</option>
+                      </select>
+                    ) : (
+                      <p><strong>{activePet.payment_status || 'Not Quoted'}</strong></p>
+                    )}
                   </div>
+                </div>
+                {/* Release 4D: Deposit toggles */}
+                {isEditing && (
+                  <div style={{ display: 'flex', gap: '24px', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-soft)' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                      <input type="checkbox" checked={formData.deposit_required || false} onChange={e => handleInputChange('deposit_required', e.target.checked)} />
+                      Deposit Required
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                      <input type="checkbox" checked={formData.deposit_paid || false} onChange={e => handleInputChange('deposit_paid', e.target.checked)} />
+                      Deposit Paid
+                    </label>
+                  </div>
+                )}
+                {!isEditing && (activePet.deposit_required || activePet.deposit_paid) && (
+                  <div style={{ display: 'flex', gap: '16px', marginTop: '12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    {activePet.deposit_required && <span>💰 Deposit Required</span>}
+                    {activePet.deposit_paid && <span>✅ Deposit Paid</span>}
+                  </div>
+                )}
+                {/* Release 4D: Quote notes */}
+                <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-soft)' }}>
+                  <label className="micro-text">Quote Notes</label>
+                  {isEditing ? (
+                    <textarea rows="2" value={formData.quote_notes || ''} onChange={e => handleInputChange('quote_notes', e.target.value)} placeholder="Payment terms, special pricing notes..." style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', marginTop: '4px' }} />
+                  ) : (
+                    <p style={{ marginTop: '4px', fontSize: '0.9rem' }}>{activePet.quote_notes || 'No notes.'}</p>
+                  )}
                 </div>
                 {pet.document_links?.intake_form_url && (
                   <div style={{ marginTop: '16px', borderTop: '1px solid var(--border-soft)', paddingTop: '16px' }}>
@@ -276,7 +401,51 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
             <section className="card-section" style={{ marginTop: '24px' }}>
               <h3>Staff Assignment</h3>
               <div className="content-box">
-                <p><strong>Assigned To:</strong> {pet.worker_name || pet.worker_id || 'Unassigned'}</p>
+                {/* Release 4E: Inline staff assignment dropdown for owner/admin */}
+                {onAssign && ['owner', 'admin'].includes(userRole) && pet._originItem?.job_id ? (
+                  <div className="field">
+                    <label>Assigned To</label>
+                    <select
+                      value={pet._originItem?.worker_id || pet.worker_id || ''}
+                      onChange={async (e) => {
+                        if (!e.target.value) return;
+                        setIsAssigning(true);
+                        try {
+                          await onAssign(pet._originItem, e.target.value);
+                        } catch(err) {
+                          // Error handled by parent
+                        } finally {
+                          setIsAssigning(false);
+                        }
+                      }}
+                      disabled={isAssigning}
+                      style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                    >
+                      <option value="">Select Staff...</option>
+                      {staffList.filter(s => s.is_assignable !== false && s.is_active !== false).map(s => (
+                        <option key={s.email || s.display_name} value={s.email || s.display_name}>
+                          {s.display_name}{s.email ? ` <${s.email}>` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {isAssigning && <p className="micro-text" style={{ marginTop: '6px' }}>Assigning...</p>}
+                  </div>
+                ) : onAssign && ['owner', 'admin'].includes(userRole) && !pet._originItem?.job_id ? (
+                  <div>
+                    <p><strong>Assigned To:</strong> {pet.worker_name || pet.worker_id || 'Unassigned'}</p>
+                    <p className="micro-text" style={{ marginTop: '8px', color: 'var(--text-muted)' }}>
+                      Approve this request to enable staff assignment.
+                    </p>
+                  </div>
+                ) : (
+                  <p><strong>Assigned To:</strong> {pet.worker_name || pet.worker_id || 'Unassigned'}</p>
+                )}
+                {/* Release 2: Show preferred sitter separately from assigned staff */}
+                {pet.preferred_sitter_name && (
+                  <p style={{ marginTop: '8px', fontSize: '0.9rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    <strong>Client Prefers:</strong> {pet.preferred_sitter_name}
+                  </p>
+                )}
                 {pet.google_event_id && (
                   <div className="calendar-status" style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', fontSize: '0.9rem' }}>
                     <span className="icon">📅</span> Linked to Google Calendar
@@ -325,7 +494,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
       <div className="care-card card">
         <header className="card-header-main">
           <div className="header-left">
-            <h1 className="serif">{pet.name || 'Record Detail'}</h1>
+            <h1 className="serif">{activePetDisplayName}</h1>
             <div className="status-badge-container">
               <span className={`status-chip status-chip--${pet.status?.toLowerCase().replace(/_/g, '-') || 'pending'}`}>
                 {pet.status}
@@ -348,6 +517,32 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole }) => {
         </nav>
 
         <div className="care-card-body">
+          {/* Release 4B: Multi-pet selector — Visible across all relevant tabs */}
+          {hasMultiplePets && ['overview', 'care', 'emergency'].includes(activeTab) && (
+            <div className="pet-selector-nav" style={{ 
+              display: 'flex', gap: '8px', padding: '16px 24px', 
+              background: 'var(--bg-muted)', borderBottom: '1px solid var(--border-soft)',
+              flexWrap: 'wrap' 
+            }}>
+              {allPets.map((p, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActivePetIndex(idx)}
+                  className={`pet-chip ${idx === activePetIndex ? 'active' : ''}`}
+                  style={{
+                    padding: '6px 14px', borderRadius: '16px', border: 'none', cursor: 'pointer',
+                    backgroundColor: idx === activePetIndex ? 'var(--primary)' : 'transparent',
+                    color: idx === activePetIndex ? '#fff' : 'var(--text-primary)',
+                    border: idx === activePetIndex ? 'none' : '1px solid var(--border)',
+                    fontSize: '0.85rem', fontWeight: idx === activePetIndex ? '600' : '400',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {p.name || p.pet_name || `Pet ${idx + 1}`}
+                </button>
+              ))}
+            </div>
+          )}
           {renderTabContent()}
         </div>
 

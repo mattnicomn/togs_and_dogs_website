@@ -3,6 +3,7 @@ import uuid
 import os
 import datetime
 import boto3
+from decimal import Decimal
 from common.db import table, get_item, put_item
 from common.response import success, bad_request, internal_error, not_found, error
 from common.auth import get_effective_role, sanitize_booking_for_role
@@ -111,12 +112,26 @@ def handler(event, context):
                 'meet_and_greet_scheduled_at', 'meet_and_greet_completed_at', 
                 'meet_and_greet_notes', 'quote_amount', 'deposit_required', 
                 'deposit_paid', 'payment_status', 'quote_sent_date', 
-                'quote_accepted_date', 'quote_notes', 'internal_pricing_notes'
+                'quote_accepted_date', 'quote_notes', 'internal_pricing_notes',
+                # Release 4: Per-pet structured fields
+                'species', 'feeding_notes', 'medication_notes', 'behavior_notes',
+                'vet_notes', 'emergency_notes', 'is_active'
             ]
             
             for field in editable_fields:
                 if field in body:
-                    item[field] = body[field]
+                    val = body[field]
+                    if field in ['quote_amount', 'deposit_amount']:
+                        if val in [None, ""]:
+                            if field in item:
+                                del item[field]
+                            continue
+                        try:
+                            # Convert to Decimal via string to avoid float precision loss
+                            val = Decimal(str(val))
+                        except Exception:
+                            pass # Fallback to original value if casting fails
+                    item[field] = val
             
             if put_item(item):
                 if request_id:

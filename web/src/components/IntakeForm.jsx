@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { submitRequest, submitClientRequest } from '../api/client';
+import { submitRequest, submitClientRequest, getStaffOptions } from '../api/client';
 import { getSession, getEffectiveRole } from '../api/auth';
 import './IntakeForm.css';
 
@@ -11,15 +11,28 @@ const IntakeForm = () => {
     client_email: '',
     start_date: '',
     end_date: '',
-    visit_window: 'ANYTIME',
+    // Release 2: Multi-select visit windows (array)
+    visit_windows: ['ANYTIME'],
+    visit_window: 'ANYTIME', // Legacy field for backward compat
     preferred_time: '',
     timing_notes: '',
-    pet_names: '',
+    // Release 2: Preferred sitter (informational only, does NOT auto-assign)
+    preferred_sitter: '',
+    preferred_sitter_name: '',
+    // Release 4: Multi-pet structured data
+    pets: [{name: '', species: 'DOG', breed: '', age: '', feeding_notes: '', medication_notes: '', behavior_notes: ''}],
+    pet_names: '', // Legacy — auto-generated from pets array on submit
     pet_info: '',
+    // Release 4: Household-level vet/emergency
+    vet_info: {},
+    emergency_contact: {},
     service_type: 'PET_SITTING'
   });
   const [status, setStatus] = useState({ type: '', message: '', requestId: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Release 2: Staff options for preferred sitter dropdown
+  const [staffOptions, setStaffOptions] = useState([]);
+  const [staffOptionsLoading, setStaffOptionsLoading] = useState(false);
 
   useEffect(() => {
     getSession().then(s => {
@@ -31,6 +44,19 @@ const IntakeForm = () => {
         }));
       }
     }).catch(() => {});
+    
+    // Release 2: Load staff options for preferred sitter dropdown.
+    // Uses a sanitized public endpoint that only returns display names.
+    setStaffOptionsLoading(true);
+    getStaffOptions()
+      .then(data => {
+        setStaffOptions(data.staff_options || []);
+      })
+      .catch(() => {
+        // Fail gracefully — preferred sitter is optional
+        setStaffOptions([]);
+      })
+      .finally(() => setStaffOptionsLoading(false));
   }, []);
 
   const validateStep = () => {
@@ -41,7 +67,9 @@ const IntakeForm = () => {
       return formData.service_type && formData.start_date;
     }
     if (step === 3) {
-      return formData.pet_names;
+      // Release 4: Validate at least one pet has a name
+      const pets = formData.pets || [];
+      return pets.some(p => p.name && p.name.trim());
     }
     return true;
   };
@@ -152,6 +180,16 @@ const IntakeForm = () => {
                     />
                   </div>
                 </div>
+                {/* Release 4C: Client phone — optional, persisted on REQ and propagated to Client Management */}
+                <div className="field" style={{ marginTop: '16px' }}>
+                  <label>Phone Number (Optional)</label>
+                  <input 
+                    type="tel" 
+                    value={formData.client_phone || ''} 
+                    onChange={(e) => setFormData({...formData, client_phone: e.target.value})} 
+                    placeholder="555-123-4567"
+                  />
+                </div>
                 <div className="form-actions">
                   <Link to="/" className="button-secondary">Cancel</Link>
                   <button type="button" onClick={nextStep} className="button-primary">Next: Schedule →</button>
@@ -194,20 +232,103 @@ const IntakeForm = () => {
                   </div>
                 </div>
 
-                <div className="grid">
-                  <div className="field">
-                    <label>Preferred Visit Window</label>
-                    <select 
-                      value={formData.visit_window}
-                      onChange={(e) => setFormData({...formData, visit_window: e.target.value})}
+                {/* Release 2: Multi-select visit window checkboxes */}
+                <div className="field" style={{ marginBottom: '24px' }}>
+                  <label>Preferred Visit Windows</label>
+                  <p className="field-hint" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                    Select one or more time windows that work for you.
+                  </p>
+                  <div className="visit-window-checkboxes" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                    {[
+                      { value: 'MORNING', label: 'Morning (7–10 AM)' },
+                      { value: 'MIDDAY', label: 'Midday (11 AM–2 PM)' },
+                      { value: 'AFTERNOON', label: 'Afternoon (3–6 PM)' },
+                      { value: 'EVENING', label: 'Evening (7–10 PM)' },
+                      { value: 'ANYTIME', label: 'Anytime (Flexible)' },
+                    ].map(opt => {
+                      const isChecked = formData.visit_windows.includes(opt.value);
+                      return (
+                        <label 
+                          key={opt.value} 
+                          className={`visit-window-chip ${isChecked ? 'selected' : ''}`}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '6px',
+                            padding: '8px 14px', borderRadius: '20px', cursor: 'pointer',
+                            border: isChecked ? '2px solid var(--primary)' : '2px solid var(--border)',
+                            backgroundColor: isChecked ? 'var(--primary-light, #e8f4fd)' : 'transparent',
+                            fontSize: '0.9rem', transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              let newWindows;
+                              if (opt.value === 'ANYTIME') {
+                                // ANYTIME is mutually exclusive — selecting it clears others
+                                newWindows = isChecked ? [] : ['ANYTIME'];
+                              } else {
+                                // Selecting a specific window clears ANYTIME
+                                const withoutAnytime = formData.visit_windows.filter(w => w !== 'ANYTIME');
+                                if (isChecked) {
+                                  newWindows = withoutAnytime.filter(w => w !== opt.value);
+                                } else {
+                                  newWindows = [...withoutAnytime, opt.value];
+                                }
+                              }
+                              // Default to ANYTIME if nothing selected
+                              if (newWindows.length === 0) newWindows = ['ANYTIME'];
+                              setFormData({
+                                ...formData, 
+                                visit_windows: newWindows,
+                                visit_window: newWindows.includes('ANYTIME') ? 'ANYTIME' : newWindows[0]
+                              });
+                            }}
+                            style={{ display: 'none' }}
+                          />
+                          <span>{isChecked ? '✓' : ''}</span>
+                          <span>{opt.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Release 2: Preferred Sitter — informational only, does NOT auto-assign */}
+                {staffOptions.length > 0 && (
+                  <div className="field" style={{ marginBottom: '24px' }}>
+                    <label>Preferred Sitter (Optional)</label>
+                    <p className="field-hint" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                      Let us know if you have a preference. We'll do our best to accommodate.
+                    </p>
+                    <select
+                      value={formData.preferred_sitter}
+                      onChange={(e) => {
+                        const selected = staffOptions.find(s => s.id === e.target.value);
+                        setFormData({
+                          ...formData,
+                          preferred_sitter: e.target.value,
+                          preferred_sitter_name: selected ? selected.name : ''
+                        });
+                      }}
                     >
-                      <option value="MORNING">Morning (7 AM - 10 AM)</option>
-                      <option value="MIDDAY">Midday (11 AM - 2 PM)</option>
-                      <option value="AFTERNOON">Afternoon (3 PM - 6 PM)</option>
-                      <option value="EVENING">Evening (7 PM - 10 PM)</option>
-                      <option value="ANYTIME">Anytime (Flexible)</option>
+                      <option value="">No preference</option>
+                      {staffOptions.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
                     </select>
                   </div>
+                )}
+
+                {/* Timing notes — already supported by payload structure */}
+                <div className="field">
+                  <label>Timing Notes (Optional)</label>
+                  <input
+                    type="text"
+                    value={formData.timing_notes}
+                    onChange={(e) => setFormData({...formData, timing_notes: e.target.value})}
+                    placeholder="e.g. After 9am preferred, key under mat..."
+                  />
                 </div>
 
                 <div className="form-actions">
@@ -220,25 +341,125 @@ const IntakeForm = () => {
             {step === 3 && (
               <div className="form-step-content">
                 <h3 style={{ marginBottom: '24px' }}>Tell us about your pets</h3>
-                <div className="field" style={{ marginBottom: '24px' }}>
-                  <label>Pet Names *</label>
-                  <input 
-                    type="text" 
-                    value={formData.pet_names} 
-                    onChange={(e) => setFormData({...formData, pet_names: e.target.value})} 
-                    placeholder="e.g. Luna and Milo"
-                    required
-                  />
-                </div>
+                
+                {/* Release 4: Multi-pet repeatable entry */}
+                {(formData.pets || [{name: '', species: 'DOG', breed: '', age: '', feeding_notes: '', medication_notes: '', behavior_notes: ''}]).map((pet, idx) => (
+                  <div key={idx} style={{ marginBottom: '24px', padding: '20px', border: '1px solid var(--border)', borderRadius: '12px', position: 'relative' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <h4 style={{ margin: 0 }}>Pet {idx + 1}</h4>
+                      {(formData.pets || []).length > 1 && (
+                        <button type="button" onClick={() => {
+                          const updated = [...(formData.pets || [])];
+                          updated.splice(idx, 1);
+                          setFormData({...formData, pets: updated});
+                        }} style={{ background: 'none', border: 'none', color: 'var(--danger, #dc3545)', cursor: 'pointer', fontSize: '0.85rem' }}>Remove</button>
+                      )}
+                    </div>
+                    <div className="grid" style={{ marginBottom: '12px' }}>
+                      <div className="field">
+                        <label>Pet Name *</label>
+                        <input type="text" value={pet.name} onChange={(e) => {
+                          const updated = [...(formData.pets || [])];
+                          updated[idx] = {...updated[idx], name: e.target.value};
+                          setFormData({...formData, pets: updated});
+                        }} placeholder="e.g. Luna" required />
+                      </div>
+                      <div className="field">
+                        <label>Species</label>
+                        <select value={pet.species || 'DOG'} onChange={(e) => {
+                          const updated = [...(formData.pets || [])];
+                          updated[idx] = {...updated[idx], species: e.target.value};
+                          setFormData({...formData, pets: updated});
+                        }}>
+                          <option value="DOG">Dog</option>
+                          <option value="CAT">Cat</option>
+                          <option value="OTHER">Other</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid" style={{ marginBottom: '12px' }}>
+                      <div className="field">
+                        <label>Breed</label>
+                        <input type="text" value={pet.breed || ''} onChange={(e) => {
+                          const updated = [...(formData.pets || [])];
+                          updated[idx] = {...updated[idx], breed: e.target.value};
+                          setFormData({...formData, pets: updated});
+                        }} placeholder="e.g. Golden Retriever" />
+                      </div>
+                      <div className="field">
+                        <label>Age (years)</label>
+                        <input type="number" min="0" max="30" value={pet.age || ''} onChange={(e) => {
+                          const updated = [...(formData.pets || [])];
+                          updated[idx] = {...updated[idx], age: e.target.value ? parseInt(e.target.value) : ''};
+                          setFormData({...formData, pets: updated});
+                        }} placeholder="e.g. 3" />
+                      </div>
+                    </div>
+                    <div className="field" style={{ marginBottom: '8px' }}>
+                      <label>Feeding Notes</label>
+                      <input type="text" value={pet.feeding_notes || ''} onChange={(e) => {
+                        const updated = [...(formData.pets || [])];
+                        updated[idx] = {...updated[idx], feeding_notes: e.target.value};
+                        setFormData({...formData, pets: updated});
+                      }} placeholder="Food type, schedule, portions..." />
+                    </div>
+                    <div className="field" style={{ marginBottom: '8px' }}>
+                      <label>Medication Notes</label>
+                      <input type="text" value={pet.medication_notes || ''} onChange={(e) => {
+                        const updated = [...(formData.pets || [])];
+                        updated[idx] = {...updated[idx], medication_notes: e.target.value};
+                        setFormData({...formData, pets: updated});
+                      }} placeholder="Medications, dosage, timing..." />
+                    </div>
+                    <div className="field">
+                      <label>Behavior Notes</label>
+                      <input type="text" value={pet.behavior_notes || ''} onChange={(e) => {
+                        const updated = [...(formData.pets || [])];
+                        updated[idx] = {...updated[idx], behavior_notes: e.target.value};
+                        setFormData({...formData, pets: updated});
+                      }} placeholder="Temperament, triggers, social notes..." />
+                    </div>
+                  </div>
+                ))}
 
-                <div className="field">
-                  <label>Care Instructions & Details</label>
-                  <textarea 
-                    rows="5"
-                    value={formData.pet_info} 
-                    onChange={(e) => setFormData({...formData, pet_info: e.target.value})} 
-                    placeholder="Routines, medications, favorite toys, or special needs..."
-                  />
+                <button type="button" onClick={() => {
+                  const current = formData.pets || [{name: '', species: 'DOG', breed: '', age: '', feeding_notes: '', medication_notes: '', behavior_notes: ''}];
+                  setFormData({...formData, pets: [...current, {name: '', species: 'DOG', breed: '', age: '', feeding_notes: '', medication_notes: '', behavior_notes: ''}]});
+                }} style={{ marginBottom: '24px', padding: '10px 16px', border: '2px dashed var(--border)', borderRadius: '8px', background: 'none', cursor: 'pointer', width: '100%', color: 'var(--text-muted)' }}>
+                  + Add Another Pet
+                </button>
+
+                {/* Release 4: Household-level vet/emergency */}
+                <div style={{ marginBottom: '24px', padding: '20px', backgroundColor: 'var(--bg-muted, #f8f9fa)', borderRadius: '12px' }}>
+                  <h4 style={{ marginBottom: '12px' }}>Vet & Emergency (Optional)</h4>
+                  <div className="grid" style={{ marginBottom: '12px' }}>
+                    <div className="field">
+                      <label>Vet / Clinic Name</label>
+                      <input type="text" value={(formData.vet_info || {}).vet_name || ''} onChange={(e) => {
+                        setFormData({...formData, vet_info: {...(formData.vet_info || {}), vet_name: e.target.value}});
+                      }} placeholder="Dr. Smith / Happy Paws Vet" />
+                    </div>
+                    <div className="field">
+                      <label>Vet Phone</label>
+                      <input type="tel" value={(formData.vet_info || {}).clinic_phone || ''} onChange={(e) => {
+                        setFormData({...formData, vet_info: {...(formData.vet_info || {}), clinic_phone: e.target.value}});
+                      }} placeholder="555-123-4567" />
+                    </div>
+                  </div>
+                  <div className="grid">
+                    <div className="field">
+                      <label>Emergency Contact Name</label>
+                      <input type="text" value={(formData.emergency_contact || {}).name || ''} onChange={(e) => {
+                        setFormData({...formData, emergency_contact: {...(formData.emergency_contact || {}), name: e.target.value}});
+                      }} placeholder="Jane Doe" />
+                    </div>
+                    <div className="field">
+                      <label>Emergency Contact Phone</label>
+                      <input type="tel" value={(formData.emergency_contact || {}).phone || ''} onChange={(e) => {
+                        setFormData({...formData, emergency_contact: {...(formData.emergency_contact || {}), phone: e.target.value}});
+                      }} placeholder="555-987-6543" />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="form-actions">
@@ -260,7 +481,7 @@ const IntakeForm = () => {
                 <span className="success-icon">🎉</span>
                 <h2>Request Received!</h2>
                 <p style={{ color: 'var(--text-muted)', marginTop: '16px', fontSize: '1.1rem' }}>
-                  Thank you, {formData.client_name.split(' ')[0]}! We've received your request for {formData.pet_names}.
+                  Thank you, {formData.client_name.split(' ')[0]}! We've received your request for {(formData.pets || []).filter(p => p.name).map(p => p.name).join(', ') || formData.pet_names || 'your pets'}.
                 </p>
                 
                 <div style={{ 

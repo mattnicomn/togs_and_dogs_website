@@ -239,29 +239,18 @@ def handler(event, context):
             # 4b. Trigger modular notifications
             notif_result = handle_notifications(workflow_type, current_status, new_status, request_item, body)
             
-            # Also update the Job record if it exists
-            job_id = request_item.get('job_id')
-            if job_id:
-                try:
-                    # Map Request status to Job equivalent
-                    job_status = new_status
-                    if new_status == 'APPROVED':
-                        job_status = 'JOB_CREATED'
-                        
-                    job_update_expr = "SET #stat = :s, updated_at = :now, updated_by = :ub"
-                    job_attr_vals = {":s": job_status, ":now": now, ":ub": updated_by}
-                    
-                    if current_status == 'ASSIGNED' and job_status == 'JOB_CREATED':
-                         job_update_expr += " REMOVE worker_id"
-                    
-                    table.update_item(
-                        Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{request_id}"},
-                        UpdateExpression=job_update_expr,
-                        ExpressionAttributeNames={"#stat": "status"},
-                        ExpressionAttributeValues=job_attr_vals
-                    )
-                except Exception as job_err:
-                    print(f"WARNING: [Req:{request_id}] Failed to update linked job: {job_err}")
+            # Release 1: Cascade REQ → JOB status change via shared utility.
+            # This replaces the previous inline JOB update and ensures ALL transitions
+            # cascade consistently (including CANCELLED, ARCHIVED, DELETED, rollback).
+            # Cascade is one-directional (REQ → JOB only) to prevent loops.
+            from common.cascade import cascade_status_to_job
+            remove_worker_on_cascade = (current_status == 'ASSIGNED' and new_status == 'APPROVED')
+            cascade_status_to_job(
+                request_item,
+                new_status,
+                updated_by=updated_by,
+                remove_worker=remove_worker_on_cascade
+            )
 
             # 5. Trigger Job Creation Lambda if APPROVED
             # --- GOOGLE CALENDAR SYNC LOGIC ---
@@ -337,6 +326,42 @@ def handler(event, context):
                 except Exception as invoke_err:
                     print(f"ERROR: [Req:{request_id}] Failed to trigger job creation: {invoke_err}")
 
+            # --- Release 3: CLIENT PROFILE AUTO-CREATION ---
+            # When a CUSTOMER_INTAKE request is approved, auto-create or link a Client Management profile.
+            # This is fail-safe: if it fails, approval still succeeds.
+            # Only runs for CUSTOMER_INTAKE workflow (not VISIT_BOOKING — those clients already have profiles).
+            # Idempotency: Skip if request already has a linked_client_profile_id (prevents duplicate
+            # processing on Restore to Approved or re-approval scenarios).
+            if new_status == 'APPROVED' and workflow_type == WorkflowType.CUSTOMER_INTAKE:
+                already_linked = request_item.get('linked_client_profile_id')
+                if already_linked:
+                    print(f"INFO: [Req:{request_id}] Auto-profile skipped — already linked to {already_linked}")
+                    profile_result = {"link_status": "ALREADY_LINKED", "message": "Already linked to client profile."}
+                else:
+                    try:
+                        from common.client_profile import auto_create_or_link_client_profile
+                        from common.auth import get_current_company_id
+                        profile_company_id = request_item.get('company_id') or get_current_company_id(event)
+                        profile_result = auto_create_or_link_client_profile(
+                            request_item=request_item,
+                            request_id=request_id,
+                            client_id=client_id,
+                            company_id=profile_company_id,
+                            updated_by=updated_by
+                        )
+                    except Exception as profile_err:
+                        # FAIL-SAFE: Log but do not block approval
+                        print(f"WARNING: [Req:{request_id}] Client profile automation failed: {profile_err}")
+                        try:
+                            table.update_item(
+                                Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                                UpdateExpression="SET client_profile_link_status = :s",
+                                ExpressionAttributeValues={":s": "FAILED"}
+                            )
+                        except:
+                            pass  # Even this failure shouldn't block
+                        profile_result = {"link_status": "FAILED", "message": str(profile_err)}
+
             # Prepare final message
             final_msg = f"Request {new_status}."
             if calendar_result and calendar_result.get('message'):
@@ -346,6 +371,14 @@ def handler(event, context):
                 # Append notification status if it's informative
                 if "logged" in notif_result['message'].lower() or "sent" in notif_result['message'].lower():
                     final_msg += f" ({notif_result['message']})"
+            
+            # Release 3: Include client profile automation result in response
+            if new_status == 'APPROVED' and workflow_type == WorkflowType.CUSTOMER_INTAKE:
+                try:
+                    if profile_result and profile_result.get('message'):
+                        final_msg += f" Client profile: {profile_result['message']}"
+                except NameError:
+                    pass  # profile_result not defined if workflow wasn't CUSTOMER_INTAKE
 
             return success({
                 "message": final_msg,

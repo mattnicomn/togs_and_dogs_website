@@ -54,7 +54,8 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
     const terminalStatuses = ['ARCHIVED', 'DELETED', 'COMPLETED', 'CANCELLED', 'DECLINED'];
     
     // Quick Filters
-    const staffMatch = filters.staff === 'ALL' || i.worker_id === filters.staff;
+    const staffMatch = filters.staff === 'ALL' || 
+      (filters.staff === '__HAS_PREFERENCE__' ? !!i.preferred_sitter : i.worker_id === filters.staff);
     const statusMatch = filters.status === 'ALL' 
       ? !terminalStatuses.includes(status) // Exclude terminal from 'ALL Active'
       : status === filters.status;         // Exact match for specific status selection
@@ -144,6 +145,8 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
               </option>
             ))}
             <option value="">Unassigned</option>
+            {/* Release 2: Filter by preferred sitter preference */}
+            <option value="__HAS_PREFERENCE__">Has Sitter Preference</option>
           </select>
         </div>
         <div className="filter-group">

@@ -28,39 +28,23 @@ def handler(event, context):
         from common.auth import get_current_company_id
         company_id = request_item.get('company_id') or get_current_company_id(event if 'event' in locals() else {})
 
-        # 1. Ensure PET entity exists or create a new one
-        pet_id = request_item.get('pet_id')
-        if not pet_id:
-            # Create a new PET record from the intake info
-            pet_id = str(uuid.uuid4())
-            pet_item = {
-                'PK': f"PET#{pet_id}",
-                'SK': f"CLIENT#{client_id}",
-                'company_id': company_id,
-                'entity_type': 'PET',
-                'name': request_item.get('pet_names') or "Unnamed Pet", 
-                'client_id': client_id,
-                'pet_id': pet_id,
-
-                'care_instructions': request_item.get('pet_info'),
-                'meet_and_greet_completed': True, # Only approved requests get here
-                'created_at': datetime.now(timezone.utc).isoformat(),
-                'status': 'ACTIVE'
-            }
-            if put_item(pet_item):
-                print(f"INFO: Created new PET entity {pet_id} for client {client_id}")
-                # Link back to original request
-                try:
-                    table.update_item(
-                        Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
-                        UpdateExpression="SET pet_id = :pid",
-                        ExpressionAttributeValues={":pid": pet_id}
-                    )
-                except Exception as e:
-                    print(f"WARNING: Failed to link pet_id back to request: {e}")
-            else:
-                print("ERROR: Failed to create PET entity")
-                return {"error": "Pet creation failed"}
+        # Release 4: Use multi-pet profile utility for PET# record creation.
+        # This replaces the inline single-pet creation with a utility that:
+        # - Supports multiple pets from the 'pets' array
+        # - Falls back to legacy pet_names string for old requests
+        # - Uses pet_ids array as idempotency guard
+        # - Links PET# records to client profile ID when available
+        # - Handles name matching and duplicate detection
+        from common.pet_profile import create_or_link_pets_from_request
+        pet_result = create_or_link_pets_from_request(
+            request_item=request_item,
+            request_id=request_id,
+            client_id=client_id,
+            company_id=company_id,
+            updated_by='system_job_handler'
+        )
+        pet_ids = pet_result.get('pet_ids', [])
+        pet_id = pet_ids[0] if pet_ids else None
 
         job_id = str(uuid.uuid4())
         
@@ -78,6 +62,15 @@ def handler(event, context):
             'client_email': request_item.get('client_email'),
             'service_type': request_item.get('service_type'),
             'start_date': request_item.get('start_date'),
+            # Release 1: Copy end_date and visit_window so JOB records have full scheduling context.
+            # Previously only start_date was copied, causing date-range bookings to display
+            # inconsistently between REQ and JOB records.
+            'end_date': request_item.get('end_date'),
+            'visit_window': request_item.get('visit_window'),
+            # Release 2: Copy visit_windows array and preferred_sitter for scheduling context.
+            'visit_windows': request_item.get('visit_windows'),
+            'preferred_sitter': request_item.get('preferred_sitter'),
+            'preferred_sitter_name': request_item.get('preferred_sitter_name'),
             'pet_info': request_item.get('pet_info'),
             'status': JobStatus.JOB_CREATED.value,
             'created_at': datetime.now(timezone.utc).isoformat(),

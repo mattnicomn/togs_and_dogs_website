@@ -33,6 +33,10 @@ const request = async (path, method = 'GET', data = null, isProtected = false) =
 
 export const submitRequest = (data) => request('/requests', 'POST', data);
 
+// Release 2: Public staff-options endpoint for preferred sitter selection.
+// Returns only sanitized display names — no sensitive data exposed.
+export const getStaffOptions = () => request('/requests', 'POST', { action: 'staff-options' });
+
 // Authenticated Client Portal Calls
 export const getClientRequests = () => request('/client/requests', 'GET', null, true);
 export const submitClientRequest = (data) => request('/client/requests', 'POST', data, true);

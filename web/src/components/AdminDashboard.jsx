@@ -51,6 +51,8 @@ const AdminDashboard = () => {
 
   const [clientList, setClientList] = useState([]);
   const [editingClientId, setEditingClientId] = useState(null);
+  // Release 3: Client Management search
+  const [clientSearch, setClientSearch] = useState('');
   const [clientForm, setClientForm] = useState({
     display_name: '',
     email: '',
@@ -287,7 +289,10 @@ const AdminDashboard = () => {
   const fetchAllData = async (startKey = null) => {
     try {
       setLoading(true);
-      if (!startKey) setSelectedIds([]); // Reset selection on fresh fetch
+      if (!startKey) {
+        setSelectedIds([]); // Reset selection on fresh fetch
+        setAllRequests([]); // Reset list on fresh fetch to prevent stale data mixing
+      }
       fetchStaffData();
       fetchClientData();
 
@@ -365,8 +370,15 @@ const AdminDashboard = () => {
     if (systemPrefixes.some(pref => pk.startsWith(pref))) return false;
     if (type === 'AUDIT' || type === 'SYSTEM') return false;
 
-    // Must look like a request or job (REQ# or JOB# in either key)
-    return pk.includes('REQ#') || pk.includes('JOB#') || sk.includes('REQ#') || sk.includes('JOB#');
+    // Release 1: Request List shows parent REQ# records only.
+    // JOB# records are internal child records for worker assignment/calendar sync.
+    // They should not appear as separate rows in the admin request list.
+    // This prevents the duplicate-row issue where both REQ and JOB appeared
+    // for the same booking in the "Scheduled with Staff" view.
+    if (pk.startsWith('JOB#')) return false;
+
+    // Must look like a request (REQ# in PK)
+    return pk.includes('REQ#');
   };
 
   const isDataIssue = (item) => {
@@ -374,6 +386,12 @@ const AdminDashboard = () => {
     
     // 1. Must be a request-like record (excludes AUDIT, STAFF, etc.)
     if (!isRequestLikeRecord(item)) return false;
+
+    // Release 1: JOB# records are excluded from Data Issues entirely.
+    // They are internal child records managed by the cascade system.
+    // Previously, JOB records could land in Data Issues when parent rollback
+    // removed worker_id from one side of the relationship.
+    if (item.PK && item.PK.toUpperCase().startsWith('JOB#')) return false;
 
     // 2. If it's already deleted or archived, we don't treat it as a primary "data issue" in the intake/booking queues
     if (isDeletedRecord(item) || isArchivedRecord(item)) return false;
@@ -412,6 +430,7 @@ const AdminDashboard = () => {
    */
   const getFilterPredicate = (filterKey) => {
     return (r) => {
+      if (!r) return false;
       const stat = (r.status || '').toUpperCase();
       const workflow = determineWorkflowType(r);
 
@@ -498,12 +517,15 @@ const AdminDashboard = () => {
 
     // Lifecycle-based Actions
     if (isArchivedRecord(item)) {
-      state.actions = ["REOPEN_PENDING", "DELETE"];
+      // Release 1: Add RESTORE_APPROVED as MVP recovery action.
+      // Future enhancement: restore to exact previous_status when tracking is available.
+      state.actions = ["REOPEN_PENDING", "RESTORE_APPROVED", "DELETE"];
       return state;
     }
     
     if (isDeletedRecord(item)) {
-      state.actions = ["REOPEN_PENDING", "PURGE_FOREVER"];
+      // Release 1: Add RESTORE_APPROVED as MVP recovery action.
+      state.actions = ["REOPEN_PENDING", "RESTORE_APPROVED", "PURGE_FOREVER"];
       return state;
     }
 
@@ -532,7 +554,8 @@ const AdminDashboard = () => {
           break;
         case 'DECLINED':
         case 'CANCELLED':
-          state.actions = ["ARCHIVE", "DELETE"];
+          // Release 1: Add RESTORE_APPROVED for controlled recovery.
+          state.actions = ["RESTORE_APPROVED", "ARCHIVE", "DELETE"];
           break;
         default:
           state.actions = ["ARCHIVE", "DELETE"];
@@ -569,7 +592,8 @@ const AdminDashboard = () => {
           break;
         case 'CANCELLED':
         case 'DECLINED':
-          state.actions = ["ARCHIVE", "DELETE"];
+          // Release 1: Add RESTORE_APPROVED for controlled recovery from accidental cancellation.
+          state.actions = ["RESTORE_APPROVED", "ARCHIVE", "DELETE"];
           break;
         default:
           state.actions = ["CANCEL", "ARCHIVE"];
@@ -593,17 +617,23 @@ const AdminDashboard = () => {
   }, [allRequests, statusFilter, view]);
 
   const filterCounts = React.useMemo(() => {
-    const filters = [
-        'INTAKE_QUEUE', 'MEET_GREET_REQUIRED', 'READY_FOR_APPROVAL',
-        'BOOKING_QUEUE', 'QUOTED', 'ASSIGNED', 'COMPLETED',
-        'ALL', 'NEEDS_ACTION', 'DATA_ISSUES',
-        'CANCELLED', 'ARCHIVED', 'DELETED'
-    ];
-    const counts = {};
-    filters.forEach(f => {
-        counts[f] = allRequests.filter(getFilterPredicate(f)).length;
-    });
-    return counts;
+    try {
+      const filters = [
+          'INTAKE_QUEUE', 'MEET_GREET_REQUIRED', 'READY_FOR_APPROVAL',
+          'BOOKING_QUEUE', 'QUOTED', 'ASSIGNED', 'COMPLETED',
+          'ALL', 'NEEDS_ACTION', 'DATA_ISSUES',
+          'CANCELLED', 'ARCHIVED', 'DELETED'
+      ];
+      const counts = {};
+      const reqs = allRequests || [];
+      filters.forEach(f => {
+          counts[f] = reqs.filter(getFilterPredicate(f)).length;
+      });
+      return counts;
+    } catch (err) {
+      console.error("Critical: filterCounts calculation crashed", err);
+      return {};
+    }
   }, [allRequests]);
 
   // Clear stale selections when switching filters
@@ -696,6 +726,18 @@ const AdminDashboard = () => {
       setView('SCHEDULER');
     }
   }, [role, view]);
+
+  // Release 4B Hotfix: Reactive data fetching when filters change
+  // This ensures the list stays populated when navigating between views.
+  useEffect(() => {
+    if (isAuthenticated && role) {
+      // Small delay to prevent jitter during rapid state changes
+      const timer = setTimeout(() => {
+        fetchAllData();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [statusFilter, view, timeframeFilter, isAuthenticated, role]);
 
 
   const handleLogin = async (e) => {
@@ -1186,6 +1228,9 @@ const AdminDashboard = () => {
       'COMPLETE': 'COMPLETED',
       'REOPEN': 'ASSIGNED',
       'REOPEN_PENDING': 'PENDING_REVIEW',
+      // Release 1: MVP recovery action — restores to APPROVED status.
+      // Future enhancement: restore to exact previous_status when tracking is available.
+      'RESTORE_APPROVED': 'APPROVED',
       'ARCHIVE': 'ARCHIVED',
       'CREATE_PROFILE': 'PROFILE_CREATED',
       'MOVE_TO_NEW_REQUEST': 'READY_FOR_APPROVAL',
@@ -1587,6 +1632,7 @@ const AdminDashboard = () => {
       'REVERT_TO_APPROVED':  'Reverted to Approved.',
       'REOPEN':              'Record reopened.',
       'REOPEN_PENDING':      'Record restored to Active.',
+      'RESTORE_APPROVED':    'Record restored to Approved.',
       'ASSIGN':              'Worker assigned.',
       'CREATE_PROFILE':      'Profile created.',
       'MOVE_TO_NEW_REQUEST': 'Moved to New Request.',
@@ -1786,28 +1832,63 @@ const AdminDashboard = () => {
   };
 
   const handleSelectPet = async (item) => {
-    // If the item has pet_id, fetch full care card
-    if (item.pet_id) {
+    // Release 4B: Load multiple PET# records when pet_ids array exists.
+    // Falls back to single pet_id, then request pets array, then legacy pet_names.
+    const petIds = item.pet_ids || (item.pet_id ? [item.pet_id] : []);
+    
+    if (petIds.length > 0) {
       try {
         setLoading(true);
-        const petData = await getPet(item.pet_id, item.client_id);
-        setSelectedPet({ ...petData, _originItem: item });
+        // Fetch all PET# records. If one fails, continue with the rest.
+        const petPromises = petIds.map(pid => 
+          getPet(pid, item.linked_client_profile_id || item.client_id).catch(err => {
+            console.warn(`Failed to load PET#${pid}:`, err.message);
+            return null; // Graceful fallback — don't block CareCard
+          })
+        );
+        const petResults = await Promise.all(petPromises);
+        const loadedPets = petResults.filter(p => p !== null);
+        
+        if (loadedPets.length > 0) {
+          // Multi-pet or single-pet: pass normalized structure
+          setSelectedPet({ 
+            ...loadedPets[0],  // First pet as primary (legacy compat for existing CareCard fields)
+            _allPets: loadedPets,  // Release 4B: all loaded PET# records
+            _originItem: item 
+          });
+        } else {
+          // All fetches failed — fall back to request-level data
+          setSelectedPet(_buildFallbackPet(item));
+        }
       } catch (err) {
         alert("Failed to load care card: " + err.message);
       } finally {
         setLoading(false);
       }
     } else {
-      // Basic client-only record preview
-      setSelectedPet({
-        name: item.client_name,
-        pet_id: null, // No longer using "NEW" as an unsafe fallback
-        client_id: item.client_id,
-        meet_and_greet_completed: false,
-        care_instructions: item.pet_info || 'No care instructions on file yet.',
-        _originItem: item
-      });
+      // No pet_ids — show preview from request data
+      setSelectedPet(_buildFallbackPet(item));
     }
+  };
+
+  const _buildFallbackPet = (item) => {
+    const petsArr = item.pets || [];
+    const firstPetName = (petsArr.length > 0 && petsArr[0].name) ? petsArr[0].name : null;
+    
+    return {
+      ...item, // Preserve original fields
+      name: firstPetName || item.pet_names || item.pet_name || item.client_name || 'Pet',
+      species: (petsArr.length > 0 ? petsArr[0].species : item.species) || 'DOG',
+      breed: (petsArr.length > 0 ? petsArr[0].breed : (item.breed || item.pet_breed)) || 'Unknown',
+      age: (petsArr.length > 0 ? petsArr[0].age : (item.age || item.pet_age)) || '?',
+      care_instructions: item.pet_info || item.care_instructions || item.pet_names,
+      health: { 
+        vet_name: item.vet_name || (item.vet_info ? item.vet_info.vet_name : null), 
+        vet_phone: item.vet_phone || (item.vet_info ? item.vet_info.clinic_phone : null) 
+      },
+      _allPets: petsArr.length > 0 ? petsArr.map(p => ({ ...p, _source: 'request' })) : [],
+      _originItem: item
+    };
   };
 
   const handleUpdatePet = async (updatedPet) => {
@@ -1827,7 +1908,18 @@ const AdminDashboard = () => {
         await reviewRequest(reqId, clientId, 'PROFILE_CREATED', "Automated: Profile created.");
       }
 
-      setSelectedPet(null);
+      if (pid === 'NEW') {
+        setSelectedPet(null);
+      } else {
+        setSelectedPet(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            ...updatedPet,
+            _allPets: prev._allPets?.map(p => p.pet_id === pid ? { ...p, ...updatedPet } : p)
+          };
+        });
+      }
       fetchAllData();
     } catch (err) {
       alert("Failed to update/create pet record: " + err.message);
@@ -2274,8 +2366,43 @@ const AdminDashboard = () => {
 
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
         <h3>Client Access Management</h3>
+        {/* Release 3: Client search — filters by name, email, phone, notes */}
+        <div style={{ marginTop: '12px', marginBottom: '16px' }}>
+          <input
+            type="text"
+            placeholder="Search by name, email, phone, or notes..."
+            value={clientSearch}
+            onChange={(e) => setClientSearch(e.target.value)}
+            style={{ width: '100%', maxWidth: '400px', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.9rem' }}
+          />
+          {clientSearch && (
+            <span style={{ marginLeft: '12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              {clientList.filter(c => {
+            if (!clientSearch) return true;
+            const term = clientSearch.toLowerCase();
+            return (c.display_name || '').toLowerCase().includes(term) ||
+              (c.email || '').toLowerCase().includes(term) ||
+              (c.phone || '').toLowerCase().includes(term) ||
+              (c.notes || '').toLowerCase().includes(term) ||
+              // Release 4: Search by pet name and breed via denormalized summary fields
+              (c.pet_names_summary || '').toLowerCase().includes(term) ||
+              (c.pet_breeds_summary || '').toLowerCase().includes(term);
+          }).length} of {clientList.length} clients
+            </span>
+          )}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px', marginTop: '20px' }}>
-          {clientList.map(c => (
+          {clientList.filter(c => {
+            if (!clientSearch) return true;
+            const term = clientSearch.toLowerCase();
+            return (c.display_name || '').toLowerCase().includes(term) ||
+              (c.email || '').toLowerCase().includes(term) ||
+              (c.phone || '').toLowerCase().includes(term) ||
+              (c.notes || '').toLowerCase().includes(term) ||
+              // Release 4: Search by pet name and breed
+              (c.pet_names_summary || '').toLowerCase().includes(term) ||
+              (c.pet_breeds_summary || '').toLowerCase().includes(term);
+          }).map(c => (
             <div 
               key={c.client_id} 
               className={`client-profile-card ${c.client_id === editingClientId ? 'selected' : ''}`} 
@@ -2285,7 +2412,14 @@ const AdminDashboard = () => {
               {c.client_id === editingClientId && <div className="selected-indicator">Selected</div>}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
-                  <h4 style={{ margin: 0 }}>{c.display_name}{isProtectedProfile(c) && <span style={{ color: 'var(--accent-teal)', fontSize: '11px', marginLeft: '8px', backgroundColor: 'rgba(0, 188, 212, 0.1)', padding: '2px 8px', borderRadius: '12px', border: '1px solid var(--accent-teal)' }}>Protected Platform Admin</span>}</h4>
+                  <h4 style={{ margin: 0 }}>
+                    {c.display_name}
+                    {isProtectedProfile(c) && <span style={{ color: 'var(--accent-teal)', fontSize: '11px', marginLeft: '8px', backgroundColor: 'rgba(0, 188, 212, 0.1)', padding: '2px 8px', borderRadius: '12px', border: '1px solid var(--accent-teal)' }}>Protected Platform Admin</span>}
+                    {/* Release 3: Auto-created badge */}
+                    {c.auto_created && <span style={{ fontSize: '10px', marginLeft: '8px', backgroundColor: 'rgba(76, 175, 80, 0.1)', color: 'var(--success, #4caf50)', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(76, 175, 80, 0.3)' }}>Auto-created</span>}
+                    {/* Release 3: Request count badge */}
+                    {c.request_count > 0 && <span style={{ fontSize: '10px', marginLeft: '6px', backgroundColor: 'var(--bg-muted)', padding: '2px 8px', borderRadius: '12px' }}>{c.request_count} request{c.request_count > 1 ? 's' : ''}</span>}
+                  </h4>
                   <p style={{ margin: '4px 0', fontSize: '13px', color: 'var(--text-muted)' }}>{c.email}</p>
                 </div>
                 {(() => {
@@ -3016,7 +3150,10 @@ const AdminDashboard = () => {
                 <h2>Request List — {(() => {
                   const filter = [
                     { id: 'NEEDS_ACTION', label: 'Needs Action' },
+                    { id: 'INTAKE_QUEUE', label: 'Intake Queue' },
+                    { id: 'READY_FOR_APPROVAL', label: 'Ready for Approval' },
                     { id: 'MEET_GREET_REQUIRED', label: 'Needs Meet & Greet' },
+                    { id: 'BOOKING_QUEUE', label: 'Booking Queue' },
                     { id: 'QUOTED', label: 'Price Quotes' },
                     { id: 'APPROVED', label: 'Approved' },
                     { id: 'ASSIGNED', label: 'Scheduled with Staff' },
@@ -3024,6 +3161,7 @@ const AdminDashboard = () => {
                     { id: 'CANCELLED', label: 'Cancelled' },
                     { id: 'ARCHIVED', label: 'Saved for Records' },
                     { id: 'DELETED', label: 'Trash' },
+                    { id: 'DATA_ISSUES', label: 'Data Integrity Issues' },
                     { id: 'ALL', label: 'All Active' }
                   ].find(f => f.id === statusFilter);
 
@@ -3063,17 +3201,20 @@ const AdminDashboard = () => {
                       ) : statusFilter === 'DELETED' || statusFilter === 'TRASH' ? (
                         <>
                           <option value="REOPEN_PENDING">Restore to Active</option>
+                          <option value="RESTORE_APPROVED">Restore to Approved</option>
                           <option value="__PURGE__">Delete Permanently</option>
                         </>
                       ) : statusFilter === 'ARCHIVED' ? (
                         <>
                           <option value="REOPEN_PENDING">Restore to Active</option>
+                          <option value="RESTORE_APPROVED">Restore to Approved</option>
                           <option value="DELETE">Move to Trash</option>
                         </>
                       ) : statusFilter === 'CANCELLED' ? (
                         <>
                           <option value="ARCHIVED">Archive</option>
                           <option value="REOPEN_PENDING">Restore to Active</option>
+                          <option value="RESTORE_APPROVED">Restore to Approved</option>
                           <option value="DELETE">Move to Trash</option>
                         </>
                       ) : statusFilter === 'COMPLETED' ? (
@@ -3173,7 +3314,16 @@ const AdminDashboard = () => {
                       <td>
                         <div className="info-stack">
                           <span className="small">{item.start_date} {item.end_date ? `to ${item.end_date}` : ''}</span>
-                          <span className="badge-window">{item.visit_window || 'ANYTIME'}</span>
+                          {/* Release 2: Display multi-select visit windows with backward compat */}
+                          <span className="badge-window">
+                            {(item.visit_windows || [item.visit_window || 'ANYTIME']).join(', ')}
+                          </span>
+                          {/* Release 2: Preferred sitter badge (informational) */}
+                          {item.preferred_sitter_name && (
+                            <span className="badge-preferred" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                              Prefers: {item.preferred_sitter_name}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td style={{ width: '180px' }}>
@@ -3289,6 +3439,7 @@ const AdminDashboard = () => {
                                      'CANCEL': 'Cancel Request', 'VERIFY_MG': 'Verify M&G',
                                      'REVERT_TO_APPROVED': 'Back to Approved', 'COMPLETE': 'Complete',
                                      'REOPEN': 'Reopen', 'REOPEN_PENDING': 'Restore to Active',
+                                     'RESTORE_APPROVED': 'Restore to Approved',
                                      'ARCHIVE': 'Archive', 'CREATE_PROFILE': 'Create Profile',
                                      'MOVE_TO_NEW_REQUEST': 'To New Request', 'DELETE': 'Move to Trash'
                                    };
@@ -3396,6 +3547,7 @@ const AdminDashboard = () => {
                       'CANCEL': 'Cancel Request', 'VERIFY_MG': 'Mark M&G Complete',
                       'REVERT_TO_APPROVED': 'Back to Approved', 'COMPLETE': 'Complete',
                       'REOPEN': 'Reopen', 'REOPEN_PENDING': 'Restore to Active',
+                      'RESTORE_APPROVED': 'Restore to Approved',
                       'ARCHIVE': 'Archive', 'CREATE_PROFILE': 'Create Profile',
                       'MOVE_TO_NEW_REQUEST': 'To New Request', 'DELETE': 'Move to Trash',
                       'MEET_GREET': 'Require Meet & Greet', 'MG_SCHEDULED': 'M&G Scheduled'
@@ -3470,6 +3622,21 @@ const AdminDashboard = () => {
           onUpdate={handleUpdatePet}
           onStatusUpdate={(item, status, note) => onReviewAction(item, status, note)}
           userRole={role}
+          staffList={staffList}
+          onAssign={async (originItem, workerId) => {
+            // Release 4E: Inline staff assignment from CareCard
+            await handleAssignAction(originItem, workerId);
+            // Refresh CareCard with updated worker data.
+            // handleAssignAction already called fetchAllData() which refreshes the list/scheduler.
+            // Now reload the CareCard with the updated origin item.
+            if (originItem) {
+              try {
+                const staff = staffList.find(s => (s.email || s.display_name) === workerId);
+                const updatedOrigin = {...originItem, worker_id: workerId, worker_name: staff?.display_name || workerId, status: 'ASSIGNED'};
+                await handleSelectPet(updatedOrigin);
+              } catch(e) { /* CareCard refresh failed — list is still updated */ }
+            }
+          }}
         />
 
       )}

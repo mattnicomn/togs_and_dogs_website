@@ -152,6 +152,12 @@ def handle_admin_decision(body, event):
             }
         )
         
+        # Release 1: Cascade REQ → JOB status change
+        # This fixes the gap where cancellation_handler did not cascade to JOB records,
+        # causing orphaned JOB records to remain in ASSIGNED status after parent was cancelled.
+        from common.cascade import cascade_status_to_job
+        cascade_status_to_job(item, new_status, updated_by="ADMIN")
+        
         # Audit log
         log_action(
             event, 

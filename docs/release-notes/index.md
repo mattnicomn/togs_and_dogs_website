@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 4E: Staff Assignment & Scheduling Logic**](release-4e-staff-assignment-logic.md) (2026-05-14)
 - [**Consolidated Workflow & Data Integrity Summary**](workflow/workflow-cleanup-and-data-integrity-summary.md) (2026-05-04)
 - [Request List Filter Count Hotfix](admin-dashboard/request-list-filter-count-hotfix.md) (2026-05-04)
 - [Workflow Cleanup & Separation](workflow/workflow_cleanup.md) (2026-05-03)
@@ -21,6 +22,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Dispatcher Timeline Status Update](workflow/dispatcher-timeline-status-update.md)
 
 ### 📊 Admin Dashboard & UI
+*   [Release 4E: Staff Assignment & Scheduling Logic](release-4e-staff-assignment-logic.md)
 *   [Request List Filter Count Hotfix](admin-dashboard/request-list-filter-count-hotfix.md)
 *   [Admin Data Issue Quick Filter](admin-dashboard/admin-data-issue-quick-filter.md)
 *   [Admin Staff Assignment Dropdown Fix](admin-dashboard/admin-staff-assignment-dropdown-fix.md)

@@ -1644,11 +1644,12 @@ def handler(event, context):
                 expression_values[":deleted"] = 'DELETED'
                 expression_values[":archived"] = 'ARCHIVED'
 
-                # Request-Like Filter: Must contain REQ# or JOB# in the PK to be considered for the Request List
-                # This safely ignores AUDIT#, COMPANY#, STAFF#, and CLIENT# records.
-                filter_expressions.append("(contains(PK, :req_tag) OR contains(PK, :job_tag))")
+                # Release 1: Request List shows parent REQ# records only.
+                # JOB# records are internal child records used for worker assignment and calendar sync.
+                # They should not appear as separate rows in the admin request list.
+                # Previously this included JOB# which caused duplicate rows for the same booking.
+                filter_expressions.append("contains(PK, :req_tag)")
                 expression_values[":req_tag"] = "REQ#"
-                expression_values[":job_tag"] = "JOB#"
                 
                 scan_kwargs["FilterExpression"] = " AND ".join(filter_expressions)
                 scan_kwargs["ExpressionAttributeValues"] = expression_values
@@ -1678,8 +1679,10 @@ def handler(event, context):
             query_kwargs = {
                 "IndexName": "StatusIndex",
                 "KeyConditionExpression": Key('status').eq(status),
-                "FilterExpression": "company_id = :cid OR attribute_not_exists(company_id)",
-                "ExpressionAttributeValues": {":cid": company_id},
+                # Release 1: Exclude JOB# records from status-specific queries.
+                # Only parent REQ# records should appear in the admin request list.
+                "FilterExpression": "(company_id = :cid OR attribute_not_exists(company_id)) AND contains(PK, :req_tag)",
+                "ExpressionAttributeValues": {":cid": company_id, ":req_tag": "REQ#"},
                 "Limit": limit,
                 "ScanIndexForward": False # Newest first
             }
@@ -1867,6 +1870,17 @@ def handler(event, context):
                             notify_event('CUSTOMER_APPROVED', current_item)
                         elif new_status == 'CANCELLED':
                             notify_event('VISIT_CANCELLED', current_item)
+                        
+                        # Release 1: Cascade REQ → JOB for bulk admin actions.
+                        # Ensures linked JOB records stay consistent when parent REQ is
+                        # archived, deleted, cancelled, or recovered via bulk action.
+                        if actual_pk.startswith('REQ#') and current_item.get('job_id'):
+                            try:
+                                from common.cascade import cascade_status_to_job
+                                remove_worker = (prev_status == 'ASSIGNED' and new_status == 'APPROVED')
+                                cascade_status_to_job(current_item, new_status, updated_by=user_email, remove_worker=remove_worker)
+                            except Exception as cascade_err:
+                                print(f"WARNING: [AdminBulk] Cascade failed for {actual_pk}: {cascade_err}")
                     else:
                         results["failed"] += 1
                         results["failures"].append({"record": f"{actual_pk}/{actual_sk}", "reason": "Database update failed"})
