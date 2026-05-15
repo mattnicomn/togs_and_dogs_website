@@ -17,11 +17,72 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   // Release 4E: Staff assignment state
   const [isAssigning, setIsAssigning] = useState(false);
 
-  // Release 4B: Multi-pet support — track which pet is selected
-  const allPets = (pet._allPets && pet._allPets.length > 0) ? pet._allPets : [pet];
+  // Release 5A Hotfix 2: Comprehensive multi-pet normalization.
+  // Builds a reliable pet array from any record format and tags each pet with metadata.
+  const _normalizePets = () => {
+    // Priority 1: True PET# records fetched from backend (have pet_id)
+    if (pet._allPets && pet._allPets.length > 0 && pet._allPets.some(p => p.pet_id)) {
+      return {
+        pets: pet._allPets,
+        hasTrueRecords: true,
+        isLegacy: false,
+        source: 'pet_records'
+      };
+    }
+    
+    // Priority 2: Request-level pets[] array (pre-approval, no PET# records yet)
+    const requestPets = pet._originItem?.pets || pet._allPets?.filter(p => p._source === 'request') || [];
+    if (requestPets.length > 0 && requestPets.some(p => p.name)) {
+      return {
+        pets: requestPets.filter(p => p.name).map((p, i) => ({ ...p, _source: 'request', _index: i })),
+        hasTrueRecords: false,
+        isLegacy: false,
+        source: 'request_pets'
+      };
+    }
+    
+    // Priority 3: Legacy comma-separated pet_names — split into read-only tabs
+    const petNamesStr = pet.name || pet._originItem?.pet_names || pet.pet_names || '';
+    if (petNamesStr.includes(',')) {
+      const names = petNamesStr.split(',').map(n => n.trim()).filter(n => n);
+      if (names.length > 1) {
+        return {
+          pets: names.map((name, i) => ({ name, _source: 'legacy_split', _index: i })),
+          hasTrueRecords: false,
+          isLegacy: true,
+          source: 'legacy_split'
+        };
+      }
+    }
+    
+    // Fallback: single pet display
+    return {
+      pets: [pet],
+      hasTrueRecords: !!pet.pet_id,
+      isLegacy: false,
+      source: 'single'
+    };
+  };
+
+  const petInfo = _normalizePets();
+  const allPets = petInfo.pets;
   const [activePetIndex, setActivePetIndex] = useState(0);
   const activePet = allPets[activePetIndex] || pet;
   const hasMultiplePets = allPets.length > 1;
+  const canEditActivePet = petInfo.hasTrueRecords && !!activePet.pet_id;
+
+  // Release 5A Hotfix 2: Reinitialize formData when active pet changes.
+  // Only runs when NOT in edit mode (edit mode blocks tab switching).
+  useEffect(() => {
+    if (!isEditing) {
+      setFormData({
+        health: {},
+        document_links: {},
+        scheduled_duration: 60,
+        ...activePet
+      });
+    }
+  }, [activePetIndex]);
 
   // Release 4B: Improved name fallback logic
   // Prioritizes actual pet names over the client name (common in legacy records)
@@ -68,7 +129,14 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
 
   const handleSave = async () => {
     try {
-      await onUpdate(formData);
+      // Release 5A: Save targets the active pet, not always the first pet.
+      // Ensure pet_id and client_id come from activePet so the correct PET# record is updated.
+      const saveData = {
+        ...formData,
+        pet_id: activePet.pet_id || formData.pet_id,
+        client_id: activePet.client_id || formData.client_id
+      };
+      await onUpdate(saveData);
       if (pet._originItem && onStatusUpdate && selectedStatus !== pet._originItem.status) {
         await onStatusUpdate(pet._originItem, selectedStatus, statusNote || "Status updated via record edit.");
       }
@@ -79,7 +147,8 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   };
 
   const handleCancel = () => {
-    setFormData({ ...pet });
+    // Release 5A: Reset to activePet data, not the original first pet
+    setFormData({ health: {}, document_links: {}, scheduled_duration: 60, ...activePet });
     setIsEditing(false);
   };
 
@@ -517,30 +586,51 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
         </nav>
 
         <div className="care-card-body">
-          {/* Release 4B: Multi-pet selector — Visible across all relevant tabs */}
-          {hasMultiplePets && ['overview', 'care', 'emergency'].includes(activeTab) && (
+          {/* Release 5A Hotfix 2: Multi-pet selector with edit-mode blocking and source-aware display */}
+          {hasMultiplePets && ['overview', 'care', 'emergency', 'quoting'].includes(activeTab) && (
             <div className="pet-selector-nav" style={{ 
               display: 'flex', gap: '8px', padding: '16px 24px', 
               background: 'var(--bg-muted)', borderBottom: '1px solid var(--border-soft)',
-              flexWrap: 'wrap' 
+              flexWrap: 'wrap', alignItems: 'center'
             }}>
               {allPets.map((p, idx) => (
                 <button
                   key={idx}
-                  onClick={() => setActivePetIndex(idx)}
+                  onClick={() => {
+                    if (isEditing) return;
+                    setActivePetIndex(idx);
+                  }}
+                  disabled={isEditing && idx !== activePetIndex}
                   className={`pet-chip ${idx === activePetIndex ? 'active' : ''}`}
                   style={{
-                    padding: '6px 14px', borderRadius: '16px', border: 'none', cursor: 'pointer',
+                    padding: '6px 14px', borderRadius: '16px', border: 'none', cursor: isEditing && idx !== activePetIndex ? 'not-allowed' : 'pointer',
                     backgroundColor: idx === activePetIndex ? 'var(--primary)' : 'transparent',
                     color: idx === activePetIndex ? '#fff' : 'var(--text-primary)',
                     border: idx === activePetIndex ? 'none' : '1px solid var(--border)',
                     fontSize: '0.85rem', fontWeight: idx === activePetIndex ? '600' : '400',
+                    opacity: isEditing && idx !== activePetIndex ? 0.5 : 1,
                     transition: 'all 0.15s ease'
                   }}
                 >
                   {p.name || p.pet_name || `Pet ${idx + 1}`}
                 </button>
               ))}
+              {isEditing && (
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '8px' }}>
+                  Save or cancel before switching pets
+                </span>
+              )}
+            </div>
+          )}
+          {/* Release 5A Hotfix 2: Legacy/request-level notice */}
+          {hasMultiplePets && petInfo.isLegacy && ['overview', 'care'].includes(activeTab) && (
+            <div style={{ padding: '12px 24px', background: 'rgba(255, 193, 7, 0.1)', borderBottom: '1px solid rgba(255, 193, 7, 0.3)', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              ⚠️ Legacy multi-pet record — individual pet editing is unavailable until pets are normalized.
+            </div>
+          )}
+          {hasMultiplePets && petInfo.source === 'request_pets' && ['overview', 'care'].includes(activeTab) && (
+            <div style={{ padding: '12px 24px', background: 'rgba(33, 150, 243, 0.08)', borderBottom: '1px solid rgba(33, 150, 243, 0.2)', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              ℹ️ Pre-approval pet data — editing will be available after this request is approved and pet records are created.
             </div>
           )}
           {renderTabContent()}

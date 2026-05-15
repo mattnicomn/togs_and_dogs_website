@@ -1839,25 +1839,26 @@ const AdminDashboard = () => {
     if (petIds.length > 0) {
       try {
         setLoading(true);
-        // Fetch all PET# records. If one fails, continue with the rest.
-        const petPromises = petIds.map(pid => 
+        // Release 5A Hotfix 1: Fetch all PET# records with reliable fallback.
+        // If a fetch fails, include a placeholder with the pet_id so tabs still render.
+        const petPromises = petIds.map((pid, idx) => 
           getPet(pid, item.linked_client_profile_id || item.client_id).catch(err => {
             console.warn(`Failed to load PET#${pid}:`, err.message);
-            return null; // Graceful fallback — don't block CareCard
+            // Return a minimal fallback so the pet tab still appears
+            return { pet_id: pid, client_id: item.linked_client_profile_id || item.client_id, name: `Pet ${idx + 1} (loading failed)`, _fetchFailed: true };
           })
         );
         const petResults = await Promise.all(petPromises);
+        // All results are non-null now (failed ones have fallback data)
         const loadedPets = petResults.filter(p => p !== null);
         
         if (loadedPets.length > 0) {
-          // Multi-pet or single-pet: pass normalized structure
           setSelectedPet({ 
-            ...loadedPets[0],  // First pet as primary (legacy compat for existing CareCard fields)
-            _allPets: loadedPets,  // Release 4B: all loaded PET# records
+            ...loadedPets.find(p => !p._fetchFailed) || loadedPets[0],
+            _allPets: loadedPets,
             _originItem: item 
           });
         } else {
-          // All fetches failed — fall back to request-level data
           setSelectedPet(_buildFallbackPet(item));
         }
       } catch (err) {
@@ -1895,8 +1896,11 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       const originItem = selectedPet?._originItem;
-      const { clientId, reqId } = resolveIds(originItem || selectedPet || updatedPet);
+      const { clientId: resolvedClientId, reqId } = resolveIds(originItem || selectedPet || updatedPet);
       const pid = updatedPet.pet_id || selectedPet?.pet_id || 'NEW';
+      // Release 5A: Use the pet's own client_id for the update call (may differ from REQ client_id
+      // when PET# records use linked_client_profile_id as their SK).
+      const clientId = updatedPet.client_id || resolvedClientId;
       
       if (!clientId) throw new Error("Could not resolve Client ID for pet update.");
       
@@ -1911,12 +1915,16 @@ const AdminDashboard = () => {
       if (pid === 'NEW') {
         setSelectedPet(null);
       } else {
+        // Release 5A Hotfix 2: Preserve _allPets and _originItem metadata after save
+        // so the multi-pet UI doesn't collapse back to single-pet view.
         setSelectedPet(prev => {
           if (!prev) return null;
+          const preservedAllPets = prev._allPets?.map(p => p.pet_id === pid ? { ...p, ...updatedPet } : p);
           return {
             ...prev,
             ...updatedPet,
-            _allPets: prev._allPets?.map(p => p.pet_id === pid ? { ...p, ...updatedPet } : p)
+            _allPets: preservedAllPets || prev._allPets,
+            _originItem: prev._originItem  // Always preserve origin
           };
         });
       }
