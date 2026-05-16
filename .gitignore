@@ -38,3 +38,14 @@ res*.json
 test*.json
 response*.json
 !infra/prod/payload.json
+
+# Local validation artifacts and production data dumps (Release 5 cleanup)
+web/full_scan.json
+web/scan_output.json
+web/requests_scan.json
+web/test_export_local.xlsx
+web/validate_export.cjs
+get_key.json
+api_test.py
+api_e2e_test.py
+*.xlsx
