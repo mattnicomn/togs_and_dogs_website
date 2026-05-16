@@ -4,6 +4,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 
 ## 🌟 Featured / Recent
 - [**Release 5C: Archive Pet from CareCard**](release-5c-archive-pet.md) (2026-05-15) — ✅ **Accepted**
+- [**Release 5B: Add New Pet from CareCard**](release-5b-add-pet-from-carecard.md) (2026-05-15) — ✅ **Accepted**
 - [**Release 5A: Multi-Pet Independent Editing**](release-5a-multi-pet-editing-logic.md) (2026-05-15) — ✅ **Accepted (after Hotfix 2)**
 - [**Release 4E: Staff Assignment & Scheduling Logic**](release-4e-staff-assignment-logic.md) (2026-05-14)
 - [**Consolidated Workflow & Data Integrity Summary**](workflow/workflow-cleanup-and-data-integrity-summary.md) (2026-05-04)
