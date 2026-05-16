@@ -136,12 +136,19 @@ def handler(event, context):
             if put_item(item):
                 if request_id:
                     try:
+                        # Release 5B Hotfix 3: Append new pet_id to the REQ record's pet_ids array
+                        # so future CareCard loads include the new pet persistently.
+                        # Also update the legacy singular pet_id field.
                         table.update_item(
                             Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
-                            UpdateExpression="SET pet_id = :pid",
-                            ExpressionAttributeValues={":pid": pet_id}
+                            UpdateExpression="SET pet_id = if_not_exists(pet_id, :pid), pet_ids = list_append(if_not_exists(pet_ids, :empty), :new_pid)",
+                            ExpressionAttributeValues={
+                                ":pid": pet_id,
+                                ":new_pid": [pet_id],
+                                ":empty": []
+                            }
                         )
-                        print(f"INFO: [Req:{request_id}] Linked to Pet:{pet_id}")
+                        print(f"INFO: [Req:{request_id}] Linked Pet:{pet_id} to pet_ids array")
                     except Exception as link_err:
                         print(f"ERROR: [Req:{request_id}] Failed to link to Pet:{pet_id}: {link_err}")
                 

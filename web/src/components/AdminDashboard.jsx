@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { signIn, getSession, getEffectiveRole } from '../api/auth';
 
-import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData } from '../api/client';
+import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData } from '../api/client';
 import * as XLSX from 'xlsx';
 
 
@@ -3643,6 +3643,47 @@ const AdminDashboard = () => {
                 const updatedOrigin = {...originItem, worker_id: workerId, worker_name: staff?.display_name || workerId, status: 'ASSIGNED'};
                 await handleSelectPet(updatedOrigin);
               } catch(e) { /* CareCard refresh failed — list is still updated */ }
+            }
+          }}
+          onAddPet={async (clientId, petData) => {
+            // Release 5B Hotfix 3: Create new pet and persistently link to parent request.
+            // Pass request_id so backend appends to pet_ids array on the REQ record.
+            try {
+              const originItem = selectedPet?._originItem;
+              const { reqId } = resolveIds(originItem || {});
+              const result = await createPet({ ...petData, client_id: clientId, request_id: reqId || undefined });
+              showNotification("Pet created successfully!", "success");
+              
+              // Fetch all pets for this client to get the complete list including the new one
+              const allPetIds = [...(originItem?.pet_ids || [])];
+              const newPetId = result?.pet_id;
+              if (newPetId && !allPetIds.includes(newPetId)) {
+                allPetIds.push(newPetId);
+              }
+              
+              // Re-fetch all PET# records using the updated ID list
+              if (allPetIds.length > 0) {
+                const petPromises = allPetIds.map((pid, idx) =>
+                  getPet(pid, clientId).catch(() => ({ pet_id: pid, name: `Pet ${idx + 1}`, _fetchFailed: true }))
+                );
+                const petResults = await Promise.all(petPromises);
+                const loadedPets = petResults.filter(p => p !== null);
+                
+                setSelectedPet(prev => {
+                  if (!prev) return null;
+                  return {
+                    ...prev,
+                    _allPets: loadedPets,
+                    _originItem: { ...(prev._originItem || {}), pet_ids: allPetIds },
+                    _newPetIndex: loadedPets.length - 1
+                  };
+                });
+              }
+              // Also refresh the main request list so pet_names display updates
+              fetchAllData();
+            } catch (err) {
+              showNotification("Failed to create pet: " + err.message, "error");
+              throw err;
             }
           }}
         />

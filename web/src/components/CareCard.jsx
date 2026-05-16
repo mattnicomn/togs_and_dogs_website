@@ -1,12 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import '../Portal.css';
 
-const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList = [], onAssign }) => {
+const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList = [], onAssign, onAddPet }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState((pet._originItem?.status || '').toUpperCase());
   const [statusNote, setStatusNote] = useState('');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  // Release 5B: Add pet form state
+  const [isAddingPet, setIsAddingPet] = useState(false);
+  const [isCreatingPet, setIsCreatingPet] = useState(false);
+  const [newPetForm, setNewPetForm] = useState({ name: '', species: 'DOG', breed: '', age: '', feeding_notes: '', medication_notes: '', behavior_notes: '', vet_notes: '', emergency_notes: '' });
+  // Release 5C: Archive pet confirmation state
+  const [archiveConfirm, setArchiveConfirm] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
   const [formData, setFormData] = useState({ 
     health: {}, 
     document_links: {}, 
@@ -22,8 +29,10 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   const _normalizePets = () => {
     // Priority 1: True PET# records fetched from backend (have pet_id)
     if (pet._allPets && pet._allPets.length > 0 && pet._allPets.some(p => p.pet_id)) {
+      // Release 5C: Filter out archived pets (is_active === false)
+      const activePets = pet._allPets.filter(p => p.is_active !== false);
       return {
-        pets: pet._allPets,
+        pets: activePets.length > 0 ? activePets : pet._allPets, // Fallback to all if none active
         hasTrueRecords: true,
         isLegacy: false,
         source: 'pet_records'
@@ -70,6 +79,13 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   const activePet = allPets[activePetIndex] || pet;
   const hasMultiplePets = allPets.length > 1;
   const canEditActivePet = petInfo.hasTrueRecords && !!activePet.pet_id;
+
+  // Release 5B Hotfix 2: Auto-select newly added pet when _newPetIndex is set
+  useEffect(() => {
+    if (pet._newPetIndex !== undefined && pet._newPetIndex >= 0 && pet._newPetIndex < allPets.length) {
+      setActivePetIndex(pet._newPetIndex);
+    }
+  }, [pet._newPetIndex, allPets.length]);
 
   // Release 5A Hotfix 2: Reinitialize formData when active pet changes.
   // Only runs when NOT in edit mode (edit mode blocks tab switching).
@@ -619,6 +635,140 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '8px' }}>
                   Save or cancel before switching pets
                 </span>
+              )}
+              {/* Release 5B: Add Pet button — owner/admin only, requires linked client profile */}
+              {onAddPet && ['owner', 'admin'].includes(userRole) && !isEditing && !isAddingPet && (pet._originItem?.linked_client_profile_id || pet._originItem?.client_id) && (
+                <button
+                  onClick={() => setIsAddingPet(true)}
+                  style={{ padding: '6px 14px', borderRadius: '16px', border: '2px dashed var(--border)', background: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}
+                >
+                  + Add Pet
+                </button>
+              )}
+              {/* Release 5C Hotfix: Archive Pet with inline confirmation (no window.confirm) */}
+              {['owner', 'admin'].includes(userRole) && !isEditing && !isAddingPet && canEditActivePet && hasMultiplePets && (
+                archiveConfirm ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--danger, #dc3545)' }}>Archive "{activePet.name}"?</span>
+                    <button
+                      disabled={isArchiving}
+                      onClick={async () => {
+                        const pid = activePet.pet_id;
+                        const cid = activePet.client_id || pet._originItem?.linked_client_profile_id || pet._originItem?.client_id;
+                        if (!pid || !cid) { setArchiveConfirm(false); return; }
+                        setIsArchiving(true);
+                        try {
+                          await onUpdate({ pet_id: pid, client_id: cid, is_active: false });
+                          setArchiveConfirm(false);
+                          const newIndex = activePetIndex > 0 ? activePetIndex - 1 : 0;
+                          setActivePetIndex(newIndex);
+                        } catch (e) {
+                          console.error('Archive failed:', e);
+                        } finally {
+                          setIsArchiving(false);
+                        }
+                      }}
+                      style={{ padding: '3px 10px', borderRadius: '8px', border: 'none', background: 'var(--danger, #dc3545)', color: '#fff', cursor: 'pointer', fontSize: '0.75rem' }}
+                    >
+                      {isArchiving ? '...' : 'Yes'}
+                    </button>
+                    <button
+                      onClick={() => setArchiveConfirm(false)}
+                      style={{ padding: '3px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'none', cursor: 'pointer', fontSize: '0.75rem' }}
+                    >
+                      No
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => setArchiveConfirm(true)}
+                    style={{ padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(220, 53, 69, 0.3)', background: 'rgba(220, 53, 69, 0.05)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--danger, #dc3545)', marginLeft: 'auto' }}
+                  >
+                    Archive Pet
+                  </button>
+                )
+              )}
+            </div>
+          )}
+          {/* Release 5B: Show Add Pet button even for single-pet records (no multi-pet selector visible) */}
+          {!hasMultiplePets && ['overview'].includes(activeTab) && onAddPet && ['owner', 'admin'].includes(userRole) && !isEditing && !isAddingPet && (pet._originItem?.linked_client_profile_id || pet._originItem?.client_id) && (
+            <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border-soft)' }}>
+              <button
+                onClick={() => setIsAddingPet(true)}
+                style={{ padding: '6px 14px', borderRadius: '16px', border: '2px dashed var(--border)', background: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}
+              >
+                + Add Pet
+              </button>
+            </div>
+          )}
+          {/* Release 5B: Add Pet inline form */}
+          {isAddingPet && (
+            <div style={{ padding: '20px 24px', background: 'rgba(76, 175, 80, 0.05)', borderBottom: '1px solid rgba(76, 175, 80, 0.2)' }}>
+              <h4 style={{ margin: '0 0 12px 0' }}>Add New Pet</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="field">
+                  <label>Pet Name *</label>
+                  <input type="text" value={newPetForm.name} onChange={e => setNewPetForm({...newPetForm, name: e.target.value})} placeholder="e.g. Luna" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                </div>
+                <div className="field">
+                  <label>Species</label>
+                  <select value={newPetForm.species} onChange={e => setNewPetForm({...newPetForm, species: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                    <option value="DOG">Dog</option>
+                    <option value="CAT">Cat</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Breed</label>
+                  <input type="text" value={newPetForm.breed} onChange={e => setNewPetForm({...newPetForm, breed: e.target.value})} placeholder="e.g. Golden Retriever" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                </div>
+                <div className="field">
+                  <label>Age</label>
+                  <input type="number" min="0" max="30" value={newPetForm.age} onChange={e => setNewPetForm({...newPetForm, age: e.target.value})} placeholder="Years" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                </div>
+                <div className="field" style={{ gridColumn: 'span 2' }}>
+                  <label>Feeding Notes</label>
+                  <input type="text" value={newPetForm.feeding_notes} onChange={e => setNewPetForm({...newPetForm, feeding_notes: e.target.value})} placeholder="Food type, schedule..." style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                </div>
+                <div className="field" style={{ gridColumn: 'span 2' }}>
+                  <label>Medication Notes</label>
+                  <input type="text" value={newPetForm.medication_notes} onChange={e => setNewPetForm({...newPetForm, medication_notes: e.target.value})} placeholder="Medications, dosage..." style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                </div>
+                <div className="field" style={{ gridColumn: 'span 2' }}>
+                  <label>Behavior Notes</label>
+                  <input type="text" value={newPetForm.behavior_notes} onChange={e => setNewPetForm({...newPetForm, behavior_notes: e.target.value})} placeholder="Temperament, triggers..." style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                <button
+                  disabled={!newPetForm.name.trim() || isCreatingPet}
+                  onClick={async () => {
+                    setIsCreatingPet(true);
+                    try {
+                      const clientId = pet._originItem?.linked_client_profile_id || pet._originItem?.client_id || pet.client_id;
+                      await onAddPet(clientId, {
+                        ...newPetForm,
+                        age: newPetForm.age ? parseInt(newPetForm.age) : null
+                      });
+                      setIsAddingPet(false);
+                      setNewPetForm({ name: '', species: 'DOG', breed: '', age: '', feeding_notes: '', medication_notes: '', behavior_notes: '', vet_notes: '', emergency_notes: '' });
+                    } catch (e) {
+                      console.error('Failed to create pet:', e);
+                    } finally {
+                      setIsCreatingPet(false);
+                    }
+                  }}
+                  className="button-primary"
+                  style={{ padding: '8px 20px' }}
+                >
+                  {isCreatingPet ? 'Creating...' : 'Create Pet'}
+                </button>
+                <button onClick={() => setIsAddingPet(false)} className="button-secondary" style={{ padding: '8px 20px' }}>Cancel</button>
+              </div>
+              {!(pet._originItem?.linked_client_profile_id) && !(pet._originItem?.job_id) && (
+                <p style={{ marginTop: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  ⚠️ Approve this request before adding pets.
+                </p>
               )}
             </div>
           )}
