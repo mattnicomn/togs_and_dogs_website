@@ -53,6 +53,8 @@ const AdminDashboard = () => {
   const [editingClientId, setEditingClientId] = useState(null);
   // Release 3: Client Management search
   const [clientSearch, setClientSearch] = useState('');
+  // Release 5D Hotfix 1: Pets loaded for the selected/editing client
+  const [clientPets, setClientPets] = useState([]);
   const [clientForm, setClientForm] = useState({
     display_name: '',
     email: '',
@@ -2061,6 +2063,23 @@ const AdminDashboard = () => {
       creation_mode: 'profile_only',
       send_invite: true
     });
+    // Release 5D Hotfix 1: Fetch PET# records for this client
+    setClientPets([]);
+    if (client.client_id) {
+      // Scan for pets belonging to this client via the existing export/scan data
+      // Use allRequests to find pet_ids linked to this client, then fetch each
+      const linkedRequests = allRequests.filter(r => r.linked_client_profile_id === client.client_id || r.client_id === client.client_id);
+      const petIdSet = new Set();
+      linkedRequests.forEach(r => {
+        if (r.pet_ids) r.pet_ids.forEach(pid => petIdSet.add(pid));
+        if (r.pet_id) petIdSet.add(r.pet_id);
+      });
+      const petIds = [...petIdSet];
+      if (petIds.length > 0) {
+        Promise.all(petIds.map(pid => getPet(pid, client.client_id).catch(() => null)))
+          .then(results => setClientPets(results.filter(p => p !== null)));
+      }
+    }
     setView('CLIENT_MGMT');
   };
 
@@ -2438,6 +2457,34 @@ const AdminDashboard = () => {
 
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                 {c.phone && <p style={{ margin: '2px 0' }}>📞 {c.phone}</p>}
+                {/* Release 5D Hotfix 1: Pet visibility + client_id traceability */}
+                {c.pet_names_summary && (
+                  <p style={{ margin: '4px 0', fontSize: '12px' }}>
+                    🐾 {c.pet_names_summary}
+                    {c.pet_breeds_summary && (
+                      <span style={{ color: 'var(--text-muted)', marginLeft: '4px' }}>({c.pet_breeds_summary})</span>
+                    )}
+                  </p>
+                )}
+                {!c.pet_names_summary && !c.intake_request_ids && (
+                  <p style={{ margin: '4px 0', fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No pets linked</p>
+                )}
+                {/* Show fetched PET# records when this client is selected */}
+                {c.client_id === editingClientId && clientPets.length > 0 && (
+                  <div style={{ marginTop: '8px', padding: '8px', background: 'var(--bg-muted)', borderRadius: '8px', fontSize: '11px' }}>
+                    <strong>Linked PET# Records:</strong>
+                    {clientPets.map((p, i) => (
+                      <div key={i} style={{ margin: '4px 0', paddingLeft: '8px', borderLeft: '2px solid var(--primary)' }}>
+                        {p.name || 'Unnamed'} {p.species ? `(${p.species})` : ''} {p.breed ? `— ${p.breed}` : ''}
+                        {p.is_active === false && <span style={{ color: 'var(--danger, #dc3545)', marginLeft: '6px' }}>Archived</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {c.client_id === editingClientId && clientPets.length === 0 && c.pet_names_summary && (
+                  <p style={{ margin: '4px 0', fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>Legacy summary only — no individual PET# records found</p>
+                )}
+                <p style={{ margin: '4px 0 0 0', fontSize: '10px', color: 'var(--text-muted)', opacity: 0.7 }}>ID: {c.client_id}</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
                   {c.cognito_sub ? (
                     <>

@@ -853,7 +853,14 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
 
         <footer className="card-footer">
           <div className="footer-left">
+             {/* Release 5D Hotfix 1: Enhanced client traceability */}
              <p className="micro-text">Client ID: {pet.client_id}</p>
+             {pet._originItem?.linked_client_profile_id && pet._originItem.linked_client_profile_id !== pet.client_id && (
+               <p className="micro-text">Profile ID: {pet._originItem.linked_client_profile_id}</p>
+             )}
+             {pet._originItem?.client_name && (
+               <p className="micro-text">Client: {pet._originItem.client_name}</p>
+             )}
           </div>
           <div className="footer-actions">
             {isEditing ? (
