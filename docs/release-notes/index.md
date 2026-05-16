@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 5F: Archived Pets Visibility & Restore**](release-5f-archived-pets-visibility-restore.md) (2026-05-15) — ✅ **Accepted**
 - [**Release 5D: Client Management Pet Visibility**](release-5d-client-pet-visibility.md) (2026-05-15) — ✅ **Accepted**
 - [**Release 5C: Archive Pet from CareCard**](release-5c-archive-pet.md) (2026-05-15) — ✅ **Accepted**
 - [**Release 5B: Add New Pet from CareCard**](release-5b-add-pet-from-carecard.md) (2026-05-15) — ✅ **Accepted**

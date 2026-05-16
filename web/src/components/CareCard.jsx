@@ -14,6 +14,8 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   // Release 5C: Archive pet confirmation state
   const [archiveConfirm, setArchiveConfirm] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  // Release 5F: Archived pets visibility toggle
+  const [showArchived, setShowArchived] = useState(false);
   const [formData, setFormData] = useState({ 
     health: {}, 
     document_links: {}, 
@@ -29,13 +31,16 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   const _normalizePets = () => {
     // Priority 1: True PET# records fetched from backend (have pet_id)
     if (pet._allPets && pet._allPets.length > 0 && pet._allPets.some(p => p.pet_id)) {
-      // Release 5C: Filter out archived pets (is_active === false)
-      const activePets = pet._allPets.filter(p => p.is_active !== false);
+      // Release 5F: Show archived pets when toggle is on, otherwise filter them out
+      const visiblePets = showArchived
+        ? pet._allPets
+        : pet._allPets.filter(p => p.is_active !== false);
       return {
-        pets: activePets.length > 0 ? activePets : pet._allPets, // Fallback to all if none active
+        pets: visiblePets.length > 0 ? visiblePets : pet._allPets,
         hasTrueRecords: true,
         isLegacy: false,
-        source: 'pet_records'
+        source: 'pet_records',
+        hasArchivedPets: pet._allPets.some(p => p.is_active === false)
       };
     }
     
@@ -629,6 +634,8 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                   }}
                 >
                   {p.name || p.pet_name || `Pet ${idx + 1}`}
+                  {/* Release 5F: Visual label for archived pets */}
+                  {p.is_active === false && <span style={{ marginLeft: '4px', fontSize: '0.7rem', opacity: 0.7 }}>⊘</span>}
                 </button>
               ))}
               {isEditing && (
@@ -645,9 +652,28 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                   + Add Pet
                 </button>
               )}
-              {/* Release 5C Hotfix: Archive Pet with inline confirmation (no window.confirm) */}
+              {/* Release 5F: Archive/Restore Pet with inline confirmation */}
               {['owner', 'admin'].includes(userRole) && !isEditing && !isAddingPet && canEditActivePet && hasMultiplePets && (
-                archiveConfirm ? (
+                activePet.is_active === false ? (
+                  // Restore button for archived pets
+                  <button
+                    disabled={isArchiving}
+                    onClick={async () => {
+                      const pid = activePet.pet_id;
+                      const cid = activePet.client_id || pet._originItem?.linked_client_profile_id || pet._originItem?.client_id;
+                      if (!pid || !cid) return;
+                      setIsArchiving(true);
+                      try {
+                        await onUpdate({ pet_id: pid, client_id: cid, is_active: true });
+                        setActivePetIndex(0);
+                      } catch (e) { console.error('Restore failed:', e); }
+                      finally { setIsArchiving(false); }
+                    }}
+                    style={{ padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(76, 175, 80, 0.4)', background: 'rgba(76, 175, 80, 0.08)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--success, #4caf50)', marginLeft: 'auto' }}
+                  >
+                    {isArchiving ? 'Restoring...' : 'Restore Pet'}
+                  </button>
+                ) : archiveConfirm ? (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
                     <span style={{ fontSize: '0.75rem', color: 'var(--danger, #dc3545)' }}>Archive "{activePet.name}"?</span>
                     <button
@@ -662,22 +688,14 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                           setArchiveConfirm(false);
                           const newIndex = activePetIndex > 0 ? activePetIndex - 1 : 0;
                           setActivePetIndex(newIndex);
-                        } catch (e) {
-                          console.error('Archive failed:', e);
-                        } finally {
-                          setIsArchiving(false);
-                        }
+                        } catch (e) { console.error('Archive failed:', e); }
+                        finally { setIsArchiving(false); }
                       }}
                       style={{ padding: '3px 10px', borderRadius: '8px', border: 'none', background: 'var(--danger, #dc3545)', color: '#fff', cursor: 'pointer', fontSize: '0.75rem' }}
                     >
                       {isArchiving ? '...' : 'Yes'}
                     </button>
-                    <button
-                      onClick={() => setArchiveConfirm(false)}
-                      style={{ padding: '3px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'none', cursor: 'pointer', fontSize: '0.75rem' }}
-                    >
-                      No
-                    </button>
+                    <button onClick={() => setArchiveConfirm(false)} style={{ padding: '3px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'none', cursor: 'pointer', fontSize: '0.75rem' }}>No</button>
                   </span>
                 ) : (
                   <button
@@ -688,17 +706,40 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                   </button>
                 )
               )}
+              {/* Release 5F: Show Archived toggle when archived pets exist */}
+              {petInfo.hasArchivedPets && ['owner', 'admin'].includes(userRole) && !isEditing && (
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-muted)', cursor: 'pointer', marginLeft: hasMultiplePets ? '0' : 'auto' }}>
+                  <input type="checkbox" checked={showArchived} onChange={() => { setShowArchived(!showArchived); setActivePetIndex(0); }} style={{ width: '14px', height: '14px' }} />
+                  Show Archived
+                </label>
+              )}
             </div>
           )}
           {/* Release 5B: Show Add Pet button even for single-pet records (no multi-pet selector visible) */}
           {!hasMultiplePets && ['overview'].includes(activeTab) && onAddPet && ['owner', 'admin'].includes(userRole) && !isEditing && !isAddingPet && (pet._originItem?.linked_client_profile_id || pet._originItem?.client_id) && (
-            <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border-soft)' }}>
+            <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border-soft)', display: 'flex', gap: '12px', alignItems: 'center' }}>
               <button
                 onClick={() => setIsAddingPet(true)}
                 style={{ padding: '6px 14px', borderRadius: '16px', border: '2px dashed var(--border)', background: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}
               >
                 + Add Pet
               </button>
+              {/* Release 5F Hotfix: Show Archived toggle even when only 1 active pet remains */}
+              {petInfo.hasArchivedPets && ['owner', 'admin'].includes(userRole) && (
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={showArchived} onChange={() => { setShowArchived(!showArchived); setActivePetIndex(0); }} style={{ width: '14px', height: '14px' }} />
+                  Show Archived
+                </label>
+              )}
+            </div>
+          )}
+          {/* Release 5F Hotfix: Show Archived toggle standalone when no Add Pet button and no multi-pet selector */}
+          {!hasMultiplePets && !(['overview'].includes(activeTab) && onAddPet && ['owner', 'admin'].includes(userRole) && !isEditing && !isAddingPet && (pet._originItem?.linked_client_profile_id || pet._originItem?.client_id)) && petInfo.hasArchivedPets && ['owner', 'admin'].includes(userRole) && ['overview', 'care', 'emergency', 'quoting'].includes(activeTab) && (
+            <div style={{ padding: '8px 24px', borderBottom: '1px solid var(--border-soft)' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={showArchived} onChange={() => { setShowArchived(!showArchived); setActivePetIndex(0); }} style={{ width: '14px', height: '14px' }} />
+                Show Archived
+              </label>
             </div>
           )}
           {/* Release 5B: Add Pet inline form */}
