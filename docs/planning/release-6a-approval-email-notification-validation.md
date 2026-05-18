@@ -59,15 +59,28 @@ The default `'PET_SITTING'` only applies when the key is **absent**. When the ke
 6 tests covering all-None, happy path, empty strings, missing keys, None service_type, unknown service_type — all PASS.
 
 ## Current Status
-**Dry-Run Validated — Ready for Controlled Live Send Test**
+**Live — Production Validated (CUSTOMER_APPROVED + REQUEST_RECEIVED)**
 
-### Next Steps (Pending Approval)
-1. Set `NOTIFICATION_DRY_RUN = "false"` in `infra/prod/locals.tf`
-2. `terraform apply`
-3. Approve test request with `client_email = mbn@usmissionhero.com`
-4. Verify email arrives in inbox
-5. Verify HTML rendering, links, content accuracy
-6. Verify idempotency (re-approve same request → no duplicate email)
+## Live Send Validation (2026-05-18)
 
-### Postmark Account Note
-Account is still in Test Mode. Until approved by Postmark, emails can only be delivered to `@usmissionhero.com` addresses. This provides a natural safety gate for the live send test.
+### CUSTOMER_APPROVED
+- **Action:** Set `NOTIFICATION_DRY_RUN = "false"`, deployed, approved test request
+- **Result:** PASSED ✅ — Branded approval email delivered to `mbn@usmissionhero.com` via Postmark
+
+### REQUEST_RECEIVED (Hotfix 1)
+- **Action:** Polished admin notification template, deployed, submitted test intake
+- **Result:** PASSED ✅
+- **Confirmed:**
+  - Branded HTML email received at admin address
+  - Client name, email, phone displayed correctly
+  - Service type, pet names, date rendered
+  - Request ID visible
+  - "Review in Dashboard" CTA button present and linked
+  - No None/NoneType values in content
+  - Client notes section rendered when provided
+
+## Next Steps
+- Monitor production notifications for any issues
+- Polish remaining stub templates (visit_scheduled, visit_cancelled, staff_assigned) in a future release
+- Request Postmark account approval for delivery to non-`@usmissionhero.com` addresses
+- Consider notification ledger and quota tracking (deferred from original spec)

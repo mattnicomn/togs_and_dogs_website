@@ -18,7 +18,7 @@ locals {
   # Phase 3A: Notification Configuration
   notification_env_vars = {
     NOTIFICATIONS_ENABLED                = "true"
-    NOTIFICATION_DRY_RUN                 = "true"
+    NOTIFICATION_DRY_RUN                 = "false"
     NOTIFICATION_EMAIL_FROM              = "support@usmissionhero.com"
     NOTIFICATION_EMAIL_FROM_NAME         = "Tog & Dogs Support"
     NOTIFICATION_ADMIN_EMAIL             = "mbn@usmissionhero.com"

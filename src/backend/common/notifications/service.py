@@ -78,6 +78,8 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
             from .resolver import get_pet_names
             context = {
                 "client_name": get_client_name(record),
+                "client_email": record.get('client_email') or record.get('email') or '',
+                "client_phone": record.get('client_phone') or '',
                 "staff_name": get_staff_name(record),
                 "request_id": request_id,
                 "pet_names": get_pet_names(record),

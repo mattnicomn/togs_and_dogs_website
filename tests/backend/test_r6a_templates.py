@@ -105,6 +105,76 @@ def test_normalize_context_unknown_service_type():
     print("PASS: test_normalize_context_unknown_service_type")
 
 
+def test_request_received_all_none():
+    """request_received with all None fields — must not crash."""
+    context = {
+        "client_name": None,
+        "client_email": None,
+        "client_phone": None,
+        "staff_name": None,
+        "request_id": None,
+        "pet_names": None,
+        "service_type": None,
+        "start_date": None,
+        "start_time": None,
+        "details": None,
+    }
+    subject, body_text, body_html = NotificationTemplates.get_template('REQUEST_RECEIVED', context)
+    assert subject is not None, "Subject should not be None"
+    assert body_text is not None, "body_text should not be None"
+    assert body_html is not None, "body_html should not be None"
+    assert "NoneType" not in body_text, "body_text contains NoneType"
+    assert "NoneType" not in body_html, "body_html contains NoneType"
+    assert "None" not in subject, f"Subject contains literal 'None': {subject}"
+    print("PASS: test_request_received_all_none")
+
+
+def test_request_received_happy_path():
+    """request_received with full data."""
+    context = {
+        "client_name": "Jane Smith",
+        "client_email": "jane@example.com",
+        "client_phone": "555-1234",
+        "staff_name": "Ryan",
+        "request_id": "abc-123-def",
+        "pet_names": "Buddy, Max",
+        "service_type": "WALK_30MIN",
+        "start_date": "2026-06-01",
+        "start_time": "09:00",
+        "details": "Morning walk, please use back gate.",
+    }
+    subject, body_text, body_html = NotificationTemplates.get_template('REQUEST_RECEIVED', context)
+    assert "Jane Smith" in subject
+    assert "30-Minute Walk" in subject
+    assert "Jane Smith" in body_text
+    assert "jane@example.com" in body_text
+    assert "555-1234" in body_text
+    assert "Buddy, Max" in body_text
+    assert "abc-123-def" in body_text
+    assert "Morning walk" in body_text
+    assert "jane@example.com" in body_html
+    assert "555-1234" in body_html
+    assert "Review in Dashboard" in body_html
+    print("PASS: test_request_received_happy_path")
+
+
+def test_request_received_no_contact():
+    """request_received without email or phone — should not crash or show empty rows."""
+    context = {
+        "client_name": "Test Client",
+        "pet_names": "Fido",
+        "service_type": "PET_SITTING",
+        "start_date": "2026-07-01",
+    }
+    subject, body_text, body_html = NotificationTemplates.get_template('REQUEST_RECEIVED', context)
+    assert subject is not None
+    assert "Test Client" in body_text
+    assert "No contact info" in body_text
+    # HTML should not have email/phone rows
+    assert "mailto:" not in body_html
+    print("PASS: test_request_received_no_contact")
+
+
 if __name__ == '__main__':
     test_customer_approved_all_none()
     test_customer_approved_happy_path()
@@ -112,4 +182,7 @@ if __name__ == '__main__':
     test_customer_approved_missing_keys()
     test_normalize_context_none_service_type()
     test_normalize_context_unknown_service_type()
+    test_request_received_all_none()
+    test_request_received_happy_path()
+    test_request_received_no_contact()
     print("\nAll Release 6A template tests PASSED.")

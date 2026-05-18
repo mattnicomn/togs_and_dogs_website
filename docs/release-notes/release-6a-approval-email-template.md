@@ -76,7 +76,29 @@ Until Postmark account is approved for production, emails can only be delivered 
 
 ## Files Changed
 - `src/backend/common/notifications/templates.py` — Added 6 template methods
-- `infra/prod/locals.tf` — `NOTIFICATION_DRY_RUN` set to `"true"` for controlled deploy
+- `infra/prod/locals.tf` — `NOTIFICATION_DRY_RUN` set to `"false"` (live)
+
+## Hotfix 1: REQUEST_RECEIVED Polish (2026-05-18)
+
+### Change
+Replaced the minimal `request_received()` stub with a fully branded admin notification template.
+
+### Additions
+- Branded HTML with orange accent (distinct from green client-facing emails)
+- Client information section: name, email (mailto link), phone
+- Request details section: service type, pet names, date/time, request ID
+- Conditional client notes section
+- "Review in Dashboard" CTA button
+- Professional plain-text fallback
+- All fields null-safe via `_safe()` helper
+
+### Service Context Enhancement
+Added `client_email` and `client_phone` to the template context dict in `service.py` (2-line addition, no logic change) so the admin notification can display client contact information.
+
+### Files Changed (Hotfix 1)
+- `src/backend/common/notifications/templates.py` — Polished `request_received()`
+- `src/backend/common/notifications/service.py` — Added `client_email`, `client_phone` to context
+- `tests/backend/test_r6a_templates.py` — Added 3 new tests for request_received
 
 ## Validation Checklist
 - [x] `py -m py_compile` passes
@@ -85,8 +107,8 @@ Until Postmark account is approved for production, emails can only be delivered 
 - [x] Test approval produces `NOTIFICATION_DRY_RUN_LOG` in CloudWatch
 - [x] Log contains correct subject, recipient domain, event_key
 - [x] No `NOTIFICATION_CRITICAL_FAILURE` in logs after hotfix deploy
-- [ ] Go-live: email received at test address
-- [ ] Go-live: HTML renders correctly
+- [x] Go-live: email received at test address
+- [x] Go-live: HTML renders correctly
 - [ ] Go-live: idempotency prevents duplicate on re-approval
 
 ## Validation History
@@ -110,3 +132,22 @@ Until Postmark account is approved for production, emails can only be delivered 
   - No `AttributeError`
   - No `NOTIFICATION_MISSING_TEMPLATE`
 - **Next Step:** Awaiting approval to set `NOTIFICATION_DRY_RUN = "false"` for controlled live send test
+
+### Live Send Test (2026-05-18)
+- **Result:** PASSED ✅
+- **Action:** Set `NOTIFICATION_DRY_RUN = "false"`, deployed, approved test request
+- **Confirmed:** Branded approval email delivered to `mbn@usmissionhero.com` via Postmark
+- **Status:** CUSTOMER_APPROVED live delivery validated
+
+### Hotfix 1: REQUEST_RECEIVED Polish (2026-05-18)
+- **Result:** PASSED ✅
+- **Action:** Polished `request_received()` admin notification template
+- **Confirmed:**
+  - Branded HTML email received at admin address
+  - Client name, email, phone displayed correctly
+  - Service type, pet names, date rendered
+  - Request ID visible
+  - "Review in Dashboard" CTA button present
+  - No None/NoneType values in content
+  - Client notes section rendered when provided
+- **Status:** Live — Production Validated

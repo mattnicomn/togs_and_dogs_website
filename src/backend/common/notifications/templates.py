@@ -163,27 +163,127 @@ class NotificationTemplates:
 
     @staticmethod
     def request_received(ctx):
-        """Admin notification when a new request is submitted. Stub — minimal template."""
-        client_name = ctx.get('client_name', 'Unknown Client')
-        pet_names = ctx.get('pet_names', 'unknown')
-        service_label = ctx.get('service_label', 'Pet Sitting')
-        request_id = ctx.get('request_id', 'N/A')
+        """Admin notification when a new request is submitted. Branded internal template."""
+        safe = NotificationTemplates._safe
+        client_name = safe(ctx.get('client_name'), 'Unknown Client') or 'Unknown Client'
+        client_email = safe(ctx.get('client_email'), '')
+        client_phone = safe(ctx.get('client_phone'), '')
+        pet_names = safe(ctx.get('pet_names'), 'Not specified') or 'Not specified'
+        service_label = safe(ctx.get('service_label'), 'Pet Sitting') or 'Pet Sitting'
+        date_label = safe(ctx.get('date_label'), 'Not specified') or 'Not specified'
+        request_id = safe(ctx.get('request_id'), 'N/A') or 'N/A'
+        details = safe(ctx.get('details'), '')
+        dashboard_url = 'https://toganddogs.usmissionhero.com'
+
+        # Build contact line for plain text
+        contact_parts = []
+        if client_email:
+            contact_parts.append(f"Email: {client_email}")
+        if client_phone:
+            contact_parts.append(f"Phone: {client_phone}")
+        contact_line = " | ".join(contact_parts) if contact_parts else "No contact info available"
 
         subject = f"New Request: {client_name} — {service_label}"
         body_text = (
-            f"New request received.\n\n"
-            f"Client: {client_name}\nPet(s): {pet_names}\nService: {service_label}\n"
-            f"Request ID: {request_id}\n\nPlease review in the admin dashboard."
+            f"NEW REQUEST RECEIVED\n"
+            f"{'=' * 40}\n\n"
+            f"Client: {client_name}\n"
+            f"{contact_line}\n\n"
+            f"REQUEST DETAILS:\n"
+            f"- Service: {service_label}\n"
+            f"- Pet(s): {pet_names}\n"
+            f"- Requested Date: {date_label}\n"
+            f"- Request ID: {request_id}\n"
         )
+        if details and details != 'No details provided.':
+            body_text += f"- Notes: {details}\n"
+        body_text += (
+            f"\nACTION REQUIRED:\n"
+            f"Please review this request in the admin dashboard:\n"
+            f"{dashboard_url}\n\n"
+            f"— Tog & Dogs Notification System"
+        )
+
+        # Build contact HTML rows
+        contact_rows = ""
+        if client_email:
+            contact_rows += f"""
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold;">Email:</td>
+                            <td style="padding: 6px 0;"><a href="mailto:{client_email}" style="color: #2980b9;">{client_email}</a></td>
+                        </tr>"""
+        if client_phone:
+            contact_rows += f"""
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold;">Phone:</td>
+                            <td style="padding: 6px 0;">{client_phone}</td>
+                        </tr>"""
+
+        # Build details row
+        details_section = ""
+        if details and details != 'No details provided.':
+            details_section = f"""
+                <div style="background-color: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 8px; margin: 20px 0; font-size: 14px; color: #555;">
+                    <p style="margin: 0 0 5px 0; font-weight: bold; color: #2c3e50;">Client Notes:</p>
+                    <p style="margin: 0; white-space: pre-wrap;">{details}</p>
+                </div>"""
+
         body_html = f"""
-        <html><body style="font-family: Arial, sans-serif; padding: 20px;">
-        <h2>New Request Received</h2>
-        <p><strong>Client:</strong> {client_name}</p>
-        <p><strong>Pet(s):</strong> {pet_names}</p>
-        <p><strong>Service:</strong> {service_label}</p>
-        <p><strong>Request ID:</strong> {request_id}</p>
-        <p>Please review in the admin dashboard.</p>
-        </body></html>
+        <html>
+        <body style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #333; background-color: #f4f7f6; padding: 20px;">
+            <div style="max-width: 600px; margin: auto; border: 1px solid #e0e0e0; background-color: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #2c3e50; margin: 0; font-size: 24px; font-weight: bold;">New Request Received</h1>
+                    <div style="width: 50px; height: 4px; background: #e67e22; margin: 15px auto; border-radius: 2px;"></div>
+                </div>
+
+                <p>A new service request has been submitted and is awaiting review.</p>
+
+                <div style="background-color: #fef9f4; border-left: 4px solid #e67e22; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+                    <p style="margin: 0 0 12px 0; font-weight: bold; color: #2c3e50;">Client Information</p>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #555;">
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold; width: 120px;">Client:</td>
+                            <td style="padding: 6px 0;"><strong>{client_name}</strong></td>
+                        </tr>{contact_rows}
+                    </table>
+                </div>
+
+                <div style="background-color: #f9fdfa; border-left: 4px solid #27ae60; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+                    <p style="margin: 0 0 12px 0; font-weight: bold; color: #2c3e50;">Request Details</p>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #555;">
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold; width: 120px;">Service:</td>
+                            <td style="padding: 6px 0;">{service_label}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold;">Pet(s):</td>
+                            <td style="padding: 6px 0;">{pet_names}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold;">Date:</td>
+                            <td style="padding: 6px 0;">{date_label}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold;">Request ID:</td>
+                            <td style="padding: 6px 0; font-family: monospace; font-size: 12px;">{request_id}</td>
+                        </tr>
+                    </table>
+                </div>
+                {details_section}
+                <div style="text-align: center; margin: 35px 0;">
+                    <a href="{dashboard_url}" style="background-color: #e67e22; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Review in Dashboard</a>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
+
+                <div style="text-align: center; color: #7f8c8d; font-size: 12px;">
+                    <p style="margin: 5px 0;">&copy; 2026 Tog & Dogs Pet Sitting</p>
+                    <p style="margin: 5px 0;">Admin Notification System</p>
+                </div>
+            </div>
+        </body>
+        </html>
         """
         return subject, body_text, body_html
 
