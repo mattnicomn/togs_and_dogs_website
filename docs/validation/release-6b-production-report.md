@@ -131,6 +131,90 @@
 - [ ] Existing `request_received` still works
 
 ## Post-Validation
-- [ ] Release notes updated with validation result
-- [ ] Commit includes all code + docs
-- [ ] Release notes index updated
+- [x] Release notes updated with validation result
+- [x] Commit includes all code + docs
+- [x] Release notes index updated
+
+---
+
+## Phase 2: `visit_cancelled` — ✅ ACCEPTED — Production Validated (2026-05-20)
+
+### Status
+**Accepted — Production validated via Postmark delivery**
+
+### Production Validation Result
+- **Test Record:** `REQ#71523de2-a4fe-411f-8983-de975eaf07d7` / `CLIENT#test-client-123`
+- **Client/Pet:** Test Client / Fido
+- **Workflow Type:** VISIT_BOOKING (converted from CUSTOMER_INTAKE for validation)
+- **Status Transition:** APPROVED → CANCELLED
+- **Handler Path:** `/aws/lambda/togs-and-dogs-prod-review` (admin direct cancel via Status & Lifecycle Actions)
+- **Postmark Delivery:** ✅ SUCCESS
+- **MessageId:** `faad41e1-3d77-43e1-b7e3-cb328c7bb03a`
+- **CRITICAL_FAILURE:** None
+- **Recipient De-duplication:** Client, worker, and admin all resolved to `mbn@usmissionhero.com` — only 1 email sent (correct behavior)
+
+### Email Rendering (AG-Confirmed)
+- ✅ Subject: "Visit Cancelled: Pet Sitting — Test Client"
+- ✅ Neutral "Hello," greeting (not client-specific)
+- ✅ Client name shown
+- ✅ Pet name "Fido" shown
+- ✅ Service type "Pet Sitting" shown
+- ✅ Date shown
+- ✅ Sitter name shown (USmissionhero)
+- ✅ Cancellation reason hidden (not persisted by review handler — expected, documented as backlog)
+- ✅ "View in Portal" button present
+- ✅ No "None", "NoneType", or fake "Team Member"
+
+### Routing Clarification
+| Admin Action | Lambda | API Path |
+|-------------|--------|----------|
+| Admin Dashboard → Status & Lifecycle → CANCELLED | `togs-and-dogs-prod-review` | `POST /admin/review` |
+| Client requests cancellation → Admin approves | `togs-and-dogs-prod-cancellation` | `PUT /admin/cancel/decision` |
+| Admin bulk status change to CANCELLED | `togs-and-dogs-prod-admin` | Bulk action endpoint |
+
+### Design Notes
+- `VISIT_CANCELLED` only fires for `workflow_type = VISIT_BOOKING`
+- CUSTOMER_INTAKE cancellations intentionally do NOT trigger `VISIT_CANCELLED` (no visit was scheduled, no staff to notify)
+- Cancellation reason is only available when the two-step cancellation flow is used (client requests → admin approves via cancellation_handler). Admin direct cancel via review handler does not persist `cancellation_reason` — documented as backlog item.
+
+### Validation Blockers Encountered & Resolved
+1. Initial test used a `CUSTOMER_INTAKE` record → notification silently skipped (by design)
+2. DynamoDB update with wrong CLIENT# SK created a phantom record → cleaned up
+3. After converting to `VISIT_BOOKING` and re-cancelling → notification delivered successfully
+
+### Implementation Summary
+- `visit_cancelled()` polished with branded HTML (red accent #c0392b)
+- Neutral shared-audience greeting ("Hello,") — same email goes to client, staff, and admin
+- Conditional fields: date, sitter, cancellation reason (hidden when empty/default)
+- `cancellation_reason` added to service context dict
+- 7 new tests added (total: 16/16 passing)
+
+### Pre-Deploy Validation (Phase 2)
+- [x] `py -m py_compile src/backend/common/notifications/templates.py` — EXIT:0
+- [x] `py -m py_compile src/backend/common/notifications/service.py` — EXIT:0
+- [x] `py tests/backend/test_r6b_templates.py` — All 16 tests pass
+
+### Phase 2 Tests
+| Test | Covers |
+|------|--------|
+| `test_visit_cancelled_happy_path` | Full data with reason, staff, date |
+| `test_visit_cancelled_all_none` | All None → no crash, no "None" |
+| `test_visit_cancelled_no_reason` | Empty reason → section hidden |
+| `test_visit_cancelled_no_staff` | No worker → sitter row hidden |
+| `test_visit_cancelled_empty_strings` | Empty strings → no crash |
+| `test_visit_cancelled_default_reason_skipped` | "No reason provided." not rendered |
+| `test_visit_cancelled_no_client_greeting` | Neutral "Hello," not "Hi {client}" |
+
+### Production Validation Checklist (Phase 2)
+- [ ] Terraform deploy: Lambda code hash update only
+- [ ] Cancel a test request with `@usmissionhero.com` client + assigned staff
+- [ ] Client inbox: "Visit Cancelled: [Service] — [Client]" received
+- [ ] Staff inbox: same email received
+- [ ] Admin inbox: same email received
+- [ ] Neutral greeting ("Hello,") confirmed
+- [ ] Cancellation reason shown when provided
+- [ ] Sitter row shown when worker was assigned
+- [ ] No None/NoneType
+- [ ] No "Team Member" fake name
+- [ ] CloudWatch: `NOTIFICATION_SUCCESS` for VISIT_CANCELLED
+- [ ] No `NOTIFICATION_CRITICAL_FAILURE`

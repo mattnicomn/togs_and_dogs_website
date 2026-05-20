@@ -14,12 +14,12 @@ Polish the remaining stub notification templates into production-quality branded
 | `welcome_invite_staff` | WELCOME_INVITE_STAFF | Staff | ✅ Production — branded HTML (pre-existing) |
 
 ### Stubs Requiring Polish (Release 6B Scope)
-| Template | Event | Recipient | Trigger Location | Risk |
-|----------|-------|-----------|-----------------|------|
-| `visit_scheduled` | VISIT_SCHEDULED | Client | review_handler (ASSIGNED), assignment_handler | **Medium** — client-facing |
-| `staff_assigned` | STAFF_ASSIGNED | Staff | review_handler (ASSIGNED), assignment_handler | **Low** — internal staff |
-| `visit_cancelled` | VISIT_CANCELLED | Client + Staff + Admin | review_handler (CANCELLED), cancellation_handler, admin_handler (bulk) | **Medium** — multi-recipient |
-| `visit_time_changed` | VISIT_TIME_CHANGED | Client | No active trigger in code | **None** — dormant |
+| Template | Event | Recipient | Trigger Location | Status |
+|----------|-------|-----------|-----------------|--------|
+| `visit_scheduled` | VISIT_SCHEDULED | Client | review_handler (ASSIGNED), assignment_handler | ✅ **Phase 1 — Accepted** |
+| `staff_assigned` | STAFF_ASSIGNED | Staff | review_handler (ASSIGNED), assignment_handler | ✅ **Phase 1 — Accepted** |
+| `visit_cancelled` | VISIT_CANCELLED | Client + Staff + Admin | review_handler (CANCELLED), cancellation_handler, admin_handler (bulk) | ✅ **Phase 2 — Accepted** |
+| `visit_time_changed` | VISIT_TIME_CHANGED | Client | No active trigger in code | ⏸️ **Deferred — dormant, no trigger** |
 
 ## Event Trigger Map
 

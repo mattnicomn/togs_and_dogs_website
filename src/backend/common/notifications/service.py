@@ -90,6 +90,7 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
                 "start_time": record.get('start_time'),
                 "details": record.get('details', 'No details provided.'),
                 "portal_url": config.PORTAL_URL if config else 'https://toganddogs.usmissionhero.com',
+                "cancellation_reason": record.get('cancellation_reason') or '',
             }
         
         subject, body_text, body_html = NotificationTemplates.get_template(event_type, context)

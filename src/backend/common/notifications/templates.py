@@ -500,26 +500,117 @@ class NotificationTemplates:
 
     @staticmethod
     def visit_cancelled(ctx):
-        """Cancellation notification. Stub — minimal template."""
-        client_name = ctx.get('client_name', 'Valued Client')
-        pet_names = ctx.get('pet_names', 'your pets')
-        service_label = ctx.get('service_label', 'Pet Sitting')
-        date_label = ctx.get('date_label', 'scheduled date')
+        """Cancellation notification sent to client, staff, and admin. Neutral shared-audience tone."""
+        safe = NotificationTemplates._safe
+        client_name = safe(ctx.get('client_name'), 'a client') or 'a client'
+        pet_names = safe(ctx.get('pet_names'), 'pets') or 'pets'
+        service_label = safe(ctx.get('service_label'), 'Pet Sitting') or 'Pet Sitting'
+        date_label = safe(ctx.get('date_label'), '') or ''
+        cancellation_reason = safe(ctx.get('cancellation_reason'), '')
+        staff_name = safe(ctx.get('worker_name'), '') or ''
+        if not staff_name:
+            raw_staff = safe(ctx.get('staff_name'), '')
+            if raw_staff and raw_staff != 'Team Member':
+                staff_name = raw_staff
+        portal_url = safe(ctx.get('portal_url'), 'https://toganddogs.usmissionhero.com')
 
-        subject = f"Visit Cancelled — {service_label} for {pet_names}"
+        # Build conditional rows
+        date_row_text = f"- Date: {date_label}\n" if date_label else ""
+        staff_row_text = f"- Assigned Sitter: {staff_name}\n" if staff_name else ""
+        reason_text = ""
+        if cancellation_reason and cancellation_reason not in ['No reason provided.', 'No reason provided']:
+            reason_text = f"- Reason: {cancellation_reason}\n"
+
+        subject = f"Visit Cancelled: {service_label} — {client_name}"
         body_text = (
-            f"Hi {client_name},\n\n"
-            f"Your {service_label} visit for {pet_names} on {date_label} has been cancelled.\n\n"
-            f"If you have questions, please reply to this email.\n\nBest,\nThe Tog & Dogs Team"
+            f"VISIT CANCELLATION NOTICE\n"
+            f"{'=' * 40}\n\n"
+            f"Hello,\n\n"
+            f"A scheduled visit has been cancelled.\n\n"
+            f"DETAILS:\n"
+            f"- Client: {client_name}\n"
+            f"- Pet(s): {pet_names}\n"
+            f"- Service: {service_label}\n"
+            f"{date_row_text}"
+            f"{staff_row_text}"
+            f"{reason_text}\n"
+            f"If you have questions or need to reschedule, please reply to this email "
+            f"or visit the portal.\n\n"
+            f"Portal: {portal_url}\n\n"
+            f"— Tog & Dogs Notification System"
         )
+
+        # Build conditional HTML rows
+        date_row_html = ""
+        if date_label:
+            date_row_html = f"""
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold;">Date:</td>
+                            <td style="padding: 6px 0;">{date_label}</td>
+                        </tr>"""
+
+        staff_row_html = ""
+        if staff_name:
+            staff_row_html = f"""
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold;">Assigned Sitter:</td>
+                            <td style="padding: 6px 0;">{staff_name}</td>
+                        </tr>"""
+
+        reason_section_html = ""
+        if cancellation_reason and cancellation_reason not in ['No reason provided.', 'No reason provided']:
+            reason_section_html = f"""
+                <div style="background-color: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 8px; margin: 20px 0; font-size: 14px; color: #555;">
+                    <p style="margin: 0 0 5px 0; font-weight: bold; color: #2c3e50;">Cancellation Reason:</p>
+                    <p style="margin: 0;">{cancellation_reason}</p>
+                </div>"""
+
         body_html = f"""
-        <html><body style="font-family: Arial, sans-serif; padding: 20px;">
-        <h2>Visit Cancelled</h2>
-        <p>Hi <strong>{client_name}</strong>,</p>
-        <p>Your <strong>{service_label}</strong> visit for <strong>{pet_names}</strong> on {date_label} has been cancelled.</p>
-        <p>If you have questions, please reply to this email.</p>
-        <p>Best,<br/>The Tog & Dogs Team</p>
-        </body></html>
+        <html>
+        <body style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #333; background-color: #f4f7f6; padding: 20px;">
+            <div style="max-width: 600px; margin: auto; border: 1px solid #e0e0e0; background-color: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #2c3e50; margin: 0; font-size: 24px; font-weight: bold;">Visit Cancelled</h1>
+                    <div style="width: 50px; height: 4px; background: #c0392b; margin: 15px auto; border-radius: 2px;"></div>
+                </div>
+
+                <p>Hello,</p>
+
+                <p>A scheduled <strong>{service_label}</strong> visit has been cancelled.</p>
+
+                <div style="background-color: #fdf2f2; border-left: 4px solid #c0392b; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+                    <p style="margin: 0 0 12px 0; font-weight: bold; color: #2c3e50;">Cancelled Visit Details</p>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #555;">
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold; width: 130px;">Client:</td>
+                            <td style="padding: 6px 0;">{client_name}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold;">Pet(s):</td>
+                            <td style="padding: 6px 0;">{pet_names}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold;">Service:</td>
+                            <td style="padding: 6px 0;">{service_label}</td>
+                        </tr>{date_row_html}{staff_row_html}
+                    </table>
+                </div>
+                {reason_section_html}
+                <p>If you have questions or need to reschedule, please reply to this email or visit the portal.</p>
+
+                <div style="text-align: center; margin: 35px 0;">
+                    <a href="{portal_url}" style="background-color: #7f8c8d; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">View in Portal</a>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
+
+                <div style="text-align: center; color: #7f8c8d; font-size: 12px;">
+                    <p style="margin: 5px 0;">&copy; 2026 Tog & Dogs Pet Sitting</p>
+                    <p style="margin: 5px 0;">Notification System</p>
+                </div>
+            </div>
+        </body>
+        </html>
         """
         return subject, body_text, body_html
 
