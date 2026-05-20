@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 6B: Notification Coverage Expansion**](release-6b-notification-coverage-expansion.md) (2026-05-19) — ✅ **Accepted — Production Validated**
 - [**Release 6A: Client Approval Email Template**](release-6a-approval-email-template.md) (2026-05-18) — ✅ **Live — Production Validated**
 - [**Release 5F: Archived Pets Visibility & Restore**](release-5f-archived-pets-visibility-restore.md) (2026-05-15) — ✅ **Accepted**
 - [**Release 5D: Client Management Pet Visibility**](release-5d-client-pet-visibility.md) (2026-05-15) — ✅ **Accepted**

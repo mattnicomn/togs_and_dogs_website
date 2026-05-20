@@ -81,12 +81,15 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
                 "client_email": record.get('client_email') or record.get('email') or '',
                 "client_phone": record.get('client_phone') or '',
                 "staff_name": get_staff_name(record),
+                "worker_id": record.get('worker_id') or '',
+                "worker_name": record.get('worker_name') or record.get('assigned_to_name') or '',
                 "request_id": request_id,
                 "pet_names": get_pet_names(record),
                 "service_type": record.get('service_type'),
                 "start_date": record.get('start_date'),
                 "start_time": record.get('start_time'),
-                "details": record.get('details', 'No details provided.')
+                "details": record.get('details', 'No details provided.'),
+                "portal_url": config.PORTAL_URL if config else 'https://toganddogs.usmissionhero.com',
             }
         
         subject, body_text, body_html = NotificationTemplates.get_template(event_type, context)
