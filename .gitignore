@@ -49,3 +49,9 @@ get_key.json
 api_test.py
 api_e2e_test.py
 *.xlsx
+
+# Kiro specs (untracked unless explicitly promoted)
+.kiro/specs/postmark-notifications/
+
+# Validation scripts (one-off, not committed)
+cw_*.ps1
