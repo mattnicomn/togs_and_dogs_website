@@ -11,23 +11,29 @@ Verify and document that the Postmark notification system is fully ready for ext
 - All templates polished and validated (Releases 6A + 6B)
 
 ## Open Question
-**Sender signature mismatch:**
+**Sender signature — RESOLVED:**
 - `NOTIFICATION_EMAIL_FROM` in Terraform = `support@usmissionhero.com`
-- `postmark-setup.md` documents verified sender as `mbn@usmissionhero.com`
-- If the full domain `usmissionhero.com` is verified in Postmark, both work
-- If only `mbn@usmissionhero.com` is verified as a sender signature, `support@` may fail for external recipients
+- CloudWatch logs from 2026-05-19 confirm successful Postmark delivery to `gmail.com` using this sender
+- This confirms Postmark accepts `support@usmissionhero.com` as a valid sender in production
+- **Remaining action:** Matthew should visually confirm in Postmark dashboard whether this is domain-level verification or individual sender signature
 
 ## Scope
 
-### Must Do (Release 6C)
-1. Verify sender signature status in Postmark dashboard
-2. Send test email to a real external address (Gmail, Outlook, etc.)
-3. Update `docs/operations/postmark-setup.md` to reflect current production status
-4. Update `docs/release-notes/index.md`
+### Must Do (Release 6C) — STATUS
+1. ✅ Verify sender signature status — Confirmed via CloudWatch evidence (external delivery succeeded)
+2. ✅ Send test email to real external address — CloudWatch shows successful delivery to `gmail.com` on 2026-05-19
+3. ✅ Update `docs/operations/postmark-setup.md` — Updated to reflect production-approved status
+4. ✅ Update `docs/release-notes/index.md` — Release 6C entry added
+
+### Unexpected Finding: Recipient Domain Typo
+- CloudWatch VISIT_SCHEDULED logs show a recipient domain `usmissiohero.com` (missing 'n')
+- This is a **data quality issue** on a staff/client record, not a notification system bug
+- **Action:** Investigate and correct the typo in the affected DynamoDB record(s)
+- **Tracked as:** Backlog item in task-tracker.md
 
 ### May Do (If Sender Issue Found)
-- Change `NOTIFICATION_EMAIL_FROM` in `locals.tf` to match verified sender
-- OR verify `support@usmissionhero.com` as additional sender in Postmark
+- ~~Change `NOTIFICATION_EMAIL_FROM` in `locals.tf` to match verified sender~~ — Not needed
+- ~~OR verify `support@usmissionhero.com` as additional sender in Postmark~~ — Already working
 
 ### Defer
 - Notification ledger

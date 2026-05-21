@@ -6,12 +6,13 @@ Last updated: 2026-05-21
 
 | # | Task | Phase | Priority | Status | Owner | Validator | Target |
 |---|------|-------|----------|--------|-------|-----------|--------|
-| 1 | Verify Postmark sender signature (`support@usmissionhero.com` vs domain) | 6C | High | Not Started | Matthew | AG | Release 6C |
-| 2 | Update `postmark-setup.md` to reflect approved/production status | 6C | High | Not Started | Kiro | — | Release 6C |
-| 3 | Send test email to real external address (non-usmissionhero.com) | 6C | High | Not Started | AG | Matthew | Release 6C |
+| 1 | ~~Verify Postmark sender signature~~ | 6C | High | ✅ Complete | AG | Matthew | Release 6C |
+| 2 | ~~Update `postmark-setup.md` to reflect approved/production status~~ | 6C | High | ✅ Complete | Kiro | — | Release 6C |
+| 3 | ~~Send test email to real external address~~ | 6C | High | ✅ Complete (CloudWatch evidence) | AG | Matthew | Release 6C |
 | 4 | Cancellation reason persistence in review handler | Backlog | Low | Planned | Kiro | AG | TBD |
 | 5 | Client portal identity resolution guardrail | Backlog | Medium | Planned | Kiro | AG | TBD |
 | 6 | Admin/staff email protection on client profile auto-creation | Backlog | Medium | Planned | Kiro | AG | TBD |
+| 7 | Investigate `usmissiohero.com` recipient domain typo | Data Quality | Low | Not Started | Matthew | — | TBD |
 
 ## Completed (Recent)
 
@@ -44,6 +45,7 @@ Last updated: 2026-05-21
 | B11 | Admin dashboard filter integrity | Admin UI | Low | Count/filter alignment |
 | B12 | AWS cost allocation tagging | Infrastructure | Low | Standardize tags across all Terraform resources |
 | B13 | Admin-created CareCards/visits | Admin UI | Medium | Allow admin to create visits without public form |
+| B14 | Recipient domain typo `usmissiohero.com` | Data Quality | Low | Typo in staff/client record — investigate and correct |
 
 ## Deferred Indefinitely
 
