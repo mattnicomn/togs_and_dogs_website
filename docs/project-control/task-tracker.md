@@ -9,10 +9,15 @@ Last updated: 2026-05-21
 | 1 | ~~Verify Postmark sender signature~~ | 6C | High | ✅ Complete | AG | Matthew | Release 6C |
 | 2 | ~~Update `postmark-setup.md` to reflect approved/production status~~ | 6C | High | ✅ Complete | Kiro | — | Release 6C |
 | 3 | ~~Send test email to real external address~~ | 6C | High | ✅ Complete (CloudWatch evidence) | AG | Matthew | Release 6C |
-| 4 | Cancellation reason persistence in review handler | Backlog | Low | Planned | Kiro | AG | TBD |
-| 5 | Client portal identity resolution guardrail | Backlog | Medium | Planned | Kiro | AG | TBD |
-| 6 | Admin/staff email protection on client profile auto-creation | Backlog | Medium | Planned | Kiro | AG | TBD |
-| 7 | Investigate `usmissiohero.com` recipient domain typo | Data Quality | Low | Not Started | Matthew | — | TBD |
+| 4 | Fix Needs Assignment count/navigation mismatch | 6D Phase 1 | High | Planning | Kiro | AG | Release 6D |
+| 5 | Harden `isDeletedRecord` — remove `deleted_at` fallback | 6D Phase 2 | High | Planning | Kiro | AG | Release 6D |
+| 6 | Frontend purge visibility & bulk purge pre-validation | 6D Phase 3 | Medium | Planning | Kiro | AG | Release 6D |
+| 7 | Backend soft-delete guard for active records | 6D Phase 4 | Medium | Planning | Kiro | AG | Release 6D |
+| 8 | AG pre-scan: find records with `deleted_at` but non-DELETED status | 6D Pre-work | High | Not Started | AG | Kiro | Release 6D |
+| 9 | Cancellation reason persistence in review handler | Backlog | Low | Planned | Kiro | AG | TBD |
+| 10 | Client portal identity resolution guardrail | Backlog | Medium | Planned | Kiro | AG | TBD |
+| 11 | Admin/staff email protection on client profile auto-creation | Backlog | Medium | Planned | Kiro | AG | TBD |
+| 12 | Investigate `usmissiohero.com` recipient domain typo | Data Quality | Low | Not Started | Matthew | — | TBD |
 
 ## Completed (Recent)
 
