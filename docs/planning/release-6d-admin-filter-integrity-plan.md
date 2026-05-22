@@ -41,13 +41,39 @@ const isDeletedRecord = (item) => {
 
 **Problem:** The `!!item.deleted_at` clause means any record with a `deleted_at` timestamp — regardless of its current `status` — is classified as deleted. If a record has `status: ASSIGNED` but also has `deleted_at` set (from a partial/failed operation), it appears in BOTH active views AND Trash.
 
-**Evidence needed:** AG should scan DynamoDB for records with `deleted_at` set but non-DELETED status to confirm this is the root cause.
+**AG Pre-Check Result (2026-05-21): CONFIRMED.**
+- Found: `REQ#69780136-391f-4a10-8e1b-734812696a36`
+- Status: `APPROVED` (active)
+- `deleted_at`: exists
+- Linked JOB record: already `DELETED`
+- Origin: Release 4A/R4A test record, no real client impact
+- **Root cause confirmed:** Backend delete operation deleted the child JOB and set `deleted_at` on the parent REQ, but did NOT update the parent's `status` to DELETED. This creates a zombie record that appears in both active views and Trash.
 
-**Fix:** Remove `!!item.deleted_at` from `isDeletedRecord`. Status field should be the single source of truth for Trash visibility.
+**Fix:** 
+1. Frontend: Remove `!!item.deleted_at` from `isDeletedRecord`. Status field is the sole source of truth for Trash visibility.
+2. Backend: Ensure DELETE action atomically sets BOTH `status = DELETED` AND `deleted_at` on the target record. Never set `deleted_at` without also updating status.
+3. Data cleanup: Fix the zombie record (set status to DELETED or remove `deleted_at`).
 
 ---
 
-### Issue 3: Purge Visibility on Non-DELETED Records
+### Issue 3: Backend Delete Atomicity (Elevated from Optional to Required)
+
+**Root cause:** The backend DELETE action (or a prior cascade operation) set `deleted_at` on the parent REQ record without updating its `status` field. The child JOB was correctly set to DELETED, but the parent was left in APPROVED status with a `deleted_at` marker.
+
+**Impact:** This creates zombie records that:
+- Appear in active views (status is APPROVED)
+- Also appear in Trash (deleted_at exists)
+- Show purge button (isDeletedRecord returns true)
+- Could be accidentally purged even though they're "active"
+
+**Fix:** 
+- Backend DELETE action must atomically set `status = DELETED` AND `deleted_at = <timestamp>` in a single update expression
+- Cascade operations must update parent status when deleting children
+- Add validation: if `deleted_at` exists but status is not DELETED/TRASH, treat as data integrity issue (not Trash)
+
+---
+
+### Issue 4: Purge Visibility on Non-DELETED Records
 
 **Current behavior:**
 - `PURGE_FOREVER` action is shown when `isDeletedRecord(item)` returns true
@@ -101,19 +127,22 @@ return s === 'DELETED' || s === 'TRASH' || s === 'DELETE';
 **Risk:** Low (adds safety, doesn't remove functionality)
 **Effort:** ~1 hour
 
-### Phase 4: Backend Hardening (Optional)
-**Scope:** Add explicit protection against soft-deleting active records.
+### Phase 4: Backend Delete Atomicity (REQUIRED — Elevated from Optional)
+**Scope:** Ensure DELETE action atomically updates both `status` and `deleted_at`, and add protection against soft-deleting active records.
 
-**Current state:** Backend purge guard is already correct — rejects non-DELETED records. But the DELETE (soft-delete) action has no guard against deleting ASSIGNED/SCHEDULED records.
+**Current state:** Backend purge guard is correct — rejects non-DELETED records. But the DELETE (soft-delete) action can set `deleted_at` without updating `status`, creating zombie records.
+
+**AG Evidence:** `REQ#69780136-391f-4a10-8e1b-734812696a36` has `status: APPROVED` + `deleted_at` set. Child JOB is DELETED but parent was left in active status.
 
 **Proposed:**
-- In `admin_handler.py` DELETE action: reject if current status is ASSIGNED, SCHEDULED, or IN_PROGRESS
-- Log a warning when purge is rejected due to non-DELETED status
-- Return clear error message: "Cannot delete an active/scheduled record. Cancel or archive first."
+1. In `admin_handler.py` DELETE action: ensure update expression ALWAYS sets both `status = DELETED` AND `deleted_at = <timestamp>` atomically
+2. Reject DELETE action if current status is ASSIGNED, SCHEDULED, or IN_PROGRESS (require CANCEL first)
+3. Log a warning when a record is found with `deleted_at` but non-DELETED status
+4. Data cleanup: fix the known zombie record
 
 **Files:** `src/backend/handlers/admin_handler.py`
-**Risk:** Low (adds safety guard, doesn't change happy path)
-**Effort:** ~1 hour
+**Risk:** Low (adds safety guard + fixes atomicity gap)
+**Effort:** ~1.5 hours
 
 ---
 
@@ -126,7 +155,9 @@ return s === 'DELETED' || s === 'TRASH' || s === 'DELETE';
 | Purge button visibility | Frontend `getWorkflowState` | Only show PURGE_FOREVER when `item.status` is explicitly DELETED or TRASH |
 | Bulk purge pre-filter | Frontend `handleBulkPurge` | Filter selected items to explicit DELETED/TRASH status before sending to backend |
 | Count/click alignment | Frontend stat cards | Needs Assignment card count and click target must use the same predicate |
+| Backend delete atomicity | Backend `admin_handler` | DELETE action must set BOTH `status = DELETED` AND `deleted_at` atomically |
 | Backend soft-delete guard | Backend `admin_handler` | Reject DELETE action on ASSIGNED/SCHEDULED/IN_PROGRESS records |
+| Zombie detection | Frontend `isDataIssue` | Records with `deleted_at` + non-DELETED status should be flagged as data integrity issues |
 
 ---
 
@@ -180,10 +211,12 @@ This confirms whether ghost-in-Trash records exist and identifies which ones.
 | Phase 1 | ~1 hour | Low |
 | Phase 2 | ~30 min | Low-Medium |
 | Phase 3 | ~1 hour | Low |
-| Phase 4 | ~1 hour | Low |
-| **Total** | **~3.5 hours** | |
+| Phase 4 | ~1.5 hours | Low |
+| Data cleanup | ~15 min | None |
+| **Total** | **~4.5 hours** | |
 
 ## Deployment
 - Phases 1-3: Frontend-only (`npm run build` + S3 sync + CloudFront invalidation)
 - Phase 4: Backend (`terraform apply` for Lambda code update)
+- Data cleanup: Single DynamoDB update to fix zombie record (AG or Matthew)
 - No Terraform infrastructure changes in any phase
