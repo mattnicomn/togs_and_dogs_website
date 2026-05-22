@@ -1822,6 +1822,17 @@ def handler(event, context):
 
                     prev_status = (current_item.get('status') or 'UNKNOWN').upper()
                     
+                    # Release 6D: Reject DELETE on active/scheduled records.
+                    # Prevents accidental soft-delete of records that are in active workflow states.
+                    # Admin must CANCEL or ARCHIVE first before moving to Trash.
+                    if action == 'DELETE':
+                        protected_statuses = ['ASSIGNED', 'SCHEDULED', 'IN_PROGRESS', 'BOOKED']
+                        if prev_status in protected_statuses:
+                            results["skipped"] += 1
+                            results["failures"].append({"record": f"{actual_pk}/{actual_sk}", "reason": f"Cannot delete active record (status: {prev_status}). Cancel or archive first."})
+                            print(f"WARNING: [AdminBulk] Rejected DELETE on active record {actual_pk} (status: {prev_status})")
+                            continue
+
                     # Safety: Only skip if already in the target status or already DELETED
                     if action == 'DELETE' and prev_status == 'DELETED':
                         results["skipped"] += 1

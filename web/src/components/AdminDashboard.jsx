@@ -352,7 +352,10 @@ const AdminDashboard = () => {
   const isArchivedRecord = (item) => (item.status || "").toUpperCase() === 'ARCHIVED' || (item.status || "").toUpperCase() === 'ARCHIVE';
   const isDeletedRecord = (item) => {
     const s = (item.status || "").toUpperCase();
-    return s === 'DELETED' || s === 'TRASH' || s === 'DELETE' || !!item.deleted_at;
+    // Release 6D: Status is the sole source of truth for Trash classification.
+    // deleted_at alone does NOT qualify — prevents zombie records (active status + deleted_at)
+    // from appearing in Trash. Such records are treated as data integrity issues instead.
+    return s === 'DELETED' || s === 'TRASH' || s === 'DELETE';
   };
   const isCancelledRecord = (item) => {
     const s = (item.status || "").toUpperCase();
@@ -411,6 +414,11 @@ const AdminDashboard = () => {
       'PROFILE_CREATED', 'CANCELLATION_REQUESTED', 'CANCELLATION_DENIED'
     ];
 
+    // Release 6D: Zombie detection — deleted_at exists but status is active.
+    // These are data integrity issues, not normal Trash records.
+    const activeStatuses = ['APPROVED', 'ASSIGNED', 'SCHEDULED', 'BOOKED', 'JOB_CREATED', 'IN_PROGRESS', 'PENDING_REVIEW', 'NEEDS_REVIEW'];
+    if (item.deleted_at && activeStatuses.includes(status)) return true;
+
     return (
       !status || 
       status === "UNKNOWN" || 
@@ -441,6 +449,10 @@ const AdminDashboard = () => {
           return isDataIssue(r);
         case 'ALL': // All Active
           return isActiveRecord(r);
+        case 'UNASSIGNED':
+          // Release 6D: Dedicated predicate for Needs Assignment — matches stat card count exactly
+          if (isDataIssue(r)) return false;
+          return (stat === 'APPROVED' || stat === 'BOOKED' || stat === 'JOB_CREATED') && !r.worker_id;
         case 'NEEDS_ACTION':
           if (!isActiveRecord(r)) return false;
           return (
@@ -526,8 +538,12 @@ const AdminDashboard = () => {
     }
     
     if (isDeletedRecord(item)) {
-      // Release 1: Add RESTORE_APPROVED as MVP recovery action.
-      state.actions = ["REOPEN_PENDING", "RESTORE_APPROVED", "PURGE_FOREVER"];
+      // Release 6D: PURGE_FOREVER only for records with explicit DELETED/TRASH status.
+      // This prevents purge from appearing on zombie records (active status + deleted_at).
+      const explicitlyDeleted = ['DELETED', 'TRASH', 'DELETE'].includes(status);
+      state.actions = explicitlyDeleted 
+        ? ["REOPEN_PENDING", "RESTORE_APPROVED", "PURGE_FOREVER"]
+        : ["REOPEN_PENDING", "RESTORE_APPROVED", "DELETE"];
       return state;
     }
 
@@ -623,7 +639,7 @@ const AdminDashboard = () => {
       const filters = [
           'INTAKE_QUEUE', 'MEET_GREET_REQUIRED', 'READY_FOR_APPROVAL',
           'BOOKING_QUEUE', 'QUOTED', 'ASSIGNED', 'COMPLETED',
-          'ALL', 'NEEDS_ACTION', 'DATA_ISSUES',
+          'ALL', 'NEEDS_ACTION', 'DATA_ISSUES', 'UNASSIGNED',
           'CANCELLED', 'ARCHIVED', 'DELETED'
       ];
       const counts = {};
@@ -1729,9 +1745,25 @@ const AdminDashboard = () => {
     
     if (selectedItems.length === 0) return;
 
+    // Release 6D: Pre-filter to only include records with explicit DELETED/TRASH status.
+    // Prevents accidental purge of active records that might be selected.
+    const purgeableItems = selectedItems.filter(r => {
+      const s = (r.status || '').toUpperCase();
+      return s === 'DELETED' || s === 'TRASH' || s === 'DELETE';
+    });
+
+    if (purgeableItems.length === 0) {
+      showNotification("No selected records are in Trash status. Move records to Trash before purging.", "warning");
+      return;
+    }
+
+    if (purgeableItems.length < selectedItems.length) {
+      showNotification(`${selectedItems.length - purgeableItems.length} record(s) skipped — only Trash records can be permanently deleted.`, "info");
+    }
+
     setIsBulkPurging(true);
     try {
-      const payload = selectedItems.map(item => ({ PK: item.PK, SK: item.SK }));
+      const payload = purgeableItems.map(item => ({ PK: item.PK, SK: item.SK }));
       
       // Step 1: Dry Run Analysis
       if (!confirm) {
@@ -1939,9 +1971,16 @@ const AdminDashboard = () => {
   };
 
   const renderStats = () => {
+    // Release 6D: Needs Assignment uses a dedicated predicate for count/click alignment
+    const unassignedPredicate = (r) => {
+      if (!r || isDataIssue(r)) return false;
+      const s = (r.status || '').toUpperCase();
+      return (s === 'APPROVED' || s === 'BOOKED' || s === 'JOB_CREATED') && !r.worker_id;
+    };
+
     const stats = {
       intake: allRequests.filter(getFilterPredicate('INTAKE_QUEUE')).length,
-      unassigned: allRequests.filter(r => (r.status === 'APPROVED' || r.status === 'JOB_CREATED') && !r.worker_id && !isDataIssue(r)).length,
+      unassigned: allRequests.filter(unassignedPredicate).length,
       scheduled: allRequests.filter(getFilterPredicate('ASSIGNED')).length,
       alerts: allRequests.filter(r => r.status === 'CANCELLATION_REQUESTED').length
     };
@@ -1953,7 +1992,7 @@ const AdminDashboard = () => {
           <span className="value">{stats.intake}</span>
           <span className="trend neutral">New registrations</span>
         </div>
-        <div className="stat-card" onClick={() => { setView('LIST'); setStatusFilter('READY_FOR_APPROVAL'); }}>
+        <div className="stat-card" onClick={() => { setView('LIST'); setStatusFilter('UNASSIGNED'); }}>
           <span className="label">Needs Assignment</span>
           <span className="value" style={{ color: stats.unassigned > 0 ? 'var(--warning-color)' : 'inherit' }}>
             {stats.unassigned}
