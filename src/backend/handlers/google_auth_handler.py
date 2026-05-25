@@ -37,6 +37,7 @@ def save_tokens(new_tokens):
     """
     Saves/Updates tokens in Secrets Manager.
     Decision: Preserves existing refresh_token if new one is not provided.
+    Release 6G: Clears revoked status when new valid tokens are saved.
     """
     secret_name = os.environ.get('GOOGLE_USER_TOKENS_NAME')
     existing = get_stored_tokens()
@@ -47,6 +48,11 @@ def save_tokens(new_tokens):
     # Ensure refresh_token is not lost if it was already stored but not returned now
     if 'refresh_token' not in new_tokens and 'refresh_token' in existing:
         merged['refresh_token'] = existing['refresh_token']
+    
+    # Release 6G Phase 0C: Clear revoked status on successful token save
+    merged.pop('token_status', None)
+    merged.pop('revoked_at', None)
+    merged.pop('revoked_reason', None)
     
     merged['updated_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
     
@@ -219,6 +225,13 @@ def get_status(event):
     # Check if user tokens exist
     tokens = get_stored_tokens()
     refresh_token = tokens.get('refresh_token')
+    
+    # Release 6G Phase 0C: Check if token is marked as revoked
+    if tokens.get('token_status') == 'revoked':
+        return success({
+            "status": "VALIDATION_FAILED",
+            "message": "Google Calendar connection was revoked. Please reconnect via the Connect button."
+        }, event)
     
     if not refresh_token:
         return success({"status": "NOT_CONNECTED"}, event)

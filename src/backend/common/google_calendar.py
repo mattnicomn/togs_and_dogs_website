@@ -3,6 +3,7 @@ import os
 import time
 import urllib.request
 import urllib.parse
+import urllib.error
 import boto3
 from datetime import datetime
 
@@ -78,13 +79,64 @@ def _refresh_access_token(tokens, request_id="UNKNOWN"):
             _save_tokens(res_data)
             print(f"SUCCESS: [Req:{request_id}] Google access token refreshed.")
             return res_data['access_token']
+    except urllib.error.HTTPError as http_err:
+        # Release 6G Phase 0C: Detect invalid_grant (revoked/expired refresh token)
+        try:
+            error_body = http_err.read().decode()
+            error_data = json.loads(error_body)
+            error_code = error_data.get('error', '')
+        except Exception:
+            error_code = ''
+            error_body = str(http_err)
+
+        if error_code == 'invalid_grant':
+            print(f"CALENDAR_SYNC_TOKEN_REVOKED: [Req:{request_id}] Google refresh token is revoked or expired (invalid_grant). Admin must reconnect Google Calendar.")
+            # Mark the stored tokens as revoked so status endpoint reflects reality
+            _mark_token_revoked(request_id)
+            return None
+        else:
+            print(f"ERROR: [Req:{request_id}] Failed to refresh Google token: HTTP {http_err.code} - {error_body}")
+            return None
     except Exception as e:
         print(f"ERROR: [Req:{request_id}] Failed to refresh Google token: {e}")
         return None
 
+
+def _mark_token_revoked(request_id="UNKNOWN"):
+    """
+    Release 6G Phase 0C: Marks the stored Google token as revoked.
+    This ensures the /admin/auth/status endpoint returns VALIDATION_FAILED
+    and the admin knows they need to reconnect.
+    """
+    try:
+        secret_name = os.environ.get('GOOGLE_USER_TOKENS_NAME')
+        if not secret_name:
+            return
+        existing = _get_stored_tokens()
+        existing['token_status'] = 'revoked'
+        existing['revoked_at'] = datetime.utcnow().isoformat()
+        existing['revoked_reason'] = 'invalid_grant'
+        # Clear the access_token so it's not reused
+        existing.pop('access_token', None)
+        existing.pop('expires_in', None)
+        
+        secrets.put_secret_value(
+            SecretId=secret_name,
+            SecretString=json.dumps(existing)
+        )
+        print(f"INFO: [Req:{request_id}] Marked Google token as revoked in Secrets Manager.")
+    except Exception as e:
+        print(f"WARNING: [Req:{request_id}] Failed to mark token as revoked: {e}")
+
 def _get_valid_token(request_id="UNKNOWN"):
     """Internal: Gets a valid access token, refreshing if necessary."""
     tokens = _get_stored_tokens()
+    
+    # Release 6G Phase 0C: Check if token is marked as revoked
+    if tokens.get('token_status') == 'revoked':
+        print(f"CALENDAR_SYNC_SKIPPED: [Req:{request_id}] Google token is marked as revoked. Admin must reconnect Google Calendar.")
+        return None
+    
     access_token = tokens.get('access_token')
     updated_at = tokens.get('updated_at')
     expires_in = tokens.get('expires_in', 3600)
