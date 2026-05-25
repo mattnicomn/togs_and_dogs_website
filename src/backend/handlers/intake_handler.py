@@ -101,6 +101,162 @@ def _generate_pet_names_string(body):
     # Fallback to legacy field
     return body.get('pet_names') or ''
 
+
+def _handle_admin_created_booking(event, body):
+    """
+    Release 6F: Admin-created booking for offline/repeat clients.
+    
+    Requirements:
+    - Owner/admin role required
+    - Existing client_id required (from Client Management profile)
+    - Pet selection required (pet_names or pet_ids)
+    - Creates as VISIT_BOOKING / APPROVED
+    - Skips REQUEST_RECEIVED notification
+    - Triggers JOB Lambda asynchronously
+    - Syncs Google Calendar placeholder
+    - Validates tenant isolation (client belongs to admin's company)
+    - Fail-safe: JOB/Calendar failures don't corrupt the booking
+    """
+    from common.auth import get_effective_role, get_claims, get_current_company_id
+    from boto3.dynamodb.conditions import Key
+
+    # 1. Authorization: owner/admin only
+    role = get_effective_role(event)
+    if role not in ['owner', 'admin']:
+        return error(403, "Forbidden: Only owners and admins can create bookings on behalf of clients.", event)
+
+    claims = get_claims(event)
+    user_email = (claims.get('email') or '').lower().strip()
+    created_by = user_email or claims.get('username') or 'admin-api'
+    company_id = get_current_company_id(event)
+
+    # 2. Validate required fields
+    client_id = body.get('client_id')
+    if not client_id:
+        return bad_request("client_id is required for admin-created bookings. Select an existing client.", event)
+
+    client_name = body.get('client_name', '').strip()
+    client_email = body.get('client_email', '').strip().lower()
+    start_date = body.get('start_date', '').strip()
+
+    if not client_name or not client_email or not start_date:
+        return bad_request("client_name, client_email, and start_date are required.", event)
+
+    # Pet validation: require pet_names or pet_ids
+    pet_names = body.get('pet_names', '').strip()
+    pet_ids = body.get('pet_ids') or []
+    if not pet_names and not pet_ids:
+        pet_names = _generate_pet_names_string(body)
+    if not pet_names and not pet_ids:
+        return bad_request("At least one pet is required. Select pets or provide pet_names.", event)
+
+    # 3. Tenant isolation: verify client belongs to admin's company
+    client_profile = get_item(f"COMPANY#{company_id}", f"CLIENT#{client_id}")
+    if not client_profile:
+        return bad_request(f"Client profile '{client_id}' not found in your company. Select an existing client.", event)
+
+    if client_profile.get('company_id') and client_profile.get('company_id') != company_id:
+        return error(403, "Forbidden: Cross-tenant booking creation is not allowed.", event)
+
+    # 4. Create the Request record
+    request_id = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+
+    item = {
+        'PK': f"REQ#{request_id}",
+        'SK': f"CLIENT#{client_id}",
+        'company_id': company_id,
+        'request_id': request_id,
+        'client_id': client_id,
+        'client_name': client_name,
+        'client_email': client_email,
+        'client_phone': (body.get('client_phone') or '').strip() or None,
+        'start_date': start_date,
+        'end_date': body.get('end_date') or None,
+        'visit_window': body.get('visit_window', 'ANYTIME'),
+        'visit_windows': _normalize_visit_windows(body),
+        'preferred_time': body.get('preferred_time') or None,
+        'timing_notes': body.get('timing_notes') or None,
+        'preferred_sitter': body.get('preferred_sitter') or None,
+        'preferred_sitter_name': body.get('preferred_sitter_name') or None,
+        'pets': body.get('pets') or None,
+        'pet_names': pet_names or ', '.join([str(p) for p in pet_ids]),
+        'pet_ids': pet_ids if pet_ids else None,
+        'pet_info': body.get('pet_info') or None,
+        'vet_info': body.get('vet_info') or None,
+        'emergency_contact_info': body.get('emergency_contact') or None,
+        'service_type': body.get('service_type', 'PET_SITTING'),
+        'details': body.get('details') or None,
+        'status': 'APPROVED',
+        'workflow_type': WorkflowType.VISIT_BOOKING.value,
+        'source': 'admin_created',
+        'created_by': created_by,
+        'admin_created_at': now,
+        'created_at': now,
+        'entity_type': 'REQUEST',
+        'linked_client_profile_id': client_id,
+        'client_profile_link_status': 'ADMIN_CREATED',
+    }
+
+    if not put_item(item):
+        return internal_error("Failed to save booking to database.", event)
+
+    # 5. Trigger JOB creation Lambda (async, fail-safe)
+    job_warning = None
+    try:
+        lambda_client = boto3.client('lambda')
+        job_fn_name = os.environ.get('JOB_FUNCTION_NAME')
+        if job_fn_name:
+            payload = {
+                "request_id": request_id,
+                "client_id": client_id,
+            }
+            lambda_client.invoke(
+                FunctionName=job_fn_name,
+                InvocationType='Event',
+                Payload=json.dumps(payload)
+            )
+            print(f"INFO: [AdminBooking] Triggered JOB creation for REQ#{request_id}")
+        else:
+            job_warning = "JOB_FUNCTION_NAME not configured — JOB record not created."
+            print(f"WARNING: [AdminBooking] {job_warning}")
+    except Exception as job_err:
+        job_warning = f"JOB creation trigger failed: {str(job_err)}"
+        print(f"WARNING: [AdminBooking] {job_warning}")
+
+    # 6. Google Calendar sync (fail-safe)
+    calendar_result = None
+    try:
+        from common.google_calendar import sync_calendar_event
+        calendar_result = sync_calendar_event(item)
+        if calendar_result and calendar_result.get('event_id'):
+            table.update_item(
+                Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                UpdateExpression="SET google_event_id = :gid",
+                ExpressionAttributeValues={":gid": calendar_result['event_id']}
+            )
+            print(f"INFO: [AdminBooking] Calendar event created: {calendar_result['event_id']}")
+    except Exception as cal_err:
+        calendar_result = {"status": "calendar_failed", "message": str(cal_err)}
+        print(f"WARNING: [AdminBooking] Calendar sync failed: {cal_err}")
+
+    # 7. Build response
+    response_msg = "Booking created successfully."
+    if job_warning:
+        response_msg += f" Warning: {job_warning}"
+    if calendar_result and calendar_result.get('message'):
+        response_msg += f" Calendar: {calendar_result.get('message', '')}"
+
+    return success({
+        "message": response_msg,
+        "request_id": request_id,
+        "client_id": client_id,
+        "status": "APPROVED",
+        "workflow_type": "VISIT_BOOKING",
+        "source": "admin_created",
+        "calendar_result": calendar_result,
+    }, event)
+
 def handler(event, context):
     try:
         body = json.loads(event.get('body', '{}'))
@@ -110,6 +266,12 @@ def handler(event, context):
         # Accessible without authentication via POST /requests with action: "staff-options".
         if body.get('action') == 'staff-options':
             return _handle_staff_options(event)
+
+        # Release 6F: Admin-created booking path.
+        # Allows owner/admin to create VISIT_BOOKING requests on behalf of existing clients.
+        # Bypasses portal checks, sets status to APPROVED, triggers JOB + Calendar.
+        if body.get('source') == 'admin_created':
+            return _handle_admin_created_booking(event, body)
         
         client_name = body.get('client_name')
         client_email = body.get('client_email')
