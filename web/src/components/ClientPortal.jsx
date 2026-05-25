@@ -8,6 +8,7 @@ const ClientPortal = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [error, setError] = useState(null);
 
@@ -22,7 +23,8 @@ const ClientPortal = () => {
         const role = getEffectiveRole(s);
         if (['owner', 'admin', 'client'].includes(role)) {
           setSession(s);
-          await fetchMyBookings(s);
+          setUserRole(role);
+          await fetchMyBookings(s, role);
         } else {
           setError("Access denied. Staff members must use the Staff Portal.");
           setSession(null);
@@ -33,14 +35,19 @@ const ClientPortal = () => {
     }
   };
 
-  const fetchMyBookings = async (activeSession) => {
+  const fetchMyBookings = async (activeSession, role) => {
     if (!activeSession) return;
     try {
       setLoading(true);
       const data = await getClientRequests(); 
       if (data.message === "No local profile linked") {
         setRequests([]);
-        setError("Your portal account is not yet linked to a client profile. Please contact support.");
+        // Release 6E: Clear role-specific messaging instead of misleading "not linked" for admin/owner
+        if (role && ['owner', 'admin'].includes(role)) {
+          setError("You are signed in as an administrator. The Client Portal is for client accounts only. To view client bookings, use the Admin Dashboard.");
+        } else {
+          setError("Your portal account is not yet linked to a client profile. Please contact support.");
+        }
       } else {
         setRequests(data.requests || []);
         setError(null);

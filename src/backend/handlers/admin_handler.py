@@ -50,6 +50,43 @@ def is_protected_profile(profile):
     return False
 
 
+def normalize_phone_e164(phone):
+    """
+    Release 6E: Normalize common US phone formats to E.164 for Cognito sync.
+    Returns the normalized phone string, or None if it cannot be safely normalized.
+    
+    Examples:
+        '5551234567'       -> '+15551234567'
+        '(555) 123-4567'   -> '+15551234567'
+        '1-555-123-4567'   -> '+15551234567'
+        '+15551234567'     -> '+15551234567' (unchanged)
+        'invalid'          -> None
+    """
+    import re
+    if not phone:
+        return None
+    
+    phone = phone.strip()
+    
+    # Already valid E.164
+    if re.match(r'^\+\d{10,15}$', phone):
+        return phone
+    
+    # Strip all non-digit characters
+    digits = re.sub(r'\D', '', phone)
+    
+    # US number: 10 digits (no country code)
+    if len(digits) == 10:
+        return f'+1{digits}'
+    
+    # US number: 11 digits starting with 1
+    if len(digits) == 11 and digits[0] == '1':
+        return f'+{digits}'
+    
+    # Cannot safely normalize — return None (caller should skip Cognito sync)
+    return None
+
+
 def _resolve_admin_record(pk, sk):
     """
     Robust record resolution for administrative cleanup.
@@ -1098,11 +1135,12 @@ def handler(event, context):
                     
                     if 'phone' in body:
                         phone = body['phone'].strip()
-                        # Simple E.164 check: must start with + followed by digits
-                        if re.match(r'^\+\d{1,15}$', phone):
-                            attributes_to_sync.append({'Name': 'phone_number', 'Value': phone})
+                        # Release 6E: Normalize phone to E.164 before Cognito sync
+                        normalized = normalize_phone_e164(phone)
+                        if normalized:
+                            attributes_to_sync.append({'Name': 'phone_number', 'Value': normalized})
                         elif phone:
-                            warnings.append(f"Cognito phone sync skipped: {phone} is not in E.164 format (+1...)")
+                            warnings.append(f"Cognito phone sync skipped: '{phone}' could not be normalized to E.164 format (+1...)")
                             
                     if attributes_to_sync:
                         try:
@@ -1563,8 +1601,10 @@ def handler(event, context):
                     
                     if 'phone' in body:
                         phone = body['phone'].strip()
-                        if re.match(r'^\+\d{1,15}$', phone):
-                            attributes_to_sync.append({'Name': 'phone_number', 'Value': phone})
+                        # Release 6E: Normalize phone to E.164 before Cognito sync
+                        normalized = normalize_phone_e164(phone)
+                        if normalized:
+                            attributes_to_sync.append({'Name': 'phone_number', 'Value': normalized})
                             
                     if attributes_to_sync:
                         try:
