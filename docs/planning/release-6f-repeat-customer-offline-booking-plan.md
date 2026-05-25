@@ -11,7 +11,7 @@
 **Deployment:** Backend (9 Lambdas) + Frontend (S3/CloudFront) + Terraform (new API Gateway route)
 **Validation:** Direct Lambda smoke tests passed — role auth, tenant isolation, pet listing all confirmed
 
-**Follow-up:** Verify `terraform plan` returns "No changes" to confirm full state alignment.
+**Follow-up:** ~~Verify `terraform plan` returns "No changes" to confirm full state alignment.~~ ✅ Confirmed — no drift detected. Production smoke test passed end-to-end.
 
 ## Objective
 Allow admin/owner to create visit bookings on behalf of existing clients directly from the Admin Dashboard, supporting offline/non-tech-savvy clients without requiring Cognito login or the public intake form.
