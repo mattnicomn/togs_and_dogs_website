@@ -24,6 +24,7 @@ Last updated: 2026-05-21
 
 | # | Task | Release | Completed | Commit |
 |---|------|---------|-----------|--------|
+| 17 | Staff calendar sync reliability (7 phases) | 6G | 2026-05-22 | `e3fe2f6` |
 | 16 | Repeat customer / offline client booking flow | 6F | 2026-05-22 | `3934ef5` |
 | 15 | Identity messaging + phone normalization + protected email guard | 6E | 2026-05-21 | `79b2b89` |
 | 14 | Admin filter integrity & safe delete guardrails | 6D | 2026-05-21 | `ee751c1` |

@@ -1,5 +1,23 @@
 # Release 6G: Staff Calendar Sync Reliability — Plan
 
+## Status: ✅ DEPLOYED & PRODUCTION VALIDATED (2026-05-22)
+
+**Final Commit:** `e3fe2f66322cbd760d8b7fdf3f207c85923fb4e1`
+**Terraform:** Final plan returns "No changes. Your infrastructure matches the configuration."
+**Google Calendar Health Check:** CONNECTED
+**All phases deployed and validated.**
+
+### Deployment History
+| Phase | Scope | Commit |
+|-------|-------|--------|
+| Phase 0 | Terraform env vars (Google secrets + JOB_FUNCTION_NAME) | `b983dd5` |
+| Phase 0B | Admin UI calendar sync warning UX | `9b4774e` |
+| Phase 0C | Revoked token / invalid_grant handling | `132ceb3` |
+| Phase 2 | All-day event fallback | `65de586` |
+| Phase 1 | CloudWatch observability (metric filters + alarms) | `d3da93c` |
+| Phase 3 | Scheduled EventBridge health check | `b8b58e9` |
+| Phase 4 | Retry for transient failures | `e3fe2f6` |
+
 ## Objective
 Improve reliability, observability, and user-facing clarity around Google Calendar sync during staff assignment and scheduling. Reduce silent failures and provide proactive monitoring.
 
