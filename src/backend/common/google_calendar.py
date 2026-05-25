@@ -232,9 +232,29 @@ def _build_event_body(item, assigned_worker=None):
             print(f"WARNING: Failed to parse exact timing ({scheduled_date} {scheduled_time}): {e}")
             return None, "invalid_time_format"
 
-    # If no scheduled_time, we consider it a skip unless explicitly requested as all-day
-    # For Tog and Dogs visits, time is usually required.
-    return None, "missing_scheduled_time"
+    # Release 6G Phase 2: All-day event fallback when scheduled_time is missing.
+    # Instead of skipping, create an all-day placeholder so every approved/assigned
+    # booking gets a calendar entry. When time is later added, the event will be updated.
+    try:
+        # Validate date format (YYYY-MM-DD)
+        datetime.strptime(scheduled_date, '%Y-%m-%d')
+        
+        # Google Calendar all-day events use 'date' (not 'dateTime')
+        # End date is exclusive in Google API, so single-day = start + 1 day
+        from datetime import timedelta
+        start_date_obj = datetime.strptime(scheduled_date, '%Y-%m-%d')
+        end_date_str = (start_date_obj + timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        body = {
+            'summary': summary,
+            'description': description,
+            'start': {'date': scheduled_date},
+            'end': {'date': end_date_str}
+        }
+        return body, None
+    except (ValueError, TypeError) as e:
+        print(f"WARNING: Failed to create all-day event for date '{scheduled_date}': {e}")
+        return None, "invalid_date_format"
 
 def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
     """
