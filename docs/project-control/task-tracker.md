@@ -9,12 +9,12 @@ Last updated: 2026-05-21
 | 1 | ~~Verify Postmark sender signature~~ | 6C | High | ✅ Complete | AG | Matthew | Release 6C |
 | 2 | ~~Update `postmark-setup.md` to reflect approved/production status~~ | 6C | High | ✅ Complete | Kiro | — | Release 6C |
 | 3 | ~~Send test email to real external address~~ | 6C | High | ✅ Complete (CloudWatch evidence) | AG | Matthew | Release 6C |
-| 4 | Fix Needs Assignment count/navigation mismatch | 6D Phase 1 | High | Planning | Kiro | AG | Release 6D |
-| 5 | Harden `isDeletedRecord` — remove `deleted_at` fallback | 6D Phase 2 | High | Planning | Kiro | AG | Release 6D |
-| 6 | Frontend purge visibility & bulk purge pre-validation | 6D Phase 3 | Medium | Planning | Kiro | AG | Release 6D |
-| 7 | Backend delete atomicity — set status + deleted_at atomically | 6D Phase 4 | High | Planning | Kiro | AG | Release 6D |
-| 8 | AG pre-scan: find records with `deleted_at` but non-DELETED status | 6D Pre-work | High | ✅ Complete | AG | Kiro | Release 6D |
-| 9 | Data cleanup: fix zombie REQ#69780136 (status APPROVED + deleted_at) | 6D Cleanup | Medium | Not Started | AG/Matthew | Kiro | Release 6D |
+| 4 | ~~Fix Needs Assignment count/navigation mismatch~~ | 6D Phase 1 | High | ✅ Deployed | Kiro | AG | Release 6D |
+| 5 | ~~Harden `isDeletedRecord` — remove `deleted_at` fallback~~ | 6D Phase 2 | High | ✅ Deployed | Kiro | AG | Release 6D |
+| 6 | ~~Frontend purge visibility & bulk purge pre-validation~~ | 6D Phase 3 | Medium | ✅ Deployed | Kiro | AG | Release 6D |
+| 7 | ~~Backend delete atomicity — reject DELETE on active records~~ | 6D Phase 4 | High | ✅ Deployed | Kiro | AG | Release 6D |
+| 8 | ~~AG pre-scan: find records with `deleted_at` but non-DELETED status~~ | 6D Pre-work | High | ✅ Complete | AG | Kiro | Release 6D |
+| 9 | ~~Data cleanup: fix zombie REQ#69780136~~ | 6D Cleanup | Medium | ✅ Complete | AG | Kiro | Release 6D |
 | 10 | Cancellation reason persistence in review handler | Backlog | Low | Planned | Kiro | AG | TBD |
 | 11 | Client portal identity resolution guardrail | Backlog | Medium | Planned | Kiro | AG | TBD |
 | 12 | Admin/staff email protection on client profile auto-creation | Backlog | Medium | Planned | Kiro | AG | TBD |
@@ -24,6 +24,7 @@ Last updated: 2026-05-21
 
 | # | Task | Release | Completed | Commit |
 |---|------|---------|-----------|--------|
+| 14 | Admin filter integrity & safe delete guardrails | 6D | 2026-05-21 | `ee751c1` |
 | 7 | Polish `visit_cancelled` template | 6B Phase 2 | 2026-05-20 | `f12d92f` |
 | 8 | Polish `staff_assigned` + `visit_scheduled` templates | 6B Phase 1 | 2026-05-19 | `c2bb31b` |
 | 9 | Polish `request_received` admin notification | 6A Hotfix 1 | 2026-05-18 | `8350ac5` |

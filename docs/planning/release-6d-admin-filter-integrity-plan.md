@@ -1,5 +1,12 @@
 # Release 6D: Admin Filter Integrity & Safe Delete Guardrails — Plan
 
+## Status: ✅ DEPLOYED & PRODUCTION VALIDATED (2026-05-21)
+
+**Commit:** `ee751c14e33e0cbb1dbd833fdc91ce527463ae92`
+**Deployment:** Terraform 9 Lambdas updated + Frontend S3/CloudFront
+**Tests:** 44/44 backend tests passed
+**Validation:** 603 records scanned, 136 Trash (correct), 0 zombie records, DELETE guard confirmed
+
 ## Objective
 Fix count/filter mismatches in the Admin Dashboard, prevent active records from appearing in Trash, and add guardrails so purge/delete actions can only affect truly DELETED records.
 

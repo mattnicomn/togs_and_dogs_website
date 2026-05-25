@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 6D: Admin Filter Integrity & Safe Delete Guardrails**](release-6d-admin-filter-integrity.md) (2026-05-21) — ✅ **Deployed & Production Validated**
 - [**Release 6C: Postmark Production Readiness**](release-6c-postmark-production-readiness.md) (2026-05-21) — ✅ **Validated — External Delivery Confirmed**
 - [**Release 6B: Notification Coverage Expansion**](release-6b-notification-coverage-expansion.md) (2026-05-19) — ✅ **Accepted — Production Validated**
 - [**Release 6A: Client Approval Email Template**](release-6a-approval-email-template.md) (2026-05-18) — ✅ **Live — Production Validated**
