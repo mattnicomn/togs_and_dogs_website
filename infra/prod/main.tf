@@ -49,9 +49,10 @@ module "notifications" {
 }
 
 module "observability" {
-  source      = "../../modules/observability"
-  name_prefix = local.name_prefix
-  tags        = local.common_tags
+  source              = "../../modules/observability"
+  name_prefix         = local.name_prefix
+  tags                = local.common_tags
+  alarm_sns_topic_arn = module.notifications.ryan_alerts_topic_arn
 }
 
 # ------------------------------------------------------------------------------

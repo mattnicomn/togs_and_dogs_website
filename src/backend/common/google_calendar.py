@@ -266,11 +266,13 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
     try:
         token = _get_valid_token(request_id)
         if not token:
+            print(f"CALENDAR_SYNC_FAILED: [Req:{request_id}] No valid token available (disconnected or revoked).")
             return {
                 "status": "calendar_failed",
                 "message": "Google Calendar disconnected or token expired."
             }
     except Exception as e:
+        print(f"CALENDAR_SYNC_FAILED: [Req:{request_id}] Auth error: {e}")
         return {
             "status": "calendar_failed",
             "message": f"Auth error: {str(e)}"
@@ -278,6 +280,7 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
 
     event_body, skip_reason = _build_event_body(item, assigned_worker)
     if skip_reason:
+        print(f"CALENDAR_SYNC_SKIPPED: [Req:{request_id}] Reason: {skip_reason}")
         return {
             "status": f"calendar_skipped_{skip_reason}",
             "message": f"Calendar sync skipped: {skip_reason.replace('_', ' ')}."
@@ -304,6 +307,7 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
             res_data = json.loads(response.read().decode())
             new_id = res_data.get('id')
             action = "calendar_updated" if google_event_id else "calendar_created"
+            print(f"CALENDAR_SYNC_SUCCESS: [Req:{request_id}] Event {action.split('_')[1]} (id: {new_id})")
             return {
                 "status": action,
                 "event_id": new_id,
@@ -318,13 +322,13 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
              return sync_calendar_event(item, google_event_id=None, assigned_worker=assigned_worker)
              
         error_msg = f"Google API Error {he.code}: {err_body}"
-        print(f"ERROR: [Req:{request_id}] {error_msg}")
+        print(f"CALENDAR_SYNC_FAILED: [Req:{request_id}] {error_msg}")
         return {
             "status": "calendar_failed",
             "message": error_msg
         }
     except Exception as e:
-        print(f"ERROR: [Req:{request_id}] Failed to sync Calendar: {e}")
+        print(f"CALENDAR_SYNC_FAILED: [Req:{request_id}] {e}")
         return {
             "status": "calendar_failed",
             "message": str(e)
