@@ -256,6 +256,35 @@ def _build_event_body(item, assigned_worker=None):
         print(f"WARNING: Failed to create all-day event for date '{scheduled_date}': {e}")
         return None, "invalid_date_format"
 
+# Release 6G Phase 4: Transient error codes eligible for retry
+_RETRYABLE_HTTP_CODES = {429, 500, 502, 503, 504}
+_MAX_RETRY_ATTEMPTS = 2
+_RETRY_BACKOFF_SECONDS = [0.5, 1.5]
+
+
+def _is_retryable_error(error):
+    """Determines if an error is transient and eligible for retry."""
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code in _RETRYABLE_HTTP_CODES
+    if isinstance(error, (urllib.error.URLError, OSError, TimeoutError)):
+        return True
+    return False
+
+
+def _execute_calendar_api(url, method, data, token, request_id):
+    """
+    Executes a single Google Calendar API call.
+    Returns (result_dict, None) on success, or (None, error) on failure.
+    """
+    req = urllib.request.Request(url, data=data, method=method)
+    req.add_header('Authorization', f'Bearer {token}')
+    req.add_header('Content-Type', 'application/json')
+
+    with urllib.request.urlopen(req, timeout=10) as response:
+        res_data = json.loads(response.read().decode())
+        return res_data, None
+
+
 def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
     """
     Creates or updates a Google Calendar event.
@@ -286,27 +315,29 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
             "message": f"Calendar sync skipped: {skip_reason.replace('_', ' ')}."
         }
     
-    try:
-        if google_event_id:
-            # Update existing
-            print(f"INFO: [Req:{request_id}] Updating Calendar Event: {google_event_id}")
-            url = f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{google_event_id}"
-            method = 'PUT'
-        else:
-            # Create new
-            print(f"INFO: [Req:{request_id}] Creating new Calendar Event.")
-            url = "https://www.googleapis.com/calendar/v3/calendars/primary/events"
-            method = 'POST'
+    # Determine URL and method
+    if google_event_id:
+        print(f"INFO: [Req:{request_id}] Updating Calendar Event: {google_event_id}")
+        url = f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{google_event_id}"
+        method = 'PUT'
+    else:
+        print(f"INFO: [Req:{request_id}] Creating new Calendar Event.")
+        url = "https://www.googleapis.com/calendar/v3/calendars/primary/events"
+        method = 'POST'
 
-        data = json.dumps(event_body).encode('utf-8')
-        req = urllib.request.Request(url, data=data, method=method)
-        req.add_header('Authorization', f'Bearer {token}')
-        req.add_header('Content-Type', 'application/json')
+    data = json.dumps(event_body).encode('utf-8')
 
-        with urllib.request.urlopen(req) as response:
-            res_data = json.loads(response.read().decode())
+    # Release 6G Phase 4: Retry loop for transient errors
+    last_error = None
+    for attempt in range(_MAX_RETRY_ATTEMPTS + 1):  # 0 = first attempt, 1-2 = retries
+        try:
+            res_data, _ = _execute_calendar_api(url, method, data, token, request_id)
             new_id = res_data.get('id')
             action = "calendar_updated" if google_event_id else "calendar_created"
+            
+            if attempt > 0:
+                print(f"CALENDAR_SYNC_RETRY_SUCCESS: [Req:{request_id}] Succeeded on attempt {attempt + 1}")
+            
             print(f"CALENDAR_SYNC_SUCCESS: [Req:{request_id}] Event {action.split('_')[1]} (id: {new_id})")
             return {
                 "status": action,
@@ -314,25 +345,58 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
                 "message": f"Calendar event {action.split('_')[1]}."
             }
 
-    except urllib.error.HTTPError as he:
-        err_body = he.read().decode()
-        # Handle 404 if event was deleted externally
-        if he.code == 404 and google_event_id:
-             print(f"WARNING: [Req:{request_id}] Event {google_event_id} not found, attempting re-creation.")
-             return sync_calendar_event(item, google_event_id=None, assigned_worker=assigned_worker)
-             
-        error_msg = f"Google API Error {he.code}: {err_body}"
-        print(f"CALENDAR_SYNC_FAILED: [Req:{request_id}] {error_msg}")
-        return {
-            "status": "calendar_failed",
-            "message": error_msg
-        }
-    except Exception as e:
-        print(f"CALENDAR_SYNC_FAILED: [Req:{request_id}] {e}")
-        return {
-            "status": "calendar_failed",
-            "message": str(e)
-        }
+        except urllib.error.HTTPError as he:
+            err_body = he.read().decode()
+            
+            # Handle 404 if event was deleted externally (not retryable — re-create instead)
+            if he.code == 404 and google_event_id:
+                print(f"WARNING: [Req:{request_id}] Event {google_event_id} not found, attempting re-creation.")
+                return sync_calendar_event(item, google_event_id=None, assigned_worker=assigned_worker)
+            
+            # Check if retryable
+            if _is_retryable_error(he) and attempt < _MAX_RETRY_ATTEMPTS:
+                print(f"CALENDAR_SYNC_RETRY_ATTEMPT: [Req:{request_id}] Transient error (HTTP {he.code}), retry {attempt + 1}/{_MAX_RETRY_ATTEMPTS}")
+                time.sleep(_RETRY_BACKOFF_SECONDS[attempt])
+                last_error = f"Google API Error {he.code}: {err_body}"
+                continue
+            
+            # Non-retryable or retries exhausted
+            error_msg = f"Google API Error {he.code}: {err_body}"
+            if attempt > 0:
+                print(f"CALENDAR_SYNC_RETRY_EXHAUSTED: [Req:{request_id}] Failed after {attempt + 1} attempts. Last error: {error_msg}")
+            print(f"CALENDAR_SYNC_FAILED: [Req:{request_id}] {error_msg}")
+            return {
+                "status": "calendar_failed",
+                "message": error_msg
+            }
+
+        except (urllib.error.URLError, OSError, TimeoutError) as net_err:
+            # Network/timeout errors — retryable
+            if attempt < _MAX_RETRY_ATTEMPTS:
+                print(f"CALENDAR_SYNC_RETRY_ATTEMPT: [Req:{request_id}] Network error ({type(net_err).__name__}), retry {attempt + 1}/{_MAX_RETRY_ATTEMPTS}")
+                time.sleep(_RETRY_BACKOFF_SECONDS[attempt])
+                last_error = str(net_err)
+                continue
+            
+            if attempt > 0:
+                print(f"CALENDAR_SYNC_RETRY_EXHAUSTED: [Req:{request_id}] Failed after {attempt + 1} attempts. Last error: {net_err}")
+            print(f"CALENDAR_SYNC_FAILED: [Req:{request_id}] {net_err}")
+            return {
+                "status": "calendar_failed",
+                "message": str(net_err)
+            }
+
+        except Exception as e:
+            # Unexpected errors — do not retry
+            print(f"CALENDAR_SYNC_FAILED: [Req:{request_id}] {e}")
+            return {
+                "status": "calendar_failed",
+                "message": str(e)
+            }
+
+    # Should not reach here, but safety fallback
+    print(f"CALENDAR_SYNC_FAILED: [Req:{request_id}] Exhausted all attempts. Last: {last_error}")
+    return {"status": "calendar_failed", "message": last_error or "Unknown error"}
 
 
 def delete_event(google_event_id, request_id="UNKNOWN"):
