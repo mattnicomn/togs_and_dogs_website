@@ -24,6 +24,7 @@ Last updated: 2026-05-21
 
 | # | Task | Release | Completed | Commit |
 |---|------|---------|-----------|--------|
+| 15 | Identity messaging + phone normalization + protected email guard | 6E | 2026-05-21 | `79b2b89` |
 | 14 | Admin filter integrity & safe delete guardrails | 6D | 2026-05-21 | `ee751c1` |
 | 7 | Polish `visit_cancelled` template | 6B Phase 2 | 2026-05-20 | `f12d92f` |
 | 8 | Polish `staff_assigned` + `visit_scheduled` templates | 6B Phase 1 | 2026-05-19 | `c2bb31b` |
@@ -53,6 +54,7 @@ Last updated: 2026-05-21
 | B12 | AWS cost allocation tagging | Infrastructure | Low | Standardize tags across all Terraform resources |
 | B13 | Admin-created CareCards/visits | Admin UI | Medium | Allow admin to create visits without public form |
 | B14 | Recipient domain typo `usmissiohero.com` | Data Quality | Low | Typo in staff/client record — investigate and correct |
+| B15 | Move protected emails from hardcoded to config/env vars | Infrastructure | Low | Currently hardcoded in admin_handler.py and client_profile.py |
 
 ## Deferred Indefinitely
 

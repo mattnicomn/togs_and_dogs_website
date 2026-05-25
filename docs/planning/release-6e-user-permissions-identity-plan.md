@@ -1,5 +1,12 @@
 # Release 6E: User Permissions & Identity Alignment — Plan
 
+## Status: ✅ DEPLOYED & PRODUCTION VALIDATED (2026-05-21)
+
+**Commit:** `79b2b89b87ae2ad7af576fa373f71b2de740b057`
+**Deployment:** Terraform 9 Lambdas updated + Frontend S3/CloudFront
+**Tests:** 60/60 backend tests passed, 16/16 identity tests passed
+**Validation:** Admin messaging, phone normalization, and protected email guardrail all confirmed working
+
 ## Objective
 Clarify and harden the identity model across Cognito, DynamoDB profiles, and the Admin/Client portals. Prevent accidental data overwrites, protect admin accounts, and support offline clients.
 
