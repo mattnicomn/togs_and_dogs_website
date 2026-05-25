@@ -147,6 +147,32 @@ const AdminDashboard = () => {
     setTimeout(() => setNotification(null), 5000);
   };
 
+  // Release 6G Phase 0B: Calendar sync warning helper.
+  // Extracts calendar warning from API response and shows appropriate toast.
+  // Returns the notification type ('success', 'warning', 'info') based on calendar result.
+  const getCalendarNotificationType = (response) => {
+    const calResult = response?.calendar_result;
+    if (!calResult) return 'success';
+    const status = calResult.status || '';
+    if (status === 'calendar_failed') return 'warning';
+    if (status.startsWith('calendar_skipped')) return 'info';
+    return 'success';
+  };
+
+  const getCalendarWarningMessage = (response, baseMessage) => {
+    const calResult = response?.calendar_result;
+    if (!calResult) return baseMessage;
+    const status = calResult.status || '';
+    if (status === 'calendar_failed') {
+      return `${baseMessage} ⚠️ Calendar sync failed — event may not appear on Google Calendar.`;
+    }
+    if (status.startsWith('calendar_skipped')) {
+      const reason = calResult.message || 'no scheduled time set';
+      return `${baseMessage} ℹ️ Calendar event skipped (${reason}).`;
+    }
+    return baseMessage;
+  };
+
   const isProtectedProfile = (staff) => {
     if (!staff) return false;
     return PROTECTED_SUBS.includes(staff.cognito_sub) || PROTECTED_EMAILS.includes(staff.email);
@@ -1544,8 +1570,8 @@ const AdminDashboard = () => {
       const response = await reviewRequest(reqId, clientId, type === 'APPROVE' ? 'APPROVED' : 'DECLINED', adminNote);
       
       const successMsg = response.message || (type === 'APPROVE' ? 'Approved successfully.' : 'Declined successfully.');
-      const isWarning = response.notification_result?.success === false || response.calendar_result?.status === 'calendar_failed';
-      showNotification(successMsg, isWarning ? 'warning' : 'success');
+      const notifType = response.notification_result?.success === false ? 'warning' : getCalendarNotificationType(response);
+      showNotification(getCalendarWarningMessage(response, successMsg), notifType);
       
       setDecisionModal(null);
       setAdminNote('');
@@ -1687,7 +1713,10 @@ const AdminDashboard = () => {
 
       // Use backend message if available (includes calendar sync results), otherwise fallback to local map
       const successMsg = response?.message || actionSuccessMessages[action] || actionSuccessMessages[targetStatus] || `Status updated to ${getStatusLabel(targetStatus)}.`;
-      showNotification(successMsg, response?.calendar_result?.status === 'calendar_failed' ? 'warning' : 'success');
+      showNotification(
+        getCalendarWarningMessage(response, successMsg),
+        getCalendarNotificationType(response)
+      );
 
       // Reconcile local state immediately to prevent stale display while refresh is in flight
       setAllRequests(prev => prev.map(item =>
@@ -1865,7 +1894,10 @@ const AdminDashboard = () => {
       const workerName = staff ? staff.display_name : workerId;
 
       const resp = await assignWorker(jobId || reqId, reqId, clientId, workerId, workerName);
-      showNotification(resp.message || "Worker assigned.", resp.calendar_result?.status === 'calendar_failed' ? 'warning' : 'success');
+      showNotification(
+        getCalendarWarningMessage(resp, resp.message || "Worker assigned."),
+        getCalendarNotificationType(resp)
+      );
       setAssigningId(null);
       fetchAllData();
     } catch (err) {
@@ -2037,7 +2069,10 @@ const AdminDashboard = () => {
         details: newVisitForm.details || undefined,
         preferred_sitter: newVisitForm.preferred_sitter || undefined,
       });
-      showNotification(resp.message || "Booking created successfully.", "success");
+      showNotification(
+        getCalendarWarningMessage(resp, resp.message || "Booking created successfully."),
+        getCalendarNotificationType(resp)
+      );
       setNewVisitModal(false);
       setNewVisitForm({ client_id: '', client_name: '', client_email: '', client_phone: '', pet_names: '', pet_ids: [], service_type: 'PET_SITTING', start_date: '', end_date: '', visit_windows: ['ANYTIME'], details: '', preferred_sitter: '' });
       setNewVisitClientPets([]);
