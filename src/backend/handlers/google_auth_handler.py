@@ -71,12 +71,18 @@ def save_tokens(new_tokens):
 def handler(event, context):
     path = event.get('path', '')
     
+    # Release 6G Phase 3: Support direct EventBridge invocation for scheduled health check
+    if event.get('source') == 'aws.scheduler' or event.get('source') == 'aws.events' or event.get('detail-type') == 'Scheduled Event' or event.get('action') == 'health_check':
+        return calendar_health_check(event)
+    
     if path.endswith('/google'):
         return initiate_auth(event)
     elif path.endswith('/callback'):
         return handle_callback(event)
     elif path.endswith('/status'):
         return get_status(event)
+    elif path.endswith('/health'):
+        return calendar_health_check(event)
     
     return bad_request(f"Unknown auth path: {path}", event)
 
@@ -261,3 +267,84 @@ def get_status(event):
         }, event)
         
     return success({"status": "NOT_CONNECTED"}, event)
+
+
+def calendar_health_check(event):
+    """
+    Release 6G Phase 3: Scheduled Google Calendar health check.
+    
+    Invoked by EventBridge on a daily schedule or manually via /admin/auth/health.
+    Verifies the Google Calendar connection is healthy without blocking business operations.
+    
+    Returns structured status and emits CloudWatch log markers for metric filters/alarms.
+    """
+    print("CALENDAR_HEALTH_CHECK: Starting scheduled health check.")
+    
+    # 1. Check Google client credentials exist
+    config = get_google_config()
+    if not config or not config.get('client_id'):
+        print("CALENDAR_HEALTH_CHECK_FAILED: Google client credentials not configured.")
+        return _health_response("CREDENTIALS_MISSING", "Google OAuth credentials not configured in Secrets Manager.", event)
+    
+    # 2. Check stored tokens
+    tokens = get_stored_tokens()
+    
+    if not tokens or not tokens.get('refresh_token'):
+        print("CALENDAR_HEALTH_CHECK_FAILED: No refresh token stored. Google Calendar is not connected.")
+        return _health_response("TOKEN_MISSING", "No refresh token found. Google Calendar is not connected.", event)
+    
+    # 3. Check if token is marked as revoked (Phase 0C)
+    if tokens.get('token_status') == 'revoked':
+        print("CALENDAR_HEALTH_CHECK_TOKEN_REVOKED: Google token is marked as revoked. Admin must reconnect.")
+        return _health_response("TOKEN_REVOKED", "Google Calendar token is revoked. Admin must reconnect via the Connect button.", event)
+    
+    # 4. Attempt a live token refresh to verify connectivity
+    try:
+        refresh_params = {
+            'client_id': config['client_id'],
+            'client_secret': config['client_secret'],
+            'refresh_token': tokens['refresh_token'],
+            'grant_type': 'refresh_token'
+        }
+        data = urllib.parse.urlencode(refresh_params).encode()
+        req = urllib.request.Request("https://oauth2.googleapis.com/token", data=data)
+        
+        with urllib.request.urlopen(req, timeout=10) as res:
+            token_data = json.loads(res.read().decode())
+            save_tokens(token_data)
+            print("CALENDAR_HEALTH_CHECK_SUCCESS: Google Calendar connection is healthy. Token refreshed.")
+            return _health_response("CONNECTED", "Google Calendar connection is healthy.", event)
+    
+    except urllib.error.HTTPError as http_err:
+        try:
+            error_body = http_err.read().decode()
+            error_data = json.loads(error_body)
+            error_code = error_data.get('error', '')
+        except Exception:
+            error_code = ''
+            error_body = str(http_err)
+        
+        if error_code == 'invalid_grant':
+            print("CALENDAR_HEALTH_CHECK_TOKEN_REVOKED: Token refresh returned invalid_grant. Token is revoked.")
+            # Mark as revoked so subsequent operations skip immediately
+            from common.google_calendar import _mark_token_revoked
+            _mark_token_revoked("health_check")
+            return _health_response("TOKEN_REVOKED", "Google Calendar token is revoked (invalid_grant). Admin must reconnect.", event)
+        else:
+            print(f"CALENDAR_HEALTH_CHECK_FAILED: Token refresh failed: HTTP {http_err.code} - {error_body}")
+            return _health_response("REFRESH_FAILED", f"Token refresh failed: {error_code or error_body}", event)
+    
+    except Exception as e:
+        print(f"CALENDAR_HEALTH_CHECK_FAILED: Unexpected error during health check: {e}")
+        return _health_response("REFRESH_FAILED", f"Health check error: {str(e)}", event)
+
+
+def _health_response(status, message, event):
+    """Helper to return a consistent health check response."""
+    result = {"status": status, "message": message, "check": "calendar_health"}
+    # For EventBridge invocations, just return the dict (no API Gateway wrapper needed)
+    if event.get('source') in ['aws.scheduler', 'aws.events'] or event.get('detail-type') == 'Scheduled Event' or event.get('action') == 'health_check':
+        print(f"CALENDAR_HEALTH_CHECK_RESULT: {json.dumps(result)}")
+        return result
+    # For API Gateway invocations, wrap in standard response
+    return success(result, event)

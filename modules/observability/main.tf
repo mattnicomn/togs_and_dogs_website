@@ -110,3 +110,47 @@ resource "aws_cloudwatch_metric_alarm" "calendar_token_revoked" {
 
   tags = var.tags
 }
+
+
+# Release 6G Phase 3: Calendar Health Check Metric Filters & Alarms
+
+resource "aws_cloudwatch_log_metric_filter" "calendar_health_failed" {
+  name           = "${var.name_prefix}-calendar-health-failed"
+  pattern        = "CALENDAR_HEALTH_CHECK_FAILED"
+  log_group_name = "/aws/lambda/${var.name_prefix}-google-auth"
+
+  metric_transformation {
+    name      = "CalendarHealthCheckFailed"
+    namespace = "${var.name_prefix}/Calendar"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "calendar_health_revoked" {
+  name           = "${var.name_prefix}-calendar-health-revoked"
+  pattern        = "CALENDAR_HEALTH_CHECK_TOKEN_REVOKED"
+  log_group_name = "/aws/lambda/${var.name_prefix}-google-auth"
+
+  metric_transformation {
+    name      = "CalendarHealthCheckRevoked"
+    namespace = "${var.name_prefix}/Calendar"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "calendar_health_check_failed" {
+  alarm_name          = "${var.name_prefix}-calendar-health-check-failed"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "CalendarHealthCheckFailed"
+  namespace           = "${var.name_prefix}/Calendar"
+  period              = "86400"
+  statistic           = "Sum"
+  threshold           = "0"
+  alarm_description   = "Scheduled Google Calendar health check failed. Check /admin/auth/status or reconnect."
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = var.alarm_sns_topic_arn != "" ? [var.alarm_sns_topic_arn] : []
+
+  tags = var.tags
+}

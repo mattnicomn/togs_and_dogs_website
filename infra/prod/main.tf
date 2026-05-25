@@ -297,6 +297,29 @@ resource "aws_lambda_permission" "api_google_auth" {
   principal     = "apigateway.amazonaws.com"
 }
 
+# Release 6G Phase 3: Scheduled Calendar Health Check (daily)
+resource "aws_cloudwatch_event_rule" "calendar_health_check" {
+  name                = "${local.name_prefix}-calendar-health-check"
+  description         = "Daily Google Calendar connection health check"
+  schedule_expression = "rate(1 day)"
+  tags                = local.common_tags
+}
+
+resource "aws_cloudwatch_event_target" "calendar_health_check" {
+  rule      = aws_cloudwatch_event_rule.calendar_health_check.name
+  target_id = "CalendarHealthCheckLambda"
+  arn       = aws_lambda_function.google_auth.arn
+  input     = jsonencode({ "action" = "health_check", "source" = "aws.events" })
+}
+
+resource "aws_lambda_permission" "eventbridge_calendar_health" {
+  statement_id  = "AllowEventBridgeCalendarHealth"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.google_auth.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.calendar_health_check.arn
+}
+
 # API Permissions for Lambda
 resource "aws_lambda_permission" "api_intake" {
   statement_id  = "AllowAPIGatewayInvoke"
