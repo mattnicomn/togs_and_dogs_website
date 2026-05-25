@@ -287,6 +287,8 @@ def handler(event, context):
                     s['cognito_username'] = cog_match.get('Username')
                     if not s.get('cognito_sub'):
                         s['cognito_sub'] = next((a['Value'] for a in cog_match['Attributes'] if a['Name'] == 'sub'), None)
+                # Release 6H Phase 2: Include is_protected flag for frontend consumption
+                s['is_protected'] = is_protected_profile(s)
                 merged_staff.append(s)
                     
             # 2. Add Cognito-only staff users
@@ -313,6 +315,8 @@ def handler(event, context):
                     "cognito_status": cu.get('UserStatus'),
                     "is_virtual": True
                 }
+                # Release 6H Phase 2: Include is_protected flag for frontend
+                v_profile['is_protected'] = is_protected_profile(v_profile)
                 merged_staff.append(v_profile)
                 
             return success({"staff": merged_staff}, event)

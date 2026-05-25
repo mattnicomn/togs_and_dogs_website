@@ -13,8 +13,8 @@ import CareCard from './CareCard';
 import UserProfile from './UserProfile';
 import '../Admin.css';
 
-const PROTECTED_SUBS = ["74b86488-1011-7029-bb6d-dad984e1463c"];
-const PROTECTED_EMAILS = ["admin@toganddogs.com", "mbn@usmissionhero.com"];
+// Release 6H Phase 2: Removed hardcoded PROTECTED_SUBS/PROTECTED_EMAILS.
+// Protection is now determined by the backend-provided `is_protected` field on staff/client profiles.
 
 const AdminDashboard = () => {
 
@@ -175,7 +175,8 @@ const AdminDashboard = () => {
 
   const isProtectedProfile = (staff) => {
     if (!staff) return false;
-    return PROTECTED_SUBS.includes(staff.cognito_sub) || PROTECTED_EMAILS.includes(staff.email);
+    // Release 6H Phase 2: Use backend-provided is_protected field instead of hardcoded lists
+    return !!staff.is_protected;
   };
 
   const isSelf = (staff) => {

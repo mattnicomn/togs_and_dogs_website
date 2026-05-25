@@ -54,10 +54,8 @@ const UserProfile = ({ staffProfile, externalCurrentUser }) => {
   const effectiveDisplayName = staffProfile?.display_name || user.name || user.email;
   const initials = effectiveDisplayName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
 
-  // Protection Logic (Sync with backend/AdminDashboard)
-  const PROTECTED_SUBS = ["74b86488-1011-7029-bb6d-dad984e1463c"];
-  const PROTECTED_EMAILS = ["admin@toganddogs.com"];
-  const isProtected = staffProfile && (PROTECTED_SUBS.includes(staffProfile.cognito_sub) || PROTECTED_EMAILS.includes(staffProfile.email));
+  // Release 6H Phase 2: Use backend-provided is_protected field instead of hardcoded lists
+  const isProtected = staffProfile && !!staffProfile.is_protected;
 
   return (
     <div className="user-profile-container" ref={dropdownRef}>
