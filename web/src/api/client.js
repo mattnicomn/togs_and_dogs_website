@@ -33,6 +33,12 @@ const request = async (path, method = 'GET', data = null, isProtected = false) =
 
 export const submitRequest = (data) => request('/requests', 'POST', data);
 
+// Release 6F: Admin-created booking (authenticated, owner/admin only)
+export const createAdminBooking = (data) => request('/client/requests', 'POST', { ...data, source: 'admin_created' }, true);
+
+// Release 6F: List pets for a specific client (admin only, for New Visit modal)
+export const listAdminClientPets = (clientId) => request(`/admin/pets?clientId=${encodeURIComponent(clientId)}`, 'GET', null, true);
+
 // Release 2: Public staff-options endpoint for preferred sitter selection.
 // Returns only sanitized display names — no sensitive data exposed.
 export const getStaffOptions = () => request('/requests', 'POST', { action: 'staff-options' });

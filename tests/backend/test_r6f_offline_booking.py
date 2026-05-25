@@ -275,3 +275,81 @@ def test_no_duplicate_client_profile_created():
             mock_auto.assert_not_called()
 
     assert resp["statusCode"] == 200
+
+
+# --- Admin Pet Listing Tests (Release 6F) ---
+
+def test_admin_can_list_client_pets():
+    """Owner/Admin should be able to query all pets for a client."""
+    from handlers.pet_handler import handler as pet_handler
+    
+    event = {
+        "requestContext": {"authorizer": {"claims": {"cognito:groups": "Admin"}}},
+        "httpMethod": "GET",
+        "path": "/admin/pets",
+        "queryStringParameters": {"clientId": "client_abc123"}
+    }
+    
+    mock_pets = [
+        {"PK": "PET#pet_1", "SK": "CLIENT#client_abc123", "client_id": "client_abc123", "entity_type": "PET", "name": "Buddy", "is_active": True, "company_id": "tog_and_dogs"},
+        {"PK": "PET#pet_2", "SK": "CLIENT#client_abc123", "client_id": "client_abc123", "entity_type": "PET", "name": "Max", "is_active": False, "company_id": "tog_and_dogs"} # inactive
+    ]
+    
+    mock_table = MagicMock()
+    mock_table.scan.return_value = {"Items": mock_pets}
+    
+    with patch('common.db.table', mock_table):
+        resp = pet_handler(event, None)
+        
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert "pets" in body
+    # Only active pets should be returned
+    assert len(body["pets"]) == 1
+    assert body["pets"][0]["name"] == "Buddy"
+
+
+def test_client_pets_tenant_isolation():
+    """Admin pet listing should filter out cross-tenant pets."""
+    from handlers.pet_handler import handler as pet_handler
+    
+    event = {
+        "requestContext": {"authorizer": {"claims": {"cognito:groups": "owner"}}}, # Company default: tog_and_dogs
+        "httpMethod": "GET",
+        "path": "/admin/pets",
+        "queryStringParameters": {"clientId": "client_abc123"}
+    }
+    
+    mock_pets = [
+        {"PK": "PET#pet_1", "SK": "CLIENT#client_abc123", "client_id": "client_abc123", "entity_type": "PET", "name": "Buddy", "company_id": "tog_and_dogs"},
+        {"PK": "PET#pet_2", "SK": "CLIENT#client_abc123", "client_id": "client_abc123", "entity_type": "PET", "name": "Scruffy", "company_id": "different_company"} # cross-tenant
+    ]
+    
+    mock_table = MagicMock()
+    mock_table.scan.return_value = {"Items": mock_pets}
+    
+    with patch('common.db.table', mock_table):
+        resp = pet_handler(event, None)
+        
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    # Cross-tenant Scruffy should be filtered out
+    assert len(body["pets"]) == 1
+    assert body["pets"][0]["name"] == "Buddy"
+
+
+def test_staff_cannot_list_client_pets():
+    """Staff role should not be allowed to list all pets of a client via admin route."""
+    from handlers.pet_handler import handler as pet_handler
+    
+    event = {
+        "requestContext": {"authorizer": {"claims": {"cognito:groups": "Staff"}}},
+        "httpMethod": "GET",
+        "path": "/admin/pets",
+        "queryStringParameters": {"clientId": "client_abc123"}
+    }
+    
+    resp = pet_handler(event, None)
+    # Rejects because path parameters (petId) is missing/None for GET and it is not a client role
+    assert resp["statusCode"] == 400
+    assert "Missing petId" in resp["body"]

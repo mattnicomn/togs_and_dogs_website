@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { signIn, getSession, getEffectiveRole } from '../api/auth';
 
-import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData } from '../api/client';
+import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData, createAdminBooking, listAdminClientPets } from '../api/client';
 import * as XLSX from 'xlsx';
 
 
@@ -90,6 +90,16 @@ const AdminDashboard = () => {
   const [decisionModal, setDecisionModal] = useState(null);
   const [lastKey, setLastKey] = useState(null);
   const [exportModal, setExportModal] = useState(false);
+  // Release 6F: New Visit modal for admin-created bookings
+  const [newVisitModal, setNewVisitModal] = useState(false);
+  const [newVisitForm, setNewVisitForm] = useState({
+    client_id: '', client_name: '', client_email: '', client_phone: '',
+    pet_names: '', pet_ids: [], service_type: 'PET_SITTING',
+    start_date: '', end_date: '', visit_windows: ['ANYTIME'],
+    details: '', preferred_sitter: ''
+  });
+  const [newVisitClientPets, setNewVisitClientPets] = useState([]);
+  const [isCreatingVisit, setIsCreatingVisit] = useState(false);
   // Confirmation modal state for staff/client actions (replaces window.confirm/prompt)
   const [confirmAction, setConfirmAction] = useState(null);
   // Shape: { type: 'staff'|'client', id: string, action: string, name: string, message: string, consequence: string, variant?: 'confirm'|'disable-choice'|'delete-typed'|'temp-password'|'link-email' }
@@ -1970,6 +1980,75 @@ const AdminDashboard = () => {
     }
   };
 
+  // Release 6F: New Visit modal handlers
+  const handleNewVisitClientSelect = (clientId) => {
+    const client = clientList.find(c => c.client_id === clientId);
+    if (!client) return;
+    setNewVisitForm(prev => ({
+      ...prev,
+      client_id: client.client_id,
+      client_name: client.display_name || '',
+      client_email: client.email || '',
+      client_phone: client.phone || '',
+      pet_names: '', pet_ids: []
+    }));
+    // Load pets for this client
+    const fetchPets = async () => {
+      try {
+        const resp = await listAdminClientPets(client.client_id);
+        const pets = (resp.pets || []).filter(p => p && p.pet_id);
+        setNewVisitClientPets(pets);
+      } catch { setNewVisitClientPets([]); }
+    };
+    fetchPets();
+  };
+
+  const handleNewVisitPetToggle = (pet) => {
+    setNewVisitForm(prev => {
+      const ids = prev.pet_ids.includes(pet.pet_id)
+        ? prev.pet_ids.filter(id => id !== pet.pet_id)
+        : [...prev.pet_ids, pet.pet_id];
+      const names = newVisitClientPets
+        .filter(p => ids.includes(p.pet_id))
+        .map(p => p.name || 'Unnamed')
+        .join(', ');
+      return { ...prev, pet_ids: ids, pet_names: names };
+    });
+  };
+
+  const handleNewVisitSubmit = async () => {
+    if (!newVisitForm.client_id) { showNotification("Please select a client.", "error"); return; }
+    if (!newVisitForm.pet_names && newVisitForm.pet_ids.length === 0) { showNotification("Please select at least one pet.", "error"); return; }
+    if (!newVisitForm.start_date) { showNotification("Start date is required.", "error"); return; }
+
+    setIsCreatingVisit(true);
+    try {
+      const resp = await createAdminBooking({
+        client_id: newVisitForm.client_id,
+        client_name: newVisitForm.client_name,
+        client_email: newVisitForm.client_email,
+        client_phone: newVisitForm.client_phone,
+        pet_names: newVisitForm.pet_names,
+        pet_ids: newVisitForm.pet_ids,
+        service_type: newVisitForm.service_type,
+        start_date: newVisitForm.start_date,
+        end_date: newVisitForm.end_date || undefined,
+        visit_windows: newVisitForm.visit_windows,
+        details: newVisitForm.details || undefined,
+        preferred_sitter: newVisitForm.preferred_sitter || undefined,
+      });
+      showNotification(resp.message || "Booking created successfully.", "success");
+      setNewVisitModal(false);
+      setNewVisitForm({ client_id: '', client_name: '', client_email: '', client_phone: '', pet_names: '', pet_ids: [], service_type: 'PET_SITTING', start_date: '', end_date: '', visit_windows: ['ANYTIME'], details: '', preferred_sitter: '' });
+      setNewVisitClientPets([]);
+      fetchAllData();
+    } catch (err) {
+      showNotification("Failed to create booking: " + err.message, "error");
+    } finally {
+      setIsCreatingVisit(false);
+    }
+  };
+
   const renderStats = () => {
     // Release 6D: Needs Assignment uses a dedicated predicate for count/click alignment
     const unassignedPredicate = (r) => {
@@ -2620,6 +2699,15 @@ const AdminDashboard = () => {
           </nav>
         </div>
         <div className="header-right">
+          {capabilities.canManageClients && (
+            <button 
+              className="button-primary" 
+              style={{ padding: '8px 16px', fontSize: '0.85rem', borderRadius: '8px', marginRight: '12px' }}
+              onClick={() => setNewVisitModal(true)}
+            >
+              + New Visit
+            </button>
+          )}
           <UserProfile 
             externalCurrentUser={currentUser} 
             staffProfile={staffList.find(s => s.cognito_sub === currentUser?.sub || (s.email && s.email.toLowerCase() === currentUser?.email?.toLowerCase()))}
@@ -4088,6 +4176,155 @@ const AdminDashboard = () => {
                 disabled={loading}
               >
                 {loading ? 'Preparing Backup...' : 'Confirm & Download'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Release 6F: New Visit Modal */}
+      {newVisitModal && (
+        <div className="modal-overlay">
+          <div className="modal-content card" style={{ maxWidth: '550px', maxHeight: '85vh', overflow: 'auto' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Create Visit for Client</h2>
+              <button className="btn-close" onClick={() => setNewVisitModal(false)}>×</button>
+            </div>
+            <div className="modal-body" style={{ padding: '24px' }}>
+              {/* Client Selector */}
+              <div className="field" style={{ marginBottom: '16px' }}>
+                <label>Client *</label>
+                <select
+                  value={newVisitForm.client_id}
+                  onChange={(e) => handleNewVisitClientSelect(e.target.value)}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+                >
+                  <option value="">— Select a client —</option>
+                  {clientList.filter(c => c.is_active !== false).map(c => (
+                    <option key={c.client_id} value={c.client_id}>
+                      {c.display_name || 'Unnamed'} ({c.email || 'no email'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Pet Selector */}
+              {newVisitForm.client_id && (
+                <div className="field" style={{ marginBottom: '16px' }}>
+                  <label>Pet(s) *</label>
+                  {newVisitClientPets.length === 0 ? (
+                    <p style={{ color: 'var(--warning-color)', fontSize: '0.9rem', margin: '8px 0' }}>
+                      This client has no pets on file. Please add a pet/CareCard first.
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
+                      {newVisitClientPets.map(pet => (
+                        <label key={pet.pet_id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: newVisitForm.pet_ids.includes(pet.pet_id) ? '2px solid var(--primary)' : '1px solid var(--border-soft)', cursor: 'pointer', fontSize: '0.9rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={newVisitForm.pet_ids.includes(pet.pet_id)}
+                            onChange={() => handleNewVisitPetToggle(pet)}
+                          />
+                          {pet.name || 'Unnamed'} {pet.breed ? `(${pet.breed})` : ''}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Service Type */}
+              <div className="field" style={{ marginBottom: '16px' }}>
+                <label>Service Type *</label>
+                <select
+                  value={newVisitForm.service_type}
+                  onChange={(e) => setNewVisitForm(prev => ({ ...prev, service_type: e.target.value }))}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+                >
+                  <option value="PET_SITTING">Pet Sitting</option>
+                  <option value="WALK_30MIN">30-Minute Walk</option>
+                  <option value="WALK_60MIN">60-Minute Walk</option>
+                  <option value="DROPIN_1HR">1-Hour Drop-in</option>
+                  <option value="DROPIN_3HR">3-Hour Drop-in</option>
+                  <option value="OVERNIGHT">Overnight Care</option>
+                  <option value="MEET_GREET">Meet & Greet</option>
+                </select>
+              </div>
+
+              {/* Dates */}
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                <div className="field" style={{ flex: 1 }}>
+                  <label>Start Date *</label>
+                  <input
+                    type="date"
+                    value={newVisitForm.start_date}
+                    onChange={(e) => setNewVisitForm(prev => ({ ...prev, start_date: e.target.value }))}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+                  />
+                </div>
+                <div className="field" style={{ flex: 1 }}>
+                  <label>End Date</label>
+                  <input
+                    type="date"
+                    value={newVisitForm.end_date}
+                    onChange={(e) => setNewVisitForm(prev => ({ ...prev, end_date: e.target.value }))}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+                  />
+                </div>
+              </div>
+
+              {/* Visit Window */}
+              <div className="field" style={{ marginBottom: '16px' }}>
+                <label>Visit Window</label>
+                <select
+                  value={newVisitForm.visit_windows[0] || 'ANYTIME'}
+                  onChange={(e) => setNewVisitForm(prev => ({ ...prev, visit_windows: [e.target.value] }))}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+                >
+                  <option value="ANYTIME">Anytime</option>
+                  <option value="MORNING">Morning</option>
+                  <option value="MIDDAY">Midday</option>
+                  <option value="AFTERNOON">Afternoon</option>
+                  <option value="EVENING">Evening</option>
+                </select>
+              </div>
+
+              {/* Notes */}
+              <div className="field" style={{ marginBottom: '16px' }}>
+                <label>Notes / Details</label>
+                <textarea
+                  value={newVisitForm.details}
+                  onChange={(e) => setNewVisitForm(prev => ({ ...prev, details: e.target.value }))}
+                  placeholder="Access codes, special instructions, etc."
+                  rows={3}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)', resize: 'vertical' }}
+                />
+              </div>
+
+              {/* Preferred Sitter */}
+              <div className="field" style={{ marginBottom: '16px' }}>
+                <label>Preferred Sitter</label>
+                <select
+                  value={newVisitForm.preferred_sitter}
+                  onChange={(e) => setNewVisitForm(prev => ({ ...prev, preferred_sitter: e.target.value }))}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+                >
+                  <option value="">No preference</option>
+                  {staffList.filter(s => s.is_active && s.is_assignable).map(s => (
+                    <option key={s.staff_id} value={s.email || s.display_name}>{s.display_name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid var(--border-soft)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button className="button-secondary" onClick={() => setNewVisitModal(false)} disabled={isCreatingVisit}>Cancel</button>
+              <button
+                className="button-primary"
+                onClick={handleNewVisitSubmit}
+                disabled={isCreatingVisit || !newVisitForm.client_id || (!newVisitForm.pet_names && newVisitForm.pet_ids.length === 0) || !newVisitForm.start_date}
+              >
+                {isCreatingVisit ? 'Creating...' : 'Create Visit'}
               </button>
             </div>
           </div>

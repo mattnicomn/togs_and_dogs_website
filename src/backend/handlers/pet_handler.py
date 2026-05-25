@@ -48,6 +48,32 @@ def handler(event, context):
                 
                 return success({"pets": items}, event)
 
+            # Release 6F: Admin pet listing for a specific client
+            # GET /admin/pets?clientId={client_id} — returns all active pets for the client
+            if role in ['owner', 'admin'] and not pet_id:
+                query_params = event.get('queryStringParameters', {}) or {}
+                client_id = query_params.get('clientId')
+                if client_id:
+                    from common.auth import get_current_company_id
+                    from boto3.dynamodb.conditions import Attr
+                    company_id = get_current_company_id(event)
+
+                    # Scan for pets belonging to this client
+                    from common.db import table as items_table
+                    scan_kwargs = {
+                        "FilterExpression": Attr("client_id").eq(client_id) & Attr("entity_type").eq("PET")
+                    }
+                    resp = items_table.scan(**scan_kwargs)
+                    items = resp.get('Items', [])
+
+                    # Tenant isolation: filter to same company
+                    items = [p for p in items if not p.get('company_id') or p.get('company_id') == company_id]
+
+                    # Exclude inactive/archived pets
+                    items = [p for p in items if p.get('is_active') is not False]
+
+                    return success({"pets": items}, event)
+
             if not pet_id:
                 return bad_request("Missing petId in path", event)
             
