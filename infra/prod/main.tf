@@ -78,8 +78,11 @@ resource "aws_lambda_function" "intake" {
   environment {
     variables = merge(
       {
-        DATA_TABLE_NAME   = module.data.table_name
-        STATE_MACHINE_ARN = module.workflow.sfn_arn
+        DATA_TABLE_NAME          = module.data.table_name
+        STATE_MACHINE_ARN        = module.workflow.sfn_arn
+        GOOGLE_CLIENT_CREDS_NAME = module.secrets.google_client_creds_arn
+        GOOGLE_USER_TOKENS_NAME  = module.secrets.google_user_tokens_arn
+        JOB_FUNCTION_NAME        = aws_lambda_function.job.function_name
       },
       local.notification_env_vars
     )
@@ -101,9 +104,11 @@ resource "aws_lambda_function" "admin" {
   environment {
     variables = merge(
       {
-        DATA_TABLE_NAME    = module.data.table_name
-        ADMIN_USER_POOL_ID = module.auth.user_pool_id
-        DEFAULT_COMPANY_ID = "tog_and_dogs"
+        DATA_TABLE_NAME          = module.data.table_name
+        ADMIN_USER_POOL_ID       = module.auth.user_pool_id
+        DEFAULT_COMPANY_ID       = "tog_and_dogs"
+        GOOGLE_CLIENT_CREDS_NAME = module.secrets.google_client_creds_arn
+        GOOGLE_USER_TOKENS_NAME  = module.secrets.google_user_tokens_arn
       },
       local.notification_env_vars
     )
