@@ -56,10 +56,9 @@ def auto_create_or_link_client_profile(request_item, request_id, client_id, comp
             "message": "No email on request, profile automation skipped."
         }
 
-    # Release 6E: Prevent auto-creating client profiles for protected admin/owner/staff emails.
-    # These accounts should not be accidentally linked as normal client profiles.
-    PROTECTED_EMAILS = ["admin@toganddogs.com", "mbn@usmissionhero.com", "support@usmissionhero.com"]
-    if email in PROTECTED_EMAILS:
+    # Release 6H: Use shared configurable protected accounts module.
+    from common.protected_accounts import is_protected_email
+    if is_protected_email(email):
         _update_request_link_status(request_id, client_id, 'SKIPPED_PROTECTED_EMAIL', None, 'skipped_protected', now)
         print(f"INFO: [AutoProfile] Skipped for REQ#{request_id} — email '{email}' is a protected admin/platform account.")
         return {

@@ -38,5 +38,8 @@ locals {
     POSTMARK_MESSAGE_STREAM              = "outbound"
     NOTIFICATION_REPLY_TO                = "support@usmissionhero.com"
     SES_SANDBOX_ALLOWED_RECIPIENTS       = "mbn@usmissionhero.com"
+    # Release 6H: Configurable protected admin accounts
+    PROTECTED_ADMIN_EMAILS               = "admin@toganddogs.com,mbn@usmissionhero.com,support@usmissionhero.com"
+    PROTECTED_ADMIN_SUBS                 = "74b86488-1011-7029-bb6d-dad984e1463c"
   }
 }

@@ -198,6 +198,28 @@ if 'cognito_sub' in body:
         return error(403, "Cannot assign a protected admin sub to a non-protected profile.", event)
 ```
 
+#### 1G. POST Creation Protection (NEW)
+
+**In `admin_handler.py` POST /admin/staff and POST /admin/clients (both profile-only and onboard flows):**
+- Before creating a new staff or client profile, check if the provided email or cognito_sub matches the protected accounts list
+- Block creation with: "Cannot create a standard profile using a protected account identity."
+- This prevents creating a new non-protected profile that uses a protected admin's email/sub, which could cause identity confusion or bypass protection checks
+
+```python
+# In POST /admin/staff, POST /admin/staff/onboard, POST /admin/clients, POST /admin/clients/onboard:
+from common.protected_accounts import is_protected_email, is_protected_sub
+
+email = body.get('email', '').strip().lower()
+if is_protected_email(email):
+    return error(403, "Cannot create a standard profile using a protected account identity.", event)
+```
+
+This applies to:
+- `POST /admin/staff` (profile-only creation)
+- `POST /admin/staff/onboard` (Cognito + profile creation)
+- `POST /admin/clients` (profile-only creation, if applicable)
+- `POST /admin/clients/onboard` (Cognito + profile creation)
+
 ### Phase 2: Frontend Cleanup (~1 hour)
 
 1. **Remove hardcoded `PROTECTED_SUBS` and `PROTECTED_EMAILS`** from `AdminDashboard.jsx` and `UserProfile.jsx`
@@ -238,6 +260,9 @@ The `auth.py` hardcoded owner email fallback (`mattnicomn10@gmail.com`) is a sep
 | PATCH: changing email to protected value on non-protected profile is blocked | Prevents hijacking |
 | PATCH: changing cognito_sub to protected value on non-protected profile is blocked | Prevents hijacking |
 | PATCH: protected profile can update its own email (no self-block) | Normal admin self-edit works |
+| POST: creating staff profile with protected email is blocked | Prevents identity confusion |
+| POST: creating client profile with protected email is blocked | Prevents identity confusion |
+| POST: creating staff/client with non-protected email succeeds | No false positives on creation |
 | Frontend `isProtectedProfile()` uses backend `is_protected` field | Display-only, no hardcoded list |
 
 ---

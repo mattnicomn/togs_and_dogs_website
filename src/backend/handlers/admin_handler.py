@@ -36,18 +36,10 @@ def generate_temp_password(length=12):
     return ''.join(password)
 
 # Protected Accounts (US Mission Hero Platform Support)
-PROTECTED_SUBS = ["74b86488-1011-7029-bb6d-dad984e1463c"]
-PROTECTED_USERNAMES = ["admin@toganddogs.com", "mbn@usmissionhero.com"]
-
-def is_protected_profile(profile):
-    if not profile:
-        return False
-    # Check by specific hardcoded identifiers
-    if profile.get('cognito_sub') in PROTECTED_SUBS:
-        return True
-    if (profile.get('email') or '').lower() in PROTECTED_USERNAMES:
-        return True
-    return False
+# Release 6H: Now uses shared configurable module with env var + hardcoded fallback.
+from common.protected_accounts import is_protected_profile, is_protected_email, is_protected_sub
+PROTECTED_SUBS = None  # Deprecated — use is_protected_sub() instead
+PROTECTED_USERNAMES = None  # Deprecated — use is_protected_email() instead
 
 
 def normalize_phone_e164(phone):
@@ -357,6 +349,10 @@ def handler(event, context):
                 if (s.get('display_name') or '').lower() == display_name.lower() and s.get('is_active') == True:
                     return error(409, f"Active staff with display_name {display_name} already exists", event)
 
+            # Release 6H: Block creation with protected admin email
+            creation_email = (body.get('email') or '').strip().lower()
+            if creation_email and is_protected_email(creation_email):
+                return error(403, "Cannot create a standard profile using a protected account identity.", event)
                     
             staff_id = f"staff_{str(uuid.uuid4())[:8]}"
             
@@ -421,6 +417,9 @@ def handler(event, context):
                     if (s.get('email') or '').lower() == email:
                         return error(409, f"Active staff with email {email} already exists", event)
 
+            # Release 6H: Block onboarding with protected admin email
+            if is_protected_email(email):
+                return error(403, "Cannot create a standard profile using a protected account identity.", event)
                         
             # Create Cognito User
             import boto3
@@ -635,6 +634,10 @@ def handler(event, context):
                 if c.get('is_active') == True and (c.get('email') or '').lower() == email:
                     return error(409, f"Active client with email {email} already exists", event)
 
+            # Release 6H: Block client onboarding with protected admin email
+            if is_protected_email(email):
+                return error(403, "Cannot create a standard profile using a protected account identity.", event)
+
             import boto3
             cognito = boto3.client('cognito-idp')
             user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
@@ -801,6 +804,12 @@ def handler(event, context):
             try:
                 cog_user = cognito.admin_get_user(UserPoolId=user_pool_id, Username=username)
                 cognito_sub = next((a['Value'] for a in cog_user.get('UserAttributes', []) if a['Name'] == 'sub'), None)
+                
+                # Release 6H: link-cognito guardrails
+                cog_email = next((a['Value'] for a in cog_user.get('UserAttributes', []) if a['Name'] == 'email'), None)
+                if is_protected_email(username) or is_protected_email(cog_email) or is_protected_sub(cognito_sub):
+                    if not is_protected_profile(user_profile):
+                        return error(403, "Cannot link a protected admin account to a non-protected profile.", event)
                 
                 # Ensure correct group
                 target_group = 'client' if is_client_path else (user_profile.get('role') or 'Staff')
@@ -999,6 +1008,16 @@ def handler(event, context):
                     body = json.loads(event.get('body', '{}'))
                 except Exception:
                     return bad_request("Invalid JSON body", event)
+                    
+                # Release 6H: Prevent promotion hijacking under PATCH
+                if 'email' in body:
+                    new_email = body['email'].strip().lower()
+                    if is_protected_email(new_email) and not is_protected:
+                        return error(403, "Cannot assign a protected admin email to a non-protected profile.", event)
+                if 'cognito_sub' in body:
+                    new_sub = body['cognito_sub'].strip()
+                    if is_protected_sub(new_sub) and not is_protected:
+                        return error(403, "Cannot assign a protected admin sub to a non-protected profile.", event)
                     
                 action = body.get('action')
                 if action:
@@ -1400,6 +1419,10 @@ def handler(event, context):
                     if (c.get('email') or '').lower() == email and c.get('is_active') == True:
                         return error(409, f"Active client with email {email} already exists", event)
                         
+                # Release 6H: Block client creation with protected admin email
+                if is_protected_email(email):
+                    return error(403, "Cannot create a standard profile using a protected account identity.", event)
+                        
                 client_id = f"client_{str(uuid.uuid4())[:8]}"
                 
                 new_profile = {
@@ -1564,6 +1587,9 @@ def handler(event, context):
                     new_email = body.get('email', '').strip().lower()
                     if not new_email:
                         return bad_request("email cannot be blank", event)
+                    # Release 6H: Prevent client promotion hijacking
+                    if is_protected_email(new_email):
+                        return error(403, "Cannot assign a protected admin email to a standard profile.", event)
                     if new_email != client_profile.get('email'):
                         from boto3.dynamodb.conditions import Key
                         resp_all = items_table.query(
