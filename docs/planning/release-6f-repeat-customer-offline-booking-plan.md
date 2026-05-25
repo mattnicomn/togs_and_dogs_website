@@ -1,5 +1,18 @@
 # Release 6F: Repeat Customer / Offline Client Booking Flow — Plan
 
+## Status: ✅ DEPLOYED & PRODUCTION VALIDATED (2026-05-22)
+
+**Key Commits:**
+- `8fa35b3` — Planning doc
+- `6415b7c` — Backend implementation
+- `4b948b3` — Frontend + admin pet list fix
+- `3934ef5` — Terraform GET /admin/pets route
+
+**Deployment:** Backend (9 Lambdas) + Frontend (S3/CloudFront) + Terraform (new API Gateway route)
+**Validation:** Direct Lambda smoke tests passed — role auth, tenant isolation, pet listing all confirmed
+
+**Follow-up:** Verify `terraform plan` returns "No changes" to confirm full state alignment.
+
 ## Objective
 Allow admin/owner to create visit bookings on behalf of existing clients directly from the Admin Dashboard, supporting offline/non-tech-savvy clients without requiring Cognito login or the public intake form.
 

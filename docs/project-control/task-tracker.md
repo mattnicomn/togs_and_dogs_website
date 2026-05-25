@@ -24,6 +24,7 @@ Last updated: 2026-05-21
 
 | # | Task | Release | Completed | Commit |
 |---|------|---------|-----------|--------|
+| 16 | Repeat customer / offline client booking flow | 6F | 2026-05-22 | `3934ef5` |
 | 15 | Identity messaging + phone normalization + protected email guard | 6E | 2026-05-21 | `79b2b89` |
 | 14 | Admin filter integrity & safe delete guardrails | 6D | 2026-05-21 | `ee751c1` |
 | 7 | Polish `visit_cancelled` template | 6B Phase 2 | 2026-05-20 | `f12d92f` |

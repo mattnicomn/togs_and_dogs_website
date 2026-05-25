@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 6F: Repeat Customer / Offline Client Booking**](release-6f-repeat-customer-offline-booking.md) (2026-05-22) — ✅ **Deployed & Production Validated**
 - [**Release 6E: User Permissions & Identity Alignment**](release-6e-user-permissions-identity.md) (2026-05-21) — ✅ **Deployed & Production Validated**
 - [**Release 6D: Admin Filter Integrity & Safe Delete Guardrails**](release-6d-admin-filter-integrity.md) (2026-05-21) — ✅ **Deployed & Production Validated**
 - [**Release 6C: Postmark Production Readiness**](release-6c-postmark-production-readiness.md) (2026-05-21) — ✅ **Validated — External Delivery Confirmed**
