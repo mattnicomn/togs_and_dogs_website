@@ -249,6 +249,10 @@ const AdminDashboard = () => {
     
     // 2. No Login (No Cognito link)
     if (!user.cognito_sub && (!user.cognito_status || user.cognito_status === 'not_linked')) {
+      // Release 7B Phase 3: Show "Offline Client" if the client has no email address
+      if (!user.email) {
+        return { label: 'Offline Client', class: 'status-offline' };
+      }
       return { label: 'No Login', class: 'status-no-login' };
     }
     
@@ -2668,7 +2672,7 @@ const AdminDashboard = () => {
                     {/* Release 3: Request count badge */}
                     {c.request_count > 0 && <span style={{ fontSize: '10px', marginLeft: '6px', backgroundColor: 'var(--bg-muted)', padding: '2px 8px', borderRadius: '12px' }}>{c.request_count} request{c.request_count > 1 ? 's' : ''}</span>}
                   </h4>
-                  <p style={{ margin: '4px 0', fontSize: '13px', color: 'var(--text-muted)' }}>{c.email}</p>
+                  <p style={{ margin: '4px 0', fontSize: '13px', color: 'var(--text-muted)' }}>{c.email || <span style={{ fontStyle: 'italic', opacity: 0.6 }}>No email on file</span>}</p>
                 </div>
                 {(() => {
                   const status = getAccessStatus(c);
@@ -2716,7 +2720,7 @@ const AdminDashboard = () => {
                         <button className="btn-small" onClick={() => executeClientAction(c.client_id, 'set-temp-password')} disabled={isProtectedProfile(c)} title={isProtectedProfile(c) ? 'This account is protected and cannot be modified' : undefined}>Set Temporary Password</button>
                       </div>
                     </>
-                  ) : (
+                  ) : c.email ? (
                     <button className="btn-small secondary" onClick={() => {
                       setConfirmAction({
                         type: 'client', id: c.client_id, action: 'link-email', name: c.display_name || 'this client',
@@ -2726,6 +2730,11 @@ const AdminDashboard = () => {
                       });
                       setConfirmTypedInput('');
                     }}>Link Login Account</button>
+                  ) : (
+                    // Release 7B Phase 3: Offline client — no email, suppress Link Login Account
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      Offline client — add email to enable login
+                    </span>
                   )}
                 </div>
               </div>
@@ -3620,6 +3629,10 @@ const AdminDashboard = () => {
                                 {state.isInvalid ? "Needs Assignment" : getStatusLabel(item.status)}
                               </span>
                               {state.isInvalid && <div className="micro-text urgent-text">Missing worker assignment!</div>}
+                              {/* Release 7B Phase 3: Admin Created badge */}
+                              {item.source === 'admin_created' && (
+                                <span className="status-chip status-chip--admin-created" style={{ fontSize: '9px', padding: '2px 8px', minWidth: 'auto', marginTop: '4px' }}>Admin Created</span>
+                              )}
                             </div>
                           );
                         })()}
