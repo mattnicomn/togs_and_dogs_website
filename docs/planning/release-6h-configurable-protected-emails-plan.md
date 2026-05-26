@@ -1,5 +1,11 @@
 # Release 6H: Configurable Protected Admin Emails — Plan
 
+## Status: ✅ DEPLOYED & PRODUCTION VALIDATED (2026-05-22)
+
+**Deployment:** Terraform 9 Lambdas updated + Frontend S3/CloudFront
+**Validation:** All guardrails confirmed — POST/PATCH/link-cognito blocking, is_protected field, fallback defaults
+**Final terraform plan:** No changes — infrastructure fully aligned
+
 ## Objective
 Move the hardcoded protected admin/owner email and Cognito sub lists into configuration so protected accounts can be managed without editing backend or frontend code.
 

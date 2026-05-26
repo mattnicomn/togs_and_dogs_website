@@ -24,6 +24,7 @@ Last updated: 2026-05-21
 
 | # | Task | Release | Completed | Commit |
 |---|------|---------|-----------|--------|
+| 18 | Configurable protected admin accounts | 6H | 2026-05-22 | — |
 | 17 | Staff calendar sync reliability (7 phases) | 6G | 2026-05-22 | `e3fe2f6` |
 | 16 | Repeat customer / offline client booking flow | 6F | 2026-05-22 | `3934ef5` |
 | 15 | Identity messaging + phone normalization + protected email guard | 6E | 2026-05-21 | `79b2b89` |
@@ -56,7 +57,7 @@ Last updated: 2026-05-21
 | B12 | AWS cost allocation tagging | Infrastructure | Low | Standardize tags across all Terraform resources |
 | B13 | Admin-created CareCards/visits | Admin UI | Medium | Allow admin to create visits without public form |
 | B14 | Recipient domain typo `usmissiohero.com` | Data Quality | Low | Typo in staff/client record — investigate and correct |
-| B15 | Move protected emails from hardcoded to config/env vars | Infrastructure | Low | Currently hardcoded in admin_handler.py and client_profile.py |
+| B15 | ~~Move protected emails from hardcoded to config/env vars~~ | Infrastructure | ✅ Done | Release 6H — configurable via Terraform env vars |
 
 ## Deferred Indefinitely
 
