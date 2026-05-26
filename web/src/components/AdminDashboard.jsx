@@ -100,6 +100,9 @@ const AdminDashboard = () => {
   });
   const [newVisitClientPets, setNewVisitClientPets] = useState([]);
   const [isCreatingVisit, setIsCreatingVisit] = useState(false);
+  const [isAddingPetInline, setIsAddingPetInline] = useState(false);
+  const [inlinePetForm, setInlinePetForm] = useState({ name: '', species: 'DOG', breed: '', age: '' });
+  const [isSavingPetInline, setIsSavingPetInline] = useState(false);
   // Confirmation modal state for staff/client actions (replaces window.confirm/prompt)
   const [confirmAction, setConfirmAction] = useState(null);
   // Shape: { type: 'staff'|'client', id: string, action: string, name: string, message: string, consequence: string, variant?: 'confirm'|'disable-choice'|'delete-typed'|'temp-password'|'link-email' }
@@ -2014,6 +2017,65 @@ const AdminDashboard = () => {
   };
 
   // Release 6F: New Visit modal handlers
+  const handleCloseNewVisitModal = () => {
+    setNewVisitModal(false);
+    setNewVisitForm({
+      client_id: '', client_name: '', client_email: '', client_phone: '',
+      pet_names: '', pet_ids: [], service_type: 'PET_SITTING',
+      start_date: '', end_date: '', visit_windows: ['ANYTIME'],
+      details: '', preferred_sitter: ''
+    });
+    setNewVisitClientPets([]);
+    setIsAddingPetInline(false);
+    setInlinePetForm({ name: '', species: 'DOG', breed: '', age: '' });
+  };
+
+  const handleInlinePetSubmit = async () => {
+    if (!inlinePetForm.name.trim()) return;
+    const clientId = newVisitForm.client_id;
+    if (!clientId) return;
+
+    setIsSavingPetInline(true);
+    try {
+      const result = await createPet({
+        client_id: clientId,
+        name: inlinePetForm.name.trim(),
+        species: inlinePetForm.species,
+        breed: inlinePetForm.breed.trim() || undefined,
+        age: inlinePetForm.age ? parseInt(inlinePetForm.age) : undefined,
+        is_active: true
+      });
+
+      showNotification(`Pet "${inlinePetForm.name}" created successfully!`, "success");
+
+      // Refresh client pets list
+      const resp = await listAdminClientPets(clientId);
+      const pets = (resp.pets || []).filter(p => p && p.pet_id);
+      setNewVisitClientPets(pets);
+
+      // Auto-select the newly created pet ID
+      const newPetId = result?.pet_id;
+      if (newPetId) {
+        setNewVisitForm(prev => {
+          const ids = prev.pet_ids.includes(newPetId) ? prev.pet_ids : [...prev.pet_ids, newPetId];
+          const names = pets
+            .filter(p => ids.includes(p.pet_id))
+            .map(p => p.name || 'Unnamed')
+            .join(', ');
+          return { ...prev, pet_ids: ids, pet_names: names };
+        });
+      }
+
+      // Reset form
+      setInlinePetForm({ name: '', species: 'DOG', breed: '', age: '' });
+      setIsAddingPetInline(false);
+    } catch (err) {
+      showNotification("Failed to create pet inline: " + err.message, "error");
+    } finally {
+      setIsSavingPetInline(false);
+    }
+  };
+
   const handleNewVisitClientSelect = (clientId) => {
     const client = clientList.find(c => c.client_id === clientId);
     if (!client) return;
@@ -2025,6 +2087,10 @@ const AdminDashboard = () => {
       client_phone: client.phone || '',
       pet_names: '', pet_ids: []
     }));
+    // Close inline pet addition if active
+    setIsAddingPetInline(false);
+    setInlinePetForm({ name: '', species: 'DOG', breed: '', age: '' });
+    
     // Load pets for this client
     const fetchPets = async () => {
       try {
@@ -2074,9 +2140,7 @@ const AdminDashboard = () => {
         getCalendarWarningMessage(resp, resp.message || "Booking created successfully."),
         getCalendarNotificationType(resp)
       );
-      setNewVisitModal(false);
-      setNewVisitForm({ client_id: '', client_name: '', client_email: '', client_phone: '', pet_names: '', pet_ids: [], service_type: 'PET_SITTING', start_date: '', end_date: '', visit_windows: ['ANYTIME'], details: '', preferred_sitter: '' });
-      setNewVisitClientPets([]);
+      handleCloseNewVisitModal();
       fetchAllData();
     } catch (err) {
       showNotification("Failed to create booking: " + err.message, "error");
@@ -4224,7 +4288,7 @@ const AdminDashboard = () => {
           <div className="modal-content card" style={{ maxWidth: '550px', maxHeight: '85vh', overflow: 'auto' }}>
             <div className="modal-header">
               <h2 className="modal-title">Create Visit for Client</h2>
-              <button className="btn-close" onClick={() => setNewVisitModal(false)}>×</button>
+              <button className="btn-close" onClick={handleCloseNewVisitModal}>×</button>
             </div>
             <div className="modal-body" style={{ padding: '24px' }}>
               {/* Client Selector */}
@@ -4247,24 +4311,129 @@ const AdminDashboard = () => {
               {/* Pet Selector */}
               {newVisitForm.client_id && (
                 <div className="field" style={{ marginBottom: '16px' }}>
-                  <label>Pet(s) *</label>
-                  {newVisitClientPets.length === 0 ? (
-                    <p style={{ color: 'var(--warning-color)', fontSize: '0.9rem', margin: '8px 0' }}>
-                      This client has no pets on file. Please add a pet/CareCard first.
-                    </p>
-                  ) : (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
-                      {newVisitClientPets.map(pet => (
-                        <label key={pet.pet_id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: newVisitForm.pet_ids.includes(pet.pet_id) ? '2px solid var(--primary)' : '1px solid var(--border-soft)', cursor: 'pointer', fontSize: '0.9rem' }}>
-                          <input
-                            type="checkbox"
-                            checked={newVisitForm.pet_ids.includes(pet.pet_id)}
-                            onChange={() => handleNewVisitPetToggle(pet)}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ margin: 0 }}>Pet(s) *</label>
+                    {!isAddingPetInline && (
+                      <button 
+                        type="button" 
+                        onClick={() => setIsAddingPetInline(true)}
+                        style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, padding: 0 }}
+                      >
+                        + Add Pet Inline
+                      </button>
+                    )}
+                  </div>
+
+                  {isAddingPetInline ? (
+                    <div style={{ 
+                      marginTop: '8px', 
+                      padding: '14px', 
+                      borderRadius: '8px', 
+                      border: '1px solid rgba(76, 175, 80, 0.2)', 
+                      backgroundColor: 'rgba(76, 175, 80, 0.03)',
+                      boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)'
+                    }}>
+                      <h4 style={{ margin: '0 0 10px 0', fontSize: '0.85rem', color: 'var(--text-primary)' }}>Create Pet Inline</h4>
+                      
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div className="field-compact" style={{ display: 'flex', flexDirection: 'column' }}>
+                          <label style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Name *</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. Luna"
+                            value={inlinePetForm.name} 
+                            onChange={e => setInlinePetForm({ ...inlinePetForm, name: e.target.value })}
+                            style={{ width: '100%', padding: '6px 10px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--border-soft)' }} 
                           />
-                          {pet.name || 'Unnamed'} {pet.breed ? `(${pet.breed})` : ''}
-                        </label>
-                      ))}
+                        </div>
+                        
+                        <div className="field-compact" style={{ display: 'flex', flexDirection: 'column' }}>
+                          <label style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Species</label>
+                          <select 
+                            value={inlinePetForm.species} 
+                            onChange={e => setInlinePetForm({ ...inlinePetForm, species: e.target.value })}
+                            style={{ width: '100%', padding: '6px 10px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--border-soft)', height: '31px' }}
+                          >
+                            <option value="DOG">Dog</option>
+                            <option value="CAT">Cat</option>
+                            <option value="OTHER">Other</option>
+                          </select>
+                        </div>
+                        
+                        <div className="field-compact" style={{ display: 'flex', flexDirection: 'column' }}>
+                          <label style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Breed</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. Poodle"
+                            value={inlinePetForm.breed} 
+                            onChange={e => setInlinePetForm({ ...inlinePetForm, breed: e.target.value })}
+                            style={{ width: '100%', padding: '6px 10px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--border-soft)' }} 
+                          />
+                        </div>
+                        
+                        <div className="field-compact" style={{ display: 'flex', flexDirection: 'column' }}>
+                          <label style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Age (Years)</label>
+                          <input 
+                            type="number" 
+                            min="0" 
+                            max="30"
+                            placeholder="e.g. 3"
+                            value={inlinePetForm.age} 
+                            onChange={e => {
+                              const val = e.target.value;
+                              if (val === '' || (parseInt(val) >= 0 && parseInt(val) <= 30)) {
+                                setInlinePetForm({ ...inlinePetForm, age: val });
+                              }
+                            }}
+                            style={{ width: '100%', padding: '6px 10px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--border-soft)' }} 
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end' }}>
+                        <button 
+                          type="button" 
+                          className="btn-secondary"
+                          onClick={() => setIsAddingPetInline(false)}
+                          style={{ padding: '4px 10px', fontSize: '0.8rem', cursor: 'pointer', border: '1px solid var(--border-soft)', borderRadius: '4px', background: 'none' }}
+                          disabled={isSavingPetInline}
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          type="button" 
+                          className="button-primary"
+                          onClick={handleInlinePetSubmit}
+                          disabled={!inlinePetForm.name.trim() || isSavingPetInline}
+                          style={{ padding: '4px 12px', fontSize: '0.8rem', cursor: 'pointer', backgroundColor: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '4px' }}
+                        >
+                          {isSavingPetInline ? 'Creating...' : 'Save & Select'}
+                        </button>
+                      </div>
                     </div>
+                  ) : (
+                    <>
+                      {newVisitClientPets.length === 0 ? (
+                        <div style={{ padding: '10px', border: '1px dashed var(--warning-color)', borderRadius: '8px', backgroundColor: 'rgba(255, 152, 0, 0.02)', marginTop: '4px' }}>
+                          <p style={{ color: 'var(--warning-color)', fontSize: '0.85rem', margin: 0 }}>
+                            This client has no pets on file. Click <strong>+ Add Pet Inline</strong> above to create one immediately.
+                          </p>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+                          {newVisitClientPets.map(pet => (
+                            <label key={pet.pet_id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: newVisitForm.pet_ids.includes(pet.pet_id) ? '2px solid var(--primary)' : '1px solid var(--border-soft)', cursor: 'pointer', fontSize: '0.9rem' }}>
+                              <input
+                                type="checkbox"
+                                checked={newVisitForm.pet_ids.includes(pet.pet_id)}
+                                onChange={() => handleNewVisitPetToggle(pet)}
+                              />
+                              {pet.name || 'Unnamed'} {pet.breed ? `(${pet.breed})` : ''}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -4354,7 +4523,7 @@ const AdminDashboard = () => {
             </div>
 
             <div className="modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid var(--border-soft)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button className="button-secondary" onClick={() => setNewVisitModal(false)} disabled={isCreatingVisit}>Cancel</button>
+              <button className="button-secondary" onClick={handleCloseNewVisitModal} disabled={isCreatingVisit}>Cancel</button>
               <button
                 className="button-primary"
                 onClick={handleNewVisitSubmit}
