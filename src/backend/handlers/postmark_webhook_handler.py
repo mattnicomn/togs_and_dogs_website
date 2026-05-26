@@ -109,6 +109,33 @@ def _validate_webhook_auth(event):
     return is_valid
 
 
+def _update_ledger_status(message_id, new_status, error_message=None):
+    """
+    Finds and updates the ledger record(s) matching the Postmark message_id.
+    Fully non-blocking and safe.
+    """
+    if not message_id:
+        return
+    try:
+        from common.db import table, update_item
+        from boto3.dynamodb.conditions import Key
+        
+        pk = f"NOTIF#{message_id}"
+        response = table.query(
+            KeyConditionExpression=Key('PK').eq(pk)
+        )
+        items = response.get('Items', [])
+        for item in items:
+            sk = item.get('SK')
+            if sk:
+                attributes = {"status": new_status}
+                if error_message:
+                    attributes["error_message"] = error_message
+                update_item(pk, sk, attributes)
+    except Exception as e:
+        print(f"WARNING: Failed to update Notification Ledger from webhook: {e}")
+
+
 def _handle_bounce(payload, message_id):
     """Processes a Bounce event. Hard bounces suppress the recipient."""
     recipient = (payload.get('Email') or '').lower().strip()
@@ -116,6 +143,9 @@ def _handle_bounce(payload, message_id):
     description = payload.get('Description', '')
 
     print(f"POSTMARK_WEBHOOK_BOUNCE: Type={bounce_type}, Email={_mask_email(recipient)}, MessageID={message_id}")
+
+    # Update ledger
+    _update_ledger_status(message_id, "bounced", error_message=f"Bounce type: {bounce_type} - {description}")
 
     if bounce_type == 'HardBounce':
         if recipient:
@@ -134,6 +164,9 @@ def _handle_spam_complaint(payload, message_id):
 
     print(f"POSTMARK_WEBHOOK_SPAM_COMPLAINT: Email={_mask_email(recipient)}, MessageID={message_id}")
 
+    # Update ledger
+    _update_ledger_status(message_id, "spam_complaint", error_message="Spam complaint received.")
+
     if recipient:
         suppress_email(recipient, reason="SPAM_COMPLAINT")
         print(f"POSTMARK_WEBHOOK_SUPPRESSED: Spam complaint suppressed {_mask_email(recipient)}")
@@ -145,6 +178,10 @@ def _handle_delivery(payload, message_id):
     """Processes a Delivery event. Logs only — no suppression."""
     recipient = (payload.get('Recipient') or payload.get('Email') or '').lower().strip()
     print(f"POSTMARK_WEBHOOK_DELIVERY: Delivered to {_mask_email(recipient)}, MessageID={message_id}")
+
+    # Update ledger
+    _update_ledger_status(message_id, "delivered")
+
     return _raw_response(200, {"status": "delivered"})
 
 

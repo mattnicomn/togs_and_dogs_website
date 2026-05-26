@@ -31,6 +31,126 @@ def get_notification_client(config):
         config.NOTIFICATION_MODE = 'log_only'
         return SESClient(config)
 
+def _write_ledger_entry(request_id, event_type, recipient, status, provider=None, provider_message_id=None, error_message=None, record=None):
+    """
+    Writes a single audit record to the Notification Ledger (DynamoDB).
+    Completely isolated and non-blocking.
+    """
+    try:
+        import uuid
+        from datetime import datetime, timezone
+        from common.db import put_item
+
+        # Use provider_message_id as notification_id if present to make webhook queries trivial!
+        notification_id = provider_message_id if provider_message_id else str(uuid.uuid4())
+        created_at = datetime.now(timezone.utc).isoformat()
+        month_key = created_at[:7] # YYYY-MM
+
+        company_id = "tog_and_dogs"
+        if record and isinstance(record, dict):
+            company_id = record.get('company_id') or "tog_and_dogs"
+
+        ledger_item = {
+            "PK": f"NOTIF#{notification_id}",
+            "SK": f"REQUEST#{request_id or 'UNKNOWN'}",
+            "entity_type": "NOTIFICATION_LEDGER",
+            "notification_id": notification_id,
+            "request_id": request_id or "UNKNOWN",
+            "event_type": event_type,
+            "recipient_email": recipient.strip().lower() if recipient else "unknown",
+            "status": status,
+            "provider": provider or "log_only",
+            "provider_message_id": provider_message_id,
+            "error_message": error_message,
+            "company_id": company_id,
+            "month_key": month_key,
+            "created_at": created_at
+        }
+
+        put_item(ledger_item)
+        return notification_id
+    except Exception as e:
+        print(f"WARNING: Notification Ledger write failed: {e}")
+        return None
+
+
+def _resolve_potential_recipients_with_reasons(event_type, record, config):
+    """
+    Analyzes potential recipients for an event type and identifies
+    which ones are active, suppressed, or disabled.
+    """
+    from .resolver import get_client_email, get_staff_email
+    from .suppression import is_suppressed
+    
+    potential = []
+    
+    def add_pot(email, pref_enabled, role):
+        if not email or not isinstance(email, str) or '@' not in email:
+            return
+        email_clean = email.strip().lower()
+        
+        # 1. Check suppression
+        if is_suppressed(email_clean):
+            potential.append({
+                "email": email_clean,
+                "status": "suppressed",
+                "reason": f"Recipient suppressed: {email_clean}"
+            })
+            return
+            
+        # 2. Check preference
+        if not pref_enabled:
+            potential.append({
+                "email": email_clean,
+                "status": "skipped_disabled",
+                "reason": f"Notification preference disabled for {role}."
+            })
+            return
+            
+        # 3. Active (even if dry-run/disabled, let it proceed to post-dispatch logging)
+        potential.append({
+            "email": email_clean,
+            "status": "active",
+            "reason": "Active recipient"
+        })
+
+    is_welcome_event = event_type in ['WELCOME_INVITE_CLIENT', 'WELCOME_INVITE_STAFF', 'WELCOME_INVITE']
+    
+    # Basic data issue checks
+    if record.get('is_data_issue') or (not is_welcome_event and not record.get('request_id')):
+        return []
+
+    # Check for deleted/trash unless cancelled
+    status = record.get('status', '').upper()
+    if status in ['DELETED', 'TRASH', 'ARCHIVED'] and event_type != 'VISIT_CANCELLED':
+        return []
+
+    if event_type == 'REQUEST_RECEIVED':
+        add_pot(config.ADMIN_EMAIL, config.NOTIFY_ADMIN_ON_REQUEST_RECEIVED, "admin")
+        
+    elif event_type == 'CUSTOMER_APPROVED':
+        add_pot(get_client_email(record), config.NOTIFY_CLIENT_ON_APPROVAL, "client")
+        
+    elif event_type == 'VISIT_SCHEDULED':
+        add_pot(get_client_email(record), config.NOTIFY_CLIENT_ON_SCHEDULED, "client")
+        
+    elif event_type == 'STAFF_ASSIGNED':
+        add_pot(get_staff_email(record), config.NOTIFY_STAFF_ON_ASSIGNMENT, "staff")
+        
+    elif event_type == 'VISIT_CANCELLED':
+        add_pot(get_client_email(record), config.NOTIFY_CLIENT_ON_CANCELLED, "client")
+        add_pot(get_staff_email(record), config.NOTIFY_STAFF_ON_CANCELLED, "staff")
+        add_pot(config.ADMIN_EMAIL, config.NOTIFY_ADMIN_ON_CANCELLED, "admin")
+        
+    elif event_type == 'VISIT_TIME_CHANGED':
+        add_pot(get_client_email(record), True, "client")
+        
+    elif event_type in ['WELCOME_INVITE_CLIENT', 'WELCOME_INVITE_STAFF', 'WELCOME_INVITE']:
+        add_pot(get_client_email(record), True, "recipient")
+        
+    return potential
+
+
 def notify_event(event_type, record=None, previous_record=None, **kwargs):
     """
     Main entry point for dispatching notifications.
@@ -58,16 +178,40 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
             if prev_status in ['Email sent.', 'Notification logged only.']:
                 msg = f"Approved. Notification already sent via {record.get('approval_notification_mode', 'unknown')}."
                 print(f"NOTIFICATION_SKIP: {msg}")
+                # Log duplicate skip to ledger
+                _write_ledger_entry(
+                    request_id=request_id,
+                    event_type=event_type,
+                    recipient=record.get('client_email') or record.get('email') or 'unknown',
+                    status='skipped_duplicate',
+                    provider='unknown',
+                    record=record
+                )
                 return {"success": True, "message": msg}
 
-        # 2. Resolve Recipients
+        # 2. Pre-Dispatch Ledger Logging
+        # Analyze potential recipients and record any skips/suppressions immediately
+        potential_recipients = _resolve_potential_recipients_with_reasons(event_type, record, config)
+        for pot in potential_recipients:
+            if pot["status"] != "active":
+                _write_ledger_entry(
+                    request_id=request_id,
+                    event_type=event_type,
+                    recipient=pot["email"],
+                    status=pot["status"],
+                    provider="log_only" if (config.DRY_RUN or not config.ENABLED) else None,
+                    error_message=pot["reason"],
+                    record=record
+                )
+
+        # 3. Resolve Active Recipients
         recipients = resolve_notification_recipients(event_type, record, previous_record, config)
         if not recipients:
             msg = f"Approved. No recipients resolved for {event_type}."
             print(f"NOTIFICATION_IDLE: {msg}")
             return {"success": True, "message": msg}
 
-        # 3. Get Templates
+        # 4. Get Templates
         is_welcome_event = event_type in ['WELCOME_INVITE_CLIENT', 'WELCOME_INVITE_STAFF', 'WELCOME_INVITE']
         
         if is_welcome_event:
@@ -99,7 +243,7 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
             print(f"NOTIFICATION_MISSING_TEMPLATE: {msg}")
             return {"success": False, "message": msg}
 
-        # 4. Dispatch
+        # 5. Dispatch
         client = get_notification_client(config)
         event_key = f"{request_id}_{event_type}_{record.get('updated_at', 'v1')}"
         
@@ -111,7 +255,48 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
             event_key=event_key
         )
 
-        # 5. Metadata Update for Approval
+        # 6. Post-Dispatch Ledger Logging for Active Recipients
+        for r in recipients:
+            if result.get('delivered'):
+                _write_ledger_entry(
+                    request_id=request_id,
+                    event_type=event_type,
+                    recipient=r,
+                    status='sent',
+                    provider=result.get('provider'),
+                    provider_message_id=result.get('message_id'),
+                    record=record
+                )
+            else:
+                is_dry_run_or_log = (
+                    "logged only" in result.get('message', '').lower() or
+                    "dry run" in result.get('message', '').lower() or
+                    config.DRY_RUN or
+                    not config.ENABLED or
+                    config.NOTIFICATION_MODE == 'log_only'
+                )
+                if is_dry_run_or_log:
+                    _write_ledger_entry(
+                        request_id=request_id,
+                        event_type=event_type,
+                        recipient=r,
+                        status='skipped_disabled',
+                        provider='log_only',
+                        error_message=result.get('message'),
+                        record=record
+                    )
+                else:
+                    _write_ledger_entry(
+                        request_id=request_id,
+                        event_type=event_type,
+                        recipient=r,
+                        status='failed',
+                        provider=result.get('provider'),
+                        error_message=result.get('message'),
+                        record=record
+                    )
+
+        # 7. Metadata Update for Approval
         if event_type == 'CUSTOMER_APPROVED' and request_id and client_id:
             try:
                 now = datetime.now(timezone.utc).isoformat()
@@ -129,7 +314,7 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
             except Exception as db_err:
                 print(f"WARNING: Failed to update notification metadata for {request_id}: {db_err}")
 
-        # 6. Log Safe Metadata
+        # 8. Log Safe Metadata
         try:
             recipient_domains = list(set([r.split('@')[-1] for r in recipients if '@' in r]))
             log_meta = {
