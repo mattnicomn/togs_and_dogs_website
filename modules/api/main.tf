@@ -1012,7 +1012,8 @@ resource "aws_api_gateway_deployment" "main" {
 
 
     aws_api_gateway_gateway_response.unauthorized,
-    aws_api_gateway_gateway_response.missing_auth_token
+    aws_api_gateway_gateway_response.missing_auth_token,
+    aws_api_gateway_integration.postmark_webhook_lambda
   ]
 
   rest_api_id = aws_api_gateway_rest_api.main.id
@@ -1044,6 +1045,10 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_method.get_client_requests,
       aws_api_gateway_method.post_client_requests,
       aws_api_gateway_method.get_client_pets,
+      aws_api_gateway_resource.webhooks,
+      aws_api_gateway_resource.webhooks_postmark,
+      aws_api_gateway_method.post_webhooks_postmark,
+      aws_api_gateway_integration.postmark_webhook_lambda,
 
 
       aws_api_gateway_method.options,
