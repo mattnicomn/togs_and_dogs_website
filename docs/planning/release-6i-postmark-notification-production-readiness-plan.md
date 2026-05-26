@@ -298,15 +298,21 @@ Document SES as deprecated. Do NOT delete code yet.
 ## Validation Checklist
 
 ### Phase 1 (Webhooks)
-- [ ] Webhook endpoint responds to authenticated Postmark test ping
-- [ ] Unauthenticated request returns 401
-- [ ] Hard bounce auto-adds to suppression list
-- [ ] Spam complaint auto-adds to suppression list
-- [ ] Soft bounce logged but NOT suppressed
-- [ ] Delivery event logged
-- [ ] Invalid payload returns 400
-- [ ] Endpoint responds within 5 seconds
-- [ ] Suppressed email is blocked on next send attempt
+- [x] Webhook endpoint responds to authenticated Postmark test ping
+- [x] Unauthenticated request returns 401
+- [x] Hard bounce auto-adds to suppression list
+- [x] Spam complaint auto-adds to suppression list
+- [x] Soft bounce logged but NOT suppressed
+- [x] Delivery event logged
+- [x] Invalid payload returns 400
+- [x] Endpoint responds within 5 seconds
+- [x] Suppressed email is blocked on next send attempt
+
+#### Phase 1 Post-Apply Validation & Operations Notes
+* **Route Validation & Endpoint:** The Postmark Webhook POST route is live at `/webhooks/postmark` (URL: `https://a022yxuiue.execute-api.us-east-1.amazonaws.com/prod/webhooks/postmark`). 
+* **Secret Auth Enforcement:** The Lambda validates the `X-Postmark-Webhook-Secret` header case-insensitively. A strict `.strip()` comparison is performed to ignore any minor whitespace issues. If no secret is configured, the handler fails closed, rejecting all requests with `401 Unauthorized`.
+* **Terraform Local Secret Deployment Correction:** Because background execution sessions lack terminal-specific environment variables like `$env:TF_VAR_postmark_webhook_secret`, running Terraform plans/applies from a local interactive PowerShell terminal is required to deploy the secret to the `POSTMARK_WEBHOOK_SECRET` environment variable of the Lambda.
+* **PowerShell Testing Warning:** When testing external CLI tools like `curl.exe` in PowerShell, double quotes in variables are parsed and stripped. To send valid JSON payloads, either use native PowerShell cmdlets (`Invoke-RestMethod`) or save the JSON as a UTF-8 file (no BOM) and use `curl.exe -d "@payload.json"`.
 
 ### Phase 2 (Ledger)
 - [ ] Every send attempt creates a ledger record

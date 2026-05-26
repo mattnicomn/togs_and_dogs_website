@@ -21,29 +21,38 @@ def handler(event, context):
     try:
         # 1. Authenticate webhook request
         if not _validate_webhook_auth(event):
-            print("POSTMARK_WEBHOOK_AUTH_FAILED: Invalid or missing webhook secret.")
             return _raw_response(401, {"error": "Unauthorized"})
 
         # 2. Parse body
         body = event.get('body', '')
+        is_base64 = event.get('isBase64Encoded', False)
+
+        if body and is_base64 and isinstance(body, str):
+            try:
+                import base64
+                body = base64.b64decode(body).decode('utf-8')
+            except Exception as e:
+                print(f"POSTMARK_WEBHOOK_PARSE_FAILED: Failed to decode base64 body: {e}")
+                return _raw_response(400, {"error": "Failed to decode base64 body"})
+
         if isinstance(body, str):
             try:
                 payload = json.loads(body)
-            except (json.JSONDecodeError, TypeError):
-                print(f"POSTMARK_WEBHOOK_INVALID_PAYLOAD: Could not parse body.")
+            except (json.JSONDecodeError, TypeError) as e:
+                print(f"POSTMARK_WEBHOOK_PARSE_FAILED: Could not parse JSON body: {e}")
                 return _raw_response(400, {"error": "Invalid JSON payload"})
         elif isinstance(body, dict):
             payload = body
         else:
-            print(f"POSTMARK_WEBHOOK_INVALID_PAYLOAD: Unexpected body type: {type(body)}")
+            print(f"POSTMARK_WEBHOOK_PARSE_FAILED: Unexpected body type: {type(body)}")
             return _raw_response(400, {"error": "Invalid payload format"})
 
         # 3. Validate required fields
-        record_type = payload.get('RecordType')
-        message_id = payload.get('MessageID')
+        record_type = payload.get('RecordType') if isinstance(payload, dict) else None
+        message_id = payload.get('MessageID') if isinstance(payload, dict) else None
 
         if not record_type:
-            print("POSTMARK_WEBHOOK_INVALID_PAYLOAD: Missing RecordType field.")
+            print(f"POSTMARK_WEBHOOK_PARSE_FAILED: Missing RecordType field.")
             return _raw_response(400, {"error": "Missing RecordType field"})
 
         # 4. Route by RecordType
@@ -54,7 +63,7 @@ def handler(event, context):
         elif record_type == 'Delivery':
             return _handle_delivery(payload, message_id)
         elif record_type in ('Open', 'Click'):
-            print(f"POSTMARK_WEBHOOK_ENGAGEMENT: {record_type} for MessageID: {message_id}")
+            print(f"POSTMARK_WEBHOOK_EVENT: {record_type} received for MessageID: {message_id}")
             return _raw_response(200, {"status": "acknowledged", "record_type": record_type})
         else:
             print(f"POSTMARK_WEBHOOK_UNKNOWN_TYPE: Unrecognized RecordType: {record_type}")
@@ -71,12 +80,8 @@ def _validate_webhook_auth(event):
     Checks the X-Postmark-Webhook-Secret header against the configured secret.
     """
     expected_secret = os.environ.get('POSTMARK_WEBHOOK_SECRET', '')
-    if not expected_secret:
-        # If no secret is configured, reject all webhooks (fail-closed)
-        print("POSTMARK_WEBHOOK_AUTH_FAILED: POSTMARK_WEBHOOK_SECRET not configured.")
-        return False
-
     headers = event.get('headers', {}) or {}
+    
     # Check case-insensitive header
     provided_secret = (
         headers.get('X-Postmark-Webhook-Secret') or
@@ -85,10 +90,23 @@ def _validate_webhook_auth(event):
         ''
     )
 
-    if not provided_secret:
+    expected_configured = bool(expected_secret.strip())
+    print(f"POSTMARK_WEBHOOK_AUTH_STATE: configured={expected_configured}")
+
+    if not expected_configured:
+        print("POSTMARK_WEBHOOK_AUTH_FAILED: POSTMARK_WEBHOOK_SECRET not configured (empty or missing in Lambda variables).")
         return False
 
-    return provided_secret == expected_secret
+    if not provided_secret.strip():
+        print("POSTMARK_WEBHOOK_AUTH_FAILED: Incoming X-Postmark-Webhook-Secret header is missing or empty.")
+        return False
+
+    is_valid = (provided_secret.strip() == expected_secret.strip())
+    
+    if not is_valid:
+        print("POSTMARK_WEBHOOK_AUTH_FAILED: Provided secret does not match configured POSTMARK_WEBHOOK_SECRET.")
+        
+    return is_valid
 
 
 def _handle_bounce(payload, message_id):
