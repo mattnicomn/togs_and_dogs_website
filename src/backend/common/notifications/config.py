@@ -42,3 +42,8 @@ class NotificationConfig:
 
     # Testing
     TEST_RECIPIENT_OVERRIDE = os.environ.get('NOTIFICATION_TEST_RECIPIENT_OVERRIDE')
+
+    # Postmark Quota Controls (Release 6J)
+    POSTMARK_MONTHLY_LIMIT = int(os.environ.get('POSTMARK_MONTHLY_LIMIT', '100'))
+    POSTMARK_QUOTA_WARN_THRESHOLD = int(os.environ.get('POSTMARK_QUOTA_WARN_THRESHOLD', '80'))
+    POSTMARK_QUOTA_HARD_STOP = os.environ.get('POSTMARK_QUOTA_HARD_STOP', 'false').lower() == 'true'

@@ -7,10 +7,14 @@ from .config import NotificationConfig
 logger = logging.getLogger(__name__)
 
 class SESClient:
-    """Wrapper for AWS SES with dry-run and logging support."""
+    """
+    DEPRECATED: SESClient is deprecated and preserved only as a legacy fallback.
+    Please use PostmarkClient for all active notification sending.
+    """
 
     def __init__(self, config=None):
         self.config = config or NotificationConfig()
+        logger.warning("DEPRECATION_WARNING: SESClient is deprecated and should only be used as a legacy fallback. Please migrate to PostmarkClient.")
         self.region = "us-east-1"
         self.ses = None
         if not self.config.DRY_RUN:

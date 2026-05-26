@@ -31,6 +31,38 @@ def get_notification_client(config):
         config.NOTIFICATION_MODE = 'log_only'
         return SESClient(config)
 
+def _get_monthly_send_count(month_key):
+    """Retrieves the current monthly send count from DynamoDB. Non-blocking."""
+    try:
+        from common.db import get_item
+        item = get_item("QUOTA#tog_and_dogs", f"MONTH#{month_key}")
+        if item:
+            return int(item.get('sent_count', 0))
+        return 0
+    except Exception as e:
+        print(f"WARNING: Failed to fetch monthly send quota count: {e}")
+        return 0
+
+
+def _increment_monthly_send_count(month_key):
+    """Atomically increments the monthly send count in DynamoDB. Non-blocking."""
+    try:
+        from common.db import table
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        table.update_item(
+            Key={"PK": "QUOTA#tog_and_dogs", "SK": f"MONTH#{month_key}"},
+            UpdateExpression="ADD sent_count :inc SET updated_at = :now, entity_type = :type",
+            ExpressionAttributeValues={
+                ":inc": 1,
+                ":now": now,
+                ":type": "QUOTA_COUNTER"
+            }
+        )
+    except Exception as e:
+        print(f"WARNING: Failed to increment monthly send quota count: {e}")
+
+
 def _write_ledger_entry(request_id, event_type, recipient, status, provider=None, provider_message_id=None, error_message=None, record=None):
     """
     Writes a single audit record to the Notification Ledger (DynamoDB).
@@ -189,6 +221,39 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
                 )
                 return {"success": True, "message": msg}
 
+        # 1.5 Quota Check & Warning Logic (Release 6J)
+        # Quota check is audit-only and non-blocking unless hard stop is enabled
+        from datetime import datetime, timezone
+        now_dt = datetime.now(timezone.utc)
+        month_key = now_dt.isoformat()[:7] # YYYY-MM
+        
+        sent_count = _get_monthly_send_count(month_key)
+        
+        # Log quota warnings on standard warning threshold crossings
+        limit = config.POSTMARK_MONTHLY_LIMIT
+        threshold = config.POSTMARK_QUOTA_WARN_THRESHOLD
+        
+        if limit > 0:
+            usage_pct = (sent_count / limit) * 100
+            if usage_pct >= threshold:
+                print(f"NOTIFICATION_QUOTA_WARNING: Month {month_key} quota usage is at {usage_pct:.1f}% ({sent_count}/{limit}).")
+                
+        # Optional hard stop check
+        if config.POSTMARK_QUOTA_HARD_STOP and limit > 0 and sent_count >= limit:
+            msg = f"Notification skipped: Monthly Postmark quota limit of {limit} reached (current: {sent_count})."
+            print(f"NOTIFICATION_QUOTA_HARD_STOP_ACTIVE: {msg}")
+            # Write skipped_quota_exceeded to ledger representing the quota skip
+            _write_ledger_entry(
+                request_id=request_id,
+                event_type=event_type,
+                recipient=record.get('client_email') or record.get('email') or 'unknown',
+                status='skipped_quota_exceeded',
+                provider='postmark',
+                error_message=msg,
+                record=record
+            )
+            return {"success": True, "message": msg}
+
         # 2. Pre-Dispatch Ledger Logging
         # Analyze potential recipients and record any skips/suppressions immediately
         potential_recipients = _resolve_potential_recipients_with_reasons(event_type, record, config)
@@ -267,6 +332,8 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
                     provider_message_id=result.get('message_id'),
                     record=record
                 )
+                # Increment monthly send count atomically (Release 6J)
+                _increment_monthly_send_count(month_key)
             else:
                 is_dry_run_or_log = (
                     "logged only" in result.get('message', '').lower() or
