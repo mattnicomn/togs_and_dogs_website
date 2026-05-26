@@ -83,7 +83,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   const [activePetIndex, setActivePetIndex] = useState(0);
   const activePet = allPets[activePetIndex] || pet;
   const hasMultiplePets = allPets.length > 1;
-  const canEditActivePet = petInfo.hasTrueRecords && !!activePet.pet_id;
+  const canEditActivePet = petInfo.hasTrueRecords && !!activePet.pet_id && !activePet._fetchFailed;
 
   // Release 5B Hotfix 2: Auto-select newly added pet when _newPetIndex is set
   useEffect(() => {
@@ -813,6 +813,12 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
               )}
             </div>
           )}
+          {/* Release 7B Phase 2: Warning notice for deleted/unavailable pets */}
+          {activePet._fetchFailed && ['overview', 'care'].includes(activeTab) && (
+            <div style={{ padding: '12px 24px', background: 'rgba(220, 53, 69, 0.08)', borderBottom: '1px solid rgba(220, 53, 69, 0.2)', fontSize: '0.85rem', color: 'var(--danger, #dc3545)' }}>
+              ⚠️ Deleted/Unavailable pet record — this pet's database record is no longer available.
+            </div>
+          )}
           {/* Release 5A Hotfix 2: Legacy/request-level notice */}
           {hasMultiplePets && petInfo.isLegacy && ['overview', 'care'].includes(activeTab) && (
             <div style={{ padding: '12px 24px', background: 'rgba(255, 193, 7, 0.1)', borderBottom: '1px solid rgba(255, 193, 7, 0.3)', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
@@ -913,8 +919,9 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
               <button 
                 className="button-secondary" 
                 onClick={() => setIsEditing(true)}
+                disabled={activePet._fetchFailed}
               >
-                {pet.pet_id ? 'Edit Record' : 'Create Profile'}
+                {activePet._fetchFailed ? 'Record Unavailable' : (pet.pet_id ? 'Edit Record' : 'Create Profile')}
               </button>
             )}
           </div>

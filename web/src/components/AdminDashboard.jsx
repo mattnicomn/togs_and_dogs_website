@@ -1925,7 +1925,7 @@ const AdminDashboard = () => {
           getPet(pid, item.linked_client_profile_id || item.client_id).catch(err => {
             console.warn(`Failed to load PET#${pid}:`, err.message);
             // Return a minimal fallback so the pet tab still appears
-            return { pet_id: pid, client_id: item.linked_client_profile_id || item.client_id, name: `Pet ${idx + 1} (loading failed)`, _fetchFailed: true };
+            return { pet_id: pid, client_id: item.linked_client_profile_id || item.client_id, name: "Deleted/Unavailable pet record", _fetchFailed: true };
           })
         );
         const petResults = await Promise.all(petPromises);
@@ -3941,7 +3941,7 @@ const AdminDashboard = () => {
               // Re-fetch all PET# records using the updated ID list
               if (allPetIds.length > 0) {
                 const petPromises = allPetIds.map((pid, idx) =>
-                  getPet(pid, clientId).catch(() => ({ pet_id: pid, name: `Pet ${idx + 1}`, _fetchFailed: true }))
+                  getPet(pid, clientId).catch(() => ({ pet_id: pid, name: "Deleted/Unavailable pet record", _fetchFailed: true }))
                 );
                 const petResults = await Promise.all(petPromises);
                 const loadedPets = petResults.filter(p => p !== null);
