@@ -2303,7 +2303,10 @@ const AdminDashboard = () => {
 
   const handleSaveClient = async (e) => {
     e.preventDefault();
-    if (!clientForm.display_name.trim() || !clientForm.email.trim()) {
+    const editingClient = editingClientId ? clientList.find(c => c.client_id === editingClientId) : null;
+    const isProfileOnly = clientForm.creation_mode === 'profile_only' && (!editingClient || (!editingClient.cognito_sub && editingClient.cognito_status !== 'onboard' && editingClient.cognito_status !== 'linked'));
+    
+    if (!clientForm.display_name.trim() || (!isProfileOnly && !clientForm.email.trim())) {
       showNotification("Display name and Email are required", "error");
       return;
     }
@@ -2500,14 +2503,14 @@ const AdminDashboard = () => {
             <h4 className="field-group-heading">Login Identity</h4>
             <p className="field-group-helper">Primary authentication details. The login email cannot be changed once the account is created.</p>
             <div className="field">
-              <label>Email Address {editingClientId && '(Read-only)'} *</label>
+              <label>Email Address {editingClientId && '(Read-only)'} {clientForm.creation_mode === 'onboard' ? '*' : '(Optional)'}</label>
               <input 
                 type="email" 
                 className={editingClientId ? 'read-only-identity' : ''}
                 value={clientForm.email} 
                 onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })} 
                 disabled={!!editingClientId}
-                required 
+                required={clientForm.creation_mode === 'onboard'} 
                 style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
               />
             </div>

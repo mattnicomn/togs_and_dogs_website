@@ -136,11 +136,12 @@ def _handle_admin_created_booking(event, body):
         return bad_request("client_id is required for admin-created bookings. Select an existing client.", event)
 
     client_name = body.get('client_name', '').strip()
-    client_email = body.get('client_email', '').strip().lower()
     start_date = body.get('start_date', '').strip()
 
-    if not client_name or not client_email or not start_date:
-        return bad_request("client_name, client_email, and start_date are required.", event)
+    if not client_name or not start_date:
+        return bad_request("client_name and start_date are required.", event)
+
+    client_email = body.get('client_email', '').strip().lower() or None
 
     # Pet validation: require pet_names or pet_ids
     pet_names = body.get('pet_names', '').strip()

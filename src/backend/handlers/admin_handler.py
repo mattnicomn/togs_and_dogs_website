@@ -1406,26 +1406,28 @@ def handler(event, context):
                 display_name = body.get('display_name', '').strip()
                 email = body.get('email', '').strip().lower()
                 
-                if not display_name or not email:
-                    return bad_request("display_name and email are required", event)
+                if not display_name:
+                    return bad_request("display_name is required", event)
                     
                 from common.auth import get_current_company_id
                 company_id = get_current_company_id(event)
                 from common.db import table as items_table
-                from boto3.dynamodb.conditions import Key
                 
-                # Check duplicate active email within company_id
-                resp = items_table.query(
-                    KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("CLIENT#")
-                )
-                existing_clients = resp.get('Items', [])
-                for c in existing_clients:
-                    if (c.get('email') or '').lower() == email and c.get('is_active') == True:
-                        return error(409, f"Active client with email {email} already exists", event)
-                        
-                # Release 6H: Block client creation with protected admin email
-                if is_protected_email(email):
-                    return error(403, "Cannot create a standard profile using a protected account identity.", event)
+                if email:
+                    from boto3.dynamodb.conditions import Key
+                    
+                    # Check duplicate active email within company_id
+                    resp = items_table.query(
+                        KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("CLIENT#")
+                    )
+                    existing_clients = resp.get('Items', [])
+                    for c in existing_clients:
+                        if (c.get('email') or '').lower() == email and c.get('is_active') == True:
+                            return error(409, f"Active client with email {email} already exists", event)
+                            
+                    # Release 6H: Block client creation with protected admin email
+                    if is_protected_email(email):
+                        return error(403, "Cannot create a standard profile using a protected account identity.", event)
                         
                 client_id = f"client_{str(uuid.uuid4())[:8]}"
                 
@@ -1434,7 +1436,7 @@ def handler(event, context):
                     "SK": f"CLIENT#{client_id}",
                     "company_id": company_id,
                     "client_id": client_id,
-                    "email": email,
+                    "email": email or None,
                     "display_name": display_name,
                     "phone": body.get('phone', '').strip(),
                     "address": body.get('address', '').strip(),
@@ -1589,20 +1591,24 @@ def handler(event, context):
                 
                 if 'email' in body:
                     new_email = body.get('email', '').strip().lower()
+                    has_cognito = bool(client_profile.get('cognito_sub') or client_profile.get('cognito_status') == 'onboard')
                     if not new_email:
-                        return bad_request("email cannot be blank", event)
-                    # Release 6H: Prevent client promotion hijacking
-                    if is_protected_email(new_email):
-                        return error(403, "Cannot assign a protected admin email to a standard profile.", event)
-                    if new_email != client_profile.get('email'):
-                        from boto3.dynamodb.conditions import Key
-                        resp_all = items_table.query(
-                            KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("CLIENT#")
-                        )
-                        for c in resp_all.get('Items', []):
-                            if c['SK'] != f"CLIENT#{client_id}" and (c.get('email') or '').lower() == new_email and c.get('is_active') == True:
-                                return error(409, f"Active client with email {new_email} already exists", event)
-                        client_profile['email'] = new_email
+                        if has_cognito:
+                            return bad_request("email cannot be blank for active login accounts", event)
+                        client_profile['email'] = None
+                    else:
+                        # Release 6H: Prevent client promotion hijacking
+                        if is_protected_email(new_email):
+                            return error(403, "Cannot assign a protected admin email to a standard profile.", event)
+                        if new_email != client_profile.get('email'):
+                            from boto3.dynamodb.conditions import Key
+                            resp_all = items_table.query(
+                                KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("CLIENT#")
+                            )
+                            for c in resp_all.get('Items', []):
+                                if c['SK'] != f"CLIENT#{client_id}" and (c.get('email') or '').lower() == new_email and c.get('is_active') == True:
+                                    return error(409, f"Active client with email {new_email} already exists", event)
+                            client_profile['email'] = new_email
                         
                 if 'display_name' in body:
                     new_name = body.get('display_name', '').strip()
