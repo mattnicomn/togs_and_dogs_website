@@ -288,6 +288,34 @@ resource "aws_lambda_permission" "sns_ses_feedback" {
   source_arn    = module.notifications.ses_feedback_topic_arn
 }
 
+# Release 6I Phase 1: Postmark Webhook Handler
+resource "aws_lambda_function" "postmark_webhook" {
+  filename         = data.archive_file.backend_zip.output_path
+  function_name    = "${local.name_prefix}-postmark-webhook"
+  role             = module.iam.lambda_role_arn
+  handler          = "handlers.postmark_webhook_handler.handler"
+  source_code_hash = data.archive_file.backend_zip.output_base64sha256
+  runtime          = "python3.11"
+  memory_size      = 256
+  timeout          = 10
+
+  environment {
+    variables = {
+      DATA_TABLE_NAME          = module.data.table_name
+      POSTMARK_WEBHOOK_SECRET  = var.postmark_webhook_secret
+    }
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_lambda_permission" "api_postmark_webhook" {
+  statement_id  = "AllowAPIGatewayInvokePostmarkWebhook"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.postmark_webhook.function_name
+  principal     = "apigateway.amazonaws.com"
+}
+
 
 # API Permissions for Google Auth
 resource "aws_lambda_permission" "api_google_auth" {
@@ -379,6 +407,7 @@ module "api" {
   google_auth_handler_invoke_arn  = aws_lambda_function.google_auth.invoke_arn
   pet_handler_invoke_arn          = aws_lambda_function.pet.invoke_arn
   cancellation_handler_invoke_arn = aws_lambda_function.cancellation.invoke_arn
+  postmark_webhook_handler_invoke_arn = aws_lambda_function.postmark_webhook.invoke_arn
   tags                            = local.common_tags
 }
 

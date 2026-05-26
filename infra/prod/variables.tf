@@ -53,3 +53,12 @@ variable "budget_alert_email" {
   description = "Email address for budget threshold alerts."
   default     = "mbn@usmissionhero.com"
 }
+
+# --- Release 6I: Postmark Webhook ---
+
+variable "postmark_webhook_secret" {
+  type        = string
+  description = "Shared secret for authenticating Postmark webhook requests. Set via terraform.tfvars or TF_VAR."
+  sensitive   = true
+  default     = ""
+}

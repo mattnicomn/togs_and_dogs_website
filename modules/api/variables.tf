@@ -53,3 +53,10 @@ variable "tags" {
   description = "Tags to apply to resources"
   default     = {}
 }
+
+
+variable "postmark_webhook_handler_invoke_arn" {
+  description = "Invocation ARN for the Postmark webhook handler"
+  type        = string
+  default     = ""
+}
