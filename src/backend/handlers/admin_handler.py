@@ -1855,6 +1855,20 @@ def handler(event, context):
                         _table.delete_item(Key={'PK': actual_pk, 'SK': actual_sk})
                         results["success"] += 1
                         log_action(event, 'PURGE', actual_pk, actual_sk, previous_status=current_status, bulk_op_id=bulk_op_id)
+                        
+                        # Release 7E Phase 1: Purge child JOBs best-effort
+                        if actual_pk.startswith("REQ#"):
+                            job_ids_to_purge = current_item.get('job_ids') or []
+                            if not job_ids_to_purge and current_item.get('job_id'):
+                                job_ids_to_purge = [current_item.get('job_id')]
+                                
+                            for j_id in job_ids_to_purge:
+                                try:
+                                    _table.delete_item(Key={'PK': f"JOB#{j_id}", 'SK': actual_pk})
+                                    print(f"INFO: [PURGE] Purged child JOB#{j_id} for REQ {actual_pk}")
+                                except Exception as e:
+                                    print(f"WARNING: [PURGE] Failed to purge child JOB#{j_id}: {e}")
+                                    
                     except Exception as e:
                         results["failed"] += 1
                         results["failures"].append({"record": f"{actual_pk}/{actual_sk}", "reason": str(e)})

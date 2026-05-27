@@ -36,10 +36,10 @@ REQ_TO_JOB_STATUS_MAP = {
 
 def cascade_status_to_job(request_item, new_req_status, updated_by='system', remove_worker=False):
     """
-    Cascades a status change from a parent REQ record to its linked JOB record.
+    Cascades a status change from a parent REQ record to its linked JOB record(s).
 
     Args:
-        request_item: The REQ record dict (must contain 'job_id' and 'request_id').
+        request_item: The REQ record dict (must contain 'job_ids' or 'job_id', and 'request_id').
         new_req_status: The new status being applied to the REQ record.
         updated_by: Who triggered the change (for audit trail).
         remove_worker: If True, removes worker_id from the JOB record (used on rollback).
@@ -47,43 +47,54 @@ def cascade_status_to_job(request_item, new_req_status, updated_by='system', rem
     Returns:
         dict: {"success": bool, "message": str}
     """
-    job_id = request_item.get('job_id')
+    job_ids = request_item.get('job_ids') or []
+    if not job_ids and request_item.get('job_id'):
+        job_ids = [request_item.get('job_id')]
+        
     request_id = request_item.get('request_id')
 
-    if not job_id or not request_id:
+    if not job_ids or not request_id:
         # No linked job — cascade is a no-op
-        return {"success": True, "message": "No linked job to cascade to."}
+        return {"success": True, "message": "No linked jobs to cascade to."}
 
     # Resolve the JOB-equivalent status
     job_status = REQ_TO_JOB_STATUS_MAP.get(new_req_status, new_req_status)
 
     now = datetime.now(timezone.utc).isoformat()
+    
+    success_count = 0
+    fail_count = 0
 
-    try:
-        # Build update expression
-        update_expr = "SET #stat = :s, updated_at = :now, updated_by = :ub"
-        expr_attr_names = {"#stat": "status"}
-        expr_attr_vals = {
-            ":s": job_status,
-            ":now": now,
-            ":ub": updated_by,
-        }
+    for job_id in job_ids:
+        try:
+            # Build update expression
+            update_expr = "SET #stat = :s, updated_at = :now, updated_by = :ub"
+            expr_attr_names = {"#stat": "status"}
+            expr_attr_vals = {
+                ":s": job_status,
+                ":now": now,
+                ":ub": updated_by,
+            }
 
-        # Remove worker_id on rollback (e.g., ASSIGNED → APPROVED)
-        if remove_worker:
-            update_expr += " REMOVE worker_id, worker_name"
+            # Remove worker_id on rollback (e.g., ASSIGNED → APPROVED)
+            if remove_worker:
+                update_expr += " REMOVE worker_id, worker_name"
 
-        table.update_item(
-            Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{request_id}"},
-            UpdateExpression=update_expr,
-            ExpressionAttributeNames=expr_attr_names,
-            ExpressionAttributeValues=expr_attr_vals
-        )
+            table.update_item(
+                Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{request_id}"},
+                UpdateExpression=update_expr,
+                ExpressionAttributeNames=expr_attr_names,
+                ExpressionAttributeValues=expr_attr_vals
+            )
 
-        print(f"INFO: [Cascade] JOB#{job_id} updated to {job_status} (from REQ#{request_id} → {new_req_status})")
-        return {"success": True, "message": f"JOB cascaded to {job_status}"}
+            print(f"INFO: [Cascade] JOB#{job_id} updated to {job_status} (from REQ#{request_id} → {new_req_status})")
+            success_count += 1
 
-    except Exception as e:
-        # Fail-safe: log but do not block the parent operation
-        print(f"WARNING: [Cascade] Failed to update JOB#{job_id} for REQ#{request_id}: {e}")
-        return {"success": False, "message": f"Cascade failed: {str(e)}"}
+        except Exception as e:
+            # Fail-safe: log but do not block the parent operation
+            print(f"WARNING: [Cascade] Failed to update JOB#{job_id} for REQ#{request_id}: {e}")
+            fail_count += 1
+            
+    if fail_count > 0:
+        return {"success": False, "message": f"Cascade partially failed: {success_count} succeeded, {fail_count} failed."}
+    return {"success": True, "message": f"Cascaded to {success_count} JOB(s) with status {job_status}."}
