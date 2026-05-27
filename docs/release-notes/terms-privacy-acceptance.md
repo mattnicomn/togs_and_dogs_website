@@ -25,3 +25,9 @@ If issues are detected:
 1. **Backend**: Revert the `intake_handler` Lambda to the previous version to stop enforcing validation.
 2. **Frontend**: Revert the frontend S3 deployment to the previous version and invalidate the CloudFront cache to remove the checkbox.
 3. **Data**: No data deletion is required; any additive fields stored during the rollout will be safely ignored by the reverted code.
+
+## Terraform Drift Note
+
+Because local Terraform binaries were missing from the system PATH during deployment, the `togs-and-dogs-prod-intake` Lambda function was updated directly via the AWS CLI (`aws lambda update-function-code`).
+
+**Follow-up action required:** Before the next backend infrastructure apply, developers must reconcile the Terraform state (specifically the `source_code_hash` for the intake lambda) to prevent Terraform from attempting to downgrade the lambda function. This can be resolved by packaging the code into `backend.zip` natively or refreshing the state.
