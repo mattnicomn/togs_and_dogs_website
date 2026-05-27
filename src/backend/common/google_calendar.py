@@ -159,6 +159,26 @@ def _get_valid_token(request_id="UNKNOWN"):
 
     return _refresh_access_token(tokens, request_id)
 
+SERVICE_DURATIONS = {
+    'WALK_30MIN': 30, 'WALK_60MIN': 60, 'DROPIN_1HR': 60,
+    'DROPIN_3HR': 180, 'OVERNIGHT': 720, 'PET_SITTING': 60, 'MEET_GREET': 45,
+}
+
+WINDOW_START_HOURS = {
+    'MORNING': 8, 'MIDDAY': 11, 'AFTERNOON': 14, 'EVENING': 17,
+}
+
+SERVICE_COLORS = {
+    'WALK_30MIN': '9', 'WALK_60MIN': '9', 'DROPIN_1HR': '7',
+    'DROPIN_3HR': '7', 'OVERNIGHT': '6', 'PET_SITTING': '10', 'MEET_GREET': '3',
+}
+
+FRIENDLY_SERVICE_NAMES = {
+    'WALK_30MIN': '30-Min Walk', 'WALK_60MIN': '60-Min Walk',
+    'DROPIN_1HR': '1-Hour Drop-in', 'DROPIN_3HR': '3-Hour Drop-in',
+    'OVERNIGHT': 'Overnight Care', 'PET_SITTING': 'Pet Sitting', 'MEET_GREET': 'Meet & Greet',
+}
+
 def _build_event_body(item, assigned_worker=None):
     """
     Internal: Builds Google Calendar event resource with strict timing support.
@@ -177,38 +197,64 @@ def _build_event_body(item, assigned_worker=None):
     if not pet_names or pet_names == 'Unknown Pet':
         return None, "missing_required_fields (pet_names)"
 
-    # Title format: Tog and Dogs - {Pet/Customer Name} - {Service Type}
-    summary = f"Tog and Dogs - {pet_names} / {client_name} - {service_type}"
-    
     scheduled_time = item.get('scheduled_time')
     scheduled_date = item.get('scheduled_date') or item.get('start_date')
-    duration_mins = int(item.get('scheduled_duration') or 60)
+    duration_mins = int(item.get('scheduled_duration') or SERVICE_DURATIONS.get(service_type, 60))
+    color_id = SERVICE_COLORS.get(service_type, '8')
+    friendly_service_name = FRIENDLY_SERVICE_NAMES.get(service_type, service_type)
+
+    resolved_start_hour = None
+    window_label = "All Day"
+
+    if not scheduled_time:
+        windows = item.get('visit_windows') or []
+        if not windows:
+            single_window = item.get('visit_window', 'ANYTIME')
+            windows = [single_window] if single_window else ['ANYTIME']
+
+        for w in windows:
+            if w in WINDOW_START_HOURS:
+                resolved_start_hour = WINDOW_START_HOURS[w]
+                window_label = w.capitalize()
+                break
+    else:
+        window_label = "Exact Time"
+
+    summary = f"🐾 {pet_names} \u2014 {friendly_service_name} ({window_label})"
+
+    client_phone = item.get('client_phone', '')
+    phone_line = f"Phone: {client_phone}\n" if client_phone else ""
     
+    source = item.get('source', '')
+    source_label = "Admin Created" if source == 'admin_created' else "Client Booking"
+
+    timing_note = "⏰ Estimated from booking window\n" if resolved_start_hour is not None else ""
+
     description = (
         f"Client: {client_name}\n"
-        f"Pet: {pet_names}\n"
-        f"Service: {service_type}\n"
-        f"Assigned Staff: {assigned_worker or 'Not Assigned'}\n"
-        f"Scheduled Time: {scheduled_time or 'All Day'}\n"
-        f"Request ID: {request_id}\n\n"
-        f"Notes: {item.get('pet_info', 'None')}"
+        f"{phone_line}"
+        f"Pet(s): {pet_names}\n"
+        f"Service: {friendly_service_name}\n"
+        f"Window: {window_label}\n"
+        f"Staff: {assigned_worker or 'Not Assigned'}\n\n"
+        f"Notes: {item.get('pet_info', 'None')}\n"
+        f"{timing_note}\n"
+        f"---\n"
+        f"Request ID: {request_id}\n"
+        f"Source: {source_label}"
     )
 
     timezone = 'America/New_York'
 
-    # Strict timing check
     if not scheduled_date:
         return None, "missing_required_fields (scheduled_date)"
 
+    # Case 1: Exact explicit time
     if scheduled_time:
-        # Exact timing
         try:
-            # Combine date and time
-            # Handle HH:MM or HH:MM:SS
             time_part = scheduled_time
             if len(time_part) == 5: # HH:MM
                 time_part += ":00"
-                
             start_dt_str = f"{scheduled_date}T{time_part}"
             start_dt = datetime.fromisoformat(start_dt_str)
             
@@ -218,29 +264,39 @@ def _build_event_body(item, assigned_worker=None):
             body = {
                 'summary': summary,
                 'description': description,
-                'start': { 
-                    'dateTime': start_dt.isoformat(),
-                    'timeZone': timezone
-                },
-                'end': { 
-                    'dateTime': end_dt.isoformat(),
-                    'timeZone': timezone
-                }
+                'colorId': color_id,
+                'start': { 'dateTime': start_dt.isoformat(), 'timeZone': timezone },
+                'end': { 'dateTime': end_dt.isoformat(), 'timeZone': timezone }
             }
             return body, None
         except Exception as e:
             print(f"WARNING: Failed to parse exact timing ({scheduled_date} {scheduled_time}): {e}")
             return None, "invalid_time_format"
 
-    # Release 6G Phase 2: All-day event fallback when scheduled_time is missing.
-    # Instead of skipping, create an all-day placeholder so every approved/assigned
-    # booking gets a calendar entry. When time is later added, the event will be updated.
+    # Case 2: Inferred time from visit window
+    elif resolved_start_hour is not None:
+        try:
+            start_dt_str = f"{scheduled_date}T{resolved_start_hour:02d}:00:00"
+            start_dt = datetime.fromisoformat(start_dt_str)
+            
+            from datetime import timedelta
+            end_dt = start_dt + timedelta(minutes=duration_mins)
+            
+            body = {
+                'summary': summary,
+                'description': description,
+                'colorId': color_id,
+                'start': { 'dateTime': start_dt.isoformat(), 'timeZone': timezone },
+                'end': { 'dateTime': end_dt.isoformat(), 'timeZone': timezone }
+            }
+            return body, None
+        except Exception as e:
+            print(f"WARNING: Failed to parse window timing ({scheduled_date} hr:{resolved_start_hour}): {e}")
+            return None, "invalid_time_format"
+
+    # Case 3: All-day fallback
     try:
-        # Validate date format (YYYY-MM-DD)
         datetime.strptime(scheduled_date, '%Y-%m-%d')
-        
-        # Google Calendar all-day events use 'date' (not 'dateTime')
-        # End date is exclusive in Google API, so single-day = start + 1 day
         from datetime import timedelta
         start_date_obj = datetime.strptime(scheduled_date, '%Y-%m-%d')
         end_date_str = (start_date_obj + timedelta(days=1)).strftime('%Y-%m-%d')
@@ -248,6 +304,7 @@ def _build_event_body(item, assigned_worker=None):
         body = {
             'summary': summary,
             'description': description,
+            'colorId': color_id,
             'start': {'date': scheduled_date},
             'end': {'date': end_date_str}
         }

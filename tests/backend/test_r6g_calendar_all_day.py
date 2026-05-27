@@ -29,8 +29,9 @@ def test_timed_event_with_scheduled_time():
     assert 'dateTime' in body['end']
     assert '2026-07-15T09:30:00' in body['start']['dateTime']
     assert 'timeZone' in body['start']
-    assert 'Jane Smith' in body['summary']
-    assert 'Buddy' in body['summary']
+    assert 'Jane Smith' in body['description']
+    assert '🐾 Buddy' in body['summary']
+    assert 'Exact Time' in body['summary']
     print("PASS: test_timed_event_with_scheduled_time")
 
 
@@ -71,7 +72,9 @@ def test_all_day_fallback_no_scheduled_time():
     # End date is exclusive (next day for single-day event)
     assert body['end']['date'] == '2026-09-11'
     assert 'dateTime' not in body['start']
-    assert 'Joey Rockwell' in body['summary']
+    assert 'Joey Rockwell' in body['description']
+    assert '🐾 Fido' in body['summary']
+    assert 'All Day' in body['summary']
     print("PASS: test_all_day_fallback_no_scheduled_time")
 
 
