@@ -111,6 +111,9 @@ const IntakeForm = () => {
           accepted_privacy: true,
           terms_version: TERMS_VERSION,
           privacy_version: PRIVACY_VERSION,
+          accepted_at: new Date().toISOString(),
+          accepted_by_email: formData.client_email,
+          source: 'public_intake'
         };
         result = await submitRequest(payload);
       }

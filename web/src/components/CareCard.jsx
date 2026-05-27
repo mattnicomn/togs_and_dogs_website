@@ -226,6 +226,8 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                         hour: 'numeric', minute: '2-digit', hour12: true 
                       })
                     : 'Not recorded'}</p>
+                  <p><strong>Accepted By Email:</strong> {pet._originItem.accepted_by_email || 'Not recorded'}</p>
+                  <p><strong>Source:</strong> {pet._originItem.source || 'Not recorded'}</p>
                 </div>
               </section>
             )}
