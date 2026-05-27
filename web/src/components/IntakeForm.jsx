@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { submitRequest, submitClientRequest, getStaffOptions } from '../api/client';
 import { getSession, getEffectiveRole } from '../api/auth';
+import { TERMS_VERSION, PRIVACY_VERSION } from '../constants/policy';
 import './IntakeForm.css';
 
 const IntakeForm = () => {
@@ -26,7 +27,8 @@ const IntakeForm = () => {
     // Release 4: Household-level vet/emergency
     vet_info: {},
     emergency_contact: {},
-    service_type: 'PET_SITTING'
+    service_type: 'PET_SITTING',
+    accepted_terms: false
   });
   const [status, setStatus] = useState({ type: '', message: '', requestId: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -103,7 +105,14 @@ const IntakeForm = () => {
       if (s && role === 'client') {
         result = await submitClientRequest(formData);
       } else {
-        result = await submitRequest(formData);
+        const payload = {
+          ...formData,
+          accepted_terms: true,
+          accepted_privacy: true,
+          terms_version: TERMS_VERSION,
+          privacy_version: PRIVACY_VERSION,
+        };
+        result = await submitRequest(payload);
       }
       
       setStatus({ 
@@ -462,13 +471,36 @@ const IntakeForm = () => {
                   </div>
                 </div>
 
+                {/* Terms & Privacy Acceptance */}
+                <div className="field" style={{ marginTop: '24px', marginBottom: '24px' }}>
+                  <label className="checkbox-label" style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                    <input
+                      type="checkbox"
+                      checked={formData.accepted_terms}
+                      onChange={(e) => setFormData({...formData, accepted_terms: e.target.checked})}
+                      style={{ marginTop: '4px' }}
+                    />
+                    <span>
+                      I agree to the{' '}
+                      <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Use</a>
+                      {' '}and acknowledge the{' '}
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+                    </span>
+                  </label>
+                  {!formData.accepted_terms && (
+                    <p className="field-error" style={{ color: 'var(--danger, #dc3545)', fontSize: '0.85rem', marginTop: '8px' }}>
+                      You must accept the Terms of Use and Privacy Policy to continue.
+                    </p>
+                  )}
+                </div>
+
                 <div className="form-actions">
                   <button type="button" onClick={prevStep} className="button-secondary">← Back</button>
                   <button 
                     type="button" 
                     onClick={handleSubmit} 
                     className="button-primary"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !formData.accepted_terms}
                   >
                     {isSubmitting ? 'Sending...' : 'Submit Request'}
                   </button>

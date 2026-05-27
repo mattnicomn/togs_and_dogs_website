@@ -336,6 +336,21 @@ def handler(event, context):
         if missing:
             return bad_request(f"Missing or invalid required fields: {', '.join(missing)}", event)
 
+        if workflow_type == WorkflowType.CUSTOMER_INTAKE:
+            acceptance_errors = []
+            if body.get('accepted_terms') is not True:
+                acceptance_errors.append('accepted_terms is required')
+            if body.get('accepted_privacy') is not True:
+                acceptance_errors.append('accepted_privacy is required')
+            terms_version = body.get('terms_version', '')
+            privacy_version = body.get('privacy_version', '')
+            if not terms_version or len(str(terms_version)) > 20:
+                acceptance_errors.append('terms_version is invalid')
+            if not privacy_version or len(str(privacy_version)) > 20:
+                acceptance_errors.append('privacy_version is invalid')
+            if acceptance_errors:
+                return bad_request("Terms of Use and Privacy Policy acceptance is required.", event)
+
         client_email = client_email.lower().strip()
 
         request_id = str(uuid.uuid4())
@@ -380,6 +395,15 @@ def handler(event, context):
             'created_at': datetime.utcnow().isoformat(),
             'entity_type': 'REQUEST'
         }
+        
+        if workflow_type == WorkflowType.CUSTOMER_INTAKE:
+            item['accepted_terms'] = True
+            item['accepted_privacy'] = True
+            item['terms_version'] = body.get('terms_version')
+            item['privacy_version'] = body.get('privacy_version')
+            item['accepted_at'] = datetime.utcnow().isoformat()
+            item['accepted_by_email'] = client_email
+            item['source'] = 'public_intake'
         
         if put_item(item):
             # Trigger Step Function Lifecycle

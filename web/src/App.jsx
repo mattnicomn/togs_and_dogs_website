@@ -7,6 +7,8 @@ import ClientPortal from './components/ClientPortal';
 import AdminDashboard from './components/AdminDashboard';
 import GoogleCallback from './components/GoogleCallback';
 import ThemeToggle from './components/ThemeToggle';
+import TermsOfUse from './components/TermsOfUse';
+import PrivacyPolicy from './components/PrivacyPolicy';
 import usmhLogo from './assets/usmh-logo.png';
 import './App.css';
 
@@ -37,6 +39,8 @@ function App() {
             <Route path="/my-bookings" element={<ClientPortal />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/auth/callback" element={<GoogleCallback />} />
+            <Route path="/terms" element={<TermsOfUse />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="*" element={
               <div className="section error-page">
                 <div className="container">
@@ -81,8 +85,8 @@ function App() {
             <div className="container" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '16px' }}>
               <p>&copy; 2026 Tog and Dogs Pet Sitting Services</p>
               <div className="legal-links" style={{ display: 'flex', gap: '24px' }}>
-                <Link to="/" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy Policy</Link>
-                <Link to="/" style={{ color: 'inherit', textDecoration: 'none' }}>Terms of Service</Link>
+                <Link to="/privacy" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy Policy</Link>
+                <Link to="/terms" style={{ color: 'inherit', textDecoration: 'none' }}>Terms of Service</Link>
               </div>
             </div>
           </div>

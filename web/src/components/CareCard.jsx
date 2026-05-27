@@ -210,6 +210,25 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                 <p className="micro-text" style={{ marginTop: '8px' }}>Last updated: {pet.updated_at ? new Date(pet.updated_at).toLocaleDateString() : 'N/A'}</p>
               </div>
             </div>
+
+            {/* Terms & Privacy Acceptance */}
+            {pet._originItem && (
+              <section className="card-section" style={{ marginTop: '24px' }}>
+                <h3>Terms & Privacy</h3>
+                <div className="content-box">
+                  <p><strong>Terms Accepted:</strong> {pet._originItem.accepted_terms === true ? 'Yes' : 'Not recorded'}</p>
+                  <p><strong>Privacy Accepted:</strong> {pet._originItem.accepted_privacy === true ? 'Yes' : 'Not recorded'}</p>
+                  <p><strong>Terms Version:</strong> {pet._originItem.terms_version || 'Not recorded'}</p>
+                  <p><strong>Privacy Version:</strong> {pet._originItem.privacy_version || 'Not recorded'}</p>
+                  <p><strong>Accepted At:</strong> {pet._originItem.accepted_at 
+                    ? new Date(pet._originItem.accepted_at).toLocaleString('en-US', { 
+                        month: 'short', day: 'numeric', year: 'numeric', 
+                        hour: 'numeric', minute: '2-digit', hour12: true 
+                      })
+                    : 'Not recorded'}</p>
+                </div>
+              </section>
+            )}
           </div>
         );
 
