@@ -1645,7 +1645,8 @@ const AdminDashboard = () => {
       await disconnectGoogle();
       fetchGoogleStatus();
     } catch (err) {
-      alert("Disconnect failed: " + err.message);
+      const msg = err.message === "Failed to fetch" ? "Network or CORS error." : err.message;
+      alert("Disconnect failed: " + msg);
     } finally {
       setLoading(false);
     }

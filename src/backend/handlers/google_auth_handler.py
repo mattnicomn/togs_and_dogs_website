@@ -76,6 +76,9 @@ def handler(event, context):
         return calendar_health_check(event)
     
     if path.endswith('/google'):
+        method = event.get('httpMethod', 'GET')
+        if method == 'DELETE':
+            return disconnect_auth(event)
         return initiate_auth(event)
     elif path.endswith('/callback'):
         return handle_callback(event)
@@ -85,6 +88,27 @@ def handler(event, context):
         return calendar_health_check(event)
     
     return bad_request(f"Unknown auth path: {path}", event)
+
+def disconnect_auth(event):
+    """
+    DELETE /admin/auth/google
+    Clears the stored tokens in Secrets Manager to disconnect Google Calendar.
+    """
+    secret_name = os.environ.get('GOOGLE_USER_TOKENS_NAME')
+    try:
+        # Clear the tokens to effectively disconnect
+        secrets.put_secret_value(
+            SecretId=secret_name,
+            SecretString=json.dumps({})
+        )
+        # Also mark it as explicitly disconnected/revoked for good measure
+        from common.google_calendar import _mark_token_revoked
+        _mark_token_revoked("admin_disconnect")
+        
+        return success({"message": "Google Calendar disconnected successfully."}, event)
+    except Exception as e:
+        print(f"ERROR: Failed to clear tokens in Secrets Manager: {e}")
+        return internal_error("Failed to disconnect Google Calendar.", event)
 
 def initiate_auth(event):
     """
