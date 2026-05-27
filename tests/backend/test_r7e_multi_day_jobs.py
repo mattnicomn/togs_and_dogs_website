@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src', 'b
 from handlers.job_handler import handler as job_handler
 from common.cascade import cascade_status_to_job
 from common.status import JobStatus
+from unittest.mock import MagicMock
 
 # --- Mocks ---
 
@@ -101,7 +102,8 @@ def test_single_day_same_end_date(mock_pet, mock_table, mock_put, mock_get):
 @patch('handlers.job_handler.put_item', side_effect=mock_put_item)
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
-def test_two_day_range(mock_pet, mock_table, mock_put, mock_get):
+@patch('common.google_calendar.sync_calendar_event', return_value={"event_id": "child_cal_id"})
+def test_two_day_range(mock_sync, mock_pet, mock_table, mock_put, mock_get):
     event = {"request_id": "req-multi-2", "client_id": "client-123"}
     res = job_handler(event, None)
     
@@ -113,15 +115,20 @@ def test_two_day_range(mock_pet, mock_table, mock_put, mock_get):
     assert put1["occurrence_index"] == 1
     assert put1["total_occurrences"] == 2
     assert put1["is_multi_day"] is True
+    assert put1["google_event_id"] == "child_cal_id"
     
     assert put2["occurrence_date"] == "2026-07-21"
     assert put2["occurrence_index"] == 2
     assert put2["total_occurrences"] == 2
+    assert put2["google_event_id"] == "child_cal_id"
     
     assert put1["end_date"] == put1["occurrence_date"]
     assert put2["end_date"] == put2["occurrence_date"]
     
     assert len(res["job_ids"]) == 2
+    
+    # Phase 1A check: sync_calendar_event called twice for child jobs
+    assert mock_sync.call_count == 2
 
 @patch('handlers.job_handler.get_item', side_effect=mock_get_item)
 @patch('handlers.job_handler.put_item', side_effect=mock_put_item)

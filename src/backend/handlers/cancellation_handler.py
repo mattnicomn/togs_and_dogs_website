@@ -182,23 +182,48 @@ def handle_admin_decision(body, event):
     calendar_msg = ""
     if decision == 'APPROVE':
         # 1. Google Calendar Removal
-        google_event_id = item.get('google_event_id')
-        if google_event_id:
-            try:
-                if delete_event(google_event_id, request_id):
-                    calendar_msg = "Calendar event deleted."
-                    # Remove event ID from record
-                    table.update_item(
-                        Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
-                        UpdateExpression="REMOVE google_event_id"
-                    )
-                else:
-                    raise Exception("delete_event returned False")
-            except Exception as ex:
-                fail_msg = f"GCal cleanup failed: {str(ex)}"
-                print(fail_msg)
-                record_sync_failure(request_id, client_id, "GOOGLE_CALENDAR", fail_msg)
-                calendar_msg = f"Warning: {fail_msg}"
+        is_multi_day_req = False
+        if item.get('end_date') and item.get('start_date') != item.get('end_date'):
+            is_multi_day_req = True
+        if item.get('job_ids'):
+            is_multi_day_req = True
+            
+        if not is_multi_day_req:
+            google_event_id = item.get('google_event_id')
+            if google_event_id:
+                try:
+                    if delete_event(google_event_id, request_id):
+                        calendar_msg = "Calendar event deleted."
+                        table.update_item(
+                            Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                            UpdateExpression="REMOVE google_event_id"
+                        )
+                    else:
+                        raise Exception("delete_event returned False")
+                except Exception as ex:
+                    fail_msg = f"GCal cleanup failed: {str(ex)}"
+                    print(fail_msg)
+                    record_sync_failure(request_id, client_id, "GOOGLE_CALENDAR", fail_msg)
+                    calendar_msg = f"Warning: {fail_msg}"
+        else:
+            if item.get('job_ids'):
+                deleted_count = 0
+                for jid in item.get('job_ids'):
+                    job_item = get_item(f"JOB#{jid}", f"REQ#{request_id}")
+                    if job_item and job_item.get('google_event_id'):
+                        try:
+                            delete_event(job_item['google_event_id'], request_id)
+                            table.update_item(
+                                Key={'PK': f"JOB#{jid}", 'SK': f"REQ#{request_id}"},
+                                UpdateExpression="REMOVE google_event_id"
+                            )
+                            deleted_count += 1
+                        except Exception as ex:
+                            fail_msg = f"GCal child cleanup failed: {str(ex)}"
+                            print(fail_msg)
+                            record_sync_failure(request_id, client_id, "GOOGLE_CALENDAR", fail_msg)
+                if deleted_count > 0:
+                    calendar_msg = f"Deleted {deleted_count} child events."
 
         # 2. Worker Notification (SNS)
         worker_id = item.get('worker_id')

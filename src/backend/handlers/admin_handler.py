@@ -1944,25 +1944,45 @@ def handler(event, context):
                         
                         # --- GOOGLE CALENDAR SYNC (ADMIN BULK) ---
                         try:
+                            is_multi_day_req = False
+                            if actual_pk.startswith("REQ#"):
+                                if current_item.get('end_date') and current_item.get('start_date') != current_item.get('end_date'):
+                                    is_multi_day_req = True
+                                if current_item.get('job_ids'):
+                                    is_multi_day_req = True
+
                             if new_status in ['APPROVED', 'ASSIGNED', 'BOOKED', 'SCHEDULED']:
-                                # For bulk, we use the record as-is. If worker_id is being assigned in this bulk action,
-                                # it would need to be in 'extra_attrs' or similar, but bulk actions here seem to be
-                                # status-only or simple transitions.
-                                sync_data = {**current_item, 'status': new_status}
-                                if extra_attrs: sync_data.update(extra_attrs)
-                                
-                                cal_res = sync_calendar_event(sync_data, google_event_id=current_item.get('google_event_id'))
-                                if cal_res.get('event_id') and cal_res.get('event_id') != current_item.get('google_event_id'):
-                                    table.update_item(
-                                        Key={'PK': actual_pk, 'SK': actual_sk},
-                                        UpdateExpression="SET google_event_id = :gid",
-                                        ExpressionAttributeValues={":gid": cal_res['event_id']}
-                                    )
+                                if not is_multi_day_req:
+                                    sync_data = {**current_item, 'status': new_status}
+                                    if extra_attrs: sync_data.update(extra_attrs)
+                                    
+                                    cal_res = sync_calendar_event(sync_data, google_event_id=current_item.get('google_event_id'))
+                                    if cal_res.get('event_id') and cal_res.get('event_id') != current_item.get('google_event_id'):
+                                        table.update_item(
+                                            Key={'PK': actual_pk, 'SK': actual_sk},
+                                            UpdateExpression="SET google_event_id = :gid",
+                                            ExpressionAttributeValues={":gid": cal_res['event_id']}
+                                        )
                             elif new_status in ['CANCELLED', 'ARCHIVED', 'DELETED']:
-                                eid = current_item.get('google_event_id')
-                                if eid:
-                                    if delete_event(eid, actual_pk):
-                                        table.update_item(Key={'PK': actual_pk, 'SK': actual_sk}, UpdateExpression="REMOVE google_event_id")
+                                if not is_multi_day_req:
+                                    eid = current_item.get('google_event_id')
+                                    if eid:
+                                        if delete_event(eid, actual_pk):
+                                            table.update_item(Key={'PK': actual_pk, 'SK': actual_sk}, UpdateExpression="REMOVE google_event_id")
+                                else:
+                                    if current_item.get('job_ids'):
+                                        from common.db import get_item
+                                        for jid in current_item.get('job_ids'):
+                                            job_item = get_item(f"JOB#{jid}", actual_pk)
+                                            if job_item and job_item.get('google_event_id'):
+                                                try:
+                                                    delete_event(job_item['google_event_id'], actual_pk)
+                                                    table.update_item(
+                                                        Key={'PK': f"JOB#{jid}", 'SK': actual_pk},
+                                                        UpdateExpression="REMOVE google_event_id"
+                                                    )
+                                                except Exception as cal_err:
+                                                    print(f"WARNING: [AdminBulk] Failed to delete child JOB cal event: {cal_err}")
                         except Exception as cal_err:
                             print(f"WARNING: [AdminBulk] Calendar sync failed for {actual_pk}: {cal_err}")
 

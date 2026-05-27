@@ -228,15 +228,23 @@ def _handle_admin_created_booking(event, body):
     # 6. Google Calendar sync (fail-safe)
     calendar_result = None
     try:
-        from common.google_calendar import sync_calendar_event
-        calendar_result = sync_calendar_event(item)
-        if calendar_result and calendar_result.get('event_id'):
-            table.update_item(
-                Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
-                UpdateExpression="SET google_event_id = :gid",
-                ExpressionAttributeValues={":gid": calendar_result['event_id']}
-            )
-            print(f"INFO: [AdminBooking] Calendar event created: {calendar_result['event_id']}")
+        is_multi_day_req = False
+        if item.get('end_date') and item.get('start_date') != item.get('end_date'):
+            is_multi_day_req = True
+            
+        if not is_multi_day_req:
+            from common.google_calendar import sync_calendar_event
+            calendar_result = sync_calendar_event(item)
+            if calendar_result and calendar_result.get('event_id'):
+                table.update_item(
+                    Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                    UpdateExpression="SET google_event_id = :gid",
+                    ExpressionAttributeValues={":gid": calendar_result['event_id']}
+                )
+                print(f"INFO: [AdminBooking] Calendar event created: {calendar_result['event_id']}")
+        else:
+            print(f"INFO: [AdminBooking] Suppressing parent REQ calendar sync for multi-day booking")
+            calendar_result = {"status": "skipped", "message": "Multi-day jobs sync their own calendar events."}
     except Exception as cal_err:
         calendar_result = {"status": "calendar_failed", "message": str(cal_err)}
         print(f"WARNING: [AdminBooking] Calendar sync failed: {cal_err}")

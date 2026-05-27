@@ -130,8 +130,17 @@ def handler(event, context):
                 item['occurrence_index'] = idx + 1
                 item['total_occurrences'] = len(job_dates)
                 item['is_multi_day'] = True
+                
+                # R7E Phase 1A: Sync each child JOB directly
+                try:
+                    from common.google_calendar import sync_calendar_event
+                    cal_res = sync_calendar_event(item)
+                    if cal_res and cal_res.get('event_id'):
+                        item['google_event_id'] = cal_res['event_id']
+                except Exception as e:
+                    print(f"WARNING: Multi-day child JOB calendar sync failed for date {occurrence_date}: {e}")
             elif event_id:
-                # Do not inherit google_event_id for multi-day jobs (handled individually later)
+                # Do not inherit google_event_id for multi-day jobs (handled individually above)
                 item['google_event_id'] = event_id
             
             if put_item(item):

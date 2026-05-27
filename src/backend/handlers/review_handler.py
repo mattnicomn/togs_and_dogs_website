@@ -264,47 +264,80 @@ def handler(event, context):
                     existing_event_id = request_item.get('google_event_id')
                     assigned_worker = sync_data.get('worker_id')
                     
-                    print(f"INFO: [Req:{request_id}] Attempting Google Calendar sync (Status: {new_status})")
-                    calendar_result = sync_calendar_event(sync_data, google_event_id=existing_event_id, assigned_worker=assigned_worker)
-                    
-                    if calendar_result.get('event_id') and calendar_result.get('event_id') != existing_event_id:
-                        # Persist the event ID back to the Request record
-                        table.update_item(
-                            Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
-                            UpdateExpression="SET google_event_id = :gid",
-                            ExpressionAttributeValues={":gid": calendar_result['event_id']}
-                        )
-                        print(f"INFO: [Req:{request_id}] Persisted new google_event_id: {calendar_result['event_id']}")
-                    
-                    # Update Job record if it exists
-                    job_id = request_item.get('job_id')
-                    if job_id and calendar_result.get('event_id'):
-                        table.update_item(
-                            Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{request_id}"},
-                            UpdateExpression="SET google_event_id = :gid",
-                            ExpressionAttributeValues={":gid": calendar_result['event_id']}
-                        )
+                    is_multi_day_req = False
+                    if request_item.get('end_date') and request_item.get('start_date') != request_item.get('end_date'):
+                        is_multi_day_req = True
+                    if request_item.get('job_ids'):
+                        is_multi_day_req = True
+                        
+                    if not is_multi_day_req:
+                        print(f"INFO: [Req:{request_id}] Attempting Google Calendar sync (Status: {new_status})")
+                        calendar_result = sync_calendar_event(sync_data, google_event_id=existing_event_id, assigned_worker=assigned_worker)
+                        
+                        if calendar_result.get('event_id') and calendar_result.get('event_id') != existing_event_id:
+                            # Persist the event ID back to the Request record
+                            table.update_item(
+                                Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                                UpdateExpression="SET google_event_id = :gid",
+                                ExpressionAttributeValues={":gid": calendar_result['event_id']}
+                            )
+                            print(f"INFO: [Req:{request_id}] Persisted new google_event_id: {calendar_result['event_id']}")
+                        
+                        # Update Job record if it exists
+                        job_id = request_item.get('job_id')
+                        if job_id and calendar_result.get('event_id'):
+                            table.update_item(
+                                Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{request_id}"},
+                                UpdateExpression="SET google_event_id = :gid",
+                                ExpressionAttributeValues={":gid": calendar_result['event_id']}
+                            )
+                    else:
+                        print(f"INFO: [Req:{request_id}] Suppressing parent REQ Google Calendar sync for multi-day request.")
+                        calendar_result = {"status": "skipped", "message": "Multi-day jobs sync their own calendar events."}
                 except Exception as sync_err:
                     print(f"WARNING: [Req:{request_id}] Google Calendar sync failed: {sync_err}")
                     calendar_result = {"status": "calendar_failed", "message": str(sync_err)}
 
             elif new_status in ['CANCELLED', 'ARCHIVED', 'DELETED']:
-                existing_event_id = request_item.get('google_event_id')
-                if existing_event_id:
-                    try:
-                        success_delete = delete_event(existing_event_id, request_id)
-                        if success_delete:
-                            calendar_result = {"status": "calendar_deleted", "message": "Calendar event deleted."}
-                            # Remove event ID from record
-                            table.update_item(
-                                Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
-                                UpdateExpression="REMOVE google_event_id"
-                            )
-                        else:
-                            calendar_result = {"status": "calendar_failed", "message": "Failed to delete calendar event."}
-                    except Exception as del_err:
-                        print(f"WARNING: [Req:{request_id}] Calendar delete failed: {del_err}")
-                        calendar_result = {"status": "calendar_failed", "message": str(del_err)}
+                is_multi_day_req = False
+                if request_item.get('end_date') and request_item.get('start_date') != request_item.get('end_date'):
+                    is_multi_day_req = True
+                if request_item.get('job_ids'):
+                    is_multi_day_req = True
+
+                if not is_multi_day_req:
+                    existing_event_id = request_item.get('google_event_id')
+                    if existing_event_id:
+                        try:
+                            success_delete = delete_event(existing_event_id, request_id)
+                            if success_delete:
+                                calendar_result = {"status": "calendar_deleted", "message": "Calendar event deleted."}
+                                table.update_item(
+                                    Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                                    UpdateExpression="REMOVE google_event_id"
+                                )
+                            else:
+                                calendar_result = {"status": "calendar_failed", "message": "Failed to delete calendar event."}
+                        except Exception as del_err:
+                            print(f"WARNING: [Req:{request_id}] Calendar delete failed: {del_err}")
+                            calendar_result = {"status": "calendar_failed", "message": str(del_err)}
+                else:
+                    if request_item.get('job_ids'):
+                        from common.db import get_item
+                        deleted_count = 0
+                        for jid in request_item.get('job_ids'):
+                            job_item = get_item(f"JOB#{jid}", f"REQ#{request_id}")
+                            if job_item and job_item.get('google_event_id'):
+                                try:
+                                    delete_event(job_item['google_event_id'], request_id)
+                                    table.update_item(
+                                        Key={'PK': f"JOB#{jid}", 'SK': f"REQ#{request_id}"},
+                                        UpdateExpression="REMOVE google_event_id"
+                                    )
+                                    deleted_count += 1
+                                except Exception as del_err:
+                                    print(f"WARNING: [Job:{jid}] Calendar delete failed: {del_err}")
+                        calendar_result = {"status": "calendar_deleted", "message": f"Deleted {deleted_count} child calendar events."}
 
             # --- JOB CREATION LAMBDA TRIGGER ---
             if new_status == 'APPROVED':
