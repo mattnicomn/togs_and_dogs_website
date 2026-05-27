@@ -263,13 +263,6 @@ const IntakeForm = () => {
                         <label 
                           key={opt.value} 
                           className={`visit-window-chip ${isChecked ? 'selected' : ''}`}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '6px',
-                            padding: '8px 14px', borderRadius: '20px', cursor: 'pointer',
-                            border: isChecked ? '2px solid var(--primary)' : '2px solid var(--border)',
-                            backgroundColor: isChecked ? 'var(--primary-light, #e8f4fd)' : 'transparent',
-                            fontSize: '0.9rem', transition: 'all 0.15s ease'
-                          }}
                         >
                           <input
                             type="checkbox"

@@ -357,3 +357,40 @@ textarea {
 .field label {
   font-size: max(0.85rem, 14px);
 }
+
+/* Visit Window Pill Styles */
+.visit-window-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  border: 2px solid var(--border-soft);
+  background-color: transparent;
+  font-size: 0.9rem;
+  transition: all 0.15s ease;
+  color: var(--text-primary);
+}
+
+.visit-window-chip:hover {
+  background-color: var(--bg-muted);
+}
+
+.visit-window-chip.selected {
+  border-color: var(--primary);
+  background-color: var(--primary-light, #e8f4fd);
+  color: #000000;
+}
+
+.visit-window-chip:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Dark Mode Overrides */
+:root.dark .visit-window-chip.selected {
+  background-color: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
