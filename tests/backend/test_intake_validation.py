@@ -25,7 +25,11 @@ def test_valid_intake_succeeds(mock_db, mock_sfn):
             "client_email": "test@example.com",
             "start_date": "2024-01-01",
             "pet_names": "Regression Pet",
-            "service_type": "PET_SITTING"
+            "service_type": "PET_SITTING",
+            "accepted_terms": True,
+            "accepted_privacy": True,
+            "terms_version": "1.0",
+            "privacy_version": "1.0"
         }),
         "requestContext": {
             "authorizer": {
@@ -94,7 +98,11 @@ def test_status_injection_ignored(mock_db, mock_sfn):
             "client_email": "hacker@example.com",
             "start_date": "2024-01-01",
             "pet_names": "Dog",
-            "status": "APPROVED" # Should be ignored
+            "status": "APPROVED", # Should be ignored
+            "accepted_terms": True,
+            "accepted_privacy": True,
+            "terms_version": "1.0",
+            "privacy_version": "1.0"
         })
     }
     

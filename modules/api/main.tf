@@ -431,6 +431,58 @@ resource "aws_api_gateway_integration" "get_client_pets_lambda" {
   uri                     = var.pet_handler_invoke_arn
 }
 
+# ------------------------------------------------------------------------------
+# /client/devices
+# ------------------------------------------------------------------------------
+
+resource "aws_api_gateway_resource" "client_devices" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.client.id
+  path_part   = "devices"
+}
+
+resource "aws_api_gateway_method" "post_client_devices" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.client_devices.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_client_devices_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.client_devices.id
+  http_method = aws_api_gateway_method.post_client_devices.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.device_handler_invoke_arn
+}
+
+resource "aws_api_gateway_resource" "client_device_id" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.client_devices.id
+  path_part   = "{device_id}"
+}
+
+resource "aws_api_gateway_method" "delete_client_device" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.client_device_id.id
+  http_method   = "DELETE"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "delete_client_device_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.client_device_id.id
+  http_method = aws_api_gateway_method.delete_client_device.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.device_handler_invoke_arn
+}
+
 # Admin GET /admin/staff
 resource "aws_api_gateway_resource" "admin_staff" {
   rest_api_id = aws_api_gateway_rest_api.main.id
@@ -904,6 +956,8 @@ locals {
     "admin_clients_link" : aws_api_gateway_resource.admin_clients_link.id,
     "client_requests" : aws_api_gateway_resource.client_requests.id,
     "client_pets" : aws_api_gateway_resource.client_pets.id,
+    "client_devices" : aws_api_gateway_resource.client_devices.id,
+    "client_device_id" : aws_api_gateway_resource.client_device_id.id,
     "admin_export" : aws_api_gateway_resource.admin_export.id
   }
 
@@ -1027,9 +1081,9 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.post_admin_clients_onboard_lambda,
     aws_api_gateway_integration.post_admin_clients_link_lambda,
     aws_api_gateway_integration.admin_export_lambda,
+    aws_api_gateway_integration.post_client_devices_lambda,
+    aws_api_gateway_integration.delete_client_device_lambda,
     aws_api_gateway_integration_response.options_200,
-
-
     aws_api_gateway_gateway_response.unauthorized,
     aws_api_gateway_gateway_response.missing_auth_token,
     aws_api_gateway_integration.postmark_webhook_lambda
@@ -1068,8 +1122,12 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.webhooks_postmark,
       aws_api_gateway_method.post_webhooks_postmark,
       aws_api_gateway_integration.postmark_webhook_lambda,
-
-
+      aws_api_gateway_resource.client_devices,
+      aws_api_gateway_resource.client_device_id,
+      aws_api_gateway_method.post_client_devices,
+      aws_api_gateway_method.delete_client_device,
+      aws_api_gateway_integration.post_client_devices_lambda,
+      aws_api_gateway_integration.delete_client_device_lambda,
       aws_api_gateway_method.options,
       aws_api_gateway_integration.options_mock,
       aws_api_gateway_method_response.options_200,

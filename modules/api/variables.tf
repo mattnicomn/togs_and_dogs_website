@@ -44,7 +44,12 @@ variable "pet_handler_invoke_arn" {
 }
 
 variable "cancellation_handler_invoke_arn" {
-  description = "Invocation ARN for the cancellation handler"
+  description = "Invoke ARN for the cancellation lambda"
+  type        = string
+}
+
+variable "device_handler_invoke_arn" {
+  description = "Invoke ARN for the device handler lambda"
   type        = string
 }
 

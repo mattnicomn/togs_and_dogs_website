@@ -20,6 +20,10 @@ def test_multi_pet_intake_succeeds(mock_db, mock_sfn):
             "client_name": "R4A Multi Pet Client",
             "client_email": "r4a@example.com",
             "start_date": "2026-06-20",
+            "accepted_terms": True,
+            "accepted_privacy": True,
+            "terms_version": "1.0",
+            "privacy_version": "1.0",
             "pets": [
                 {"name": "Scout", "species": "DOG", "breed": "Beagle"},
                 {"name": "Luna", "species": "CAT", "breed": "Siamese"}

@@ -254,6 +254,25 @@ resource "aws_lambda_function" "cancellation" {
   tags = local.common_tags
 }
 
+resource "aws_lambda_function" "device" {
+  filename         = data.archive_file.backend_zip.output_path
+  function_name    = "${local.name_prefix}-device"
+  role             = module.iam.lambda_role_arn
+  handler          = "handlers.device_handler.handler"
+  source_code_hash = data.archive_file.backend_zip.output_base64sha256
+  runtime          = "python3.11"
+  memory_size      = 512
+  timeout          = 30
+
+  environment {
+    variables = {
+      DATA_TABLE_NAME = module.data.table_name
+    }
+  }
+
+  tags = local.common_tags
+}
+
 resource "aws_lambda_function" "ses_feedback" {
   filename         = data.archive_file.backend_zip.output_path
   function_name    = "${local.name_prefix}-ses-feedback"
@@ -301,8 +320,8 @@ resource "aws_lambda_function" "postmark_webhook" {
 
   environment {
     variables = {
-      DATA_TABLE_NAME          = module.data.table_name
-      POSTMARK_WEBHOOK_SECRET  = var.postmark_webhook_secret
+      DATA_TABLE_NAME         = module.data.table_name
+      POSTMARK_WEBHOOK_SECRET = var.postmark_webhook_secret
     }
   }
 
@@ -391,24 +410,32 @@ resource "aws_lambda_permission" "api_cancellation" {
   principal     = "apigateway.amazonaws.com"
 }
 
+resource "aws_lambda_permission" "api_device" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.device.function_name
+  principal     = "apigateway.amazonaws.com"
+}
+
 # ------------------------------------------------------------------------------
 # 5. API GATEWAY
 # ------------------------------------------------------------------------------
 
 module "api" {
-  source                          = "../../modules/api"
-  name_prefix                     = local.name_prefix
-  environment                     = var.environment
-  user_pool_arn                   = module.auth.user_pool_arn
-  intake_handler_invoke_arn       = aws_lambda_function.intake.invoke_arn
-  admin_handler_invoke_arn        = aws_lambda_function.admin.invoke_arn
-  review_handler_invoke_arn       = aws_lambda_function.review.invoke_arn
-  assign_handler_invoke_arn       = aws_lambda_function.assign.invoke_arn
-  google_auth_handler_invoke_arn  = aws_lambda_function.google_auth.invoke_arn
-  pet_handler_invoke_arn          = aws_lambda_function.pet.invoke_arn
-  cancellation_handler_invoke_arn = aws_lambda_function.cancellation.invoke_arn
+  source                              = "../../modules/api"
+  name_prefix                         = local.name_prefix
+  environment                         = var.environment
+  user_pool_arn                       = module.auth.user_pool_arn
+  intake_handler_invoke_arn           = aws_lambda_function.intake.invoke_arn
+  admin_handler_invoke_arn            = aws_lambda_function.admin.invoke_arn
+  review_handler_invoke_arn           = aws_lambda_function.review.invoke_arn
+  assign_handler_invoke_arn           = aws_lambda_function.assign.invoke_arn
+  google_auth_handler_invoke_arn      = aws_lambda_function.google_auth.invoke_arn
+  pet_handler_invoke_arn              = aws_lambda_function.pet.invoke_arn
+  cancellation_handler_invoke_arn     = aws_lambda_function.cancellation.invoke_arn
   postmark_webhook_handler_invoke_arn = aws_lambda_function.postmark_webhook.invoke_arn
-  tags                            = local.common_tags
+  device_handler_invoke_arn           = aws_lambda_function.device.invoke_arn
+  tags                                = local.common_tags
 }
 
 # ------------------------------------------------------------------------------
