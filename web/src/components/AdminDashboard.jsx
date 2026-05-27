@@ -1788,14 +1788,14 @@ const AdminDashboard = () => {
 
   const handleBulkPurge = async (confirm = false) => {
     setError(null);
-    const selectedItems = allRequests.filter(r => selectedIds.includes(getRecordKey(r)));
+    const selectedItems = allRequests.filter(record => selectedIds.includes(getRecordKey(record)));
     
     if (selectedItems.length === 0) return;
 
     // Release 6D: Pre-filter to only include records with explicit DELETED/TRASH status.
     // Prevents accidental purge of active records that might be selected.
-    const purgeableItems = selectedItems.filter(r => {
-      const s = (r.status || '').toUpperCase();
+    const purgeableItems = selectedItems.filter(record => {
+      const s = (record.status || '').toUpperCase();
       return s === 'DELETED' || s === 'TRASH' || s === 'DELETE';
     });
 
@@ -1821,19 +1821,19 @@ const AdminDashboard = () => {
       }
 
       // Step 2: Confirmed Purge (only on purgeable records identified by backend)
-      const purgeableItems = purgeAnalysis.processed || [];
-      if (purgeableItems.length === 0) {
+      const processedItems = purgeAnalysis.processed || [];
+      if (processedItems.length === 0) {
         showNotification("No records are eligible for permanent deletion.", "warning");
         setPurgeAnalysis(null);
         setIsBulkPurging(false);
         return;
       }
 
-      const finalPayload = purgeableItems.map(p => ({ PK: p.PK, SK: p.SK }));
+      const finalPayload = processedItems.map(p => ({ PK: p.PK, SK: p.SK }));
       const response = await purgeRecordsBulk(finalPayload, false); // dry_run = false
       
-      const deletedPKs = purgeableItems.map(item => item.PK);
-      setAllRequests(prev => prev.filter(r => !deletedPKs.includes(r.PK)));
+      const deletedPKs = processedItems.map(item => item.PK);
+      setAllRequests(prev => prev.filter(req => !deletedPKs.includes(req.PK)));
       
       showNotification(`Permanently deleted ${response.success} records.`, "success");
       if (response.failed > 0) {
