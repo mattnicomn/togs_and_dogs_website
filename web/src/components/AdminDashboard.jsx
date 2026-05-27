@@ -1245,8 +1245,8 @@ const AdminDashboard = () => {
       phone: staff.phone || '',
       notes: staff.notes || ''
     });
-
     setView('STAFF_MGMT');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
 
@@ -2304,6 +2304,7 @@ const AdminDashboard = () => {
       }
     }
     setView('CLIENT_MGMT');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSaveClient = async (e) => {
