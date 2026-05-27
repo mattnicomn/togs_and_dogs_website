@@ -472,15 +472,16 @@ const IntakeForm = () => {
                   <label className="checkbox-label" style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
                     <input
                       type="checkbox"
+                      className="terms-checkbox"
                       checked={formData.accepted_terms}
                       onChange={(e) => setFormData({...formData, accepted_terms: e.target.checked})}
                       style={{ marginTop: '4px' }}
                     />
                     <span>
                       I agree to the{' '}
-                      <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Use</a>
+                      <Link to="/terms" target="_blank" rel="noopener noreferrer">Terms of Use</Link>
                       {' '}and acknowledge the{' '}
-                      <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+                      <Link to="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link>.
                     </span>
                   </label>
                   {!formData.accepted_terms && (

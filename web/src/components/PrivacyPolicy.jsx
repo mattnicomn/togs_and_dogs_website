@@ -29,6 +29,10 @@ class ErrorBoundary extends React.Component {
 }
 
 const PrivacyPolicyContent = () => {
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
     <div className="section">
       <div className="container" style={{ maxWidth: '800px' }}>

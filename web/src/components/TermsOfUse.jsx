@@ -2,6 +2,10 @@ import React from 'react';
 import { TERMS_VERSION, TERMS_CONTENT } from '../constants/policy';
 
 const TermsOfUse = () => {
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
     <div className="section">
       <div className="container" style={{ maxWidth: '800px' }}>

@@ -211,6 +211,15 @@ input:focus, textarea:focus, select:focus {
   box-shadow: 0 0 0 4px var(--accent-soft);
 }
 
+/* Fix for native checkboxes */
+input[type="checkbox"], input[type="radio"] {
+  padding: 0;
+  width: auto;
+  height: auto;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
 /* Button Styling */
 .button-primary {
   background: var(--primary);
