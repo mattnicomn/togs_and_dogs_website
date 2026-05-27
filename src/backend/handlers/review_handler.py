@@ -323,7 +323,6 @@ def handler(event, context):
                             calendar_result = {"status": "calendar_failed", "message": str(del_err)}
                 else:
                     if request_item.get('job_ids'):
-                        from common.db import get_item
                         deleted_count = 0
                         for jid in request_item.get('job_ids'):
                             job_item = get_item(f"JOB#{jid}", f"REQ#{request_id}")

@@ -1971,7 +1971,6 @@ def handler(event, context):
                                             table.update_item(Key={'PK': actual_pk, 'SK': actual_sk}, UpdateExpression="REMOVE google_event_id")
                                 else:
                                     if current_item.get('job_ids'):
-                                        from common.db import get_item
                                         for jid in current_item.get('job_ids'):
                                             job_item = get_item(f"JOB#{jid}", actual_pk)
                                             if job_item and job_item.get('google_event_id'):
