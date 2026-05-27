@@ -29,3 +29,14 @@ A targeted integration script was executed locally against the production Dynamo
 
 ## Notes on Admin Dashboard Integration
 The `src/frontend/AdminDashboard.jsx` interface already exposes an `end_date` field mapped to the `newVisitForm` payload. Admin users can immediately utilize the multi-day booking capabilities by supplying both dates when creating manual bookings. No further UI enhancement is required for the MVP.
+
+## Phase 1A Stabilization Hotfix
+Following the initial Phase 1 deployment, a calendar-sync bug and a cancellation regression were identified and fixed (Commit `e6d4b6c`).
+
+### Calendar Sync Fix
+- **Issue:** Parent `REQ` records were syncing to Google Calendar as multi-day blocks, causing duplicate events alongside the correct individual child `JOB` events, or blocking time incorrectly.
+- **Resolution:** Parent `REQ` calendar sync is now completely suppressed for bookings spanning multiple days. Instead, each child `JOB` securely syncs and stores its own `google_event_id` upon creation.
+
+### Cancellation Hotfix
+- **Issue:** Cancelling a multi-day booking from the Admin UI triggered an `UnboundLocalError: local variable 'get_item' referenced before assignment` due to shadowed local imports within the backend handlers.
+- **Resolution:** Scope regression fixed across `admin_handler.py` and `review_handler.py`. Multi-day cancellation loops now safely iterate through `job_ids` and successfully delete all corresponding child Google Calendar events. Tested comprehensively with 203 passing backend tests.
