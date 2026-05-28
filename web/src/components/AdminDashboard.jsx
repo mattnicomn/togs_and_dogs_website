@@ -242,6 +242,93 @@ const AdminDashboard = () => {
     return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || "Unknown / Status Missing";
   };
   
+  const formatVisitDates = (item) => {
+    if (!item) return '';
+
+    const parseDate = (d) => {
+      if (!d) return new Date();
+      const [year, month, day] = d.split('-');
+      return new Date(year, month - 1, day);
+    };
+
+    const formatDate = (dateObj, includeYear = false) => {
+      const options = { month: 'short', day: 'numeric' };
+      if (includeYear) options.year = 'numeric';
+      return dateObj.toLocaleDateString('en-US', options);
+    };
+
+    if (item.selected_dates && item.selected_dates.length > 0) {
+      const sorted = [...item.selected_dates].sort();
+      
+      if (sorted.length === 1) {
+        return formatDate(parseDate(sorted[0]), true);
+      }
+
+      let consecutive = true;
+      for (let i = 1; i < sorted.length; i++) {
+        const d1 = parseDate(sorted[i - 1]);
+        const d2 = parseDate(sorted[i]);
+        const diffTime = Math.abs(d2 - d1);
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays !== 1) {
+          consecutive = false;
+          break;
+        }
+      }
+
+      if (consecutive) {
+        const d1 = parseDate(sorted[0]);
+        const d2 = parseDate(sorted[sorted.length - 1]);
+        const m1 = formatDate(d1, false);
+        const m2 = formatDate(d2, false);
+        const y1 = d1.getFullYear();
+        const y2 = d2.getFullYear();
+
+        if (y1 !== y2) {
+          return `${formatDate(d1, true)}–${formatDate(d2, true)}`;
+        } else if (d1.getMonth() !== d2.getMonth()) {
+          return `${m1}–${m2}, ${y1}`;
+        } else {
+          return `${m1.split(' ')[0]} ${d1.getDate()}–${d2.getDate()}, ${y1}`;
+        }
+      } else {
+        if (sorted.length <= 3) {
+          const list = sorted.map(d => formatDate(parseDate(d), false)).join(', ');
+          const yr = parseDate(sorted[sorted.length - 1]).getFullYear();
+          return `${list}, ${yr}`;
+        } else {
+          const list = sorted.slice(0, 3).map(d => formatDate(parseDate(d), false)).join(', ');
+          const extra = sorted.length - 3;
+          return `${list} +${extra} more`;
+        }
+      }
+    }
+
+    if (item.start_date && item.end_date) {
+        const d1 = parseDate(item.start_date);
+        const d2 = parseDate(item.end_date);
+        if (d1.getTime() === d2.getTime()) {
+           return formatDate(d1, true);
+        }
+        const m1 = formatDate(d1, false);
+        const m2 = formatDate(d2, false);
+        const y1 = d1.getFullYear();
+        const y2 = d2.getFullYear();
+
+        if (y1 !== y2) {
+          return `${formatDate(d1, true)}–${formatDate(d2, true)}`;
+        } else if (d1.getMonth() !== d2.getMonth()) {
+          return `${m1}–${m2}, ${y1}`;
+        } else {
+          return `${m1.split(' ')[0]} ${d1.getDate()}–${d2.getDate()}, ${y1}`;
+        }
+    } else if (item.start_date) {
+        return formatDate(parseDate(item.start_date), true);
+    }
+    
+    return '';
+  };
+  
   const getAccessStatus = (user) => {
     if (!user) return { label: 'No Data', class: 'status-no-login' };
     
@@ -3620,7 +3707,7 @@ const AdminDashboard = () => {
                       </td>
                       <td>
                         <div className="info-stack">
-                          <span className="small">{item.start_date} {item.end_date ? `to ${item.end_date}` : ''}</span>
+                          <span className="small">{formatVisitDates(item)}</span>
                           {/* Release 2: Display multi-select visit windows with backward compat */}
                           <span className="badge-window">
                             {(item.visit_windows || [item.visit_window || 'ANYTIME']).join(', ')}
