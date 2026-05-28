@@ -139,6 +139,8 @@ class NotificationTemplates:
         date_heading = ctx.get('date_heading', 'Date:')
         date_text = ctx.get('date_text', 'Visit Date')
         portal_url = ctx.get('portal_url', 'https://toganddogs.usmissionhero.com')
+        is_multi_visit = ctx.get('is_multi_visit', False)
+        visit_word = 'visits' if is_multi_visit else 'visit'
 
         body_text = (
             f"Hi {client_name},\n\n"
@@ -148,7 +150,7 @@ class NotificationTemplates:
             f"- Pet(s): {pet_names}\n"
             f"- {date_text}: {date_label}\n\n"
             f"WHAT HAPPENS NEXT:\n"
-            f"1. A team member will be assigned to your visit shortly.\n"
+            f"1. A team member will be assigned to your {visit_word} shortly.\n"
             f"2. You'll receive a confirmation once your sitter is confirmed.\n"
             f"3. You can view your booking details anytime in the client portal.\n\n"
             f"Access your portal: {portal_url}\n\n"
@@ -193,7 +195,7 @@ class NotificationTemplates:
                 <div style="background-color: #fff9eb; border: 1px solid #ffeeba; padding: 20px; border-radius: 8px; font-size: 14px; color: #856404; margin: 25px 0;">
                     <p style="margin: 0 0 10px 0; font-weight: bold;">What happens next:</p>
                     <ol style="margin: 0; padding-left: 20px;">
-                        <li style="margin-bottom: 6px;">A team member will be assigned to your visit shortly.</li>
+                        <li style="margin-bottom: 6px;">A team member will be assigned to your {visit_word} shortly.</li>
                         <li style="margin-bottom: 6px;">You'll receive a confirmation once your sitter is confirmed.</li>
                         <li style="margin-bottom: 6px;">You can view your booking details anytime in the client portal.</li>
                     </ol>
@@ -241,7 +243,7 @@ class NotificationTemplates:
             contact_parts.append(f"Email: {client_email}")
         if client_phone:
             contact_parts.append(f"Phone: {client_phone}")
-        contact_line = " | ".join(contact_parts) if contact_parts else "No contact info available"
+        contact_line = "\n".join(contact_parts) if contact_parts else "No contact info available"
 
         subject = f"New Request: {client_name} — {service_label}"
         body_text = (
@@ -377,10 +379,19 @@ class NotificationTemplates:
                             <td style="padding: 6px 0;">{staff_name}</td>
                         </tr>"""
 
+        is_multi_visit = ctx.get('is_multi_visit', False)
+        visit_word = 'visits' if is_multi_visit else 'visit'
+
+        # Conditional sitter confirmation sentence
+        if staff_name:
+            sitter_confirmed_text = f"Your {service_label} {visit_word} for {pet_names} has been confirmed and {staff_name} will be your sitter."
+        else:
+            sitter_confirmed_text = f"Your {service_label} {visit_word} for {pet_names} has been confirmed. A sitter will be assigned shortly."
+
         subject = f"Your {service_label} Visit Is Confirmed — Tog & Dogs"
         body_text = (
             f"Hi {client_name},\n\n"
-            f"Great news! Your {service_label} visit for {pet_names} has been confirmed.\n\n"
+            f"Great news! {sitter_confirmed_text}\n\n"
             f"VISIT DETAILS:\n"
             f"- Service: {service_label}\n"
             f"- Pet(s): {pet_names}\n"
@@ -388,7 +399,7 @@ class NotificationTemplates:
             f"{sitter_text}\n"
             f"WHAT TO EXPECT:\n"
             f"1. Your sitter will arrive at the scheduled time.\n"
-            f"2. Visit notes will be available in your portal after the visit.\n"
+            f"2. Visit notes will be available in your portal after the {visit_word}.\n"
             f"3. You can view or manage your booking anytime in the client portal.\n\n"
             f"Access your portal: {portal_url}\n\n"
             f"If you need to make changes or have questions, please reply to this email.\n\n"
@@ -407,7 +418,7 @@ class NotificationTemplates:
 
                 <p>Hi <strong>{client_name}</strong>,</p>
 
-                <p>Your <strong>{service_label}</strong> visit for <strong>{pet_names}</strong> has been confirmed and a sitter has been assigned.</p>
+                <p>{sitter_confirmed_text}</p>
 
                 <div style="background-color: #f0f7fd; border-left: 4px solid #2980b9; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
                     <p style="margin: 0 0 12px 0; font-weight: bold; color: #2c3e50;">Visit Details</p>
@@ -491,10 +502,22 @@ class NotificationTemplates:
                 </div>"""
             details_text = f"- Care Notes: {details}\n"
 
+        is_multi_visit = ctx.get('is_multi_visit', False)
+        assignment_intro = (
+            f"You've been assigned a new {service_label} booking spanning multiple visits."
+            if is_multi_visit else
+            f"You've been assigned a new visit."
+        )
+        portal_note = (
+            "Please check the staff portal for full care instructions and the complete visit schedule."
+            if is_multi_visit else
+            "Please check the staff portal for full care instructions and client details."
+        )
+
         subject = f"New Assignment: {service_label} — {client_name}"
         body_text = (
             f"Hi {staff_name},\n\n"
-            f"You've been assigned a new visit.\n\n"
+            f"{assignment_intro}\n\n"
             f"ASSIGNMENT DETAILS:\n"
             f"- Client: {client_name}\n"
             f"{phone_text}"
@@ -502,7 +525,7 @@ class NotificationTemplates:
             f"- Service: {service_label}\n"
             f"- {date_text}: {date_label}\n"
             f"{details_text}\n"
-            f"Please check the staff portal for full care instructions and client details.\n\n"
+            f"{portal_note}\n\n"
             f"Access your portal: {portal_url}\n\n"
             f"If you have questions or need to discuss this assignment, please reply to this email.\n\n"
             f"Best,\n"
@@ -520,7 +543,7 @@ class NotificationTemplates:
 
                 <p>Hi <strong>{staff_name}</strong>,</p>
 
-                <p>You've been assigned a new <strong>{service_label}</strong> visit. Here are the details:</p>
+                <p>{assignment_intro} Here are the details:</p>
 
                 <div style="background-color: #f8f4fb; border-left: 4px solid #8e44ad; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
                     <p style="margin: 0 0 12px 0; font-weight: bold; color: #2c3e50;">Assignment Details</p>
@@ -548,7 +571,7 @@ class NotificationTemplates:
                     <a href="{portal_url}" style="background-color: #8e44ad; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">View in Staff Portal</a>
                 </div>
 
-                <p>Please review the full care instructions and client details in the portal before your visit.</p>
+                <p>{portal_note}</p>
 
                 <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
 
@@ -586,7 +609,7 @@ class NotificationTemplates:
         if cancellation_reason and cancellation_reason not in ['No reason provided.', 'No reason provided']:
             reason_text = f"- Reason: {cancellation_reason}\n"
 
-        subject = f"Visit Cancelled: {service_label} — {client_name}"
+        subject = f"Your {service_label} Visit Has Been Cancelled — Tog & Dogs"
         body_text = (
             f"VISIT CANCELLATION NOTICE\n"
             f"{'=' * 40}\n\n"
@@ -681,28 +704,74 @@ class NotificationTemplates:
 
     @staticmethod
     def visit_time_changed(ctx):
-        """Time change notification. Stub — minimal template."""
-        client_name = ctx.get('client_name', 'Valued Client')
-        pet_names = ctx.get('pet_names', 'your pets')
-        service_label = ctx.get('service_label', 'Pet Sitting')
-        date_label = ctx.get('date_label', 'updated date')
+        """Time change notification. Full branded template — not yet wired to a handler."""
+        safe = NotificationTemplates._safe
+        client_name = safe(ctx.get('client_name'), 'Valued Client') or 'Valued Client'
+        pet_names = safe(ctx.get('pet_names'), 'your pets') or 'your pets'
+        service_label = safe(ctx.get('service_label'), 'Pet Sitting') or 'Pet Sitting'
+        date_label = safe(ctx.get('date_label'), 'your updated date') or 'your updated date'
+        date_heading = safe(ctx.get('date_heading'), 'Date:')
+        portal_url = safe(ctx.get('portal_url'), 'https://toganddogs.usmissionhero.com')
 
-        subject = f"Visit Time Updated — {service_label} for {pet_names}"
+        subject = f"Visit Schedule Updated — {service_label} for {pet_names}"
         body_text = (
             f"Hi {client_name},\n\n"
-            f"The time for your {service_label} visit for {pet_names} has been updated.\n"
-            f"New date/time: {date_label}\n\n"
-            f"If you have questions, please reply to this email.\n\nBest,\nThe Tog & Dogs Team"
+            f"We've updated the schedule for your {service_label} visit for {pet_names}.\n\n"
+            f"UPDATED VISIT DETAILS:\n"
+            f"- Service: {service_label}\n"
+            f"- Pet(s): {pet_names}\n"
+            f"- {date_heading} {date_label}\n\n"
+            f"If this change doesn't work for you or you have any questions, please reply to this email.\n\n"
+            f"Access your portal: {portal_url}\n\n"
+            f"Best,\n"
+            f"The Tog & Dogs Team"
         )
         body_html = f"""
-        <html><body style="font-family: Arial, sans-serif; padding: 20px;">
-        <h2>Visit Time Updated</h2>
-        <p>Hi <strong>{client_name}</strong>,</p>
-        <p>The time for your <strong>{service_label}</strong> visit for <strong>{pet_names}</strong> has been updated.</p>
-        <p><strong>New date/time:</strong> {date_label}</p>
-        <p>If you have questions, please reply to this email.</p>
-        <p>Best,<br/>The Tog & Dogs Team</p>
-        </body></html>
+        <html>
+        <body style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #333; background-color: #f4f7f6; padding: 20px;">
+            <div style="max-width: 600px; margin: auto; border: 1px solid #e0e0e0; background-color: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #2c3e50; margin: 0; font-size: 24px; font-weight: bold;">Visit Schedule Updated</h1>
+                    <div style="width: 50px; height: 4px; background: #2980b9; margin: 15px auto; border-radius: 2px;"></div>
+                </div>
+
+                <p>Hi <strong>{client_name}</strong>,</p>
+
+                <p>We've updated the schedule for your <strong>{service_label}</strong> visit for <strong>{pet_names}</strong>.</p>
+
+                <div style="background-color: #f0f7fd; border-left: 4px solid #2980b9; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+                    <p style="margin: 0 0 12px 0; font-weight: bold; color: #2c3e50;">Updated Visit Details</p>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #555;">
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold; width: 100px;">Service:</td>
+                            <td style="padding: 6px 0;">{service_label}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold;">Pet(s):</td>
+                            <td style="padding: 6px 0;">{pet_names}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold;">{date_heading}</td>
+                            <td style="padding: 6px 0;">{date_label}</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div style="text-align: center; margin: 35px 0;">
+                    <a href="{portal_url}" style="background-color: #2980b9; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">View in Portal</a>
+                </div>
+
+                <p>If this change doesn't work for you or you have any questions, please reply to this email.</p>
+
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
+
+                <div style="text-align: center; color: #7f8c8d; font-size: 12px;">
+                    <p style="margin: 5px 0;">&copy; 2026 Tog &amp; Dogs Pet Sitting</p>
+                    <p style="margin: 5px 0;">Premium Pet Care &amp; Management</p>
+                </div>
+            </div>
+        </body>
+        </html>
         """
         return subject, body_text, body_html
 

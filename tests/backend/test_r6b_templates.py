@@ -216,7 +216,9 @@ def test_visit_cancelled_happy_path():
         "portal_url": "https://toganddogs.usmissionhero.com",
     }
     subject, body_text, body_html = NotificationTemplates.get_template('VISIT_CANCELLED', context)
-    assert "Joey Rockwell" in subject
+    assert "Joey Rockwell" not in subject  # R7J: subject is now client-friendly, not admin-oriented
+    assert "Has Been Cancelled" in subject
+    assert "Tog" in subject
     assert "Overnight Care" in subject
     assert "Hello," in body_text
     assert "Joey Rockwell" in body_text
