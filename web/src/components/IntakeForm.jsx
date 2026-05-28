@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { submitRequest, submitClientRequest, getStaffOptions } from '../api/client';
 import { getSession, getEffectiveRole } from '../api/auth';
 import { TERMS_VERSION, PRIVACY_VERSION } from '../constants/policy';
+import DatePickerGrid from './DatePickerGrid';
 import './IntakeForm.css';
 
 const IntakeForm = () => {
@@ -10,8 +11,9 @@ const IntakeForm = () => {
   const [formData, setFormData] = useState({
     client_name: '',
     client_email: '',
-    start_date: '',
-    end_date: '',
+    selected_dates: [],
+    range_start: '',
+    range_end: '',
     // Release 2: Multi-select visit windows (array)
     visit_windows: ['ANYTIME'],
     visit_window: 'ANYTIME', // Legacy field for backward compat
@@ -66,7 +68,8 @@ const IntakeForm = () => {
       return formData.client_name && formData.client_email;
     }
     if (step === 2) {
-      return formData.service_type && formData.start_date;
+      if (!formData.service_type) return false;
+      return formData.selected_dates && formData.selected_dates.length > 0;
     }
     if (step === 3) {
       // Release 4: Validate at least one pet has a name
@@ -101,12 +104,23 @@ const IntakeForm = () => {
       const s = await getSession();
       const role = getEffectiveRole(s);
       
+      let payload = { ...formData };
+      
+      const sorted = [...(payload.selected_dates || [])].sort();
+      payload.selected_dates = sorted;
+      payload.start_date = sorted[0];
+      if (sorted.length > 1) {
+        payload.end_date = sorted[sorted.length - 1];
+      } else {
+        payload.end_date = '';
+      }
+      
       let result;
       if (s && role === 'client') {
-        result = await submitClientRequest(formData);
+        result = await submitClientRequest(payload);
       } else {
-        const payload = {
-          ...formData,
+        const fullPayload = {
+          ...payload,
           accepted_terms: true,
           accepted_privacy: true,
           terms_version: TERMS_VERSION,
@@ -115,7 +129,7 @@ const IntakeForm = () => {
           accepted_by_email: formData.client_email,
           source: 'public_intake'
         };
-        result = await submitRequest(payload);
+        result = await submitRequest(fullPayload);
       }
       
       setStatus({ 
@@ -224,23 +238,103 @@ const IntakeForm = () => {
                   </select>
                 </div>
 
-                <div className="grid" style={{ marginBottom: '24px' }}>
-                  <div className="field">
-                    <label>Start Date *</label>
-                    <input 
-                      type="date" 
-                      value={formData.start_date} 
-                      onChange={(e) => setFormData({...formData, start_date: e.target.value})} 
-                      required 
+                <div className="field" style={{ marginBottom: '24px' }}>
+                  <label>Visit Dates *</label>
+                  <div style={{ marginTop: '8px', background: 'var(--card-bg-muted, #f8f9fa)', padding: '16px', borderRadius: 'var(--radius-md, 8px)', border: '1px solid var(--border-color, #dee2e6)' }}>
+                    
+                    {/* Client-friendly Range Helper */}
+                    <div style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border-soft, #e9ecef)', marginBottom: '16px' }}>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #6c757d)', marginBottom: '12px' }}>
+                        Need care for multiple days in a row? Choose a start and end date to auto-fill the calendar below.
+                      </p>
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                        <div className="field" style={{ flex: '1 1 120px', marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Start Date</label>
+                          <input
+                            type="date"
+                            value={formData.range_start || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, range_start: e.target.value }))}
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft, #dee2e6)' }}
+                          />
+                        </div>
+                        <div className="field" style={{ flex: '1 1 120px', marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.75rem', marginBottom: '4px' }}>End Date</label>
+                          <input
+                            type="date"
+                            value={formData.range_end || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, range_end: e.target.value }))}
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft, #dee2e6)' }}
+                          />
+                        </div>
+                        <button 
+                          className="button-secondary" 
+                          style={{ padding: '10px 16px', whiteSpace: 'nowrap', borderRadius: '8px', flex: '0 0 auto' }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (!formData.range_start || !formData.range_end) return;
+                            const start = new Date(formData.range_start + 'T00:00:00');
+                            const end = new Date(formData.range_end + 'T00:00:00');
+                            if (end < start) return;
+                            const dates = [];
+                            let curr = new Date(start);
+                            while (curr <= end && dates.length < 14) {
+                              const y = curr.getFullYear();
+                              const m = String(curr.getMonth() + 1).padStart(2, '0');
+                              const d = String(curr.getDate()).padStart(2, '0');
+                              dates.push(`${y}-${m}-${d}`);
+                              curr.setDate(curr.getDate() + 1);
+                            }
+                            setFormData(prev => {
+                              const existing = new Set(prev.selected_dates || []);
+                              dates.forEach(d => existing.add(d));
+                              return { ...prev, selected_dates: Array.from(existing).sort().slice(0, 14), range_start: '', range_end: '' };
+                            });
+                          }}
+                        >
+                          Auto-fill Calendar
+                        </button>
+                      </div>
+                    </div>
+
+                    <DatePickerGrid
+                      selectedDates={formData.selected_dates || []}
+                      onDateToggle={(dateStr) => {
+                        setFormData(prev => {
+                          const current = prev.selected_dates || [];
+                          if (current.includes(dateStr)) {
+                            return { ...prev, selected_dates: current.filter(d => d !== dateStr) };
+                          }
+                          if (current.length >= 14) return prev;
+                          return { ...prev, selected_dates: [...current, dateStr] };
+                        });
+                      }}
+                      maxSelections={14}
                     />
-                  </div>
-                  <div className="field">
-                    <label>End Date (Optional)</label>
-                    <input 
-                      type="date" 
-                      value={formData.end_date} 
-                      onChange={(e) => setFormData({...formData, end_date: e.target.value})} 
-                    />
+                    <div className="date-picker-summary" style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--bg-muted, #f1f3f5)', padding: '12px', borderRadius: 'var(--radius-sm, 6px)', marginTop: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary, #333)' }}>
+                          {(formData.selected_dates || []).length}/14 days selected
+                        </span>
+                        {(formData.selected_dates || []).length > 0 && (
+                          <button 
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, selected_dates: [] }))}
+                            style={{ background: 'none', border: 'none', color: 'var(--primary, #007bff)', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer' }}
+                          >
+                            Start Over
+                          </button>
+                        )}
+                      </div>
+                      {(formData.selected_dates || []).length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                          {[...(formData.selected_dates || [])].sort().map(d => {
+                            const dateObj = new Date(d + 'T00:00:00');
+                            const shortStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                            return <span key={d} className="date-chip" style={{ fontSize: '0.75rem', background: 'var(--card-bg, #fff)', border: '1px solid var(--border-soft, #dee2e6)', padding: '2px 8px', borderRadius: '12px', color: 'var(--text-main, #495057)' }}>{shortStr}</span>;
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
