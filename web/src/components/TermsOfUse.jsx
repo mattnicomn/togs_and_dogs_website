@@ -14,7 +14,7 @@ const TermsOfUse = () => {
         {TERMS_CONTENT.map((section, index) => (
           <div key={index} style={{ marginBottom: '24px' }}>
             <h2>{section.title}</h2>
-            <p>{section.body}</p>
+            <p style={{ whiteSpace: 'pre-line' }}>{section.body}</p>
           </div>
         ))}
       </div>

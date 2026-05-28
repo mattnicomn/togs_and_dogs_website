@@ -41,7 +41,7 @@ const PrivacyPolicyContent = () => {
         {PRIVACY_CONTENT.map((section, index) => (
           <div key={index} style={{ marginBottom: '24px' }}>
             <h2>{section.title}</h2>
-            <p style={{ fontSize: '16px' }}>{section.body}</p>
+            <p style={{ fontSize: '16px', whiteSpace: 'pre-line' }}>{section.body}</p>
           </div>
         ))}
       </div>
