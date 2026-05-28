@@ -359,5 +359,166 @@ class TestR7JDedupGuardUnchanged(unittest.TestCase):
         self.assertFalse(result)
 
 
+class TestR7KStaffAssignedJobRecordValidation(unittest.TestCase):
+    """Verify that when notify_event is triggered with a JOB record, it merges parent request date context."""
+
+    @patch('common.db.get_item')
+    @patch('common.notifications.service.resolve_notification_recipients', return_value=['staff@example.com'])
+    @patch('common.notifications.service.NotificationTemplates.get_template', return_value=('Subject', 'Body Text', 'Body HTML'))
+    @patch('common.notifications.service._write_ledger_entry')
+    @patch('common.notifications.service._is_recent_duplicate', return_value=False)
+    def test_job_record_merges_parent_req_context(self, mock_dup, mock_ledger, mock_get_template, mock_resolve, mock_get_item):
+        from common.notifications.service import notify_event
+
+        # Mock parent REQ record
+        parent_req = {
+            'PK': 'REQ#req_123',
+            'SK': 'CLIENT#cli_123',
+            'selected_dates': ['2026-06-09', '2026-06-11', '2026-06-13'],
+            'start_date': '2026-06-09',
+            'end_date': '2026-06-13',
+            'job_ids': ['job_1', 'job_2', 'job_3'],
+            'client_name': 'Justbeingbrea',
+            'pet_names': 'Joey Rockwell',
+            'service_type': 'OVERNIGHT',
+        }
+
+        # Mock child JOB record
+        job_record = {
+            'PK': 'JOB#job_1',
+            'SK': 'REQ#req_123',
+            'entity_type': 'JOB',
+            'request_id': 'req_123',
+            'client_id': 'cli_123',
+            'worker_id': 'mattnicomn10@gmail.com',
+            'worker_name': 'Matthew Nico',
+            'start_date': '2026-06-09',
+            'end_date': '2026-06-09',
+            'service_type': 'OVERNIGHT',
+        }
+
+        # get_item is called in notify_event (or the resolver) to find the parent request
+        # Let's mock get_item to return our parent REQ
+        def side_effect(pk, sk):
+            if pk == 'REQ#req_123':
+                return parent_req
+            return None
+        mock_get_item.side_effect = side_effect
+
+        # Call notify_event
+        notify_event('STAFF_ASSIGNED', job_record)
+
+        # Verify that get_template was called with a context that has the parent's selected_dates
+        self.assertTrue(mock_get_template.called)
+        called_context = mock_get_template.call_args[0][1]
+        
+        self.assertEqual(called_context['selected_dates'], ['2026-06-09', '2026-06-11', '2026-06-13'])
+        self.assertEqual(called_context['end_date'], '2026-06-13')
+        self.assertEqual(called_context['job_ids'], ['job_1', 'job_2', 'job_3'])
+
+    @patch('common.db.get_item', return_value=None)
+    @patch('common.notifications.service.resolve_notification_recipients', return_value=['staff@example.com'])
+    @patch('common.notifications.service.NotificationTemplates.get_template', return_value=('Subject', 'Body Text', 'Body HTML'))
+    @patch('common.notifications.service._write_ledger_entry')
+    @patch('common.notifications.service._is_recent_duplicate', return_value=False)
+    def test_parent_lookup_failure_failsafe(self, mock_dup, mock_ledger, mock_get_template, mock_resolve, mock_get_item):
+        """If parent lookup fails (returns None), notify_event proceeds using child JOB context."""
+        from common.notifications.service import notify_event
+
+        job_record = {
+            'PK': 'JOB#job_1',
+            'SK': 'REQ#req_123',
+            'entity_type': 'JOB',
+            'request_id': 'req_123',
+            'client_id': 'cli_123',
+            'worker_id': 'mattnicomn10@gmail.com',
+            'worker_name': 'Matthew Nico',
+            'start_date': '2026-06-09',
+            'end_date': '2026-06-09',
+            'service_type': 'OVERNIGHT',
+        }
+
+        # Call notify_event
+        notify_event('STAFF_ASSIGNED', job_record)
+
+        self.assertTrue(mock_get_template.called)
+        called_context = mock_get_template.call_args[0][1]
+        
+        # Verify it fallback-resolved to empty list since parent lookup returned None
+        self.assertEqual(called_context['selected_dates'], [])
+        self.assertEqual(called_context['end_date'], '2026-06-09')
+
+    @patch('common.db.get_item')
+    @patch('common.notifications.service.resolve_notification_recipients', return_value=['client@example.com'])
+    @patch('common.notifications.service.NotificationTemplates.get_template', return_value=('Subject', 'Body Text', 'Body HTML'))
+    @patch('common.notifications.service._write_ledger_entry')
+    @patch('common.notifications.service._is_recent_duplicate', return_value=False)
+    def test_direct_req_record_unaffected(self, mock_dup, mock_ledger, mock_get_template, mock_resolve, mock_get_item):
+        """Passing a direct REQ record does not trigger JOB parent lookup logic and remains unaffected."""
+        from common.notifications.service import notify_event
+
+        req_record = {
+            'PK': 'REQ#req_123',
+            'SK': 'CLIENT#cli_123',
+            'entity_type': 'REQUEST',
+            'request_id': 'req_123',
+            'client_id': 'cli_123',
+            'selected_dates': ['2026-06-09', '2026-06-11'],
+            'start_date': '2026-06-09',
+            'end_date': '2026-06-11',
+        }
+
+        notify_event('CUSTOMER_APPROVED', req_record)
+
+        self.assertTrue(mock_get_template.called)
+        called_context = mock_get_template.call_args[0][1]
+        
+        # Verify db.get_item was never called with 'REQ#req_123' (only called for the quota count check)
+        for call in mock_get_item.call_args_list:
+            args = call[0]
+            self.assertNotEqual(args[0], 'REQ#req_123')
+        self.assertEqual(called_context['selected_dates'], ['2026-06-09', '2026-06-11'])
+
+    @patch('common.db.get_item')
+    @patch('common.notifications.service.resolve_notification_recipients', return_value=['staff@example.com'])
+    @patch('common.notifications.service.NotificationTemplates.get_template', return_value=('Subject', 'Body Text', 'Body HTML'))
+    @patch('common.notifications.service._write_ledger_entry')
+    @patch('common.notifications.service._is_recent_duplicate', return_value=False)
+    def test_single_day_job_backward_compatible(self, mock_dup, mock_ledger, mock_get_template, mock_resolve, mock_get_item):
+        """Single-day JOB with single-day parent REQ behaves backward-compatibly."""
+        from common.notifications.service import notify_event
+
+        parent_req = {
+            'PK': 'REQ#req_123',
+            'SK': 'CLIENT#cli_123',
+            'start_date': '2026-06-09',
+            'end_date': '2026-06-09',
+            'selected_dates': ['2026-06-09'],
+            'client_name': 'Jane',
+        }
+
+        job_record = {
+            'PK': 'JOB#job_1',
+            'SK': 'REQ#req_123',
+            'entity_type': 'JOB',
+            'request_id': 'req_123',
+            'client_id': 'cli_123',
+            'start_date': '2026-06-09',
+            'end_date': '2026-06-09',
+        }
+
+        mock_get_item.return_value = parent_req
+
+        notify_event('STAFF_ASSIGNED', job_record)
+
+        self.assertTrue(mock_get_template.called)
+        called_context = mock_get_template.call_args[0][1]
+        
+        # Verify it has parent fields but stays single day
+        self.assertEqual(called_context['selected_dates'], ['2026-06-09'])
+        self.assertEqual(called_context['end_date'], '2026-06-09')
+
+
 if __name__ == '__main__':
     unittest.main()
+

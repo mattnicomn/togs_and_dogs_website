@@ -248,7 +248,30 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
             print(f"NOTIFICATION_IDLE: {msg}")
             return {"success": False, "message": msg}
 
-        request_id = record.get('request_id')
+        # 0.5. Safely resolve parent REQ context for child JOB records (Release 7K)
+        if record.get('entity_type') == 'JOB' or record.get('PK', '').startswith('JOB#'):
+            try:
+                resolved_req_id = record.get('request_id') or record.get('SK', '').replace('REQ#', '')
+                resolved_cli_id = record.get('client_id')
+                if resolved_req_id and resolved_cli_id:
+                    from common.db import get_item
+                    parent_req = get_item(f"REQ#{resolved_req_id}", f"CLIENT#{resolved_cli_id}")
+                    if parent_req:
+                        # Shallow copy to avoid mutating external references
+                        record = dict(record)
+                        for key in ['selected_dates', 'end_date', 'start_date', 'job_ids', 'visit_window', 'service_type']:
+                            if parent_req.get(key) is not None:
+                                record[key] = parent_req[key]
+                        for key in ['client_name', 'client_email', 'client_phone', 'pet_names']:
+                            if not record.get(key) and parent_req.get(key):
+                                record[key] = parent_req[key]
+                        record['request_id'] = resolved_req_id
+                    else:
+                        print(f"WARNING: Parent Request REQ#{resolved_req_id} not found in DB for child JOB#{record.get('PK')}. Failsafe active.")
+            except Exception as ex:
+                print(f"WARNING: Failed to resolve parent REQ context (fail-open): {ex}")
+
+        request_id = record.get('request_id') or record.get('SK', '').replace('REQ#', '')
         client_id = record.get('client_id')
         
         # 1. Duplicate Prevention for Approval
