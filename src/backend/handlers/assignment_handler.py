@@ -45,71 +45,132 @@ def handler(event, context):
             return bad_request(f"Missing fields. Required: [job_id, req_id, client_id, worker_id]", event)
 
         # ROBUSTNESS: Handle case where UI sends REQ ID as JOB ID before sync
-        actual_job_id = job_id
+        target_job_ids = []
+        request_rec = None
+        
         if job_id == req_id or job_id.startswith('REQ#'):
-            print(f"INFO: Attempting to resolve Job ID from Request REQ#{req_id}")
-            request_rec = get_item(f"REQ#{req_id}", f"CLIENT#{body.get('client_id')}")
-            if request_rec and request_rec.get('job_id'):
-                actual_job_id = request_rec.get('job_id')
-                print(f"INFO: Resolved Job ID from Request: {actual_job_id}")
-            else:
-                print("INFO: RACE_CONDITION_DETECTED - Request has no job_id yet. Attempting table scan for orphaned JOB record.")
-                # We do a fast scan on the SK to find the Job since it might be created but not linked
+            print(f"INFO: Attempting to resolve Job IDs from Request REQ#{req_id}")
+            request_rec = get_item(f"REQ#{req_id}", f"CLIENT#{client_id}")
+            if request_rec:
+                if request_rec.get('job_ids'):
+                    target_job_ids = request_rec.get('job_ids')
+                    print(f"INFO: Resolved {len(target_job_ids)} Job IDs from Request job_ids list")
+                elif request_rec.get('job_id'):
+                    target_job_ids = [request_rec.get('job_id')]
+                    print(f"INFO: Resolved single Job ID from Request: {target_job_ids[0]}")
+            
+            if not target_job_ids:
+                print("INFO: RACE_CONDITION_DETECTED - Request has no job_ids yet. Attempting table scan for orphaned JOB records.")
+                # We do a fast scan on the SK to find the Jobs since they might be created but not linked
                 from boto3.dynamodb.conditions import Attr
                 response = table.scan(
                     FilterExpression=Attr('SK').eq(f"REQ#{req_id}") & Attr('entity_type').eq('JOB')
                 )
                 items = response.get('Items', [])
                 if items:
-                    # Choose the canonical one (prefer active/first)
-                    actual_job_id = items[0].get('PK').replace('JOB#', '')
-                    print(f"WARNING: RESOLVED_CANONICAL_JOB via scan: {actual_job_id}")
-                    if len(items) > 1:
-                        print(f"WARNING: Multiple JOB records found for REQ#{req_id}. Using {actual_job_id}")
+                    target_job_ids = [item.get('PK').replace('JOB#', '') for item in items]
+                    print(f"WARNING: RESOLVED_CANONICAL_JOBS via scan: {target_job_ids}")
+        else:
+            # Single child job assignment directly from UI
+            target_job_ids = [job_id]
 
-        item = get_item(f"JOB#{actual_job_id}", f"REQ#{req_id}")
-        if not item:
-            print(f"ERROR: Job JOB#{actual_job_id} REQ#{req_id} not found")
-            return not_found(f"Job {actual_job_id} not found. Please wait a moment for the request to be approved and initialized.", event)
+        if not target_job_ids:
+            print(f"ERROR: Jobs for REQ#{req_id} not found")
+            return not_found(f"Jobs for request {req_id} not found. Please wait a moment for the request to be approved and initialized.", event)
 
-        job_id = actual_job_id # Ensure we use the resolved one for updates
-        current_status = item.get('status')
         new_status = JobStatus.ASSIGNED.value
+        now = datetime.utcnow().isoformat()
         
-        # Validate transition
-        if not is_valid_transition('JOB', current_status, new_status):
-            return bad_request(f"Invalid transition: {current_status} -> {new_status}", event)
-
-        # Update DB
+        assigned_jobs = []
+        calendar_results = []
+        notified = False  # In-memory batch dedup guard
+        
         try:
-            now = datetime.utcnow().isoformat()
-            # 1. Update JOB record
-            table.update_item(
-                Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{req_id}"},
-                UpdateExpression="SET #stat = :s, worker_id = :w, worker_name = :wn, assigned_at = :a, updated_at = :now, updated_by = :ub, audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)",
-                ExpressionAttributeNames={"#stat": "status"},
-                ExpressionAttributeValues={
-                    ":s": new_status,
-                    ":w": worker_id,
-                    ":wn": worker_name,
-                    ":a": now,
-                    ":now": now,
-                    ":ub": updated_by,
-                    ":n": [{
-                        "action": "WORKER_ASSIGNED",
-                        "worker_id": worker_id,
-                        "worker_name": worker_name,
-                        "timestamp": now,
-                        "updated_by": updated_by
-                    }],
-                    ":empty_list": []
-                }
-            )
+            for j_id in target_job_ids:
+                item = get_item(f"JOB#{j_id}", f"REQ#{req_id}")
+                if not item:
+                    print(f"WARNING: Job JOB#{j_id} not found, skipping.")
+                    continue
+
+                current_status = item.get('status')
+                
+                # Validate transition
+                if not is_valid_transition('JOB', current_status, new_status):
+                    print(f"WARNING: Invalid transition for {j_id}: {current_status} -> {new_status}, skipping.")
+                    continue
+
+                # 1. Update JOB record
+                table.update_item(
+                    Key={'PK': f"JOB#{j_id}", 'SK': f"REQ#{req_id}"},
+                    UpdateExpression="SET #stat = :s, worker_id = :w, worker_name = :wn, assigned_at = :a, updated_at = :now, updated_by = :ub, audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)",
+                    ExpressionAttributeNames={"#stat": "status"},
+                    ExpressionAttributeValues={
+                        ":s": new_status,
+                        ":w": worker_id,
+                        ":wn": worker_name,
+                        ":a": now,
+                        ":now": now,
+                        ":ub": updated_by,
+                        ":n": [{
+                            "action": "WORKER_ASSIGNED",
+                            "worker_id": worker_id,
+                            "worker_name": worker_name,
+                            "timestamp": now,
+                            "updated_by": updated_by
+                        }],
+                        ":empty_list": []
+                    }
+                )
+                assigned_jobs.append(j_id)
+
+                # Merge body updates into item for sync logic (e.g. worker_id, schedule changes)
+                sync_data = {**item, **body}
+
+                # Sync to Google Calendar
+                google_event_id = item.get('google_event_id')
+                
+                # Fallback: Check the Request record if it's missing from the Job record
+                if not google_event_id and request_rec:
+                    google_event_id = request_rec.get('google_event_id')
+                
+                cal_res = None
+                try:
+                    cal_res = sync_calendar_event(sync_data, google_event_id=google_event_id, assigned_worker=worker_name)
+                    if cal_res.get('event_id') and cal_res.get('event_id') != google_event_id:
+                        # Persist the new event ID back to DB
+                        try:
+                            # Update Job record
+                            table.update_item(
+                                Key={'PK': f"JOB#{j_id}", 'SK': f"REQ#{req_id}"},
+                                UpdateExpression="SET google_event_id = :gid",
+                                ExpressionAttributeValues={":gid": cal_res['event_id']}
+                            )
+                        except Exception as db_err:
+                            print(f"WARNING: Failed to save google_event_id to Job DB: {db_err}")
+                except Exception as g_err:
+                    print(f"CALENDAR_SYNC_WARNING: {g_err}")
+                    cal_res = {"status": "calendar_failed", "message": str(g_err)}
+                
+                if cal_res:
+                    calendar_results.append(cal_res)
+
+                # Trigger modular notifications
+                # ROBUSTNESS: Ensure notify_event has access to the newly assigned worker_id
+                # Only notify once per batch assignment (in-memory dedup)
+                if not notified:
+                    item['worker_id'] = worker_id
+                    item['worker_name'] = body.get('worker_name')
+                    notify_event('STAFF_ASSIGNED', item)
+                    notify_event('VISIT_SCHEDULED', item)
+                    notified = True
+
+            if not assigned_jobs:
+                return bad_request("No valid jobs could be assigned. Check statuses.", event)
 
             # 2. Update REQ record (so it reflects in the admin list view)
             try:
                 table.update_item(
-                    Key={'PK': f"REQ#{req_id}", 'SK': f"CLIENT#{item.get('client_id')}"},
+                    Key={'PK': f"REQ#{req_id}", 'SK': f"CLIENT#{client_id}"},
                     UpdateExpression="SET #stat = :s, worker_id = :w, worker_name = :wn, updated_at = :now, updated_by = :ub",
                     ExpressionAttributeNames={"#stat": "status"},
                     ExpressionAttributeValues={
@@ -123,64 +184,17 @@ def handler(event, context):
             except Exception as req_err:
                 print(f"REQ_UPDATE_WARNING: {req_err}")
 
-            # Merge body updates into item for sync logic (e.g. worker_id, schedule changes)
-            sync_data = {**item, **body}
-
-            # Sync to Google Calendar
-            google_event_id = item.get('google_event_id')
+            final_msg = f"Worker assigned to {len(assigned_jobs)} job(s) successfully."
             
-            # Fallback: Check the Request record if it's missing from the Job record
-            if not google_event_id:
-                print(f"INFO: [Req:{req_id}] google_event_id missing from Job record, checking Request record.")
-                request_rec = get_item(f"REQ#{req_id}", f"CLIENT#{client_id}")
-                if request_rec:
-                    google_event_id = request_rec.get('google_event_id')
-                    if google_event_id:
-                        print(f"INFO: [Req:{req_id}] Found google_event_id in Request record: {google_event_id}")
-            
-            calendar_result = None
-            try:
-                calendar_result = sync_calendar_event(sync_data, google_event_id=google_event_id, assigned_worker=worker_name)
-                if calendar_result.get('event_id') and calendar_result.get('event_id') != google_event_id:
-                    # Persist the new event ID back to DB
-                    try:
-                        # Update Request record
-                        table.update_item(
-                            Key={'PK': f"REQ#{req_id}", 'SK': f"CLIENT#{client_id}"},
-                            UpdateExpression="SET google_event_id = :gid",
-                            ExpressionAttributeValues={":gid": calendar_result['event_id']}
-                        )
-                        # Update Job record if job_id exists
-                        if job_id:
-                            table.update_item(
-                                Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{req_id}"},
-                                UpdateExpression="SET google_event_id = :gid",
-                                ExpressionAttributeValues={":gid": calendar_result['event_id']}
-                            )
-                    except Exception as db_err:
-                        print(f"WARNING: Failed to save google_event_id to DB: {db_err}")
-            except Exception as g_err:
-                print(f"CALENDAR_SYNC_WARNING: {g_err}")
-                calendar_result = {"status": "calendar_failed", "message": str(g_err)}
-
-            final_msg = "Worker assigned successfully."
-            if calendar_result and calendar_result.get('message'):
-                final_msg += f" {calendar_result['message']}"
-
+            # Use the first job ID for backward compatibility with older UI
             response_body = {
                 "message": final_msg,
-                "job_id": job_id,
+                "job_id": assigned_jobs[0] if assigned_jobs else job_id,
+                "job_ids": assigned_jobs,
                 "worker_id": worker_id,
                 "status": new_status,
-                "calendar_result": calendar_result
+                "calendar_results": calendar_results
             }
-
-            # Trigger modular notifications
-            # ROBUSTNESS: Ensure notify_event has access to the newly assigned worker_id
-            item['worker_id'] = worker_id
-            item['worker_name'] = body.get('worker_name')
-            notify_event('STAFF_ASSIGNED', item)
-            notify_event('VISIT_SCHEDULED', item)
 
             return success(response_body, event)
         except Exception as e:
