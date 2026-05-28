@@ -292,14 +292,35 @@ const AdminDashboard = () => {
           return `${m1.split(' ')[0]} ${d1.getDate()}–${d2.getDate()}, ${y1}`;
         }
       } else {
-        if (sorted.length <= 3) {
-          const list = sorted.map(d => formatDate(parseDate(d), false)).join(', ');
-          const yr = parseDate(sorted[sorted.length - 1]).getFullYear();
-          return `${list}, ${yr}`;
+        const parsed = sorted.map(d => parseDate(d));
+        const firstYear = parsed[0].getFullYear();
+        const allSameYear = parsed.every(d => d.getFullYear() === firstYear);
+        const firstMonth = parsed[0].getMonth();
+        const allSameMonth = parsed.every(d => d.getMonth() === firstMonth);
+
+        if (allSameMonth && allSameYear) {
+          const monthStr = parsed[0].toLocaleDateString('en-US', { month: 'short' });
+          if (sorted.length <= 3) {
+            const days = parsed.map(d => d.getDate()).join(', ');
+            return `${monthStr} ${days}, ${firstYear}`;
+          } else {
+            const days = parsed.slice(0, 3).map(d => d.getDate()).join(', ');
+            const extra = sorted.length - 3;
+            return `${monthStr} ${days} +${extra} more`;
+          }
         } else {
-          const list = sorted.slice(0, 3).map(d => formatDate(parseDate(d), false)).join(', ');
-          const extra = sorted.length - 3;
-          return `${list} +${extra} more`;
+          const formatSingle = (dObj) => {
+            return dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          };
+          if (sorted.length <= 3) {
+            const list = parsed.map(d => formatSingle(d)).join(', ');
+            const lastYear = parsed[parsed.length - 1].getFullYear();
+            return `${list}, ${lastYear}`;
+          } else {
+            const list = parsed.slice(0, 3).map(d => formatSingle(d)).join(', ');
+            const extra = sorted.length - 3;
+            return `${list} +${extra} more`;
+          }
         }
       }
     }
@@ -324,6 +345,40 @@ const AdminDashboard = () => {
         }
     } else if (item.start_date) {
         return formatDate(parseDate(item.start_date), true);
+    }
+    
+    return '';
+  };
+
+  const getFullVisitDatesList = (item) => {
+    if (!item) return '';
+
+    const parseDate = (d) => {
+      if (!d) return new Date();
+      const [year, month, day] = d.split('-');
+      return new Date(year, month - 1, day);
+    };
+
+    const formatDate = (dateObj, includeYear = false) => {
+      const options = { month: 'short', day: 'numeric' };
+      if (includeYear) options.year = 'numeric';
+      return dateObj.toLocaleDateString('en-US', options);
+    };
+
+    if (item.selected_dates && item.selected_dates.length > 0) {
+      const sorted = [...item.selected_dates].sort();
+      const list = sorted.map(d => formatDate(parseDate(d), false)).join(', ');
+      const yr = parseDate(sorted[sorted.length - 1]).getFullYear();
+      return `${list}, ${yr}`;
+    }
+
+    if (item.start_date && item.end_date) {
+      if (item.start_date === item.end_date) {
+        return formatDate(parseDate(item.start_date), true);
+      }
+      return `${formatDate(parseDate(item.start_date), false)} to ${formatDate(parseDate(item.end_date), true)}`;
+    } else if (item.start_date) {
+      return formatDate(parseDate(item.start_date), true);
     }
     
     return '';
@@ -3707,7 +3762,7 @@ const AdminDashboard = () => {
                       </td>
                       <td>
                         <div className="info-stack">
-                          <span className="small">{formatVisitDates(item)}</span>
+                          <span className="small" title={getFullVisitDatesList(item)}>{formatVisitDates(item)}</span>
                           {/* Release 2: Display multi-select visit windows with backward compat */}
                           <span className="badge-window">
                             {(item.visit_windows || [item.visit_window || 'ANYTIME']).join(', ')}
