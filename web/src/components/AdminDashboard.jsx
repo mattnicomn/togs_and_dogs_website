@@ -127,6 +127,16 @@ const AdminDashboard = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openMenuId]);
 
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && openMenuId) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [openMenuId]);
+
   // Scroll lock: prevent background scrolling when any modal is open (mobile iOS Safari fix)
   useEffect(() => {
     const isAnyModalOpen = !!(decisionModal || bulkConfirmModal || purgeModal || selectedPet || confirmAction);
@@ -396,6 +406,18 @@ const AdminDashboard = () => {
       'MEET_GREET': 'Meet & Greet'
     };
     return friendly[serviceType] || serviceType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  const getVisitWindowLabel = (windowVal) => {
+    if (!windowVal) return 'Anytime';
+    const friendly = {
+      'MORNING': 'Morning (7–10 AM)',
+      'MIDDAY': 'Midday (10 AM–2 PM)',
+      'AFTERNOON': 'Afternoon (2–5 PM)',
+      'EVENING': 'Evening (5–8 PM)',
+      'ANYTIME': 'Anytime'
+    };
+    return friendly[windowVal] || windowVal;
   };
   
   const getAccessStatus = (user) => {
@@ -3776,10 +3798,24 @@ const AdminDashboard = () => {
                       </td>
                       <td>
                         <div className="info-stack">
-                          <span className="small" title={getFullVisitDatesList(item)}>{formatVisitDates(item)}</span>
+                          <span className="small" title={getFullVisitDatesList(item)}>
+                            {formatVisitDates(item)}
+                            {(item.is_multi_day || (item.selected_dates && item.selected_dates.length > 1) ||
+                              (item.end_date && item.start_date && item.end_date !== item.start_date)) && (
+                              <span style={{
+                                fontSize: '0.65rem', fontWeight: 700,
+                                background: 'var(--bg-muted)', color: 'var(--text-muted)',
+                                padding: '2px 6px', borderRadius: '4px', marginLeft: '6px',
+                                display: 'inline-block', verticalAlign: 'middle', border: '1px solid var(--border-soft)'
+                              }}>
+                                Multi-Day
+                              </span>
+                            )}
+                          </span>
                           {/* Release 2: Display multi-select visit windows with backward compat */}
                           <span className="badge-window">
-                            {(item.visit_windows || [item.visit_window || 'ANYTIME']).join(', ')}
+                            {(item.visit_windows || [item.visit_window || 'ANYTIME'])
+                              .map(w => getVisitWindowLabel(w)).join(', ')}
                           </span>
                           {/* Release 2: Preferred sitter badge (informational) */}
                           {item.preferred_sitter_name && (
@@ -3871,7 +3907,7 @@ const AdminDashboard = () => {
                             }}
                             aria-haspopup="true"
                             aria-expanded={openMenuId === item.PK}
-                            aria-label="Request actions"
+                            aria-label={`Actions for ${item.pet_names || item.client_name || 'this record'}`}
                           >
                             Actions <span className="chevron">▾</span>
                           </button>
@@ -3934,10 +3970,18 @@ const AdminDashboard = () => {
                       </td>
                     </tr>
                   ))}
-                  {visibleRecords.length === 0 && (
+                  {visibleRecords.length === 0 && !loading && (
                     <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                        {statusFilter === 'DATA_ISSUES' ? 'No data issue records found.' : 'No records found matching this filter.'}
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--text-muted)' }}>
+                        <p style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>No records in this view</p>
+                        <p style={{ fontSize: '0.85rem', marginTop: '8px', margin: '8px 0 0' }}>
+                          {statusFilter === 'DATA_ISSUES' ? 'No data integrity issues found. ✓' :
+                           statusFilter === 'DELETED' || statusFilter === 'TRASH' ? 'Trash is empty.' :
+                           statusFilter === 'COMPLETED' ? 'No completed visits yet.' :
+                           statusFilter === 'CANCELLED' ? 'No cancelled records.' :
+                           statusFilter === 'ARCHIVED' ? 'No archived records.' :
+                           'No records match the current filter.'}
+                        </p>
                       </td>
                     </tr>
                   )}
