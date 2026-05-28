@@ -136,7 +136,23 @@ def _handle_admin_created_booking(event, body):
         return bad_request("client_id is required for admin-created bookings. Select an existing client.", event)
 
     client_name = body.get('client_name', '').strip()
-    start_date = body.get('start_date', '').strip()
+    start_date = body.get('start_date', '').strip() if body.get('start_date') else ''
+    end_date = body.get('end_date') or None
+
+    selected_dates = body.get('selected_dates')
+    if selected_dates and isinstance(selected_dates, list) and len(selected_dates) > 1:
+        def _is_valid_date(date_str):
+            if not isinstance(date_str, str): return False
+            try:
+                datetime.strptime(date_str, '%Y-%m-%d')
+                return True
+            except ValueError:
+                return False
+        valid_dates = sorted(set(d for d in selected_dates if _is_valid_date(d)))
+        if valid_dates:
+            start_date = valid_dates[0]
+            end_date = valid_dates[-1]
+            selected_dates = valid_dates
 
     if not client_name or not start_date:
         return bad_request("client_name and start_date are required.", event)
@@ -173,7 +189,8 @@ def _handle_admin_created_booking(event, body):
         'client_email': client_email,
         'client_phone': (body.get('client_phone') or '').strip() or None,
         'start_date': start_date,
-        'end_date': body.get('end_date') or None,
+        'end_date': end_date,
+        'selected_dates': selected_dates if selected_dates and isinstance(selected_dates, list) else None,
         'visit_window': body.get('visit_window', 'ANYTIME'),
         'visit_windows': _normalize_visit_windows(body),
         'preferred_time': body.get('preferred_time') or None,
@@ -285,7 +302,23 @@ def handler(event, context):
         client_name = body.get('client_name')
         client_email = body.get('client_email')
         start_date = body.get('start_date')
+        end_date = body.get('end_date')
         pet_names = body.get('pet_names')
+        
+        selected_dates = body.get('selected_dates')
+        if selected_dates and isinstance(selected_dates, list) and len(selected_dates) > 1:
+            def _is_valid_date(date_str):
+                if not isinstance(date_str, str): return False
+                try:
+                    datetime.strptime(date_str, '%Y-%m-%d')
+                    return True
+                except ValueError:
+                    return False
+            valid_dates = sorted(set(d for d in selected_dates if _is_valid_date(d)))
+            if valid_dates:
+                start_date = valid_dates[0]
+                end_date = valid_dates[-1]
+                selected_dates = valid_dates
         
         from common.auth import get_effective_role, resolve_client_identity, get_claims, get_current_company_id
         role = get_effective_role(event)
@@ -379,7 +412,8 @@ def handler(event, context):
             # Release 4C: Client phone — optional, stored for admin visibility and profile propagation.
             'client_phone': (body.get('client_phone') or '').strip() or None,
             'start_date': start_date,
-            'end_date': body.get('end_date'),
+            'end_date': end_date,
+            'selected_dates': selected_dates if selected_dates and isinstance(selected_dates, list) else None,
             # Release 2: visit_windows (array) for multi-select support.
             # Legacy visit_window (string) preserved for backward compatibility.
             'visit_window': body.get('visit_window', 'ANYTIME'),

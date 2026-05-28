@@ -67,7 +67,24 @@ def handler(event, context):
         end_date_str = request_item.get('end_date')
 
         job_dates = []
-        if start_date_str and end_date_str:
+        selected_dates = request_item.get('selected_dates')
+
+        if selected_dates and isinstance(selected_dates, list) and len(selected_dates) > 1:
+            def _is_valid_date(date_str):
+                if not isinstance(date_str, str): return False
+                try:
+                    datetime.strptime(date_str, '%Y-%m-%d')
+                    return True
+                except ValueError:
+                    return False
+            valid_dates = sorted(set(d for d in selected_dates if _is_valid_date(d)))
+            if len(valid_dates) > MAX_MULTI_DAY_OCCURRENCES:
+                return {"error": f"Selected dates ({len(valid_dates)}) exceeds maximum of {MAX_MULTI_DAY_OCCURRENCES}"}
+            if valid_dates:
+                job_dates = valid_dates
+            else:
+                job_dates = [start_date_str] if start_date_str else [None]
+        elif start_date_str and end_date_str:
             try:
                 start_dt = datetime.strptime(start_date_str, '%Y-%m-%d').date()
                 end_dt = datetime.strptime(end_date_str, '%Y-%m-%d').date()
