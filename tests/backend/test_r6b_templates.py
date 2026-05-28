@@ -28,7 +28,7 @@ def test_visit_scheduled_happy_path():
     assert "Jane Smith" in body_text
     assert "Buddy, Max" in body_text
     assert "30-Minute Walk" in body_text
-    assert "2026-06-01 at 09:00" in body_text
+    assert "Jun 1, 2026 at 09:00" in body_text
     assert "Ryan" in body_text
     assert "Confirmed" in subject
     assert "Jane Smith" in body_html
@@ -222,7 +222,7 @@ def test_visit_cancelled_happy_path():
     assert "Joey Rockwell" in body_text
     assert "Buddy, Max" in body_text
     assert "Overnight Care" in body_text
-    assert "2026-06-15 at 18:00" in body_text
+    assert "Jun 15, 2026 at 18:00" in body_text
     assert "Ryan" in body_text
     assert "Client travel plans changed." in body_text
     assert "Hello," in body_html

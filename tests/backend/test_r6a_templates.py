@@ -52,7 +52,7 @@ def test_customer_approved_happy_path():
     assert "Jane Smith" in body_text
     assert "Buddy, Max" in body_text
     assert "30-Minute Walk" in body_text
-    assert "2026-06-01 at 09:00" in body_text
+    assert "Jun 1, 2026 at 09:00" in body_text
     assert "Jane Smith" in body_html
     assert "Buddy, Max" in body_html
     print("PASS: test_customer_approved_happy_path")

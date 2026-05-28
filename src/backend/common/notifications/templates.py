@@ -68,7 +68,63 @@ class NotificationTemplates:
         # 3. Date/Time normalization (if present)
         date_val = safe(context.get('start_date'), 'scheduled date') or 'scheduled date'
         time_val = context.get('start_time')
-        normalized['date_label'] = f"{date_val} at {time_val}" if time_val else date_val
+        
+        # Phase B: Multi-day context logic
+        from datetime import datetime
+        def _parse_date(d_str):
+            try:
+                return datetime.strptime(d_str.split('T')[0], "%Y-%m-%d")
+            except:
+                return None
+
+        def _format_date(dt, include_year=False):
+            if not dt: return ""
+            fmt = "%b %d, %Y" if include_year else "%b %d"
+            return dt.strftime(fmt).replace(" 0", " ")
+
+        selected_dates = context.get('selected_dates')
+        start_date_str = context.get('start_date')
+        end_date_str = context.get('end_date')
+
+        is_multi = False
+        date_display = date_val
+
+        if isinstance(selected_dates, list) and len(selected_dates) > 1:
+            is_multi = True
+            parsed_dates = sorted([_parse_date(d) for d in selected_dates if _parse_date(d)])
+            if len(parsed_dates) == len(selected_dates):
+                delta = (parsed_dates[-1] - parsed_dates[0]).days + 1
+                if delta == len(parsed_dates):
+                    d1 = _format_date(parsed_dates[0])
+                    d2 = _format_date(parsed_dates[-1], include_year=True)
+                    date_display = f"{d1}–{d2}"
+                else:
+                    formatted = [_format_date(d) for d in parsed_dates[:-1]]
+                    formatted.append(_format_date(parsed_dates[-1], include_year=True))
+                    date_display = ", ".join(formatted)
+            else:
+                date_display = f"{start_date_str} to {end_date_str}"
+        elif start_date_str and end_date_str and start_date_str != end_date_str:
+            is_multi = True
+            p_start = _parse_date(start_date_str)
+            p_end = _parse_date(end_date_str)
+            if p_start and p_end:
+                date_display = f"{_format_date(p_start)}–{_format_date(p_end, include_year=True)}"
+            else:
+                date_display = f"{start_date_str} to {end_date_str}"
+        elif start_date_str:
+            p_start = _parse_date(start_date_str)
+            if p_start:
+                date_display = _format_date(p_start, include_year=True)
+            else:
+                date_display = start_date_str
+
+        normalized['is_multi_visit'] = is_multi
+        normalized['date_display'] = date_display
+        normalized['date_heading'] = 'Dates:' if is_multi else 'Date:'
+        normalized['date_text'] = 'Visit Dates' if is_multi else 'Visit Date'
+        
+        normalized['date_label'] = f"{date_display} at {time_val}" if time_val else date_display
         
         return normalized
 
@@ -80,6 +136,8 @@ class NotificationTemplates:
         pet_names = ctx.get('pet_names', 'your pets')
         service_label = ctx.get('service_label', 'Pet Sitting')
         date_label = ctx.get('date_label', 'your scheduled date')
+        date_heading = ctx.get('date_heading', 'Date:')
+        date_text = ctx.get('date_text', 'Visit Date')
         portal_url = ctx.get('portal_url', 'https://toganddogs.usmissionhero.com')
 
         body_text = (
@@ -88,7 +146,7 @@ class NotificationTemplates:
             f"BOOKING DETAILS:\n"
             f"- Service: {service_label}\n"
             f"- Pet(s): {pet_names}\n"
-            f"- Date: {date_label}\n\n"
+            f"- {date_text}: {date_label}\n\n"
             f"WHAT HAPPENS NEXT:\n"
             f"1. A team member will be assigned to your visit shortly.\n"
             f"2. You'll receive a confirmation once your sitter is confirmed.\n"
@@ -126,7 +184,7 @@ class NotificationTemplates:
                             <td style="padding: 6px 0;">{pet_names}</td>
                         </tr>
                         <tr>
-                            <td style="padding: 6px 0; font-weight: bold;">Date:</td>
+                            <td style="padding: 6px 0; font-weight: bold;">{date_heading}</td>
                             <td style="padding: 6px 0;">{date_label}</td>
                         </tr>
                     </table>
@@ -171,6 +229,8 @@ class NotificationTemplates:
         pet_names = safe(ctx.get('pet_names'), 'Not specified') or 'Not specified'
         service_label = safe(ctx.get('service_label'), 'Pet Sitting') or 'Pet Sitting'
         date_label = safe(ctx.get('date_label'), 'Not specified') or 'Not specified'
+        date_heading = safe(ctx.get('date_heading'), 'Date:')
+        date_text = safe(ctx.get('date_text'), 'Requested Date')
         request_id = safe(ctx.get('request_id'), 'N/A') or 'N/A'
         details = safe(ctx.get('details'), '')
         dashboard_url = 'https://toganddogs.usmissionhero.com'
@@ -192,7 +252,7 @@ class NotificationTemplates:
             f"REQUEST DETAILS:\n"
             f"- Service: {service_label}\n"
             f"- Pet(s): {pet_names}\n"
-            f"- Requested Date: {date_label}\n"
+            f"- {date_text}: {date_label}\n"
             f"- Request ID: {request_id}\n"
         )
         if details and details != 'No details provided.':
@@ -261,7 +321,7 @@ class NotificationTemplates:
                             <td style="padding: 6px 0;">{pet_names}</td>
                         </tr>
                         <tr>
-                            <td style="padding: 6px 0; font-weight: bold;">Date:</td>
+                            <td style="padding: 6px 0; font-weight: bold;">{date_heading}</td>
                             <td style="padding: 6px 0;">{date_label}</td>
                         </tr>
                         <tr>
@@ -295,6 +355,8 @@ class NotificationTemplates:
         pet_names = safe(ctx.get('pet_names'), 'your pets') or 'your pets'
         service_label = safe(ctx.get('service_label'), 'Pet Sitting') or 'Pet Sitting'
         date_label = safe(ctx.get('date_label'), 'your scheduled date') or 'your scheduled date'
+        date_heading = safe(ctx.get('date_heading'), 'Date:')
+        date_text = safe(ctx.get('date_text'), 'Visit Date')
         # Use worker_name (only set when a real worker is assigned) — do NOT fall back to
         # staff_name which normalize_context defaults to 'Team Member'
         staff_name = safe(ctx.get('worker_name'), '') or ''
@@ -322,7 +384,7 @@ class NotificationTemplates:
             f"VISIT DETAILS:\n"
             f"- Service: {service_label}\n"
             f"- Pet(s): {pet_names}\n"
-            f"- Date: {date_label}\n"
+            f"- {date_text}: {date_label}\n"
             f"{sitter_text}\n"
             f"WHAT TO EXPECT:\n"
             f"1. Your sitter will arrive at the scheduled time.\n"
@@ -359,7 +421,7 @@ class NotificationTemplates:
                             <td style="padding: 6px 0;">{pet_names}</td>
                         </tr>
                         <tr>
-                            <td style="padding: 6px 0; font-weight: bold;">Date:</td>
+                            <td style="padding: 6px 0; font-weight: bold;">{date_heading}</td>
                             <td style="padding: 6px 0;">{date_label}</td>
                         </tr>{sitter_row}
                     </table>
@@ -402,6 +464,8 @@ class NotificationTemplates:
         pet_names = safe(ctx.get('pet_names'), 'their pets') or 'their pets'
         service_label = safe(ctx.get('service_label'), 'Pet Sitting') or 'Pet Sitting'
         date_label = safe(ctx.get('date_label'), 'scheduled date') or 'scheduled date'
+        date_heading = safe(ctx.get('date_heading'), 'Date:')
+        date_text = safe(ctx.get('date_text'), 'Visit Date')
         details = safe(ctx.get('details'), '')
         portal_url = safe(ctx.get('portal_url'), 'https://toganddogs.usmissionhero.com')
 
@@ -436,7 +500,7 @@ class NotificationTemplates:
             f"{phone_text}"
             f"- Pet(s): {pet_names}\n"
             f"- Service: {service_label}\n"
-            f"- Date: {date_label}\n"
+            f"- {date_text}: {date_label}\n"
             f"{details_text}\n"
             f"Please check the staff portal for full care instructions and client details.\n\n"
             f"Access your portal: {portal_url}\n\n"
@@ -474,7 +538,7 @@ class NotificationTemplates:
                             <td style="padding: 6px 0;">{service_label}</td>
                         </tr>
                         <tr>
-                            <td style="padding: 6px 0; font-weight: bold;">Date:</td>
+                            <td style="padding: 6px 0; font-weight: bold;">{date_heading}</td>
                             <td style="padding: 6px 0;">{date_label}</td>
                         </tr>
                     </table>
@@ -506,6 +570,7 @@ class NotificationTemplates:
         pet_names = safe(ctx.get('pet_names'), 'pets') or 'pets'
         service_label = safe(ctx.get('service_label'), 'Pet Sitting') or 'Pet Sitting'
         date_label = safe(ctx.get('date_label'), '') or ''
+        date_heading = safe(ctx.get('date_heading'), 'Date:')
         cancellation_reason = safe(ctx.get('cancellation_reason'), '')
         staff_name = safe(ctx.get('worker_name'), '') or ''
         if not staff_name:
@@ -515,7 +580,7 @@ class NotificationTemplates:
         portal_url = safe(ctx.get('portal_url'), 'https://toganddogs.usmissionhero.com')
 
         # Build conditional rows
-        date_row_text = f"- Date: {date_label}\n" if date_label else ""
+        date_row_text = f"- {date_heading} {date_label}\n" if date_label else ""
         staff_row_text = f"- Assigned Sitter: {staff_name}\n" if staff_name else ""
         reason_text = ""
         if cancellation_reason and cancellation_reason not in ['No reason provided.', 'No reason provided']:
@@ -545,7 +610,7 @@ class NotificationTemplates:
         if date_label:
             date_row_html = f"""
                         <tr>
-                            <td style="padding: 6px 0; font-weight: bold;">Date:</td>
+                            <td style="padding: 6px 0; font-weight: bold;">{date_heading}</td>
                             <td style="padding: 6px 0;">{date_label}</td>
                         </tr>"""
 
