@@ -2191,3 +2191,64 @@
   border-color: rgba(148, 163, 184, 0.3);
 }
 
+/* Date Picker Grid Styles */
+.date-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  padding: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+}
+
+.date-picker-day-label {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.date-picker-cell {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.date-picker-cell.empty {
+  cursor: default;
+}
+
+.date-picker-cell:not(.empty):hover:not(.disabled):not(.selected) {
+  background: var(--bg-muted);
+}
+
+.date-picker-cell.selected {
+  background: var(--primary);
+  color: white;
+  font-weight: 700;
+}
+
+.date-picker-cell.today:not(.selected) {
+  border: 2px solid var(--primary);
+}
+
+.date-picker-cell.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.date-picker-cell.max-reached:not(.selected) {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

@@ -11,6 +11,7 @@ import * as XLSX from 'xlsx';
 import MasterScheduler from './MasterScheduler';
 import CareCard from './CareCard';
 import UserProfile from './UserProfile';
+import DatePickerGrid from './DatePickerGrid';
 import '../Admin.css';
 
 // Release 6H Phase 2: Removed hardcoded PROTECTED_SUBS/PROTECTED_EMAILS.
@@ -95,7 +96,7 @@ const AdminDashboard = () => {
   const [newVisitForm, setNewVisitForm] = useState({
     client_id: '', client_name: '', client_email: '', client_phone: '',
     pet_names: '', pet_ids: [], service_type: 'PET_SITTING',
-    start_date: '', end_date: '', visit_windows: ['ANYTIME'],
+    start_date: '', end_date: '', selected_dates: [], schedule_mode: 'single', visit_windows: ['ANYTIME'],
     details: '', preferred_sitter: ''
   });
   const [newVisitClientPets, setNewVisitClientPets] = useState([]);
@@ -2027,7 +2028,7 @@ const AdminDashboard = () => {
     setNewVisitForm({
       client_id: '', client_name: '', client_email: '', client_phone: '',
       pet_names: '', pet_ids: [], service_type: 'PET_SITTING',
-      start_date: '', end_date: '', visit_windows: ['ANYTIME'],
+      start_date: '', end_date: '', selected_dates: [], schedule_mode: 'single', visit_windows: ['ANYTIME'],
       details: '', preferred_sitter: ''
     });
     setNewVisitClientPets([]);
@@ -2123,24 +2124,44 @@ const AdminDashboard = () => {
   const handleNewVisitSubmit = async () => {
     if (!newVisitForm.client_id) { showNotification("Please select a client.", "error"); return; }
     if (!newVisitForm.pet_names && newVisitForm.pet_ids.length === 0) { showNotification("Please select at least one pet.", "error"); return; }
-    if (!newVisitForm.start_date) { showNotification("Start date is required.", "error"); return; }
+    
+    if (newVisitForm.schedule_mode === 'single' && !newVisitForm.start_date) {
+      showNotification("Start date is required.", "error"); return;
+    }
+    if (newVisitForm.schedule_mode === 'range' && (!newVisitForm.start_date || !newVisitForm.end_date)) {
+      showNotification("Start and end dates are required for date range.", "error"); return;
+    }
+    if (newVisitForm.schedule_mode === 'pick_days' && newVisitForm.selected_dates.length === 0) {
+      showNotification("Please select at least one date.", "error"); return;
+    }
+
+    const payload = {
+      client_id: newVisitForm.client_id,
+      client_name: newVisitForm.client_name,
+      client_email: newVisitForm.client_email,
+      client_phone: newVisitForm.client_phone,
+      pet_names: newVisitForm.pet_names,
+      pet_ids: newVisitForm.pet_ids,
+      service_type: newVisitForm.service_type,
+      visit_windows: newVisitForm.visit_windows,
+      details: newVisitForm.details || undefined,
+      preferred_sitter: newVisitForm.preferred_sitter || undefined,
+    };
+
+    if (newVisitForm.schedule_mode === 'single') {
+      payload.start_date = newVisitForm.start_date;
+    } else if (newVisitForm.schedule_mode === 'range') {
+      payload.start_date = newVisitForm.start_date;
+      payload.end_date = newVisitForm.end_date;
+    } else if (newVisitForm.schedule_mode === 'pick_days') {
+      const sorted = [...newVisitForm.selected_dates].sort();
+      payload.selected_dates = sorted;
+      payload.start_date = sorted[0]; // Backend requires a start_date
+    }
 
     setIsCreatingVisit(true);
     try {
-      const resp = await createAdminBooking({
-        client_id: newVisitForm.client_id,
-        client_name: newVisitForm.client_name,
-        client_email: newVisitForm.client_email,
-        client_phone: newVisitForm.client_phone,
-        pet_names: newVisitForm.pet_names,
-        pet_ids: newVisitForm.pet_ids,
-        service_type: newVisitForm.service_type,
-        start_date: newVisitForm.start_date,
-        end_date: newVisitForm.end_date || undefined,
-        visit_windows: newVisitForm.visit_windows,
-        details: newVisitForm.details || undefined,
-        preferred_sitter: newVisitForm.preferred_sitter || undefined,
-      });
+      const resp = await createAdminBooking(payload);
       showNotification(
         getCalendarWarningMessage(resp, resp.message || "Booking created successfully."),
         getCalendarNotificationType(resp)
@@ -4475,25 +4496,108 @@ const AdminDashboard = () => {
               </div>
 
               {/* Dates */}
-              <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-                <div className="field" style={{ flex: 1 }}>
-                  <label>Start Date *</label>
-                  <input
-                    type="date"
-                    value={newVisitForm.start_date}
-                    onChange={(e) => setNewVisitForm(prev => ({ ...prev, start_date: e.target.value }))}
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
-                  />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
+                <div className="schedule-mode-selector" style={{ display: 'flex', background: 'var(--bg-muted)', padding: '4px', borderRadius: 'var(--radius-sm)', gap: '4px', alignSelf: 'flex-start' }}>
+                  <button 
+                    className={newVisitForm.schedule_mode === 'single' ? 'active' : ''} 
+                    onClick={() => setNewVisitForm(prev => ({ ...prev, schedule_mode: 'single', end_date: '', selected_dates: [] }))}
+                    style={{ padding: '8px 16px', borderRadius: 'calc(var(--radius-sm) - 2px)', fontSize: '0.85rem', fontWeight: '700', border: 'none', background: newVisitForm.schedule_mode === 'single' ? 'var(--card-bg)' : 'transparent', color: newVisitForm.schedule_mode === 'single' ? 'var(--text-primary)' : 'var(--text-muted)', boxShadow: newVisitForm.schedule_mode === 'single' ? 'var(--shadow-sm)' : 'none', cursor: 'pointer' }}
+                  >
+                    Single Day
+                  </button>
+                  <button 
+                    className={newVisitForm.schedule_mode === 'range' ? 'active' : ''} 
+                    onClick={() => setNewVisitForm(prev => ({ ...prev, schedule_mode: 'range', selected_dates: [] }))}
+                    style={{ padding: '8px 16px', borderRadius: 'calc(var(--radius-sm) - 2px)', fontSize: '0.85rem', fontWeight: '700', border: 'none', background: newVisitForm.schedule_mode === 'range' ? 'var(--card-bg)' : 'transparent', color: newVisitForm.schedule_mode === 'range' ? 'var(--text-primary)' : 'var(--text-muted)', boxShadow: newVisitForm.schedule_mode === 'range' ? 'var(--shadow-sm)' : 'none', cursor: 'pointer' }}
+                  >
+                    Date Range
+                  </button>
+                  <button 
+                    className={newVisitForm.schedule_mode === 'pick_days' ? 'active' : ''} 
+                    onClick={() => setNewVisitForm(prev => ({ ...prev, schedule_mode: 'pick_days', start_date: '', end_date: '' }))}
+                    style={{ padding: '8px 16px', borderRadius: 'calc(var(--radius-sm) - 2px)', fontSize: '0.85rem', fontWeight: '700', border: 'none', background: newVisitForm.schedule_mode === 'pick_days' ? 'var(--card-bg)' : 'transparent', color: newVisitForm.schedule_mode === 'pick_days' ? 'var(--text-primary)' : 'var(--text-muted)', boxShadow: newVisitForm.schedule_mode === 'pick_days' ? 'var(--shadow-sm)' : 'none', cursor: 'pointer' }}
+                  >
+                    Pick Days
+                  </button>
                 </div>
-                <div className="field" style={{ flex: 1 }}>
-                  <label>End Date</label>
-                  <input
-                    type="date"
-                    value={newVisitForm.end_date}
-                    onChange={(e) => setNewVisitForm(prev => ({ ...prev, end_date: e.target.value }))}
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
-                  />
-                </div>
+
+                {newVisitForm.schedule_mode === 'single' && (
+                  <div className="field">
+                    <label>Date *</label>
+                    <input
+                      type="date"
+                      value={newVisitForm.start_date}
+                      onChange={(e) => setNewVisitForm(prev => ({ ...prev, start_date: e.target.value }))}
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+                    />
+                  </div>
+                )}
+
+                {newVisitForm.schedule_mode === 'range' && (
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <div className="field" style={{ flex: 1 }}>
+                      <label>Start Date *</label>
+                      <input
+                        type="date"
+                        value={newVisitForm.start_date}
+                        onChange={(e) => setNewVisitForm(prev => ({ ...prev, start_date: e.target.value }))}
+                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+                      />
+                    </div>
+                    <div className="field" style={{ flex: 1 }}>
+                      <label>End Date *</label>
+                      <input
+                        type="date"
+                        value={newVisitForm.end_date}
+                        onChange={(e) => setNewVisitForm(prev => ({ ...prev, end_date: e.target.value }))}
+                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {newVisitForm.schedule_mode === 'pick_days' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <DatePickerGrid
+                      selectedDates={newVisitForm.selected_dates}
+                      onDateToggle={(dateStr) => {
+                        setNewVisitForm(prev => {
+                          const current = prev.selected_dates || [];
+                          if (current.includes(dateStr)) {
+                            return { ...prev, selected_dates: current.filter(d => d !== dateStr) };
+                          }
+                          if (current.length >= 14) return prev;
+                          return { ...prev, selected_dates: [...current, dateStr] };
+                        });
+                      }}
+                      maxSelections={14}
+                    />
+                    <div className="date-picker-summary" style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--bg-muted)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                          {newVisitForm.selected_dates.length}/14 days selected
+                        </span>
+                        {newVisitForm.selected_dates.length > 0 && (
+                          <button 
+                            onClick={() => setNewVisitForm(prev => ({ ...prev, selected_dates: [] }))}
+                            style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer' }}
+                          >
+                            Clear All
+                          </button>
+                        )}
+                      </div>
+                      {newVisitForm.selected_dates.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                          {[...newVisitForm.selected_dates].sort().map(d => {
+                            const dateObj = new Date(d + 'T00:00:00');
+                            const shortStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                            return <span key={d} className="date-chip" style={{ fontSize: '0.75rem', background: 'var(--card-bg)', border: '1px solid var(--border-soft)', padding: '2px 8px', borderRadius: '12px', color: 'var(--text-main)' }}>{shortStr}</span>;
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Visit Window */}
@@ -4545,7 +4649,14 @@ const AdminDashboard = () => {
               <button
                 className="button-primary"
                 onClick={handleNewVisitSubmit}
-                disabled={isCreatingVisit || !newVisitForm.client_id || (!newVisitForm.pet_names && newVisitForm.pet_ids.length === 0) || !newVisitForm.start_date}
+                disabled={
+                  isCreatingVisit || 
+                  !newVisitForm.client_id || 
+                  (!newVisitForm.pet_names && newVisitForm.pet_ids.length === 0) ||
+                  (newVisitForm.schedule_mode === 'single' && !newVisitForm.start_date) ||
+                  (newVisitForm.schedule_mode === 'range' && (!newVisitForm.start_date || !newVisitForm.end_date)) ||
+                  (newVisitForm.schedule_mode === 'pick_days' && newVisitForm.selected_dates.length === 0)
+                }
               >
                 {isCreatingVisit ? 'Creating...' : 'Create Visit'}
               </button>
