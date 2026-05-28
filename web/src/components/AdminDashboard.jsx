@@ -96,7 +96,7 @@ const AdminDashboard = () => {
   const [newVisitForm, setNewVisitForm] = useState({
     client_id: '', client_name: '', client_email: '', client_phone: '',
     pet_names: '', pet_ids: [], service_type: 'PET_SITTING',
-    start_date: '', end_date: '', selected_dates: [], schedule_mode: 'single', visit_windows: ['ANYTIME'],
+    selected_dates: [], range_start: '', range_end: '', visit_windows: ['ANYTIME'],
     details: '', preferred_sitter: ''
   });
   const [newVisitClientPets, setNewVisitClientPets] = useState([]);
@@ -2028,7 +2028,7 @@ const AdminDashboard = () => {
     setNewVisitForm({
       client_id: '', client_name: '', client_email: '', client_phone: '',
       pet_names: '', pet_ids: [], service_type: 'PET_SITTING',
-      start_date: '', end_date: '', selected_dates: [], schedule_mode: 'single', visit_windows: ['ANYTIME'],
+      selected_dates: [], range_start: '', range_end: '', visit_windows: ['ANYTIME'],
       details: '', preferred_sitter: ''
     });
     setNewVisitClientPets([]);
@@ -2124,16 +2124,11 @@ const AdminDashboard = () => {
   const handleNewVisitSubmit = async () => {
     if (!newVisitForm.client_id) { showNotification("Please select a client.", "error"); return; }
     if (!newVisitForm.pet_names && newVisitForm.pet_ids.length === 0) { showNotification("Please select at least one pet.", "error"); return; }
-    
-    if (newVisitForm.schedule_mode === 'single' && !newVisitForm.start_date) {
-      showNotification("Start date is required.", "error"); return;
-    }
-    if (newVisitForm.schedule_mode === 'range' && (!newVisitForm.start_date || !newVisitForm.end_date)) {
-      showNotification("Start and end dates are required for date range.", "error"); return;
-    }
-    if (newVisitForm.schedule_mode === 'pick_days' && newVisitForm.selected_dates.length === 0) {
+    if (newVisitForm.selected_dates.length === 0) {
       showNotification("Please select at least one date.", "error"); return;
     }
+
+    const sorted = [...newVisitForm.selected_dates].sort();
 
     const payload = {
       client_id: newVisitForm.client_id,
@@ -2146,17 +2141,12 @@ const AdminDashboard = () => {
       visit_windows: newVisitForm.visit_windows,
       details: newVisitForm.details || undefined,
       preferred_sitter: newVisitForm.preferred_sitter || undefined,
+      selected_dates: sorted,
+      start_date: sorted[0]
     };
 
-    if (newVisitForm.schedule_mode === 'single') {
-      payload.start_date = newVisitForm.start_date;
-    } else if (newVisitForm.schedule_mode === 'range') {
-      payload.start_date = newVisitForm.start_date;
-      payload.end_date = newVisitForm.end_date;
-    } else if (newVisitForm.schedule_mode === 'pick_days') {
-      const sorted = [...newVisitForm.selected_dates].sort();
-      payload.selected_dates = sorted;
-      payload.start_date = sorted[0]; // Backend requires a start_date
+    if (sorted.length > 1) {
+      payload.end_date = sorted[sorted.length - 1];
     }
 
     setIsCreatingVisit(true);
@@ -4497,107 +4487,101 @@ const AdminDashboard = () => {
 
               {/* Dates */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
-                <div className="schedule-mode-selector" style={{ display: 'flex', background: 'var(--bg-muted)', padding: '4px', borderRadius: 'var(--radius-sm)', gap: '4px', alignSelf: 'flex-start' }}>
-                  <button 
-                    className={newVisitForm.schedule_mode === 'single' ? 'active' : ''} 
-                    onClick={() => setNewVisitForm(prev => ({ ...prev, schedule_mode: 'single', end_date: '', selected_dates: [] }))}
-                    style={{ padding: '8px 16px', borderRadius: 'calc(var(--radius-sm) - 2px)', fontSize: '0.85rem', fontWeight: '700', border: 'none', background: newVisitForm.schedule_mode === 'single' ? 'var(--card-bg)' : 'transparent', color: newVisitForm.schedule_mode === 'single' ? 'var(--text-primary)' : 'var(--text-muted)', boxShadow: newVisitForm.schedule_mode === 'single' ? 'var(--shadow-sm)' : 'none', cursor: 'pointer' }}
-                  >
-                    Single Day
-                  </button>
-                  <button 
-                    className={newVisitForm.schedule_mode === 'range' ? 'active' : ''} 
-                    onClick={() => setNewVisitForm(prev => ({ ...prev, schedule_mode: 'range', selected_dates: [] }))}
-                    style={{ padding: '8px 16px', borderRadius: 'calc(var(--radius-sm) - 2px)', fontSize: '0.85rem', fontWeight: '700', border: 'none', background: newVisitForm.schedule_mode === 'range' ? 'var(--card-bg)' : 'transparent', color: newVisitForm.schedule_mode === 'range' ? 'var(--text-primary)' : 'var(--text-muted)', boxShadow: newVisitForm.schedule_mode === 'range' ? 'var(--shadow-sm)' : 'none', cursor: 'pointer' }}
-                  >
-                    Date Range
-                  </button>
-                  <button 
-                    className={newVisitForm.schedule_mode === 'pick_days' ? 'active' : ''} 
-                    onClick={() => setNewVisitForm(prev => ({ ...prev, schedule_mode: 'pick_days', start_date: '', end_date: '' }))}
-                    style={{ padding: '8px 16px', borderRadius: 'calc(var(--radius-sm) - 2px)', fontSize: '0.85rem', fontWeight: '700', border: 'none', background: newVisitForm.schedule_mode === 'pick_days' ? 'var(--card-bg)' : 'transparent', color: newVisitForm.schedule_mode === 'pick_days' ? 'var(--text-primary)' : 'var(--text-muted)', boxShadow: newVisitForm.schedule_mode === 'pick_days' ? 'var(--shadow-sm)' : 'none', cursor: 'pointer' }}
-                  >
-                    Pick Days
-                  </button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-main)' }}>Visit Dates *</label>
                 </div>
 
-                {newVisitForm.schedule_mode === 'single' && (
-                  <div className="field">
-                    <label>Date *</label>
-                    <input
-                      type="date"
-                      value={newVisitForm.start_date}
-                      onChange={(e) => setNewVisitForm(prev => ({ ...prev, start_date: e.target.value }))}
-                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
-                    />
-                  </div>
-                )}
-
-                {newVisitForm.schedule_mode === 'range' && (
-                  <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--card-bg-muted)', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                  
+                  {/* Quick Range Helper */}
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', paddingBottom: '12px', borderBottom: '1px solid var(--border-soft)' }}>
                     <div className="field" style={{ flex: 1 }}>
-                      <label>Start Date *</label>
+                      <label style={{ fontSize: '0.75rem' }}>Auto-select from</label>
                       <input
                         type="date"
-                        value={newVisitForm.start_date}
-                        onChange={(e) => setNewVisitForm(prev => ({ ...prev, start_date: e.target.value }))}
-                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+                        value={newVisitForm.range_start}
+                        onChange={(e) => setNewVisitForm(prev => ({ ...prev, range_start: e.target.value }))}
+                        style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-soft)', fontSize: '0.8rem' }}
                       />
                     </div>
                     <div className="field" style={{ flex: 1 }}>
-                      <label>End Date *</label>
+                      <label style={{ fontSize: '0.75rem' }}>to</label>
                       <input
                         type="date"
-                        value={newVisitForm.end_date}
-                        onChange={(e) => setNewVisitForm(prev => ({ ...prev, end_date: e.target.value }))}
-                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+                        value={newVisitForm.range_end}
+                        onChange={(e) => setNewVisitForm(prev => ({ ...prev, range_end: e.target.value }))}
+                        style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-soft)', fontSize: '0.8rem' }}
                       />
                     </div>
-                  </div>
-                )}
-
-                {newVisitForm.schedule_mode === 'pick_days' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <DatePickerGrid
-                      selectedDates={newVisitForm.selected_dates}
-                      onDateToggle={(dateStr) => {
+                    <button 
+                      className="button-secondary" 
+                      style={{ padding: '8px 12px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (!newVisitForm.range_start || !newVisitForm.range_end) return;
+                        const start = new Date(newVisitForm.range_start + 'T00:00:00');
+                        const end = new Date(newVisitForm.range_end + 'T00:00:00');
+                        if (end < start) return;
+                        const dates = [];
+                        let curr = new Date(start);
+                        while (curr <= end && dates.length < 14) {
+                          const y = curr.getFullYear();
+                          const m = String(curr.getMonth() + 1).padStart(2, '0');
+                          const d = String(curr.getDate()).padStart(2, '0');
+                          dates.push(`${y}-${m}-${d}`);
+                          curr.setDate(curr.getDate() + 1);
+                        }
                         setNewVisitForm(prev => {
-                          const current = prev.selected_dates || [];
-                          if (current.includes(dateStr)) {
-                            return { ...prev, selected_dates: current.filter(d => d !== dateStr) };
-                          }
-                          if (current.length >= 14) return prev;
-                          return { ...prev, selected_dates: [...current, dateStr] };
+                          const existing = new Set(prev.selected_dates);
+                          dates.forEach(d => existing.add(d));
+                          return { ...prev, selected_dates: Array.from(existing).sort().slice(0, 14), range_start: '', range_end: '' };
                         });
                       }}
-                      maxSelections={14}
-                    />
-                    <div className="date-picker-summary" style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--bg-muted)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)' }}>
-                          {newVisitForm.selected_dates.length}/14 days selected
-                        </span>
-                        {newVisitForm.selected_dates.length > 0 && (
-                          <button 
-                            onClick={() => setNewVisitForm(prev => ({ ...prev, selected_dates: [] }))}
-                            style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer' }}
-                          >
-                            Clear All
-                          </button>
-                        )}
-                      </div>
+                    >
+                      Apply
+                    </button>
+                  </div>
+
+                  <DatePickerGrid
+                    selectedDates={newVisitForm.selected_dates}
+                    onDateToggle={(dateStr) => {
+                      setNewVisitForm(prev => {
+                        const current = prev.selected_dates || [];
+                        if (current.includes(dateStr)) {
+                          return { ...prev, selected_dates: current.filter(d => d !== dateStr) };
+                        }
+                        if (current.length >= 14) return prev;
+                        return { ...prev, selected_dates: [...current, dateStr] };
+                      });
+                    }}
+                    maxSelections={14}
+                  />
+
+                  <div className="date-picker-summary" style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--bg-muted)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                        {newVisitForm.selected_dates.length}/14 days selected
+                      </span>
                       {newVisitForm.selected_dates.length > 0 && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                          {[...newVisitForm.selected_dates].sort().map(d => {
-                            const dateObj = new Date(d + 'T00:00:00');
-                            const shortStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                            return <span key={d} className="date-chip" style={{ fontSize: '0.75rem', background: 'var(--card-bg)', border: '1px solid var(--border-soft)', padding: '2px 8px', borderRadius: '12px', color: 'var(--text-main)' }}>{shortStr}</span>;
-                          })}
-                        </div>
+                        <button 
+                          onClick={(e) => { e.preventDefault(); setNewVisitForm(prev => ({ ...prev, selected_dates: [] })); }}
+                          style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer' }}
+                        >
+                          Clear All
+                        </button>
                       )}
                     </div>
+                    {newVisitForm.selected_dates.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {[...newVisitForm.selected_dates].sort().map(d => {
+                          const dateObj = new Date(d + 'T00:00:00');
+                          const shortStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                          return <span key={d} className="date-chip" style={{ fontSize: '0.75rem', background: 'var(--card-bg)', border: '1px solid var(--border-soft)', padding: '2px 8px', borderRadius: '12px', color: 'var(--text-main)' }}>{shortStr}</span>;
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Visit Window */}
@@ -4653,9 +4637,7 @@ const AdminDashboard = () => {
                   isCreatingVisit || 
                   !newVisitForm.client_id || 
                   (!newVisitForm.pet_names && newVisitForm.pet_ids.length === 0) ||
-                  (newVisitForm.schedule_mode === 'single' && !newVisitForm.start_date) ||
-                  (newVisitForm.schedule_mode === 'range' && (!newVisitForm.start_date || !newVisitForm.end_date)) ||
-                  (newVisitForm.schedule_mode === 'pick_days' && newVisitForm.selected_dates.length === 0)
+                  (newVisitForm.selected_dates.length === 0)
                 }
               >
                 {isCreatingVisit ? 'Creating...' : 'Create Visit'}
