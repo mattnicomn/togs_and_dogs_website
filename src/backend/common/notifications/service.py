@@ -106,6 +106,53 @@ def _write_ledger_entry(request_id, event_type, recipient, status, provider=None
         return None
 
 
+def _is_recent_duplicate(event_type, recipient, request_id, window_minutes=5):
+    """
+    Checks the notification ledger for a recent send matching the same
+    event_type + recipient + request_id within the dedup window.
+    Returns True if a duplicate exists (should skip), False otherwise.
+    Fail-open: if the query fails, returns False (allow send).
+    """
+    if not request_id or not recipient or not event_type:
+        return False
+        
+    try:
+        from common.db import table
+        from boto3.dynamodb.conditions import Key, Attr
+        from datetime import datetime, timezone, timedelta
+        
+        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=window_minutes)).isoformat()
+        recipient_clean = recipient.strip().lower()
+        
+        # Check for 'sent' status
+        resp = table.query(
+            IndexName='StatusIndex',
+            KeyConditionExpression=Key('status').eq('sent'),
+            FilterExpression=Attr('request_id').eq(request_id) & 
+                             Attr('event_type').eq(event_type) & 
+                             Attr('recipient_email').eq(recipient_clean) & 
+                             Attr('created_at').gt(cutoff)
+        )
+        if len(resp.get('Items', [])) > 0:
+            return True
+            
+        # Also check for dry-run/disabled skips
+        resp_skip = table.query(
+            IndexName='StatusIndex',
+            KeyConditionExpression=Key('status').eq('skipped_disabled'),
+            FilterExpression=Attr('request_id').eq(request_id) & 
+                             Attr('event_type').eq(event_type) & 
+                             Attr('recipient_email').eq(recipient_clean) & 
+                             Attr('created_at').gt(cutoff)
+        )
+        if len(resp_skip.get('Items', [])) > 0:
+            return True
+            
+        return False
+    except Exception as e:
+        print(f"WARNING: Dedup check failed (fail-open): {e}")
+        return False
+
 def _resolve_potential_recipients_with_reasons(event_type, record, config):
     """
     Analyzes potential recipients for an event type and identifies
@@ -275,6 +322,27 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
             msg = f"Approved. No recipients resolved for {event_type}."
             print(f"NOTIFICATION_IDLE: {msg}")
             return {"success": True, "message": msg}
+
+        # Multi-day dedup guard (Release 7F)
+        if event_type in ['STAFF_ASSIGNED', 'VISIT_SCHEDULED']:
+            valid_recipients = []
+            for r in recipients:
+                if _is_recent_duplicate(event_type, r, request_id):
+                    _write_ledger_entry(
+                        request_id=request_id,
+                        event_type=event_type,
+                        recipient=r,
+                        status='skipped_duplicate_window',
+                        provider='dedup',
+                        error_message='Skipped: recent duplicate notification in window',
+                        record=record
+                    )
+                else:
+                    valid_recipients.append(r)
+            recipients = valid_recipients
+            
+            if not recipients:
+                return {"success": True, "message": "Skipped: recent duplicate notification."}
 
         # 4. Get Templates
         is_welcome_event = event_type in ['WELCOME_INVITE_CLIENT', 'WELCOME_INVITE_STAFF', 'WELCOME_INVITE']
