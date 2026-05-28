@@ -383,6 +383,20 @@ const AdminDashboard = () => {
     
     return '';
   };
+
+  const getServiceLabel = (serviceType) => {
+    if (!serviceType) return 'UNKNOWN SERVICE';
+    const friendly = {
+      'WALK_30MIN': '30-Minute Walk',
+      'WALK_60MIN': '60-Minute Walk',
+      'DROPIN_1HR': '1-Hour Drop-in',
+      'DROPIN_3HR': '3-Hour Drop-in',
+      'OVERNIGHT': 'Overnight Care',
+      'PET_SITTING': 'Pet Sitting',
+      'MEET_GREET': 'Meet & Greet'
+    };
+    return friendly[serviceType] || serviceType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  };
   
   const getAccessStatus = (user) => {
     if (!user) return { label: 'No Data', class: 'status-no-login' };
@@ -3757,7 +3771,7 @@ const AdminDashboard = () => {
                               return `${pets} (${client})`;
                             })()}
                           </span>
-                          <span className="micro-text">{item.service_type || 'UNKNOWN SERVICE'}</span>
+                          <span className="micro-text">{getServiceLabel(item.service_type)}</span>
                         </div>
                       </td>
                       <td>
