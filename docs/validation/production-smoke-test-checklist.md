@@ -90,3 +90,53 @@ Verify that cancellations cascade to all occurrences, clean up calendars, and de
 - [ ] **Google Calendar Cleanup:** Confirm all 3 child calendar events have been successfully **deleted** from the assigned worker's Google Calendar.
 - [ ] **Client-Friendly Subject:** Review the `VISIT_CANCELLED` ledger entry or email. Confirm the subject line is client-oriented (e.g., *Your Overnight Care Visit Has Been Cancelled — Tog & Dogs*) and does not expose internal admin-oriented strings or raw user names in the subject line.
 - [ ] **Cancellation Ledger Entry:** Confirm a single cancellation notification record is written to the DynamoDB ledger table with status `sent`.
+
+---
+
+## 📋 Scenario D: Policy Pages & Acceptance Checkbox Validation
+
+Verify that direct navigation to policy pages works correctly, visual formatting displays cleanly, and the client-facing intake form requires legal acceptance before submission.
+
+### 1. Direct Policy Page Navigation
+- [ ] Navigate directly to the live production Terms of Use: `/terms` (e.g. `toganddogs.usmissionhero.com/terms`).
+- [ ] **Check Rendering & Version:** Confirm the page loads cleanly and displays the `Version v1.0` badge.
+- [ ] **Check Layout:** Confirm that bullet lists and numbered sections display with proper spacing and margins (verifying `whiteSpace: 'pre-line'` formatting works).
+- [ ] Navigate directly to the live production Privacy Policy: `/privacy`.
+- [ ] **Check Rendering & Version:** Confirm the page loads and displays the `Version v1.0` badge.
+- [ ] **Check Third-Party Grid:** Confirm the third-party integrations block (detailing Postmark, Google Calendar, AWS, and Cognito) renders formatting cleanly.
+
+### 2. Client Intake Acceptance Check
+- [ ] Open the public care booking form: `/book`.
+- [ ] Proceed through Steps 1 and 2 to reach Step 3 (Confirmation).
+- [ ] **Verify Checklist Links:** Confirm the checkbox label correctly displays links to the **Terms of Use** and **Privacy Policy** that open in a separate browser tab when clicked.
+- [ ] **Verify Required Field:** Leave the checkbox unchecked and click **Submit Request**.
+- [ ] **Confirm Blocked:** Confirm that the submission is blocked, a red validation error is displayed, and the submit button remains disabled.
+- [ ] Check the checkbox and click **Submit Request**. Confirm submission passes.
+
+---
+
+## 📋 Scenario E: Admin Selected-Date Multi-Day Booking Flow
+
+Verify that the administrative "Pick Days" calendar date selector works correctly, creates multiple child jobs, displays the Multi-Day row badge, and synchronizes individual events.
+
+### 1. Manual Booking Creation
+- [ ] Log in to the **Admin Dashboard**.
+- [ ] Click the **+ New Visit** button to open the administrative booking modal.
+- [ ] Choose a test client and pet. Select a service (e.g., *Pet Sitting*).
+- [ ] **Change Scheduling Mode:** Toggle the date selector to **Pick Days** mode.
+- [ ] Select three non-consecutive dates on the calendar picker grid (e.g. June 10, June 12, June 14, 2026).
+- [ ] Confirm the date range summary text displays the selected count correctly (e.g., *3 dates selected*).
+- [ ] Click **Create Booking**.
+
+### 2. Request List & Multi-Day Row Badge
+- [ ] Navigate to the **Request List** tab.
+- [ ] Locate the newly created booking.
+- [ ] **Verify Multi-Day Badge:** Confirm a styled, gray **Multi-Day** badge is displayed directly next to the date string.
+- [ ] **Verify Window Description:** Confirm the visit window is mapped to a readable label (e.g., *Morning (7–10 AM)* instead of raw `MORNING`).
+
+### 3. Google Calendar & Actions Validation
+- [ ] Open the Actions dropdown for this row.
+- [ ] **Keyboard dismiss:** Press the **Escape** key. Confirm the actions menu instantly closes.
+- [ ] Open the Actions dropdown again. Confirm screen readers announce descriptive contextual options (e.g., *Actions for [Pet Name]*).
+- [ ] Click **Assign** and select a test staff member.
+- [ ] **Google Calendar Sync:** Check the staff member's Google Calendar. Confirm exactly **three** individual calendar events are created (one for each of June 10, June 12, and June 14) with all care details synced.
