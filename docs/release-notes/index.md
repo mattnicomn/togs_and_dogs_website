@@ -3,6 +3,23 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 7T: Matthew Production Monitoring Checklist**](release-7t-validation-closeout.md) (2026-05-29) — ✅ **Accepted & Closed** — Docs only
+- [**Release 7S: Internal Hardening Tests**](release-7s-validation-closeout.md) (2026-05-29) — ✅ **Accepted & Closed** — Tests + gitignore cleanup, 28/28 passed
+- [**Release 7Q: Production Operations Readiness**](release-7q-validation-closeout.md) (2026-05-28) — ✅ **Accepted & Closed** — Docs only
+- [**Release 7P: Admin/Mobile UX Polish**](release-7p-validation-closeout.md) (2026-05-28) — ✅ **Deployed & Production Validated**
+- [**Release 7N: Terms & Privacy Policy Content**](release-7n-validation-closeout.md) (2026-05-28) — ✅ **Deployed & Production Validated**
+- [**Release 7M: Planning & Strategy Consolidation**](release-7m-validation-closeout.md) (2026-05-28) — ✅ **Accepted & Closed** — Docs only
+- [**Release 7L: Admin Request List Compact Date Display**](release-7l-admin-request-list-compact-date-display-polish-validation.md) (2026-05-27) — ✅ **Deployed & Production Validated**
+- [**Release 7K: Staff Assigned Multi-Day Email Hotfix**](release-7k-staff-assigned-multi-day-email-display-hotfix-validation.md) (2026-05-27) — ✅ **Deployed & Production Validated**
+- [**Release 7J: Notification Content Polish**](release-7j-notification-content-polish-validation.md) (2026-05-27) — ✅ **Deployed & Production Validated**
+- [**Release 7H: Admin Request List UI Polish**](release-7h-admin-request-list-ui-polish-validation.md) (2026-05-26) — ✅ **Deployed & Production Validated**
+- [**Release 7G: Multi-Day Assignment Handler Fix**](release-7g-multi-day-assignment-handler-fix-validation.md) (2026-05-26) — ✅ **Deployed & Production Validated**
+- [**Release 7F: Notification Dedup Stabilization**](release-7f-production-notifications-stabilization-validation.md) (2026-05-26) — ✅ **Deployed & Production Validated**
+- [**Release 7E: Multi-Day Visit Scheduling**](release-7e-multi-day-jobs-validation.md) (2026-05-25) — ✅ **Deployed & Production Validated**
+- [**Release 7D: Google Calendar Hardening**](release-7d-calendar-hardening-validation.md) (2026-05-25) — ✅ **Deployed & Production Validated**
+- [**Release 7C: Push Notification Backend Readiness**](release-7c-phase1-validation.md) (2026-05-24) — ✅ **Deployed & Production Validated**
+- [**Release 7B: Admin Data Cleanup & UX Hardening**](release-7b-phase-2-frontend-fallback-hardening-validation.md) (2026-05-24) — ✅ **Deployed & Production Validated**
+- [**Release 7A: Admin Offline Client Manual Booking**](release-7a-admin-offline-client-manual-booking-validation.md) (2026-05-23) — ✅ **Deployed & Production Validated**
 - [**Release 6H: Configurable Protected Admin Accounts**](release-6h-configurable-protected-admin-accounts.md) (2026-05-22) — ✅ **Deployed & Production Validated**
 - [**Release 6G: Staff Calendar Sync Reliability**](release-6g-staff-calendar-sync-reliability.md) (2026-05-22) — ✅ **Deployed & Production Validated**
 - [**Release 6F: Repeat Customer / Offline Client Booking**](release-6f-repeat-customer-offline-booking.md) (2026-05-22) — ✅ **Deployed & Production Validated**
