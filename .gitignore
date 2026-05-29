@@ -52,6 +52,7 @@ api_e2e_test.py
 
 # Kiro specs (untracked unless explicitly promoted)
 .kiro/specs/postmark-notifications/
+.kiro/specs/terms-and-privacy-policy/
 
 # Validation scripts (one-off, not committed)
 cw_*.ps1
