@@ -4691,31 +4691,30 @@ const AdminDashboard = () => {
                   <label style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-main)' }}>Visit Dates *</label>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--card-bg-muted)', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <div className="intake-date-picker-card">
                   
                   {/* Quick Range Helper */}
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', paddingBottom: '12px', borderBottom: '1px solid var(--border-soft)' }}>
-                    <div className="field" style={{ flex: 1 }}>
+                  <div className="range-helper-container range-helper-row" style={{ paddingBottom: '12px', borderBottom: '1px solid var(--border-soft)' }}>
+                    <div className="field range-helper-field">
                       <label style={{ fontSize: '0.75rem' }}>Auto-select from</label>
                       <input
                         type="date"
                         value={newVisitForm.range_start}
                         onChange={(e) => setNewVisitForm(prev => ({ ...prev, range_start: e.target.value }))}
-                        style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-soft)', fontSize: '0.8rem' }}
+                        className="range-helper-input"
                       />
                     </div>
-                    <div className="field" style={{ flex: 1 }}>
+                    <div className="field range-helper-field">
                       <label style={{ fontSize: '0.75rem' }}>to</label>
                       <input
                         type="date"
                         value={newVisitForm.range_end}
                         onChange={(e) => setNewVisitForm(prev => ({ ...prev, range_end: e.target.value }))}
-                        style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-soft)', fontSize: '0.8rem' }}
+                        className="range-helper-input"
                       />
                     </div>
                     <button 
-                      className="button-secondary" 
-                      style={{ padding: '8px 12px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                      className="button-secondary btn-range-autofill" 
                       onClick={(e) => {
                         e.preventDefault();
                         if (!newVisitForm.range_start || !newVisitForm.range_end) return;
@@ -4757,26 +4756,26 @@ const AdminDashboard = () => {
                     maxSelections={14}
                   />
 
-                  <div className="date-picker-summary" style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--bg-muted)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                  <div className="date-picker-summary-container">
+                    <div className="date-picker-summary-header">
+                      <span className="date-picker-summary-title">
                         {newVisitForm.selected_dates.length}/14 days selected
                       </span>
                       {newVisitForm.selected_dates.length > 0 && (
                         <button 
                           onClick={(e) => { e.preventDefault(); setNewVisitForm(prev => ({ ...prev, selected_dates: [] })); }}
-                          style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer' }}
+                          className="btn-clear-dates"
                         >
                           Clear All
                         </button>
                       )}
                     </div>
                     {newVisitForm.selected_dates.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      <div className="date-chip-list">
                         {[...newVisitForm.selected_dates].sort().map(d => {
                           const dateObj = new Date(d + 'T00:00:00');
                           const shortStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                          return <span key={d} className="date-chip" style={{ fontSize: '0.75rem', background: 'var(--card-bg)', border: '1px solid var(--border-soft)', padding: '2px 8px', borderRadius: '12px', color: 'var(--text-main)' }}>{shortStr}</span>;
+                          return <span key={d} className="date-chip">{shortStr}</span>;
                         })}
                       </div>
                     )}

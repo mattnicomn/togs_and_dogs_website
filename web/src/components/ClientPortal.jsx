@@ -175,16 +175,15 @@ const ClientPortal = () => {
 
   return (
     <div className="client-portal">
-      <div className="portal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+      <div className="portal-header">
         <div>
-          <h1 style={{ fontSize: '2.5rem', marginBottom: '8px' }}>My Bookings</h1>
-          <p className="subtitle" style={{ color: 'var(--text-muted)' }}>View and manage your pet sitting schedule.</p>
+          <h1>My Bookings</h1>
+          <p className="subtitle">View and manage your pet sitting schedule.</p>
         </div>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+        <div className="portal-header-actions">
           <button 
             onClick={() => window.location.href = '/book'} 
-            className="button-primary"
-            style={{ padding: '10px 24px', borderRadius: '12px', fontSize: '0.95rem' }}
+            className="button-primary btn-new-request"
           >
             + New Request
           </button>
@@ -193,26 +192,25 @@ const ClientPortal = () => {
       </div>
 
       {error && (
-        <div className="card" style={{ backgroundColor: 'rgba(214, 73, 51, 0.05)', borderColor: 'var(--warning-color)', marginBottom: '24px', padding: '20px' }}>
-          <p style={{ color: 'var(--warning-color)', textAlign: 'center', margin: 0 }}>{error}</p>
+        <div className="card error-card">
+          <p className="error-text">{error}</p>
         </div>
       )}
 
-      <div className="bookings-list" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div className="bookings-list">
         {loading ? (
-          <div className="card" style={{ textAlign: 'center', padding: '60px' }}>
+          <div className="card loading-card">
             <p>Loading your schedule...</p>
           </div>
         ) : (
           requests.length === 0 ? (
-            <div className="card" style={{ textAlign: 'center', padding: '60px' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🐾</div>
+            <div className="card empty-bookings-card">
+              <div className="empty-bookings-icon">🐾</div>
               <h3>No bookings yet</h3>
-              <p style={{ color: 'var(--text-muted)', marginTop: '12px' }}>When you submit care requests, they will appear here.</p>
+              <p className="empty-bookings-text">When you submit care requests, they will appear here.</p>
               <button 
                 onClick={() => window.location.href = '/book'} 
-                className="button-secondary"
-                style={{ marginTop: '24px' }}
+                className="button-secondary btn-first-visit"
               >
                 Request Your First Visit
               </button>
@@ -225,61 +223,50 @@ const ClientPortal = () => {
               const petNames = req.pet_names || req.pet_name || "---";
 
               return (
-                <div key={req.PK || req.request_id} className="booking-card card" style={{ padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
-                  <div className="booking-info" style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-                    <div className="booking-date-box" style={{ textAlign: 'center', background: 'var(--bg-muted)', padding: '12px', borderRadius: '12px', minWidth: '100px' }}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', opacity: 0.6 }}>{new Date(req.start_date).toLocaleDateString(undefined, { weekday: 'short' })}</div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>{new Date(req.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
+                <div key={req.PK || req.request_id} className="booking-card card">
+                  <div className="booking-info">
+                    <div className="booking-date-box">
+                      <div className="booking-date-weekday">{new Date(req.start_date).toLocaleDateString(undefined, { weekday: 'short' })}</div>
+                      <div className="booking-date-day">{new Date(req.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
                     </div>
                     
                     <div className="booking-main-details">
-                      <h4 style={{ marginBottom: '4px' }}>{req.service_type?.replace(/_/g, ' ') || 'Pet Care Visit'}</h4>
-                      <div style={{ display: 'flex', gap: '12px', fontSize: '0.9rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                      <h4>{req.service_type?.replace(/_/g, ' ') || 'Pet Care Visit'}</h4>
+                      <div className="booking-meta-row">
                         <span>🐕 <strong>{petNames}</strong></span>
                         {req.visit_window && <span>⏰ {req.visit_window}</span>}
                         {req.preferred_time && !req.visit_window && <span>⏰ {req.preferred_time}</span>}
                         {isScheduled && req.worker_name && (
-                          <span style={{ color: 'var(--primary)', fontWeight: '600' }}>👤 {req.worker_name}</span>
+                          <span className="booking-worker-label">👤 {req.worker_name}</span>
                         )}
                         {isScheduled && !req.worker_name && (
-                          <span style={{ color: 'var(--primary)', fontWeight: '600' }}>👤 Tog & Dogs Team</span>
+                          <span className="booking-worker-label">👤 Tog & Dogs Team</span>
                         )}
                       </div>
                       {status.msg && (
-                        <p style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic', maxWidth: '400px' }}>
+                        <p className="booking-status-msg">
                           {status.msg}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  <div className="booking-status-actions" style={{ display: 'flex', alignItems: 'center', gap: '24px', marginLeft: 'auto' }}>
-                    <span style={{ 
-                      padding: '6px 16px', 
-                      borderRadius: '99px', 
-                      fontSize: '0.8rem', 
-                      fontWeight: '700', 
-                      backgroundColor: status.bg, 
-                      color: status.color,
-                      whiteSpace: 'nowrap'
-                    }}>
+                  <div className="booking-status-actions">
+                    <span 
+                      className="booking-status-badge"
+                      style={{ 
+                        backgroundColor: status.bg, 
+                        color: status.color,
+                      }}
+                    >
                       {status.label}
                     </span>
 
                     <div className="booking-actions">
                       {canCancel && (
                         <button 
-                          className="btn-cancel" 
+                          className="btn-cancel-custom" 
                           onClick={() => handleCancelRequest(req)}
-                          style={{ 
-                            background: 'transparent', 
-                            border: '1px solid var(--border-soft)', 
-                            padding: '8px 16px', 
-                            borderRadius: '8px', 
-                            fontSize: '0.85rem', 
-                            cursor: 'pointer',
-                            color: 'var(--warning-color)'
-                          }}
                         >
                           Cancel
                         </button>

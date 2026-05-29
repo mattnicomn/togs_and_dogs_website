@@ -240,35 +240,34 @@ const IntakeForm = () => {
 
                 <div className="field" style={{ marginBottom: '24px' }}>
                   <label>Visit Dates *</label>
-                  <div style={{ marginTop: '8px', background: 'var(--card-bg-muted, #f8f9fa)', padding: '16px', borderRadius: 'var(--radius-md, 8px)', border: '1px solid var(--border-color, #dee2e6)' }}>
+                  <div className="intake-date-picker-card">
                     
                     {/* Client-friendly Range Helper */}
-                    <div style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border-soft, #e9ecef)', marginBottom: '16px' }}>
+                    <div className="range-helper-container">
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #6c757d)', marginBottom: '12px' }}>
                         Need care for multiple days in a row? Choose a start and end date to auto-fill the calendar below.
                       </p>
-                      <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                        <div className="field" style={{ flex: '1 1 120px', marginBottom: 0 }}>
+                      <div className="range-helper-row">
+                        <div className="field range-helper-field">
                           <label style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Start Date</label>
                           <input
                             type="date"
                             value={formData.range_start || ''}
                             onChange={(e) => setFormData(prev => ({ ...prev, range_start: e.target.value }))}
-                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft, #dee2e6)' }}
+                            className="range-helper-input"
                           />
                         </div>
-                        <div className="field" style={{ flex: '1 1 120px', marginBottom: 0 }}>
+                        <div className="field range-helper-field">
                           <label style={{ fontSize: '0.75rem', marginBottom: '4px' }}>End Date</label>
                           <input
                             type="date"
                             value={formData.range_end || ''}
                             onChange={(e) => setFormData(prev => ({ ...prev, range_end: e.target.value }))}
-                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft, #dee2e6)' }}
+                            className="range-helper-input"
                           />
                         </div>
                         <button 
-                          className="button-secondary" 
-                          style={{ padding: '10px 16px', whiteSpace: 'nowrap', borderRadius: '8px', flex: '0 0 auto' }}
+                          className="button-secondary btn-range-autofill" 
                           onClick={(e) => {
                             e.preventDefault();
                             if (!formData.range_start || !formData.range_end) return;
@@ -310,27 +309,27 @@ const IntakeForm = () => {
                       }}
                       maxSelections={14}
                     />
-                    <div className="date-picker-summary" style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--bg-muted, #f1f3f5)', padding: '12px', borderRadius: 'var(--radius-sm, 6px)', marginTop: '12px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary, #333)' }}>
+                    <div className="date-picker-summary-container">
+                      <div className="date-picker-summary-header">
+                        <span className="date-picker-summary-title">
                           {(formData.selected_dates || []).length}/14 days selected
                         </span>
                         {(formData.selected_dates || []).length > 0 && (
                           <button 
                             type="button"
                             onClick={() => setFormData(prev => ({ ...prev, selected_dates: [] }))}
-                            style={{ background: 'none', border: 'none', color: 'var(--primary, #007bff)', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer' }}
+                            className="btn-clear-dates"
                           >
                             Start Over
                           </button>
                         )}
                       </div>
                       {(formData.selected_dates || []).length > 0 && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        <div className="date-chip-list">
                           {[...(formData.selected_dates || [])].sort().map(d => {
                             const dateObj = new Date(d + 'T00:00:00');
                             const shortStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                            return <span key={d} className="date-chip" style={{ fontSize: '0.75rem', background: 'var(--card-bg, #fff)', border: '1px solid var(--border-soft, #dee2e6)', padding: '2px 8px', borderRadius: '12px', color: 'var(--text-main, #495057)' }}>{shortStr}</span>;
+                            return <span key={d} className="date-chip">{shortStr}</span>;
                           })}
                         </div>
                       )}

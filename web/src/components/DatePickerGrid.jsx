@@ -88,11 +88,11 @@ const DatePickerGrid = ({ selectedDates = [], onDateToggle, maxSelections = 14, 
   };
 
   return (
-    <div className="date-picker-grid-container" style={{ width: '100%', maxWidth: '320px', margin: '0 auto' }}>
-      <div className="date-picker-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-        <button onClick={handlePrevMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', fontSize: '1.2rem', color: 'var(--text-muted)' }}>&lt;</button>
-        <span style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)' }}>{getMonthName(month)} {year}</span>
-        <button onClick={handleNextMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', fontSize: '1.2rem', color: 'var(--text-muted)' }}>&gt;</button>
+    <div className="date-picker-grid-container">
+      <div className="date-picker-header">
+        <button onClick={handlePrevMonth} className="btn-month-nav prev" aria-label="Previous Month">&lt;</button>
+        <span className="date-picker-month-title">{getMonthName(month)} {year}</span>
+        <button onClick={handleNextMonth} className="btn-month-nav next" aria-label="Next Month">&gt;</button>
       </div>
       
       <div className="date-picker-grid">
