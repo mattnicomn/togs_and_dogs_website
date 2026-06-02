@@ -32,6 +32,8 @@ export const RequestListScreen = () => {
   const filters: FilterPill[] = [
     { label: 'Pending', status: 'PENDING_REVIEW' },
     { label: 'Approved', status: 'APPROVED' },
+    { label: 'Assigned', status: 'ASSIGNED' },
+    { label: 'All Active', status: 'ALL' },
     { label: 'Completed', status: 'COMPLETED' },
     { label: 'Cancelled', status: 'CANCELLED' },
   ];

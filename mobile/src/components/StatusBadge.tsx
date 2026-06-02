@@ -16,10 +16,10 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
     badgeStyles = styles.badgeApproved;
     textStyles = styles.textApproved;
     label = 'APPROVED';
-  } else if (normalizedStatus === 'ASSIGNED' || normalizedStatus === 'JOB_CREATED') {
+  } else if (normalizedStatus === 'ASSIGNED' || normalizedStatus === 'SCHEDULED' || normalizedStatus === 'JOB_CREATED') {
     badgeStyles = styles.badgeAssigned;
     textStyles = styles.textAssigned;
-    label = 'ASSIGNED';
+    label = normalizedStatus === 'JOB_CREATED' ? 'ASSIGNED' : normalizedStatus;
   } else if (['CANCELLED', 'REJECTED', 'DECLINED'].includes(normalizedStatus)) {
     badgeStyles = styles.badgeCancelled;
     textStyles = styles.textCancelled;

@@ -1,31 +1,221 @@
-import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/useAuth';
+import { getAdminRequests } from '../api/client';
+import { PetRequest } from '../types';
+import { StatusBadge } from '../components/StatusBadge';
 import { COLORS } from '../theme/colors';
 
+interface ExpandedVisit {
+  request_id: string;
+  client_id: string;
+  client_name: string;
+  pet_name: string;
+  service_type: string;
+  date: string;
+  timeframe: string;
+  status: string;
+  worker_name?: string;
+  assigned_sitter?: string;
+}
+
 export const ScheduleScreen = () => {
-  const { logout } = useAuth();
+  const { logout, role } = useAuth();
+  const [visits, setVisits] = useState<ExpandedVisit[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const formatServiceType = (service: string) => {
+    return (service || '')
+      .split('_')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+  };
+
+  const formatDisplayDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const dateObj = new Date(dateStr + 'T00:00:00');
+    return dateObj.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const fetchSchedule = useCallback(async (showRefreshingIndicator = false) => {
+    if (showRefreshingIndicator) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+    setError(null);
+
+    try {
+      const data = await getAdminRequests('ALL');
+      const requestList = Array.isArray(data) ? data : data.requests || [];
+      
+      // Filter for active bookings
+      const activeStatuses = ['APPROVED', 'ASSIGNED', 'SCHEDULED', 'JOB_CREATED'];
+      const activeRequests = requestList.filter((r: PetRequest) => activeStatuses.includes(r.status));
+
+      const getLocalDateString = (d: Date = new Date()) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const date = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${date}`;
+      };
+      
+      const todayStr = getLocalDateString();
+      const expanded: ExpandedVisit[] = [];
+
+      activeRequests.forEach((req: PetRequest) => {
+        if (req.selected_dates && Array.isArray(req.selected_dates)) {
+          req.selected_dates.forEach((dateStr: string) => {
+            if (dateStr >= todayStr) {
+              expanded.push({
+                request_id: req.request_id,
+                client_id: req.client_id,
+                client_name: req.client_name,
+                pet_name: req.pet_name,
+                service_type: req.service_type,
+                date: dateStr,
+                timeframe: req.timeframe || 'Anytime',
+                status: req.status,
+                worker_name: req.worker_name,
+                assigned_sitter: req.assigned_sitter,
+              });
+            }
+          });
+        }
+      });
+
+      // Sort chronologically by date
+      expanded.sort((a, b) => a.date.localeCompare(b.date));
+      setVisits(expanded);
+    } catch (e: any) {
+      setError(e.message || 'Failed to retrieve dispatch schedule. Please retry.');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSchedule();
+  }, [fetchSchedule]);
+
+  const handleRefresh = () => {
+    fetchSchedule(true);
+  };
+
+  const renderVisitCard = ({ item }: { item: ExpandedVisit }) => {
+    return (
+      <View style={styles.visitCard}>
+        <View style={styles.visitHeader}>
+          <Text style={styles.visitDateText}>{formatDisplayDate(item.date)}</Text>
+          <StatusBadge status={item.status} />
+        </View>
+        
+        <View style={styles.visitBody}>
+          <Text style={styles.clientPetText}>🐾 {item.pet_name} ({item.client_name})</Text>
+          
+          <View style={styles.visitDetails}>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Service:</Text>
+              <Text style={styles.detailValue}>{formatServiceType(item.service_type)}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Window:</Text>
+              <Text style={styles.detailValue}>{item.timeframe}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Staff:</Text>
+              <Text style={styles.detailValue}>
+                👤 {item.worker_name || item.assigned_sitter || 'Unassigned'}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Daily Schedule</Text>
-        <Text style={styles.subtitle}>Visits and pet care assignments</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.title}>
+            {role === 'staff' ? 'My Schedule' : 'Dispatch Schedule'}
+          </Text>
+          <Text style={styles.subtitle}>Visits and pet care assignments</Text>
+        </View>
+        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+          <Text style={styles.logoutText}>Log Out</Text>
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.placeholderCard}>
-        <Text style={styles.placeholderIcon}>🗓️</Text>
-        <Text style={styles.placeholderTitle}>Staff Visits Calendar</Text>
-        <Text style={styles.placeholderText}>
-          Your daily schedule list will render here.
-          This placeholder verifies the tab router correctly segments staff-specific screens and permissions.
-        </Text>
-      </View>
-
-      <TouchableOpacity style={styles.button} onPress={logout}>
-        <Text style={styles.buttonText}>Log Out</Text>
-      </TouchableOpacity>
+      {isLoading ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Loading calendar schedule...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.centerContainer}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => fetchSchedule()}>
+            <Text style={styles.retryText}>Retry Connection</Text>
+          </TouchableOpacity>
+        </View>
+      ) : visits.length === 0 ? (
+        <FlatList
+          data={[]}
+          renderItem={null}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.primary}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>🗓️</Text>
+              <Text style={styles.emptyTitle}>No Upcoming Visits</Text>
+              <Text style={styles.emptySub}>
+                No scheduled visits or active pet care assignments for today or upcoming dates.
+              </Text>
+            </View>
+          }
+          contentContainerStyle={styles.listContent}
+        />
+      ) : (
+        <FlatList
+          data={visits}
+          keyExtractor={(item, index) => `${item.request_id}-${item.date}-${index}`}
+          renderItem={renderVisitCard}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.primary}
+            />
+          }
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -34,10 +224,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-    padding: 24,
   },
   header: {
-    marginBottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderSoft,
+  },
+  headerLeft: {
+    flex: 1,
   },
   title: {
     fontSize: 24,
@@ -45,52 +244,139 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.textMuted,
-    marginTop: 4,
+    marginTop: 2,
     fontWeight: '600',
   },
-  placeholderCard: {
-    backgroundColor: COLORS.cardBg,
-    borderRadius: 12,
-    padding: 32,
+  logoutBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+    backgroundColor: 'transparent',
+  },
+  logoutText: {
+    color: COLORS.danger,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  centerContainer: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.borderSoft,
-    shadowColor: COLORS.text,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
-    shadowRadius: 8,
-    elevation: 2,
-    marginBottom: 32,
+    padding: 32,
   },
-  placeholderIcon: {
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: COLORS.textMuted,
+    fontWeight: '600',
+  },
+  errorIcon: {
     fontSize: 48,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  placeholderTitle: {
+  errorText: {
+    fontSize: 14,
+    color: COLORS.danger,
+    textAlign: 'center',
+    lineHeight: 20,
+    fontWeight: '600',
+    marginBottom: 20,
+  },
+  retryBtn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 80,
+  },
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+    opacity: 0.8,
+  },
+  emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: COLORS.text,
     marginBottom: 8,
   },
-  placeholderText: {
-    fontSize: 14,
+  emptySub: {
+    fontSize: 13,
     color: COLORS.textMuted,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 18,
+    paddingHorizontal: 32,
   },
-  button: {
-    backgroundColor: COLORS.danger,
-    borderRadius: 8,
-    paddingVertical: 14,
+  listContent: {
+    padding: 24,
+    flexGrow: 1,
+  },
+  visitCard: {
+    backgroundColor: COLORS.cardBg,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
+    shadowColor: COLORS.text,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  visitHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 'auto',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderSoft,
+    paddingBottom: 10,
+    marginBottom: 10,
   },
-  buttonText: {
-    color: COLORS.white,
-    fontSize: 16,
+  visitDateText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  visitBody: {
+    gap: 8,
+  },
+  clientPetText: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '800',
+  },
+  visitDetails: {
+    gap: 4,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailLabel: {
+    fontSize: 13,
     fontWeight: '700',
+    color: COLORS.textMuted,
+    width: 80,
+  },
+  detailValue: {
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: '600',
+    flex: 1,
   },
 });

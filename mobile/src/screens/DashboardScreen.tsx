@@ -1,25 +1,73 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/useAuth';
 import { getAdminRequests } from '../api/client';
 import { COLORS } from '../theme/colors';
 import { useFocusEffect } from '@react-navigation/native';
+import { PetRequest } from '../types';
 
 export const DashboardScreen = () => {
   const { user, role, logout } = useAuth();
-  const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const [stats, setStats] = useState<{
+    pending: number;
+    approved: number;
+    assigned: number;
+    todayVisits: number;
+    weekVisits: number;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchPendingCount = async () => {
+  const fetchDashboardStats = async () => {
     setIsLoading(true);
     try {
-      const data = await getAdminRequests('PENDING_REVIEW');
-      const list = Array.isArray(data) ? data : data.requests || [];
-      setPendingCount(list.length);
+      const data = await getAdminRequests('ALL');
+      const list: PetRequest[] = Array.isArray(data) ? data : data.requests || [];
+      
+      const pending = list.filter(r => r.status === 'PENDING_REVIEW').length;
+      const approved = list.filter(r => r.status === 'APPROVED').length;
+      const assigned = list.filter(r => r.status === 'ASSIGNED' || r.status === 'SCHEDULED' || r.status === 'JOB_CREATED').length;
+      
+      const getLocalDateString = (d: Date) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const date = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${date}`;
+      };
+      
+      const today = new Date();
+      const todayStr = getLocalDateString(today);
+      
+      const sevenDaysLater = new Date();
+      sevenDaysLater.setDate(today.getDate() + 6); // next 7 days inclusive of today
+      const sevenDaysLaterStr = getLocalDateString(sevenDaysLater);
+      
+      let todayVisits = 0;
+      let weekVisits = 0;
+      
+      list.forEach(r => {
+        if (r.selected_dates && Array.isArray(r.selected_dates)) {
+          r.selected_dates.forEach(dateStr => {
+            if (dateStr === todayStr) {
+              todayVisits++;
+            }
+            if (dateStr >= todayStr && dateStr <= sevenDaysLaterStr) {
+              weekVisits++;
+            }
+          });
+        }
+      });
+      
+      setStats({
+        pending,
+        approved,
+        assigned,
+        todayVisits,
+        weekVisits
+      });
     } catch (e) {
-      console.warn('Failed to retrieve pending counts for dashboard', e);
-      setPendingCount(null);
+      console.warn('Failed to retrieve dashboard stats', e);
+      setStats(null);
     } finally {
       setIsLoading(false);
     }
@@ -27,54 +75,102 @@ export const DashboardScreen = () => {
 
   useFocusEffect(
     React.useCallback(() => {
-      fetchPendingCount();
+      fetchDashboardStats();
     }, [])
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Admin Dashboard</Text>
-        <Text style={styles.subtitle}>Welcome back, Ryan</Text>
-      </View>
-
-      <View style={styles.statsGrid}>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Pending Reviews</Text>
-          {isLoading ? (
-            <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
-          ) : (
-            <Text style={styles.statValue}>
-              {pendingCount !== null ? pendingCount : '--'}
-            </Text>
-          )}
-          <Text style={styles.statSubText}>Intake queue items</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Admin Dashboard</Text>
+          <Text style={styles.subtitle}>Welcome back, Ryan</Text>
         </View>
-      </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardHeader}>User Identity Details</Text>
-        <View style={styles.row}>
-          <Text style={styles.label}>Active Email:</Text>
-          <Text style={styles.value}>{user}</Text>
+        {/* Stats Grid */}
+        <View style={styles.statsGrid}>
+          {/* Row 1 */}
+          <View style={styles.statsRow}>
+            <View style={styles.statCardHalf}>
+              <Text style={styles.statLabel}>Pending Review</Text>
+              {isLoading ? (
+                <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
+              ) : (
+                <Text style={styles.statValue}>{stats !== null ? stats.pending : '--'}</Text>
+              )}
+              <Text style={styles.statSubText}>Intake queue items</Text>
+            </View>
+
+            <View style={styles.statCardHalf}>
+              <Text style={styles.statLabel}>Needs Sitter</Text>
+              {isLoading ? (
+                <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
+              ) : (
+                <Text style={styles.statValue}>{stats !== null ? stats.approved : '--'}</Text>
+              )}
+              <Text style={styles.statSubText}>Approved requests</Text>
+            </View>
+          </View>
+
+          {/* Row 2 */}
+          <View style={styles.statsRow}>
+            <View style={styles.statCardHalf}>
+              <Text style={styles.statLabel}>Scheduled</Text>
+              {isLoading ? (
+                <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
+              ) : (
+                <Text style={styles.statValue}>{stats !== null ? stats.assigned : '--'}</Text>
+              )}
+              <Text style={styles.statSubText}>Assigned bookings</Text>
+            </View>
+
+            <View style={styles.statCardHalf}>
+              <Text style={styles.statLabel}>Today's Visits</Text>
+              {isLoading ? (
+                <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
+              ) : (
+                <Text style={[styles.statValue, { color: COLORS.success }]}>{stats !== null ? stats.todayVisits : '--'}</Text>
+              )}
+              <Text style={styles.statSubText}>Scheduled for today</Text>
+            </View>
+          </View>
+
+          {/* Row 3 - Full Width */}
+          <View style={styles.statCardFull}>
+            <Text style={styles.statLabel}>This Week's Visits</Text>
+            {isLoading ? (
+              <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
+            ) : (
+              <Text style={[styles.statValue, { color: COLORS.primary }]}>{stats !== null ? stats.weekVisits : '--'}</Text>
+            )}
+            <Text style={styles.statSubText}>Next 7 days visits</Text>
+          </View>
         </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Effective Role:</Text>
-          <Text style={styles.roleBadge}>{role}</Text>
+
+        <View style={styles.card}>
+          <Text style={styles.cardHeader}>User Identity Details</Text>
+          <View style={styles.row}>
+            <Text style={styles.label}>Active Email:</Text>
+            <Text style={styles.value}>{user}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Effective Role:</Text>
+            <Text style={styles.roleBadge}>{role}</Text>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.infoCard}>
-        <Text style={styles.infoTitle}>🚀 Mobile Operations Active</Text>
-        <Text style={styles.infoText}>
-          Connected directly to the live production API Gateway. 
-          Intake request statistics are successfully integrated.
-        </Text>
-      </View>
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>🚀 Mobile Operations Active</Text>
+          <Text style={styles.infoText}>
+            Connected directly to the live production API Gateway. 
+            All statistics and calendar features are live.
+          </Text>
+        </View>
 
-      <TouchableOpacity style={styles.button} onPress={logout}>
-        <Text style={styles.buttonText}>Log Out</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.button} onPress={logout}>
+          <Text style={styles.buttonText}>Log Out</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -83,6 +179,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  scrollContent: {
     padding: 24,
   },
   header: {
@@ -102,10 +200,17 @@ const styles = StyleSheet.create({
   statsGrid: {
     marginBottom: 20,
   },
-  statCard: {
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    gap: 12,
+  },
+  statCardHalf: {
+    flex: 1,
     backgroundColor: COLORS.cardBg,
     borderRadius: 12,
-    padding: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: COLORS.borderSoft,
     shadowColor: COLORS.text,
@@ -113,6 +218,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.02,
     shadowRadius: 8,
     elevation: 2,
+  },
+  statCardFull: {
+    backgroundColor: COLORS.cardBg,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
+    shadowColor: COLORS.text,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 8,
+    elevation: 2,
+    marginBottom: 12,
   },
   statLabel: {
     fontSize: 12,
@@ -122,17 +240,17 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   statValue: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
     color: COLORS.primary,
-    marginVertical: 8,
+    marginVertical: 6,
   },
   spinner: {
     marginVertical: 12,
     alignSelf: 'flex-start',
   },
   statSubText: {
-    fontSize: 12,
+    fontSize: 11,
     color: COLORS.textMuted,
     fontWeight: '600',
   },
@@ -208,7 +326,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 'auto',
+    marginBottom: 24,
   },
   buttonText: {
     color: COLORS.white,

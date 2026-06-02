@@ -12,6 +12,10 @@ export interface PetRequest {
   phone?: string;
   preferred_sitter?: string;
   timeframe?: string;
+  worker_name?: string;
+  assigned_sitter?: string;
+  worker_id?: string;
+  assigned_sitter_id?: string;
 }
 
 export interface Staff {

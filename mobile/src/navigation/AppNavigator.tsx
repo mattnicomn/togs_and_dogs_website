@@ -52,6 +52,16 @@ const AdminTabs = () => {
           ),
         }}
       />
+      <Tab.Screen
+        name="Schedule"
+        component={ScheduleScreen}
+        options={{
+          tabBarLabel: 'Schedule',
+          tabBarIcon: ({ color }) => (
+            <ActivityIndicator color={color} size="small" animating={false} />
+          ),
+        }}
+      />
     </Tab.Navigator>
   );
 };

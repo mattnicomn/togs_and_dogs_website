@@ -83,10 +83,22 @@ export const RequestCard: React.FC<RequestCardProps> = ({ request, onApproveSucc
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Dates:</Text>
-            <Text style={styles.value} numberOfLines={1}>
+            <Text style={styles.value}>
               {formatDateRange(request.selected_dates)}
             </Text>
           </View>
+          {request.timeframe ? (
+            <View style={styles.row}>
+              <Text style={styles.label}>Window:</Text>
+              <Text style={styles.value}>{request.timeframe}</Text>
+            </View>
+          ) : null}
+          {(request.worker_name || request.assigned_sitter) ? (
+            <View style={styles.row}>
+              <Text style={styles.label}>Staff:</Text>
+              <Text style={styles.value}>👤 {request.worker_name || request.assigned_sitter}</Text>
+            </View>
+          ) : null}
         </View>
 
         {expanded && (
