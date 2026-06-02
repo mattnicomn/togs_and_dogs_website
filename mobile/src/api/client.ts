@@ -48,3 +48,13 @@ export const getClients = () => request('/admin/clients', 'GET', null, true);
 // Public staffing options
 export const getStaffOptions = () => request('/requests', 'POST', { action: 'staff-options' });
 export const submitRequest = (data: any) => request('/requests', 'POST', data);
+
+// reviewRequest mutations
+export const reviewRequest = (requestId: string, clientId: string, status: string, reason = "") => 
+  request('/admin/review', 'POST', { 
+    request_id: requestId, 
+    client_id: clientId, 
+    status, 
+    reason 
+  }, true);
+

@@ -151,7 +151,7 @@ export const RequestListScreen = () => {
         <FlatList
           data={requests}
           keyExtractor={(item) => item.request_id}
-          renderItem={({ item }) => <RequestCard request={item} />}
+          renderItem={({ item }) => <RequestCard request={item} onApproveSuccess={handleRefresh} />}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}

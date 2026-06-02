@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/useAuth';
 import { getAdminRequests } from '../api/client';
 import { COLORS } from '../theme/colors';
+import { useFocusEffect } from '@react-navigation/native';
 
 export const DashboardScreen = () => {
   const { user, role, logout } = useAuth();
@@ -24,9 +25,11 @@ export const DashboardScreen = () => {
     }
   };
 
-  useEffect(() => {
-    fetchPendingCount();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchPendingCount();
+    }, [])
+  );
 
   return (
     <SafeAreaView style={styles.container}>

@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { PetRequest } from '../types';
 import { StatusBadge } from './StatusBadge';
+import { ConfirmationModal } from './ConfirmationModal';
+import { reviewRequest } from '../api/client';
+import { useAuth } from '../auth/useAuth';
 import { COLORS } from '../theme/colors';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -10,10 +13,15 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 interface RequestCardProps {
   request: PetRequest;
+  onApproveSuccess?: () => void;
 }
 
-export const RequestCard: React.FC<RequestCardProps> = ({ request }) => {
+export const RequestCard: React.FC<RequestCardProps> = ({ request, onApproveSuccess }) => {
+  const { logout } = useAuth();
   const [expanded, setExpanded] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isMutating, setIsMutating] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   const toggleExpand = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -33,73 +41,123 @@ export const RequestCard: React.FC<RequestCardProps> = ({ request }) => {
     return `${dates[0]} to ${dates[dates.length - 1]} (${dates.length} days)`;
   };
 
+  const handleApprove = async () => {
+    setMutationError(null);
+    setIsMutating(true);
+    try {
+      await reviewRequest(request.request_id, request.client_id, 'APPROVED');
+      setShowConfirmModal(false);
+      if (onApproveSuccess) {
+        onApproveSuccess();
+      }
+    } catch (error: any) {
+      const msg = error.message || '';
+      if (msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('expired')) {
+        // Safe redirect/session purge if token is expired/unauthorized
+        await logout();
+      } else {
+        setMutationError(msg || 'An error occurred during approval.');
+      }
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const isPending = request.status === 'PENDING_REVIEW';
+
   return (
-    <TouchableOpacity style={styles.card} onPress={toggleExpand} activeOpacity={0.7}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.clientName}>{request.client_name}</Text>
-          <Text style={styles.petText}>🐾 {request.pet_name}</Text>
+    <View style={styles.cardWrapper}>
+      <TouchableOpacity style={styles.card} onPress={toggleExpand} activeOpacity={0.7}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.clientName}>{request.client_name}</Text>
+            <Text style={styles.petText}>🐾 {request.pet_name}</Text>
+          </View>
+          <StatusBadge status={request.status} />
         </View>
-        <StatusBadge status={request.status} />
-      </View>
 
-      <View style={styles.details}>
-        <View style={styles.row}>
-          <Text style={styles.label}>Service:</Text>
-          <Text style={styles.value}>{formatServiceType(request.service_type)}</Text>
+        <View style={styles.details}>
+          <View style={styles.row}>
+            <Text style={styles.label}>Service:</Text>
+            <Text style={styles.value}>{formatServiceType(request.service_type)}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Dates:</Text>
+            <Text style={styles.value} numberOfLines={1}>
+              {formatDateRange(request.selected_dates)}
+            </Text>
+          </View>
         </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Dates:</Text>
-          <Text style={styles.value} numberOfLines={1}>
-            {formatDateRange(request.selected_dates)}
-          </Text>
-        </View>
-      </View>
 
-      {expanded && (
-        <View style={styles.expandedContent}>
-          {request.special_instructions ? (
-            <View style={styles.instructionsContainer}>
-              <Text style={styles.instructionLabel}>Special Instructions:</Text>
-              <Text style={styles.instructionText}>{request.special_instructions}</Text>
-            </View>
-          ) : (
-            <Text style={styles.noInstructions}>No special instructions provided.</Text>
-          )}
+        {expanded && (
+          <View style={styles.expandedContent}>
+            {request.special_instructions ? (
+              <View style={styles.instructionsContainer}>
+                <Text style={styles.instructionLabel}>Special Instructions:</Text>
+                <Text style={styles.instructionText}>{request.special_instructions}</Text>
+              </View>
+            ) : (
+              <Text style={styles.noInstructions}>No special instructions provided.</Text>
+            )}
 
-          {request.timeframe && (
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Preferred Timeframe:</Text>
-              <Text style={styles.metaValue}>{request.timeframe}</Text>
-            </View>
-          )}
+            {request.timeframe && (
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Preferred Timeframe:</Text>
+                <Text style={styles.metaValue}>{request.timeframe}</Text>
+              </View>
+            )}
 
-          {request.preferred_sitter && (
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Preferred Sitter:</Text>
-              <Text style={styles.metaValue}>{request.preferred_sitter}</Text>
-            </View>
-          )}
+            {request.preferred_sitter && (
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Preferred Sitter:</Text>
+                <Text style={styles.metaValue}>{request.preferred_sitter}</Text>
+              </View>
+            )}
 
-          <Text style={styles.actionDeferredText}>
-            ⚠️ Mutations are disabled (Release 8I Read-Only).
-          </Text>
-        </View>
-      )}
+            {mutationError && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>⚠️ {mutationError}</Text>
+              </View>
+            )}
 
-      <Text style={styles.tapPrompt}>
-        {expanded ? 'Tap to collapse' : 'Tap to expand details'}
-      </Text>
-    </TouchableOpacity>
+            {isPending && (
+              <TouchableOpacity
+                style={styles.approveBtn}
+                onPress={() => setShowConfirmModal(true)}
+                disabled={isMutating}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.approveBtnText}>Approve Booking</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        <Text style={styles.tapPrompt}>
+          {expanded ? 'Tap to collapse' : 'Tap to expand details'}
+        </Text>
+      </TouchableOpacity>
+
+      <ConfirmationModal
+        visible={showConfirmModal}
+        title="Approve Pet Booking?"
+        message={`This will update ${request.pet_name}'s status to APPROVED. This triggers production calendar syncs and notification emails. Are you sure you want to proceed?`}
+        onConfirm={handleApprove}
+        onCancel={() => setShowConfirmModal(false)}
+        isLoading={isMutating}
+      />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  cardWrapper: {
+    marginBottom: 12,
+  },
   card: {
     backgroundColor: COLORS.cardBg,
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
     borderWidth: 1,
     borderColor: COLORS.borderSoft,
     shadowColor: COLORS.text,
@@ -197,12 +255,36 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontWeight: '600',
   },
-  actionDeferredText: {
-    fontSize: 11,
-    color: COLORS.primary,
-    fontWeight: '700',
+  errorContainer: {
+    backgroundColor: '#fff1f2',
+    borderWidth: 1,
+    borderColor: '#fecdd3',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  errorText: {
+    color: COLORS.danger,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  approveBtn: {
+    backgroundColor: COLORS.success,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 8,
-    textAlign: 'center',
+    shadowColor: COLORS.success,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  approveBtnText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '700',
   },
   tapPrompt: {
     fontSize: 10,
