@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/useAuth';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { getAdminRequests } from '../api/client';
 import { PetRequest } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
@@ -31,7 +31,9 @@ interface ExpandedVisit {
 
 export const ScheduleScreen = () => {
   const { logout, role } = useAuth();
+  const navigation = useNavigation<any>();
   const [visits, setVisits] = useState<ExpandedVisit[]>([]);
+  const [originalRequests, setOriginalRequests] = useState<PetRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +106,7 @@ export const ScheduleScreen = () => {
       // Sort chronologically by date
       expanded.sort((a, b) => a.date.localeCompare(b.date));
       setVisits(expanded);
+      setOriginalRequests(requestList);
     } catch (e: any) {
       const msg = e.message || '';
       if (msg.includes('session expired') || msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('unauthorized')) {
@@ -128,9 +131,23 @@ export const ScheduleScreen = () => {
     fetchSchedule(true);
   };
 
+  const handleVisitPress = (item: ExpandedVisit) => {
+    const original = originalRequests.find((r) => r.request_id === item.request_id);
+    if (original) {
+      navigation.navigate('RequestDetail', {
+        request: original,
+        onApproveSuccess: handleRefresh,
+      });
+    }
+  };
+
   const renderVisitCard = ({ item }: { item: ExpandedVisit }) => {
     return (
-      <View style={styles.visitCard}>
+      <TouchableOpacity
+        style={styles.visitCard}
+        onPress={() => handleVisitPress(item)}
+        activeOpacity={0.7}
+      >
         <View style={styles.visitHeader}>
           <Text style={styles.visitDateText}>{formatDisplayDate(item.date)}</Text>
           <StatusBadge status={item.status} />
@@ -156,7 +173,7 @@ export const ScheduleScreen = () => {
             </View>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 

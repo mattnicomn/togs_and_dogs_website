@@ -1,12 +1,14 @@
 import React from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../auth/useAuth';
 import { AuthNavigator } from './AuthNavigator';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { RequestListScreen } from '../screens/RequestListScreen';
 import { ScheduleScreen } from '../screens/ScheduleScreen';
 import { BookingsScreen } from '../screens/BookingsScreen';
+import { RequestDetailScreen } from '../screens/RequestDetailScreen';
 import { COLORS } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
@@ -136,6 +138,42 @@ const ClientTabs = () => {
   );
 };
 
+const AdminStack = createNativeStackNavigator();
+const AdminNavigator = () => (
+  <AdminStack.Navigator screenOptions={{ headerShown: false }}>
+    <AdminStack.Screen name="AdminTabs" component={AdminTabs} />
+    <AdminStack.Screen 
+      name="RequestDetail" 
+      component={RequestDetailScreen} 
+      options={{ 
+        headerShown: true, 
+        title: 'Booking Details',
+        headerStyle: { backgroundColor: COLORS.cardBg },
+        headerTintColor: COLORS.text,
+        headerTitleStyle: { fontWeight: '800', fontSize: 16 }
+      }} 
+    />
+  </AdminStack.Navigator>
+);
+
+const StaffStack = createNativeStackNavigator();
+const StaffNavigator = () => (
+  <StaffStack.Navigator screenOptions={{ headerShown: false }}>
+    <StaffStack.Screen name="StaffTabs" component={StaffTabs} />
+    <StaffStack.Screen 
+      name="RequestDetail" 
+      component={RequestDetailScreen} 
+      options={{ 
+        headerShown: true, 
+        title: 'Booking Details',
+        headerStyle: { backgroundColor: COLORS.cardBg },
+        headerTintColor: COLORS.text,
+        headerTitleStyle: { fontWeight: '800', fontSize: 16 }
+      }} 
+    />
+  </StaffStack.Navigator>
+);
+
 export const AppNavigator = () => {
   const { isAuthenticated, role, isLoading } = useAuth();
 
@@ -154,9 +192,9 @@ export const AppNavigator = () => {
   switch (role) {
     case 'owner':
     case 'admin':
-      return <AdminTabs />;
+      return <AdminNavigator />;
     case 'staff':
-      return <StaffTabs />;
+      return <StaffNavigator />;
     default:
       return <ClientTabs />;
   }

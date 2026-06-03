@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { PetRequest, Staff } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -19,6 +20,8 @@ interface RequestCardProps {
   isStaffLoading: boolean;
   staffError: string | null;
   refreshStaff: () => void;
+  defaultExpanded?: boolean;
+  isDetailView?: boolean;
 }
 
 export const RequestCard: React.FC<RequestCardProps> = ({
@@ -28,15 +31,26 @@ export const RequestCard: React.FC<RequestCardProps> = ({
   isStaffLoading,
   staffError,
   refreshStaff,
+  defaultExpanded = false,
+  isDetailView = false,
 }) => {
   const { logout } = useAuth();
-  const [expanded, setExpanded] = useState(false);
+  const navigation = useNavigation<any>();
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showStaffPicker, setShowStaffPicker] = useState(false);
   const [showAssignConfirmModal, setShowAssignConfirmModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<{ emailOrDisplayName: string; displayName: string } | null>(null);
   const [isMutating, setIsMutating] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
+
+  const handlePressCard = () => {
+    if (isDetailView) return;
+    navigation.navigate('RequestDetail', {
+      request,
+      onApproveSuccess,
+    });
+  };
 
   const toggleExpand = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -138,7 +152,12 @@ export const RequestCard: React.FC<RequestCardProps> = ({
 
   return (
     <View style={styles.cardWrapper}>
-      <TouchableOpacity style={styles.card} onPress={toggleExpand} activeOpacity={0.7}>
+      <TouchableOpacity
+        style={styles.card}
+        onPress={isDetailView ? undefined : handlePressCard}
+        disabled={isDetailView}
+        activeOpacity={isDetailView ? 1 : 0.7}
+      >
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.clientName}>{request.client_name}</Text>
@@ -238,9 +257,11 @@ export const RequestCard: React.FC<RequestCardProps> = ({
           </View>
         )}
 
-        <Text style={styles.tapPrompt}>
-          {expanded ? 'Tap to collapse' : 'Tap to expand details'}
-        </Text>
+        {!isDetailView && (
+          <Text style={styles.tapPrompt}>
+            {expanded ? 'Tap to collapse' : 'Tap to expand details'}
+          </Text>
+        )}
       </TouchableOpacity>
 
       <ConfirmationModal
