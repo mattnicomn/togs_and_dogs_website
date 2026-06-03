@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/useAuth';
+import { useFocusEffect } from '@react-navigation/native';
 import { getAdminRequests } from '../api/client';
 import { PetRequest } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
@@ -117,9 +118,11 @@ export const ScheduleScreen = () => {
     }
   }, []);
 
-  useEffect(() => {
-    fetchSchedule();
-  }, [fetchSchedule]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchSchedule();
+    }, [fetchSchedule])
+  );
 
   const handleRefresh = () => {
     fetchSchedule(true);

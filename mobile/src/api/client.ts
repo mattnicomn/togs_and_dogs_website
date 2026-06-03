@@ -79,3 +79,13 @@ export const reviewRequest = (requestId: string, clientId: string, status: strin
     status, 
     reason 
   }, true);
+
+export const assignWorker = (jobId: string, reqId: string, clientId: string, workerId: string, workerName: string) => 
+  request('/admin/assign', 'POST', { 
+    job_id: jobId, 
+    req_id: reqId, 
+    client_id: clientId,
+    worker_id: workerId,
+    worker_name: workerName
+  }, true);
+

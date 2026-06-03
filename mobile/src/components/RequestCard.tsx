@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, LayoutAnimation, Platform, UIManager } from 'react-native';
-import { PetRequest } from '../types';
+import { PetRequest, Staff } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { ConfirmationModal } from './ConfirmationModal';
-import { reviewRequest } from '../api/client';
+import { reviewRequest, assignWorker } from '../api/client';
 import { useAuth } from '../auth/useAuth';
 import { COLORS } from '../theme/colors';
+import { StaffPickerSheet } from './StaffPickerSheet';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -14,12 +15,26 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 interface RequestCardProps {
   request: PetRequest;
   onApproveSuccess?: () => void;
+  staffList: Staff[];
+  isStaffLoading: boolean;
+  staffError: string | null;
+  refreshStaff: () => void;
 }
 
-export const RequestCard: React.FC<RequestCardProps> = ({ request, onApproveSuccess }) => {
+export const RequestCard: React.FC<RequestCardProps> = ({
+  request,
+  onApproveSuccess,
+  staffList,
+  isStaffLoading,
+  staffError,
+  refreshStaff,
+}) => {
   const { logout } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showStaffPicker, setShowStaffPicker] = useState(false);
+  const [showAssignConfirmModal, setShowAssignConfirmModal] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<{ emailOrDisplayName: string; displayName: string } | null>(null);
   const [isMutating, setIsMutating] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
 
@@ -63,7 +78,63 @@ export const RequestCard: React.FC<RequestCardProps> = ({ request, onApproveSucc
     }
   };
 
+  const handleAssignPress = () => {
+    const jobId = request.job_id || (request.job_ids && request.job_ids.length > 0 ? request.job_ids[0] : null);
+    if (!jobId) {
+      setMutationError("This booking is still initializing and cannot be assigned yet.");
+      return;
+    }
+    setMutationError(null);
+    setShowStaffPicker(true);
+  };
+
+  const handleSelectStaff = (emailOrDisplayName: string, displayName: string) => {
+    setSelectedStaff({ emailOrDisplayName, displayName });
+    setShowStaffPicker(false);
+    setShowAssignConfirmModal(true);
+  };
+
+  const handleConfirmAssignment = async () => {
+    if (!selectedStaff) return;
+    setMutationError(null);
+    setIsMutating(true);
+    try {
+      const reqId = request.request_id;
+      const jobId = request.job_id || (request.job_ids && request.job_ids.length > 0 ? request.job_ids[0] : null);
+      const clientId = request.client_id;
+      const workerId = selectedStaff.emailOrDisplayName;
+      const workerName = selectedStaff.displayName;
+
+      if (!jobId) {
+        throw new Error('This booking is still initializing and cannot be assigned yet.');
+      }
+
+      if (!reqId || !clientId) {
+        throw new Error('Error: Record has no valid Request or Client ID.');
+      }
+
+      await assignWorker(jobId, reqId, clientId, workerId, workerName);
+      setShowAssignConfirmModal(false);
+      if (onApproveSuccess) {
+        onApproveSuccess();
+      }
+    } catch (error: any) {
+      const msg = error.message || '';
+      if (msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('expired')) {
+        await logout();
+      } else {
+        setMutationError(msg || 'An error occurred during staff assignment.');
+      }
+    } finally {
+      setIsMutating(false);
+      setSelectedStaff(null);
+    }
+  };
+
   const isPending = request.status === 'PENDING_REVIEW';
+  const isApproved = request.status === 'APPROVED';
+  const isAssigned = ['ASSIGNED', 'SCHEDULED', 'JOB_CREATED'].includes(request.status);
+
 
   return (
     <View style={styles.cardWrapper}>
@@ -142,6 +213,28 @@ export const RequestCard: React.FC<RequestCardProps> = ({ request, onApproveSucc
                 <Text style={styles.approveBtnText}>Approve Booking</Text>
               </TouchableOpacity>
             )}
+
+            {isApproved && (
+              <TouchableOpacity
+                style={styles.assignBtn}
+                onPress={handleAssignPress}
+                disabled={isMutating}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.assignBtnText}>Assign Staff</Text>
+              </TouchableOpacity>
+            )}
+
+            {isAssigned && (
+              <TouchableOpacity
+                style={styles.changeBtn}
+                onPress={handleAssignPress}
+                disabled={isMutating}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.changeBtnText}>Change Staff</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -156,6 +249,26 @@ export const RequestCard: React.FC<RequestCardProps> = ({ request, onApproveSucc
         message={`This will update ${request.pet_name}'s status to APPROVED. This triggers production calendar syncs and notification emails. Are you sure you want to proceed?`}
         onConfirm={handleApprove}
         onCancel={() => setShowConfirmModal(false)}
+        isLoading={isMutating}
+      />
+
+      <StaffPickerSheet
+        visible={showStaffPicker}
+        onClose={() => setShowStaffPicker(false)}
+        onSelect={handleSelectStaff}
+        currentStaffId={request.worker_id || request.assigned_sitter_id || null}
+        staff={staffList}
+        isLoading={isStaffLoading}
+        error={staffError}
+        onRefresh={refreshStaff}
+      />
+
+      <ConfirmationModal
+        visible={showAssignConfirmModal}
+        title={request.worker_id ? "Change Staff Assignment?" : "Assign Staff Member?"}
+        message={`Are you sure you want to assign ${selectedStaff?.displayName} to care for ${request.pet_name}? This triggers production calendar syncs and staff notifications.`}
+        onConfirm={handleConfirmAssignment}
+        onCancel={() => setShowAssignConfirmModal(false)}
         isLoading={isMutating}
       />
     </View>
@@ -294,6 +407,42 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   approveBtnText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  assignBtn: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  assignBtnText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  changeBtn: {
+    backgroundColor: COLORS.info,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    shadowColor: COLORS.info,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  changeBtnText: {
     color: COLORS.white,
     fontSize: 15,
     fontWeight: '700',

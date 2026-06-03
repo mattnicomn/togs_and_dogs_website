@@ -15,6 +15,7 @@ import { RequestCard } from '../components/RequestCard';
 import { PetRequest } from '../types';
 import { COLORS } from '../theme/colors';
 import { useAuth } from '../auth/useAuth';
+import { useStaff } from '../hooks/useStaff';
 
 interface FilterPill {
   label: string;
@@ -23,6 +24,7 @@ interface FilterPill {
 
 export const RequestListScreen = () => {
   const { logout } = useAuth();
+  const { staff, isLoading: isStaffLoading, error: staffError, refresh: refreshStaff } = useStaff();
   const [requests, setRequests] = useState<PetRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -157,7 +159,16 @@ export const RequestListScreen = () => {
       <FlatList
         data={requests}
         keyExtractor={(item) => item.request_id || `req-${item.client_id}-${item.created_at}`}
-        renderItem={({ item }) => <RequestCard request={item} onApproveSuccess={handleRefresh} />}
+        renderItem={({ item }) => (
+          <RequestCard
+            request={item}
+            onApproveSuccess={handleRefresh}
+            staffList={staff}
+            isStaffLoading={isStaffLoading}
+            staffError={staffError}
+            refreshStaff={refreshStaff}
+          />
+        )}
         ListHeaderComponent={<ListHeader />}
         refreshControl={
           <RefreshControl
