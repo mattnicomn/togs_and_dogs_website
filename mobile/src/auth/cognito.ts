@@ -1,6 +1,15 @@
-import { CognitoUserPool, CognitoUser, AuthenticationDetails, CognitoUserSession } from 'amazon-cognito-identity-js';
+import { CognitoUserPool, CognitoUser, AuthenticationDetails, CognitoUserSession, CognitoRefreshToken } from 'amazon-cognito-identity-js';
 import { CONFIG } from '../api/config';
-import { saveIdToken, clearIdToken, saveSessionData, clearSessionData } from './storage';
+import { 
+  saveIdToken, 
+  clearIdToken, 
+  saveSessionData, 
+  getSessionData,
+  clearSessionData, 
+  saveRefreshToken, 
+  getRefreshToken, 
+  clearRefreshToken 
+} from './storage';
 
 class MemoryStorage {
   private data: Record<string, string> = {};
@@ -43,7 +52,9 @@ export const signIn = (email: string, password: string): Promise<CognitoUserSess
     cognitoUser.authenticateUser(authenticationDetails, {
       onSuccess: async (result) => {
         const idToken = result.getIdToken().getJwtToken();
+        const refreshToken = result.getRefreshToken().getToken();
         await saveIdToken(idToken);
+        await saveRefreshToken(refreshToken);
         await saveSessionData(JSON.stringify({
           email: cognitoUser.getUsername(),
           role: getEffectiveRole(result)
@@ -52,7 +63,6 @@ export const signIn = (email: string, password: string): Promise<CognitoUserSess
       },
       onFailure: (err) => reject(err),
       newPasswordRequired: (userAttributes) => {
-        // Resolve custom challenge type mirroring web
         resolve({
           challenge: 'NEW_PASSWORD_REQUIRED',
           userAttributes,
@@ -69,7 +79,42 @@ export const signOut = async (): Promise<void> => {
     cognitoUser.signOut();
   }
   await clearIdToken();
+  await clearRefreshToken();
   await clearSessionData();
+};
+
+export const refreshSession = async (): Promise<string | null> => {
+  try {
+    const refreshTokenStr = await getRefreshToken();
+    const sessionDataStr = await getSessionData();
+    
+    if (!refreshTokenStr || !sessionDataStr) {
+      return null;
+    }
+    
+    const sessionData = JSON.parse(sessionDataStr);
+    const email = sessionData.email;
+    
+    return new Promise((resolve) => {
+      const userData = { Username: email, Pool: userPool };
+      const cognitoUser = new CognitoUser(userData);
+      const refreshToken = new CognitoRefreshToken({ RefreshToken: refreshTokenStr });
+      
+      cognitoUser.refreshSession(refreshToken, async (err, result) => {
+        if (err) {
+          console.warn('Failed to refresh Cognito session silently', err);
+          resolve(null);
+        } else {
+          const newIdToken = result.getIdToken().getJwtToken();
+          await saveIdToken(newIdToken);
+          resolve(newIdToken);
+        }
+      });
+    });
+  } catch (e) {
+    console.warn('Silent refresh encountered error', e);
+    return null;
+  }
 };
 
 export const getEffectiveRole = (session: CognitoUserSession | null): string => {
@@ -81,7 +126,7 @@ export const getEffectiveRole = (session: CognitoUserSession | null): string => 
   const normalizedGroups = groupArray.map(g => String(g).toLowerCase());
   
   if (normalizedGroups.includes('owner')) return 'owner';
-  if (normalizedGroups.includes('admin')) return 'owner'; // map admin to owner dashboard/client layout
+  if (normalizedGroups.includes('admin')) return 'owner'; 
   if (normalizedGroups.includes('staff')) return 'staff';
   if (normalizedGroups.includes('client')) return 'client';
   

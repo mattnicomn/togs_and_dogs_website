@@ -65,8 +65,12 @@ export const DashboardScreen = () => {
         todayVisits,
         weekVisits
       });
-    } catch (e) {
+    } catch (e: any) {
       console.warn('Failed to retrieve dashboard stats', e);
+      const msg = e.message || '';
+      if (msg.includes('session expired') || msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('unauthorized')) {
+        await logout();
+      }
       setStats(null);
     } finally {
       setIsLoading(false);

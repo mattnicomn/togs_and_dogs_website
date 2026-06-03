@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { signIn as cognitoSignIn, signOut as cognitoSignOut } from './cognito';
-import { getIdToken, getSessionData } from './storage';
+import { signIn as cognitoSignIn, signOut as cognitoSignOut, refreshSession } from './cognito';
+import { getIdToken, getSessionData, isTokenExpired, clearIdToken, clearRefreshToken, clearSessionData } from './storage';
 
 interface AuthContextType {
   user: string | null;
@@ -21,13 +21,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const bootstrapAsync = async () => {
       try {
-        const token = await getIdToken();
+        let token = await getIdToken();
         const sessionDataStr = await getSessionData();
         
         if (token && sessionDataStr) {
-          const sessionData = JSON.parse(sessionDataStr);
-          setUser(sessionData.email);
-          setRole(sessionData.role);
+          // Validate token expiration
+          if (isTokenExpired(token)) {
+            console.log('Restored token is expired, attempting silent refresh...');
+            const newToken = await refreshSession();
+            if (newToken) {
+              token = newToken;
+              console.log('Silent token refresh succeeded.');
+            } else {
+              console.log('Silent token refresh failed, clearing stale session.');
+              await cognitoSignOut();
+              token = null;
+            }
+          }
+          
+          if (token && sessionDataStr) {
+            const sessionData = JSON.parse(sessionDataStr);
+            setUser(sessionData.email);
+            setRole(sessionData.role);
+          }
         }
       } catch (e) {
         console.warn('Failed to restore identity token', e);
@@ -43,7 +59,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const session = await cognitoSignIn(email, password);
-      // If the sign in resolved a challenge, handle accordingly
       if ((session as any).challenge) {
         setIsLoading(false);
         return session;

@@ -104,7 +104,13 @@ export const ScheduleScreen = () => {
       expanded.sort((a, b) => a.date.localeCompare(b.date));
       setVisits(expanded);
     } catch (e: any) {
-      setError(e.message || 'Failed to retrieve dispatch schedule. Please retry.');
+      const msg = e.message || '';
+      if (msg.includes('session expired') || msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('unauthorized')) {
+        setError('Your session expired. Please sign in again.');
+        await logout();
+      } else {
+        setError(msg || 'Failed to retrieve dispatch schedule. Please retry.');
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -181,6 +187,7 @@ export const ScheduleScreen = () => {
       ) : visits.length === 0 ? (
         <FlatList
           data={[]}
+          keyExtractor={(_item, index) => `empty-${index}`}
           renderItem={null}
           refreshControl={
             <RefreshControl

@@ -58,7 +58,13 @@ export const RequestListScreen = () => {
 
       setRequests(sorted);
     } catch (e: any) {
-      setError(e.message || 'Failed to retrieve operational requests. Please retry.');
+      const msg = e.message || '';
+      if (msg.includes('session expired') || msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('unauthorized')) {
+        setError('Your session expired. Please sign in again.');
+        await logout();
+      } else {
+        setError(msg || 'Failed to retrieve operational requests. Please retry.');
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -77,8 +83,9 @@ export const RequestListScreen = () => {
     setActiveFilter(status);
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
+  // Stable header + filter pills rendered outside VirtualizedList context
+  const ListHeader = () => (
+    <View>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Intake Requests</Text>
@@ -89,7 +96,7 @@ export const RequestListScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Categories Filter Pills */}
+      {/* Categories Filter Pills — horizontal ScrollView is NOT a sibling of the FlatList */}
       <View style={styles.filterOuterContainer}>
         <ScrollView
           horizontal
@@ -112,14 +119,26 @@ export const RequestListScreen = () => {
           })}
         </ScrollView>
       </View>
+    </View>
+  );
 
-      {/* Requests Feed */}
-      {isLoading ? (
+  // Body content when list is loading or errored
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ListHeader />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Fetching booking details...</Text>
         </View>
-      ) : error ? (
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ListHeader />
         <View style={styles.centerContainer}>
           <Text style={styles.errorIcon}>⚠️</Text>
           <Text style={styles.errorText}>{error}</Text>
@@ -127,44 +146,38 @@ export const RequestListScreen = () => {
             <Text style={styles.retryText}>Retry Connection</Text>
           </TouchableOpacity>
         </View>
-      ) : requests.length === 0 ? (
-        <FlatList
-          data={[]}
-          renderItem={null}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              tintColor={COLORS.primary}
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>📋</Text>
-              <Text style={styles.emptyTitle}>Queue is Empty</Text>
-              <Text style={styles.emptySub}>
-                No requests currently match the selected status category filter.
-              </Text>
-            </View>
-          }
-          contentContainerStyle={styles.listContent}
-        />
-      ) : (
-        <FlatList
-          data={requests}
-          keyExtractor={(item) => item.request_id}
-          renderItem={({ item }) => <RequestCard request={item} onApproveSuccess={handleRefresh} />}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              tintColor={COLORS.primary}
-            />
-          }
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+      </SafeAreaView>
+    );
+  }
+
+  // Single FlatList owns the full scroll surface — header is in ListHeaderComponent,
+  // not a ScrollView sibling, which eliminates the VirtualizedList key warning.
+  return (
+    <SafeAreaView style={styles.container}>
+      <FlatList
+        data={requests}
+        keyExtractor={(item) => item.request_id || `req-${item.client_id}-${item.created_at}`}
+        renderItem={({ item }) => <RequestCard request={item} onApproveSuccess={handleRefresh} />}
+        ListHeaderComponent={<ListHeader />}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={COLORS.primary}
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>📋</Text>
+            <Text style={styles.emptyTitle}>Queue is Empty</Text>
+            <Text style={styles.emptySub}>
+              No requests currently match the selected status category filter.
+            </Text>
+          </View>
+        }
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+      />
     </SafeAreaView>
   );
 };

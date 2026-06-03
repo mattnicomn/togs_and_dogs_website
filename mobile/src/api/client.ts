@@ -1,5 +1,6 @@
 import { CONFIG } from './config';
-import { getIdToken } from '../auth/storage';
+import { getIdToken, isTokenExpired } from '../auth/storage';
+import { refreshSession } from '../auth/cognito';
 
 const request = async (path: string, method = 'GET', data: any = null, isProtected = false) => {
   const options: RequestInit = {
@@ -10,8 +11,21 @@ const request = async (path: string, method = 'GET', data: any = null, isProtect
   };
 
   if (isProtected) {
-    const token = await getIdToken();
+    let token = await getIdToken();
     if (token) {
+      // Validate expiration before request
+      if (isTokenExpired(token)) {
+        console.log('Token expired prior to API call, attempting silent refresh...');
+        const newToken = await refreshSession();
+        if (newToken) {
+          token = newToken;
+          console.log('Silent token refresh succeeded before API call.');
+        } else {
+          console.warn('Silent refresh failed before API call, forcing session expiration.');
+          throw new Error('Your session expired. Please sign in again.');
+        }
+      }
+      
       options.headers = {
         ...options.headers,
         'Authorization': token,
@@ -28,6 +42,14 @@ const request = async (path: string, method = 'GET', data: any = null, isProtect
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     const errorMessage = errorData.error || errorData.message || `Request failed with status ${response.status}`;
+    if (
+      response.status === 401 || 
+      response.status === 403 || 
+      errorMessage.toLowerCase().includes('expired') || 
+      errorMessage.toLowerCase().includes('unauthorized')
+    ) {
+      throw new Error('Your session expired. Please sign in again.');
+    }
     throw new Error(errorMessage);
   }
   
@@ -57,4 +79,3 @@ export const reviewRequest = (requestId: string, clientId: string, status: strin
     status, 
     reason 
   }, true);
-
