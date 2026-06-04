@@ -19,7 +19,7 @@ import { ConfirmationModal } from '../components/ConfirmationModal';
 import { StaffPickerSheet } from '../components/StaffPickerSheet';
 
 export const RequestDetailScreen = ({ route }: any) => {
-  const { logout } = useAuth();
+  const { logout, role } = useAuth();
   const initialRequest = route.params?.request || null;
   const [request, setRequest] = useState<any>(initialRequest);
   const { staff, isLoading: isStaffLoading, error: staffError, refresh: refreshStaff } = useStaff();
@@ -163,7 +163,7 @@ export const RequestDetailScreen = ({ route }: any) => {
   const isPending = request.status === 'PENDING_REVIEW';
   const isApproved = request.status === 'APPROVED';
   const isAssigned = ['ASSIGNED', 'SCHEDULED', 'JOB_CREATED'].includes(request.status);
-  const showFooter = isPending || isApproved || isAssigned;
+  const showFooter = role !== 'staff' && (isPending || isApproved || isAssigned);
 
   return (
     <SafeAreaView style={styles.container}>

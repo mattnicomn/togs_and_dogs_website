@@ -39,6 +39,7 @@ export const ScheduleScreen = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'today' | 'upcoming'>('today');
 
   const formatServiceType = (service: string) => {
     return (service || '')
@@ -150,18 +151,30 @@ export const ScheduleScreen = () => {
   };
 
   const getSections = () => {
+    const todayStr = getLocalDateString(new Date());
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = getLocalDateString(tomorrow);
+
+    // Filter visits based on activeTab for staff
+    const filteredVisits = visits.filter((visit) => {
+      if (role === 'staff') {
+        if (activeTab === 'today') {
+          return visit.date === todayStr;
+        } else {
+          return visit.date > todayStr;
+        }
+      }
+      return true; // admins/owners see all
+    });
+
     const sectionsMap: { [dateStr: string]: ExpandedVisit[] } = {};
-    visits.forEach((visit) => {
+    filteredVisits.forEach((visit) => {
       if (!sectionsMap[visit.date]) {
         sectionsMap[visit.date] = [];
       }
       sectionsMap[visit.date].push(visit);
     });
-
-    const todayStr = getLocalDateString(new Date());
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = getLocalDateString(tomorrow);
 
     const sections = Object.keys(sectionsMap)
       .sort((a, b) => a.localeCompare(b))
@@ -241,7 +254,9 @@ export const ScheduleScreen = () => {
           <Text style={styles.title}>
             {role === 'staff' ? 'My Schedule' : 'Dispatch Schedule'}
           </Text>
-          <Text style={styles.subtitle}>Visits and pet care assignments</Text>
+          <Text style={styles.subtitle}>
+            {role === 'staff' ? 'Your assigned visits and pet care' : 'Visits and pet care assignments'}
+          </Text>
         </View>
         <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
           <Text style={styles.logoutText}>Log Out</Text>
@@ -267,6 +282,28 @@ export const ScheduleScreen = () => {
         </ContentContainer>
       ) : (
         <ContentContainer>
+          {role === 'staff' && (
+            <View style={styles.tabContainer}>
+              <TouchableOpacity
+                style={[styles.tabButton, activeTab === 'today' && styles.tabButtonActive]}
+                onPress={() => setActiveTab('today')}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.tabButtonText, activeTab === 'today' && styles.tabButtonTextActive]}>
+                  Today
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tabButton, activeTab === 'upcoming' && styles.tabButtonActive]}
+                onPress={() => setActiveTab('upcoming')}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.tabButtonText, activeTab === 'upcoming' && styles.tabButtonTextActive]}>
+                  Upcoming
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <SectionList
             sections={getSections()}
             keyExtractor={(item, index) => `${item.request_id}-${item.date}-${index}`}
@@ -280,13 +317,33 @@ export const ScheduleScreen = () => {
               />
             }
             ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyIcon}>🗓️</Text>
-                <Text style={styles.emptyTitle}>No Upcoming Visits</Text>
-                <Text style={styles.emptySub}>
-                  No visits scheduled for today or this week. Check Requests tab for pending approvals.
-                </Text>
-              </View>
+              role === 'staff' ? (
+                activeTab === 'today' ? (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyIcon}>☀️</Text>
+                    <Text style={styles.emptyTitle}>No Visits Today</Text>
+                    <Text style={styles.emptySub}>
+                      You have no assigned visits scheduled for today. Enjoy your day off!
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyIcon}>🗓️</Text>
+                    <Text style={styles.emptyTitle}>No Upcoming Visits</Text>
+                    <Text style={styles.emptySub}>
+                      You have no upcoming assigned visits scheduled. Check back later.
+                    </Text>
+                  </View>
+                )
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyIcon}>🗓️</Text>
+                  <Text style={styles.emptyTitle}>No Upcoming Visits</Text>
+                  <Text style={styles.emptySub}>
+                    No visits scheduled for today or this week. Check Requests tab for pending approvals.
+                  </Text>
+                </View>
+              )
             }
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -421,7 +478,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   listContent: {
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    paddingTop: 16,
     flexGrow: 1,
   },
   visitCard: {
@@ -477,5 +536,35 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontWeight: '600',
     flex: 1,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.border,
+    borderRadius: 8,
+    padding: 4,
+    marginHorizontal: 24,
+    marginTop: 16,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  tabButtonActive: {
+    backgroundColor: COLORS.white,
+    shadowColor: COLORS.text,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  tabButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+  },
+  tabButtonTextActive: {
+    color: COLORS.primary,
   },
 });
