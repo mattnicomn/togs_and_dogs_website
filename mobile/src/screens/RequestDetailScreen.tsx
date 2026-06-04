@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,16 +7,23 @@ import {
   TouchableOpacity,
   Linking,
   Platform,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStaff } from '../hooks/useStaff';
 import { RequestCard } from '../components/RequestCard';
 import { StatusBadge } from '../components/StatusBadge';
 import { COLORS } from '../theme/colors';
 
 export const RequestDetailScreen = ({ route }: any) => {
-  const { request, onApproveSuccess } = route.params || {};
+  const initialRequest = route.params?.request || null;
+  const [request, setRequest] = useState<any>(initialRequest);
   const { staff, isLoading: isStaffLoading, error: staffError, refresh: refreshStaff } = useStaff();
+
+  const handleActionSuccess = (updatedRequest?: any) => {
+    if (updatedRequest) {
+      setRequest(updatedRequest);
+    }
+  };
 
   if (!request) {
     return (
@@ -301,7 +308,7 @@ export const RequestDetailScreen = ({ route }: any) => {
         <Text style={styles.quickActionsTitle}>Administrative Actions</Text>
         <RequestCard
           request={request}
-          onApproveSuccess={onApproveSuccess}
+          onApproveSuccess={handleActionSuccess}
           staffList={staff}
           isStaffLoading={isStaffLoading}
           staffError={staffError}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,6 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { getAdminRequests } from '../api/client';
 import { RequestCard } from '../components/RequestCard';
 import { PetRequest } from '../types';
@@ -73,9 +74,11 @@ export const RequestListScreen = () => {
     }
   }, []);
 
-  useEffect(() => {
-    fetchRequests(activeFilter);
-  }, [activeFilter, fetchRequests]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchRequests(activeFilter);
+    }, [activeFilter, fetchRequests])
+  );
 
   const handleRefresh = () => {
     fetchRequests(activeFilter, true);

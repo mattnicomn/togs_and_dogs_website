@@ -15,7 +15,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 interface RequestCardProps {
   request: PetRequest;
-  onApproveSuccess?: () => void;
+  onApproveSuccess?: (updatedRequest?: PetRequest) => void;
   staffList: Staff[];
   isStaffLoading: boolean;
   staffError: string | null;
@@ -48,7 +48,6 @@ export const RequestCard: React.FC<RequestCardProps> = ({
     if (isDetailView) return;
     navigation.navigate('RequestDetail', {
       request,
-      onApproveSuccess,
     });
   };
 
@@ -77,7 +76,11 @@ export const RequestCard: React.FC<RequestCardProps> = ({
       await reviewRequest(request.request_id, request.client_id, 'APPROVED');
       setShowConfirmModal(false);
       if (onApproveSuccess) {
-        onApproveSuccess();
+        const updated: PetRequest = {
+          ...request,
+          status: 'APPROVED',
+        };
+        onApproveSuccess(updated);
       }
     } catch (error: any) {
       const msg = error.message || '';
@@ -130,7 +133,15 @@ export const RequestCard: React.FC<RequestCardProps> = ({
       await assignWorker(jobId, reqId, clientId, workerId, workerName);
       setShowAssignConfirmModal(false);
       if (onApproveSuccess) {
-        onApproveSuccess();
+        const updated: PetRequest = {
+          ...request,
+          status: 'ASSIGNED',
+          worker_id: workerId,
+          worker_name: workerName,
+          assigned_sitter_id: workerId,
+          assigned_sitter: workerName,
+        };
+        onApproveSuccess(updated);
       }
     } catch (error: any) {
       const msg = error.message || '';

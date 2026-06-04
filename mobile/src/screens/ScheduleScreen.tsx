@@ -136,7 +136,6 @@ export const ScheduleScreen = () => {
     if (original) {
       navigation.navigate('RequestDetail', {
         request: original,
-        onApproveSuccess: handleRefresh,
       });
     }
   };
