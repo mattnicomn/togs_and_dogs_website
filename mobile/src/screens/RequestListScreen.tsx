@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { ContentContainer } from '../components/ContentContainer';
 import { getAdminRequests } from '../api/client';
 import { RequestCard } from '../components/RequestCard';
 import { PetRequest } from '../types';
@@ -127,15 +128,66 @@ export const RequestListScreen = () => {
     </View>
   );
 
+  const getEmptyStateDetails = () => {
+    switch (activeFilter) {
+      case 'PENDING_REVIEW':
+        return {
+          title: 'All Caught Up',
+          message: 'No pending requests to review. ✓',
+          icon: '✨',
+        };
+      case 'APPROVED':
+        return {
+          title: 'Fully Handled',
+          message: 'All approved bookings have been assigned.',
+          icon: '👍',
+        };
+      case 'ASSIGNED':
+        return {
+          title: 'No Assigned Bookings',
+          message: 'No assigned visits in this view.',
+          icon: '👥',
+        };
+      case 'ALL':
+        return {
+          title: 'No Active Bookings',
+          message: 'No active bookings at this time.',
+          icon: '📋',
+        };
+      case 'COMPLETED':
+        return {
+          title: 'No Completed Visits',
+          message: 'No completed visits recorded.',
+          icon: '✅',
+        };
+      case 'CANCELLED':
+        return {
+          title: 'No Cancelled Bookings',
+          message: 'No cancelled bookings.',
+          icon: '❌',
+        };
+      default:
+        return {
+          title: 'Queue is Empty',
+          message: 'No requests currently match the selected status category filter.',
+          icon: '📋',
+        };
+    }
+  };
+
+  const emptyState = getEmptyStateDetails();
+
   // Body content when list is loading or errored
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <ListHeader />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Fetching booking details...</Text>
-        </View>
+        <ContentContainer>
+          <ListHeader />
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.loadingText}>Fetching booking details...</Text>
+          </View>
+        </ContentContainer>
       </SafeAreaView>
     );
   }
@@ -143,14 +195,16 @@ export const RequestListScreen = () => {
   if (error) {
     return (
       <SafeAreaView style={styles.container}>
-        <ListHeader />
-        <View style={styles.centerContainer}>
-          <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => fetchRequests(activeFilter)}>
-            <Text style={styles.retryText}>Retry Connection</Text>
-          </TouchableOpacity>
-        </View>
+        <ContentContainer>
+          <ListHeader />
+          <View style={styles.centerContainer}>
+            <Text style={styles.errorIcon}>⚠️</Text>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => fetchRequests(activeFilter)}>
+              <Text style={styles.retryText}>Retry Connection</Text>
+            </TouchableOpacity>
+          </View>
+        </ContentContainer>
       </SafeAreaView>
     );
   }
@@ -159,39 +213,39 @@ export const RequestListScreen = () => {
   // not a ScrollView sibling, which eliminates the VirtualizedList key warning.
   return (
     <SafeAreaView style={styles.container}>
-      <FlatList
-        data={requests}
-        keyExtractor={(item) => item.request_id || `req-${item.client_id}-${item.created_at}`}
-        renderItem={({ item }) => (
-          <RequestCard
-            request={item}
-            onApproveSuccess={handleRefresh}
-            staffList={staff}
-            isStaffLoading={isStaffLoading}
-            staffError={staffError}
-            refreshStaff={refreshStaff}
-          />
-        )}
-        ListHeaderComponent={<ListHeader />}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor={COLORS.primary}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={styles.emptyTitle}>Queue is Empty</Text>
-            <Text style={styles.emptySub}>
-              No requests currently match the selected status category filter.
-            </Text>
-          </View>
-        }
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      <ContentContainer>
+        <FlatList
+          data={requests}
+          keyExtractor={(item) => item.request_id || `req-${item.client_id}-${item.created_at}`}
+          renderItem={({ item }) => (
+            <RequestCard
+              request={item}
+              onApproveSuccess={handleRefresh}
+              staffList={staff}
+              isStaffLoading={isStaffLoading}
+              staffError={staffError}
+              refreshStaff={refreshStaff}
+            />
+          )}
+          ListHeaderComponent={<ListHeader />}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.primary}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>{emptyState.icon}</Text>
+              <Text style={styles.emptyTitle}>{emptyState.title}</Text>
+              <Text style={styles.emptySub}>{emptyState.message}</Text>
+            </View>
+          }
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
+      </ContentContainer>
     </SafeAreaView>
   );
 };

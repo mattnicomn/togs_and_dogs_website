@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, ScrollView, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ContentContainer } from '../components/ContentContainer';
 import { useAuth } from '../auth/useAuth';
 import { getAdminRequests } from '../api/client';
 import { COLORS } from '../theme/colors';
@@ -9,6 +10,8 @@ import { PetRequest } from '../types';
 
 export const DashboardScreen = () => {
   const { user, role, logout } = useAuth();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const [stats, setStats] = useState<{
     pending: number;
     approved: number;
@@ -85,59 +88,60 @@ export const DashboardScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Admin Dashboard</Text>
-          <Text style={styles.subtitle}>Welcome back, Ryan</Text>
-        </View>
-
-        {/* Stats Grid */}
-        <View style={styles.statsGrid}>
-          {/* Row 1 */}
-          <View style={styles.statsRow}>
-            <View style={styles.statCardHalf}>
-              <Text style={styles.statLabel}>Pending Review</Text>
-              {isLoading ? (
-                <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
-              ) : (
-                <Text style={styles.statValue}>{stats !== null ? stats.pending : '--'}</Text>
-              )}
-              <Text style={styles.statSubText}>Intake queue items</Text>
-            </View>
-
-            <View style={styles.statCardHalf}>
-              <Text style={styles.statLabel}>Needs Sitter</Text>
-              {isLoading ? (
-                <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
-              ) : (
-                <Text style={styles.statValue}>{stats !== null ? stats.approved : '--'}</Text>
-              )}
-              <Text style={styles.statSubText}>Approved requests</Text>
-            </View>
+      <ContentContainer>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Admin Dashboard</Text>
+            <Text style={styles.subtitle}>Welcome back, Ryan</Text>
           </View>
 
-          {/* Row 2 */}
-          <View style={styles.statsRow}>
-            <View style={styles.statCardHalf}>
-              <Text style={styles.statLabel}>Scheduled</Text>
-              {isLoading ? (
-                <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
-              ) : (
-                <Text style={styles.statValue}>{stats !== null ? stats.assigned : '--'}</Text>
-              )}
-              <Text style={styles.statSubText}>Assigned bookings</Text>
+          {/* Stats Grid */}
+          <View style={styles.statsGrid}>
+            {/* Row 1 */}
+            <View style={isTablet ? styles.statsRow : styles.statsRowColumn}>
+              <View style={styles.statCardHalf}>
+                <Text style={styles.statLabel}>Pending Review</Text>
+                {isLoading ? (
+                  <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
+                ) : (
+                  <Text style={styles.statValue}>{stats !== null ? stats.pending : '--'}</Text>
+                )}
+                <Text style={styles.statSubText}>Intake queue items</Text>
+              </View>
+
+              <View style={styles.statCardHalf}>
+                <Text style={styles.statLabel}>Needs Sitter</Text>
+                {isLoading ? (
+                  <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
+                ) : (
+                  <Text style={styles.statValue}>{stats !== null ? stats.approved : '--'}</Text>
+                )}
+                <Text style={styles.statSubText}>Approved requests</Text>
+              </View>
             </View>
 
-            <View style={styles.statCardHalf}>
-              <Text style={styles.statLabel}>Today's Visits</Text>
-              {isLoading ? (
-                <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
-              ) : (
-                <Text style={[styles.statValue, { color: COLORS.success }]}>{stats !== null ? stats.todayVisits : '--'}</Text>
-              )}
-              <Text style={styles.statSubText}>Scheduled for today</Text>
+            {/* Row 2 */}
+            <View style={isTablet ? styles.statsRow : styles.statsRowColumn}>
+              <View style={styles.statCardHalf}>
+                <Text style={styles.statLabel}>Scheduled</Text>
+                {isLoading ? (
+                  <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
+                ) : (
+                  <Text style={styles.statValue}>{stats !== null ? stats.assigned : '--'}</Text>
+                )}
+                <Text style={styles.statSubText}>Assigned bookings</Text>
+              </View>
+
+              <View style={styles.statCardHalf}>
+                <Text style={styles.statLabel}>Today's Visits</Text>
+                {isLoading ? (
+                  <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
+                ) : (
+                  <Text style={[styles.statValue, { color: COLORS.success }]}>{stats !== null ? stats.todayVisits : '--'}</Text>
+                )}
+                <Text style={styles.statSubText}>Scheduled for today</Text>
+              </View>
             </View>
-          </View>
 
           {/* Row 3 - Full Width */}
           <View style={styles.statCardFull}>
@@ -174,7 +178,8 @@ export const DashboardScreen = () => {
         <TouchableOpacity style={styles.button} onPress={logout}>
           <Text style={styles.buttonText}>Log Out</Text>
         </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
+      </ContentContainer>
     </SafeAreaView>
   );
 };
@@ -207,6 +212,11 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 12,
+    gap: 12,
+  },
+  statsRowColumn: {
+    flexDirection: 'column',
     marginBottom: 12,
     gap: 12,
   },

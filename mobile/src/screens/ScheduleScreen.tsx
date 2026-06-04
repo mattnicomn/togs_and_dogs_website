@@ -4,6 +4,7 @@ import {
   View,
   Text,
   FlatList,
+  SectionList,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
@@ -15,6 +16,7 @@ import { getAdminRequests } from '../api/client';
 import { PetRequest } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
 import { COLORS } from '../theme/colors';
+import { ContentContainer } from '../components/ContentContainer';
 
 interface ExpandedVisit {
   request_id: string;
@@ -140,6 +142,60 @@ export const ScheduleScreen = () => {
     }
   };
 
+  const getLocalDateString = (d: Date = new Date()) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const date = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${date}`;
+  };
+
+  const getSections = () => {
+    const sectionsMap: { [dateStr: string]: ExpandedVisit[] } = {};
+    visits.forEach((visit) => {
+      if (!sectionsMap[visit.date]) {
+        sectionsMap[visit.date] = [];
+      }
+      sectionsMap[visit.date].push(visit);
+    });
+
+    const todayStr = getLocalDateString(new Date());
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = getLocalDateString(tomorrow);
+
+    const sections = Object.keys(sectionsMap)
+      .sort((a, b) => a.localeCompare(b))
+      .map((dateStr) => {
+        let title = formatDisplayDate(dateStr);
+        if (dateStr === todayStr) {
+          title = `Today (${title})`;
+        } else if (dateStr === tomorrowStr) {
+          title = `Tomorrow (${title})`;
+        }
+
+        return {
+          title,
+          dateStr,
+          data: sectionsMap[dateStr],
+        };
+      });
+
+    return sections;
+  };
+
+  const renderSectionHeader = ({ section }: { section: { title: string; dateStr: string } }) => {
+    const todayStr = getLocalDateString(new Date());
+    const isToday = section.dateStr === todayStr;
+
+    return (
+      <View style={[styles.sectionHeader, isToday && styles.sectionHeaderToday]}>
+        <Text style={[styles.sectionHeaderText, isToday && styles.sectionHeaderTextToday]}>
+          {section.title}
+        </Text>
+      </View>
+    );
+  };
+
   const renderVisitCard = ({ item }: { item: ExpandedVisit }) => {
     return (
       <TouchableOpacity
@@ -148,14 +204,16 @@ export const ScheduleScreen = () => {
         activeOpacity={0.7}
       >
         <View style={styles.visitHeader}>
-          <Text style={styles.visitDateText}>{formatDisplayDate(item.date)}</Text>
+          <Text style={styles.clientPetText}>🐾 {item.pet_name}</Text>
           <StatusBadge status={item.status} />
         </View>
         
         <View style={styles.visitBody}>
-          <Text style={styles.clientPetText}>🐾 {item.pet_name} ({item.client_name})</Text>
-          
           <View style={styles.visitDetails}>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Client:</Text>
+              <Text style={styles.detailValue}>{item.client_name}</Text>
+            </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Service:</Text>
               <Text style={styles.detailValue}>{formatServiceType(item.service_type)}</Text>
@@ -191,56 +249,50 @@ export const ScheduleScreen = () => {
       </View>
 
       {isLoading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Loading calendar schedule...</Text>
-        </View>
+        <ContentContainer>
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.loadingText}>Loading calendar schedule...</Text>
+          </View>
+        </ContentContainer>
       ) : error ? (
-        <View style={styles.centerContainer}>
-          <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => fetchSchedule()}>
-            <Text style={styles.retryText}>Retry Connection</Text>
-          </TouchableOpacity>
-        </View>
-      ) : visits.length === 0 ? (
-        <FlatList
-          data={[]}
-          keyExtractor={(_item, index) => `empty-${index}`}
-          renderItem={null}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              tintColor={COLORS.primary}
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>🗓️</Text>
-              <Text style={styles.emptyTitle}>No Upcoming Visits</Text>
-              <Text style={styles.emptySub}>
-                No scheduled visits or active pet care assignments for today or upcoming dates.
-              </Text>
-            </View>
-          }
-          contentContainerStyle={styles.listContent}
-        />
+        <ContentContainer>
+          <View style={styles.centerContainer}>
+            <Text style={styles.errorIcon}>⚠️</Text>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => fetchSchedule()}>
+              <Text style={styles.retryText}>Retry Connection</Text>
+            </TouchableOpacity>
+          </View>
+        </ContentContainer>
       ) : (
-        <FlatList
-          data={visits}
-          keyExtractor={(item, index) => `${item.request_id}-${item.date}-${index}`}
-          renderItem={renderVisitCard}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              tintColor={COLORS.primary}
-            />
-          }
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
+        <ContentContainer>
+          <SectionList
+            sections={getSections()}
+            keyExtractor={(item, index) => `${item.request_id}-${item.date}-${index}`}
+            renderItem={renderVisitCard}
+            renderSectionHeader={renderSectionHeader}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                tintColor={COLORS.primary}
+              />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyIcon}>🗓️</Text>
+                <Text style={styles.emptyTitle}>No Upcoming Visits</Text>
+                <Text style={styles.emptySub}>
+                  No visits scheduled for today or this week. Check Requests tab for pending approvals.
+                </Text>
+              </View>
+            }
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            stickySectionHeadersEnabled={true}
+          />
+        </ContentContainer>
       )}
     </SafeAreaView>
   );
@@ -250,6 +302,27 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  sectionHeader: {
+    backgroundColor: COLORS.background,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderSoft,
+  },
+  sectionHeaderToday: {
+    backgroundColor: '#fffbeb',
+    borderBottomColor: '#fef3c7',
+  },
+  sectionHeaderText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  sectionHeaderTextToday: {
+    color: '#854d0e',
   },
   header: {
     flexDirection: 'row',
