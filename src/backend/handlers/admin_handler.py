@@ -272,6 +272,21 @@ def handler(event, context):
                 s_email = (s.get('email') or '').lower()
                 s_sub = s.get('cognito_sub')
                 
+                if s_sub == 'unlinked':
+                    s['cognito_sub'] = None
+                    s['cognito_status'] = 'unlinked'
+                    s['is_protected'] = is_protected_profile(s)
+                    merged_staff.append(s)
+                    # Find and mark Cognito user as matched by email to prevent virtual user duplication
+                    for cu in cognito_staff:
+                        cu_email = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'email'), '').lower()
+                        cu_sub = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'sub'), '')
+                        if s_email and s_email == cu_email:
+                            if cu_sub: matched_subs.add(cu_sub)
+                            if cu_email: matched_emails.add(cu_email)
+                            break
+                    continue
+                
                 cog_match = None
                 for cu in cognito_staff:
                     cu_email = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'email'), '').lower()
@@ -1061,12 +1076,14 @@ def handler(event, context):
                         return success(staff_profile, event)
                         
                     elif action == 'unlink':
-                        staff_profile.pop('cognito_sub', None)
+                        staff_profile['cognito_sub'] = 'unlinked'
+                        staff_profile['cognito_status'] = 'unlinked'
                         staff_profile.pop('cognito_username', None)
-                        staff_profile.pop('cognito_status', None)
                         staff_profile['updated_at'] = datetime.utcnow().isoformat()
                         items_table.put_item(Item=staff_profile)
-                        return success(staff_profile, event)
+                        resp_profile = dict(staff_profile)
+                        resp_profile['cognito_sub'] = None
+                        return success(resp_profile, event)
                         
                     elif action == 'delete_profile':
                         if staff_profile.get('is_active') == True:
@@ -1221,24 +1238,69 @@ def handler(event, context):
             user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
             
             # Resolve actual email/username for security actions
-            if user_profile.get('is_virtual'):
-                try:
-                    cog_user = cognito.admin_get_user(UserPoolId=user_pool_id, Username=user_profile['display_name'])
-                    username = cog_user.get('Username')
-                    # Update profile with actual email from attributes for notification
-                    for attr in cog_user.get('UserAttributes', []):
+            cognito_user_id = None
+            if not user_profile.get('is_virtual'):
+                cognito_sub = user_profile.get('cognito_sub')
+                cognito_username = user_profile.get('cognito_username')
+                email = user_profile.get('email')
+                
+                # Check for explicit 'unlinked' sentinel
+                if cognito_sub == 'unlinked' or user_profile.get('cognito_status') == 'unlinked':
+                    return bad_request("Profile is not linked to a Cognito user", event)
+                
+                cognito_user_id = cognito_sub or cognito_username or email
+            else:
+                cognito_user_id = user_profile['display_name']
+                
+            if not cognito_user_id or cognito_user_id == 'unlinked':
+                return bad_request("Profile is not linked to a Cognito user", event)
+
+            resolved_username = None
+            try:
+                cog_resp = cognito.admin_get_user(UserPoolId=user_pool_id, Username=cognito_user_id)
+                resolved_username = cog_resp.get('Username')
+                if user_profile.get('is_virtual'):
+                    for attr in cog_resp.get('UserAttributes', []):
                         if attr['Name'] == 'email':
                             user_profile['email'] = attr['Value']
                         if attr['Name'] == 'name' or attr['Name'] == 'nickname':
                             user_profile['display_name'] = attr['Value']
-                except Exception as e:
-                    print(f"Virtual user resolution error: {e}")
-                    username = user_profile['display_name']
-            else:
-                username = user_profile.get('email') or user_profile.get('cognito_sub') or user_profile.get('cognito_username')
-            
-            if not username:
-                return bad_request("Profile is not linked to a Cognito user", event)
+            except cognito.exceptions.UserNotFoundException:
+                # Fallback to search by email attribute if available
+                email_val = user_profile.get('email')
+                if email_val:
+                    try:
+                        list_resp = cognito.list_users(
+                            UserPoolId=user_pool_id,
+                            Filter=f'email = "{email_val}"'
+                        )
+                        users = list_resp.get('Users', [])
+                        if users:
+                            resolved_username = users[0].get('Username')
+                    except Exception as list_err:
+                        print(f"Cognito list_users filter error: {list_err}")
+                
+                if not resolved_username:
+                    return bad_request("Cognito user not found", event)
+            except Exception as e:
+                print(f"Cognito admin_get_user error: {e}")
+                # Fallback to search by email attribute if available
+                email_val = user_profile.get('email')
+                if email_val:
+                    try:
+                        list_resp = cognito.list_users(
+                            UserPoolId=user_pool_id,
+                            Filter=f'email = "{email_val}"'
+                        )
+                        users = list_resp.get('Users', [])
+                        if users:
+                            resolved_username = users[0].get('Username')
+                    except Exception as list_err:
+                        pass
+                if not resolved_username:
+                    return internal_error(f"Failed to retrieve Cognito user: {str(e)}", event)
+
+            username = resolved_username
             
             try:
                 if '/reset-password' in path:
@@ -1349,6 +1411,21 @@ def handler(event, context):
                     c_email = (c.get('email') or '').lower()
                     c_sub = c.get('cognito_sub')
                     
+                    if c_sub == 'unlinked':
+                        c['cognito_sub'] = None
+                        c['cognito_status'] = 'unlinked'
+                        c['portal_enabled'] = False
+                        merged_clients.append(c)
+                        # Find and mark Cognito user as matched by email to prevent virtual user duplication
+                        for cu in cognito_clients:
+                            cu_email = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'email'), '').lower()
+                            cu_sub = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'sub'), '')
+                            if c_email and c_email == cu_email:
+                                if cu_sub: matched_subs.add(cu_sub)
+                                if cu_email: matched_emails.add(cu_email)
+                                break
+                        continue
+                        
                     cog_match = None
                     for cu in cognito_clients:
                         cu_email = next((a['Value'] for a in cu['Attributes'] if a['Name'] == 'email'), '').lower()
@@ -1546,13 +1623,15 @@ def handler(event, context):
                         return success(client_profile, event)
                         
                     elif action == 'unlink':
-                        client_profile.pop('cognito_sub', None)
+                        client_profile['cognito_sub'] = 'unlinked'
+                        client_profile['cognito_status'] = 'unlinked'
                         client_profile.pop('cognito_username', None)
-                        client_profile.pop('cognito_status', None)
                         client_profile['portal_enabled'] = False
                         client_profile['updated_at'] = datetime.utcnow().isoformat()
                         items_table.put_item(Item=client_profile)
-                        return success(client_profile, event)
+                        resp_profile = dict(client_profile)
+                        resp_profile['cognito_sub'] = None
+                        return success(resp_profile, event)
                         
                     elif action == 'delete_profile':
                         if client_profile.get('is_active') == True:
