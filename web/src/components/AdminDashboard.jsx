@@ -91,6 +91,10 @@ const AdminDashboard = () => {
   const [decisionModal, setDecisionModal] = useState(null);
   const [lastKey, setLastKey] = useState(null);
   const [exportModal, setExportModal] = useState(false);
+  const [expandedRequestIds, setExpandedRequestIds] = useState({});
+  const toggleRequestExpanded = (key) => {
+    setExpandedRequestIds(prev => ({ ...prev, [key]: !prev[key] }));
+  };
   // Release 6F: New Visit modal for admin-created bookings
   const [newVisitModal, setNewVisitModal] = useState(false);
   const [newVisitForm, setNewVisitForm] = useState({
@@ -1552,6 +1556,9 @@ const AdminDashboard = () => {
         "Meet & Greet": r.meet_and_greet_completed ? "Completed" : (r.meet_and_greet_required ? "Required" : "N/A"),
         "Quote Status": r.quote_status || (r.quote_sent_date ? "Sent" : "None"),
         "Admin Notes": r.admin_notes || r.notes,
+        "Visit Notes": r.visit_notes || "",
+        "Completed By": r.completed_by || "",
+        "Completed At": r.completed_at || "",
         "Created Date": r.created_at,
         "Last Updated": r.updated_at
       });
@@ -3768,15 +3775,41 @@ const AdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleRecords.map(item => (
-                    <tr key={getRecordKey(item)} className={selectedIds.includes(getRecordKey(item)) ? 'selected-row' : ''}>
-                      <td>
-                        <input 
-                          type="checkbox" 
-                          checked={selectedIds.includes(getRecordKey(item))}
-                          onChange={() => toggleSelectOne(getRecordKey(item))}
-                        />
-                      </td>
+                  {visibleRecords.map(item => {
+                    const recordKey = getRecordKey(item);
+                    const isExpanded = !!expandedRequestIds[recordKey];
+                    return (
+                      <React.Fragment key={recordKey}>
+                        <tr className={selectedIds.includes(recordKey) ? 'selected-row' : ''}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={selectedIds.includes(recordKey)}
+                                onChange={() => toggleSelectOne(recordKey)}
+                              />
+                              <button
+                                type="button"
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  fontSize: '0.85rem',
+                                  color: 'var(--text-muted, #6c757d)',
+                                  padding: '2px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  transition: 'transform 0.15s ease',
+                                  transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)'
+                                }}
+                                onClick={() => toggleRequestExpanded(recordKey)}
+                                title={isExpanded ? "Collapse Details" : "Expand Details"}
+                              >
+                                ▶
+                              </button>
+                            </div>
+                          </td>
                       <td onClick={() => handleSelectPet(item)} className="clickable-cell">
                         <div className="info-stack">
                           <span className="bold">
@@ -3830,9 +3863,14 @@ const AdminDashboard = () => {
                           const state = getWorkflowState(item);
                           return (
                             <div className="status-cell">
-                              <span className={`${state.statusClass} ${state.isInvalid ? 'status-chip--urgent' : ''}`}>
-                                {state.isInvalid ? "Needs Assignment" : getStatusLabel(item.status)}
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                <span className={`${state.statusClass} ${state.isInvalid ? 'status-chip--urgent' : ''}`}>
+                                  {state.isInvalid ? "Needs Assignment" : getStatusLabel(item.status)}
+                                </span>
+                                {item.status === 'COMPLETED' && item.visit_notes && (
+                                  <span title="Completion Notes Available" style={{ fontSize: '1rem', cursor: 'help' }}>📝</span>
+                                )}
+                              </div>
                               {state.isInvalid && <div className="micro-text urgent-text">Missing worker assignment!</div>}
                               {/* Release 7B Phase 3: Admin Created badge */}
                               {item.source === 'admin_created' && (
@@ -3969,7 +4007,50 @@ const AdminDashboard = () => {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    {isExpanded && (
+                      <tr className="expanded-row-details" style={{ backgroundColor: 'var(--bg-muted, #f8f9fa)' }}>
+                        <td colSpan={6} style={{ padding: '16px 24px', borderTop: 'none' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                              <div>
+                                <strong style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Service Details:</strong>
+                                <p style={{ margin: '4px 0 0 0' }}>{getServiceLabel(item.service_type)} for {item.pet_names || item.pet_name || 'Pet'}</p>
+                              </div>
+                              <div>
+                                <strong style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Client Contact:</strong>
+                                <p style={{ margin: '4px 0 0 0' }}>{item.client_name} ({item.client_email || 'No email'}) {item.client_phone || item.phone || ''}</p>
+                              </div>
+                            </div>
+                            {item.status === 'COMPLETED' && (
+                              <div style={{ borderTop: '1px solid var(--border-soft, #e9ecef)', paddingTop: '12px', marginTop: '4px' }}>
+                                <strong style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>Visit Completion Info:</strong>
+                                <div style={{ display: 'flex', gap: '24px', marginBottom: '8px', fontSize: '0.9rem' }}>
+                                  <span><strong>Completed By:</strong> {item.completed_by || 'Unknown'}</span>
+                                  <span><strong>Completed At:</strong> {item.completed_at ? new Date(item.completed_at).toLocaleString('en-US', {
+                                    month: 'short', day: 'numeric', year: 'numeric',
+                                    hour: 'numeric', minute: '2-digit', hour12: true
+                                  }) : 'N/A'}</span>
+                                </div>
+                                <div style={{ 
+                                  whiteSpace: 'pre-wrap', 
+                                  padding: '12px', 
+                                  background: 'var(--bg-card, #ffffff)', 
+                                  borderRadius: '6px', 
+                                  border: '1px solid var(--border-soft, #e9ecef)',
+                                  fontStyle: item.visit_notes ? 'normal' : 'italic',
+                                  color: item.visit_notes ? 'var(--text-main, #212529)' : 'var(--text-muted, #6c757d)'
+                                }}>
+                                  {item.visit_notes || 'No completion notes provided'}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
                   {visibleRecords.length === 0 && !loading && (
                     <tr>
                       <td colSpan={6} style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--text-muted)' }}>

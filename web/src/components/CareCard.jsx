@@ -211,6 +211,37 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
               </div>
             </div>
 
+            {/* Completion Notes Section */}
+            {pet._originItem && pet._originItem.status === 'COMPLETED' && (
+              <section className="card-section" style={{ marginTop: '24px' }}>
+                <h3>Visit Completion Info</h3>
+                <div className="content-box">
+                  <p><strong>Completed By:</strong> {pet._originItem.completed_by || 'Unknown'}</p>
+                  <p><strong>Completed At:</strong> {pet._originItem.completed_at 
+                    ? new Date(pet._originItem.completed_at).toLocaleString('en-US', { 
+                        month: 'short', day: 'numeric', year: 'numeric', 
+                        hour: 'numeric', minute: '2-digit', hour12: true 
+                      })
+                    : 'Not recorded'}</p>
+                  <div style={{ marginTop: '12px' }}>
+                    <strong>Visit Notes:</strong>
+                    <p style={{ 
+                      whiteSpace: 'pre-wrap', 
+                      marginTop: '6px', 
+                      padding: '12px', 
+                      background: 'var(--bg-muted, #f8f9fa)', 
+                      borderRadius: '6px', 
+                      border: '1px solid var(--border-soft, #e9ecef)',
+                      color: 'var(--text-main, #212529)',
+                      fontStyle: pet._originItem.visit_notes ? 'normal' : 'italic'
+                    }}>
+                      {pet._originItem.visit_notes || 'No completion notes provided'}
+                    </p>
+                  </div>
+                </div>
+              </section>
+            )}
+
             {/* Terms & Privacy Acceptance */}
             {pet._originItem && (
               <section className="card-section" style={{ marginTop: '24px' }}>

@@ -162,3 +162,31 @@ def test_non_completed_transition_ignores_notes(mock_claims, mock_role, mock_cas
     assert ":vn" not in attr_values
     assert ":cat" not in attr_values
     assert ":cby" not in attr_values
+
+def test_client_sanitization_redacts_completion_fields():
+    from common.auth import sanitize_booking_for_role
+    
+    booking = {
+        "PK": "REQ#123",
+        "SK": "CLIENT#456",
+        "status": "COMPLETED",
+        "visit_notes": "Buddy was happy and active.",
+        "completed_at": "2026-06-06T15:00:00Z",
+        "completed_by": "staff@example.com",
+        "client_id": "456",
+        "pet_names": ["Buddy"]
+    }
+    
+    # Sanitize for client
+    client_sanitized = sanitize_booking_for_role(booking, 'client')
+    assert client_sanitized["visit_notes"] is None
+    assert client_sanitized["completed_at"] is None
+    assert client_sanitized["completed_by"] is None
+    assert client_sanitized["pet_names"] == ["Buddy"]
+    
+    # Sanitize for admin
+    admin_sanitized = sanitize_booking_for_role(booking, 'admin')
+    assert admin_sanitized["visit_notes"] == "Buddy was happy and active."
+    assert admin_sanitized["completed_at"] == "2026-06-06T15:00:00Z"
+    assert admin_sanitized["completed_by"] == "staff@example.com"
+

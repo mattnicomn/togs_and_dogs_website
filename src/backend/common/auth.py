@@ -101,7 +101,10 @@ def sanitize_booking_for_role(record, role):
         'staff_assignment',
         'worker_id',
         'job_id',
-        'assignment_color'
+        'assignment_color',
+        'visit_notes',
+        'completed_at',
+        'completed_by'
     ]
     
     redacted_any = False
