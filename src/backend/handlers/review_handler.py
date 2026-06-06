@@ -217,6 +217,20 @@ def handler(event, context):
             update_expr += ", worker_id = :w"
             expr_attr_vals[":w"] = body.get('worker_id')
 
+        # Release 8V: Completion metadata + optional visit notes
+        if new_status == 'COMPLETED':
+            visit_notes = (body.get('visit_notes') or '').strip()
+            if len(visit_notes) > 500:
+                return bad_request("Visit notes must not exceed 500 characters.", event)
+            
+            update_expr += ", completed_at = :cat, completed_by = :cby"
+            expr_attr_vals[":cat"] = now
+            expr_attr_vals[":cby"] = updated_by
+            
+            if visit_notes:
+                update_expr += ", visit_notes = :vn"
+                expr_attr_vals[":vn"] = visit_notes
+
         try:
             table.update_item(
                 Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},

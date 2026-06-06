@@ -8,6 +8,7 @@ import {
   Linking,
   Platform,
   Alert,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStaff } from '../hooks/useStaff';
@@ -20,7 +21,7 @@ import { ConfirmationModal } from '../components/ConfirmationModal';
 import { StaffPickerSheet } from '../components/StaffPickerSheet';
 
 export const RequestDetailScreen = ({ route, navigation }: any) => {
-  const { logout, role } = useAuth();
+  const { logout, role, user } = useAuth();
   const initialRequest = route.params?.request || null;
   const [request, setRequest] = useState<any>(initialRequest);
   const { staff, isLoading: isStaffLoading, error: staffError, refresh: refreshStaff } = useStaff(role === 'staff');
@@ -32,6 +33,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   const [selectedStaff, setSelectedStaff] = useState<{ emailOrDisplayName: string; displayName: string } | null>(null);
   const [isMutating, setIsMutating] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [visitNotes, setVisitNotes] = useState('');
 
   const handleApprove = async () => {
     setMutationError(null);
@@ -119,11 +121,14 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
     setMutationError(null);
     setIsMutating(true);
     try {
-      await reviewRequest(request.request_id, request.client_id, 'COMPLETED');
+      await reviewRequest(request.request_id, request.client_id, 'COMPLETED', '', visitNotes);
       setShowCompleteConfirmModal(false);
       const updated = {
         ...request,
         status: 'COMPLETED',
+        visit_notes: visitNotes.trim() || undefined,
+        completed_at: new Date().toISOString(),
+        completed_by: user || 'staff',
       };
       setRequest(updated);
       Alert.alert('Success', 'Visit marked as completed ✓');
@@ -305,6 +310,19 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
             )}
           </View>
 
+          {/* Visit Notes (Read-only if present) */}
+          {request.visit_notes && (
+            <View style={styles.card}>
+              <Text style={styles.sectionHeader}>Visit Notes</Text>
+              <Text style={styles.instructionText}>{request.visit_notes}</Text>
+              {request.completed_at && (
+                <Text style={styles.datesSubText}>
+                  Completed on {request.completed_at.split('T')[0]} by {request.completed_by}
+                </Text>
+              )}
+            </View>
+          )}
+
           {/* Pet Profiles Details */}
           {request.pets && Array.isArray(request.pets) && request.pets.length > 0 ? (
             request.pets.map((pet: any, idx: number) => (
@@ -426,6 +444,24 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
             <View style={styles.card}>
               <Text style={styles.sectionHeader}>Special Instructions</Text>
               <Text style={styles.instructionText}>{request.special_instructions}</Text>
+            </View>
+          )}
+
+          {/* Optional Visit Notes Input for Staff (only when status is ASSIGNED and role is staff) */}
+          {isAssigned && role === 'staff' && (
+            <View style={styles.card}>
+              <Text style={styles.sectionHeader}>Visit Notes (optional)</Text>
+              <TextInput
+                style={styles.notesInput}
+                placeholder="How did the visit go? Any observations..."
+                placeholderTextColor={COLORS.textMuted}
+                multiline={true}
+                numberOfLines={4}
+                maxLength={500}
+                value={visitNotes}
+                onChangeText={setVisitNotes}
+              />
+              <Text style={styles.charCounter}>{visitNotes.length}/500 characters</Text>
             </View>
           )}
         </ScrollView>
@@ -738,5 +774,23 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 16,
     fontWeight: '700',
+  },
+  notesInput: {
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    color: COLORS.text,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    backgroundColor: COLORS.background,
+  },
+  charCounter: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    textAlign: 'right',
+    marginTop: 6,
+    fontWeight: '500',
   },
 });

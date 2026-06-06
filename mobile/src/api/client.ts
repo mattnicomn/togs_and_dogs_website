@@ -76,12 +76,13 @@ export const getStaffOptions = () => request('/requests', 'POST', { action: 'sta
 export const submitRequest = (data: any) => request('/requests', 'POST', data);
 
 // reviewRequest mutations
-export const reviewRequest = (requestId: string, clientId: string, status: string, reason = "") => 
+export const reviewRequest = (requestId: string, clientId: string, status: string, reason = "", visitNotes = "") => 
   request('/admin/review', 'POST', { 
     request_id: requestId, 
     client_id: clientId, 
     status, 
-    reason 
+    reason,
+    ...(visitNotes ? { visit_notes: visitNotes } : {})
   }, true);
 
 export const assignWorker = (jobId: string, reqId: string, clientId: string, workerId: string, workerName: string) => 
