@@ -64,13 +64,21 @@ def mock_get_item(pk, sk):
 @patch('common.google_calendar.sync_calendar_event')
 @patch('common.notifications.service.notify_event')
 def test_multi_day_parent_assignment(mock_notify, mock_sync, mock_table, mock_get_item, mock_claims, mock_role):
+    mock_table.query.return_value = {
+        "Items": [{
+            "email": "worker-xyz@example.com",
+            "is_active": True,
+            "is_assignable": True,
+            "cognito_sub": "some-sub-uuid"
+        }]
+    }
     # UI passes req_id for a multi-day booking
     event = {
         "body": json.dumps({
             "job_id": "req-multi-3",
             "req_id": "req-multi-3",
             "client_id": "client-123",
-            "worker_id": "worker-xyz",
+            "worker_id": "worker-xyz@example.com",
             "worker_name": "Test Worker"
         })
     }
@@ -106,13 +114,21 @@ def test_multi_day_parent_assignment(mock_notify, mock_sync, mock_table, mock_ge
 @patch('common.google_calendar.sync_calendar_event')
 @patch('common.notifications.service.notify_event')
 def test_legacy_single_day_assignment(mock_notify, mock_sync, mock_table, mock_get_item, mock_claims, mock_role):
+    mock_table.query.return_value = {
+        "Items": [{
+            "email": "worker-xyz@example.com",
+            "is_active": True,
+            "is_assignable": True,
+            "cognito_sub": "some-sub-uuid"
+        }]
+    }
     # UI passes req_id for a single-day booking
     event = {
         "body": json.dumps({
             "job_id": "req-single",
             "req_id": "req-single",
             "client_id": "client-123",
-            "worker_id": "worker-xyz",
+            "worker_id": "worker-xyz@example.com",
             "worker_name": "Test Worker"
         })
     }
@@ -139,13 +155,21 @@ def test_legacy_single_day_assignment(mock_notify, mock_sync, mock_table, mock_g
 @patch('common.google_calendar.sync_calendar_event')
 @patch('common.notifications.service.notify_event')
 def test_missing_child_job_graceful(mock_notify, mock_sync, mock_table, mock_get_item, mock_claims, mock_role):
+    mock_table.query.return_value = {
+        "Items": [{
+            "email": "worker-xyz@example.com",
+            "is_active": True,
+            "is_assignable": True,
+            "cognito_sub": "some-sub-uuid"
+        }]
+    }
     # UI passes req_id for a multi-day booking, but one job is missing from DB
     event = {
         "body": json.dumps({
             "job_id": "req-missing-job",
             "req_id": "req-missing-job",
             "client_id": "client-123",
-            "worker_id": "worker-xyz",
+            "worker_id": "worker-xyz@example.com",
             "worker_name": "Test Worker"
         })
     }

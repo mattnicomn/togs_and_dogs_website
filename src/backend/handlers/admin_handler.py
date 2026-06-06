@@ -276,6 +276,8 @@ def handler(event, context):
                     s['cognito_sub'] = None
                     s['cognito_status'] = 'unlinked'
                     s['is_protected'] = is_protected_profile(s)
+                    # Release 8U: Unlinked profiles are never assignable
+                    s['is_assignable'] = False
                     merged_staff.append(s)
                     # Find and mark Cognito user as matched by email to prevent virtual user duplication
                     for cu in cognito_staff:
@@ -304,6 +306,14 @@ def handler(event, context):
                         s['cognito_sub'] = next((a['Value'] for a in cog_match['Attributes'] if a['Name'] == 'sub'), None)
                 # Release 6H Phase 2: Include is_protected flag for frontend consumption
                 s['is_protected'] = is_protected_profile(s)
+                # Release 8U: Enforce assignment eligibility — profiles with invalid email or no
+                # real Cognito sub must not appear in assignment dropdowns regardless of DB flag.
+                import re as _re
+                _VALID_EMAIL_RE = _re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
+                _s_email_check = (s.get('email') or '').strip()
+                _s_sub_check = s.get('cognito_sub')
+                if not _VALID_EMAIL_RE.match(_s_email_check) or not _s_sub_check or _s_sub_check == 'unlinked':
+                    s['is_assignable'] = False
                 merged_staff.append(s)
                     
             # 2. Add Cognito-only staff users
@@ -332,6 +342,10 @@ def handler(event, context):
                 }
                 # Release 6H Phase 2: Include is_protected flag for frontend
                 v_profile['is_protected'] = is_protected_profile(v_profile)
+                # Release 8U: Virtual profiles already have a real cognito_sub; no override needed.
+                # But guard against any edge case where virtual profile has no valid sub.
+                if not cu_sub:
+                    v_profile['is_assignable'] = False
                 merged_staff.append(v_profile)
                 
             return success({"staff": merged_staff}, event)

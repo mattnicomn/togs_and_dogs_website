@@ -44,7 +44,45 @@ def handler(event, context):
             from common.response import bad_request
             return bad_request(f"Missing fields. Required: [job_id, req_id, client_id, worker_id]", event)
 
+        # Release 8U: Validate worker_id against a real active/assignable staff profile.
+        # This prevents typo emails or phantom profiles from being persisted as worker_id.
+        try:
+            import re as _re
+            _VALID_EMAIL_RE = _re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
+            if not _VALID_EMAIL_RE.match((worker_id or '').strip()):
+                print(f"ERROR: worker_id '{worker_id}' is not a valid email format.")
+                return bad_request(f"Invalid worker_id format: '{worker_id}'. Must be a valid email address.", event)
+
+            from common.auth import get_current_company_id
+            _company_id = get_current_company_id(event)
+            from boto3.dynamodb.conditions import Key as _Key
+            _staff_resp = table.query(
+                KeyConditionExpression=_Key('PK').eq(f"COMPANY#{_company_id}") & _Key('SK').begins_with("STAFF#")
+            )
+            _staff_items = _staff_resp.get('Items', [])
+            _worker_email = worker_id.lower().strip()
+            _eligible = any(
+                (s.get('email') or '').lower().strip() == _worker_email
+                and s.get('is_active') is not False
+                and s.get('is_assignable') is not False
+                and s.get('cognito_sub')
+                and s.get('cognito_sub') != 'unlinked'
+                for s in _staff_items
+            )
+            if not _eligible:
+                print(f"ERROR: worker_id '{worker_id}' does not match any eligible assignable staff profile.")
+                return bad_request(
+                    f"No eligible assignable staff profile found for worker_id: '{worker_id}'. "
+                    "Ensure the staff profile exists, is active, is assignable, and has a linked Cognito account.",
+                    event
+                )
+        except Exception as _val_err:
+            print(f"WARNING: worker_id validation query failed: {_val_err}. Proceeding with assignment.")
+            # Non-fatal: if the validation query itself fails (e.g., DynamoDB unavailable),
+            # we log a warning and allow the assignment to proceed rather than blocking it.
+
         # ROBUSTNESS: Handle case where UI sends REQ ID as JOB ID before sync
+
         target_job_ids = []
         request_rec = None
         
