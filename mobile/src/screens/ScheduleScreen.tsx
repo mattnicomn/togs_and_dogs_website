@@ -139,6 +139,7 @@ export const ScheduleScreen = () => {
     if (original) {
       navigation.navigate('RequestDetail', {
         request: original,
+        selectedDate: item.date,
       });
     }
   };

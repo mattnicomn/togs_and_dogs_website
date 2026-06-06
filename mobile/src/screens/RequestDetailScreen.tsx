@@ -23,6 +23,7 @@ import { StaffPickerSheet } from '../components/StaffPickerSheet';
 export const RequestDetailScreen = ({ route, navigation }: any) => {
   const { logout, role, user } = useAuth();
   const initialRequest = route.params?.request || null;
+  const selectedDate = route.params?.selectedDate || null;
   const [request, setRequest] = useState<any>(initialRequest);
   const { staff, isLoading: isStaffLoading, error: staffError, refresh: refreshStaff } = useStaff(role === 'staff');
 
@@ -80,20 +81,15 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
     setIsMutating(true);
     try {
       const reqId = request.request_id;
-      const jobId = request.job_id || (request.job_ids && request.job_ids.length > 0 ? request.job_ids[0] : null);
       const clientId = request.client_id;
       const workerId = selectedStaff.emailOrDisplayName;
       const workerName = selectedStaff.displayName;
-
-      if (!jobId) {
-        throw new Error('This booking is still initializing and cannot be assigned yet.');
-      }
 
       if (!reqId || !clientId) {
         throw new Error('Error: Record has no valid Request or Client ID.');
       }
 
-      await assignWorker(jobId, reqId, clientId, workerId, workerName);
+      await assignWorker(reqId, reqId, clientId, workerId, workerName);
       setShowAssignConfirmModal(false);
       const updated = {
         ...request,
@@ -192,6 +188,26 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   // Resolve vet info
   const vetInfo = request.vet_info;
   const hasVetInfo = vetInfo && (vetInfo.vet_name || vetInfo.clinic_name || vetInfo.clinic_phone || vetInfo.clinic_address);
+
+  const getCompleteModalMessage = () => {
+    const pet = request.pet_name || 'Buddy';
+    const client = request.client_name || 'Jane Smith';
+    const isMultiDay = request.selected_dates && request.selected_dates.length > 1;
+    
+    let dateInfo = '';
+    if (selectedDate) {
+      dateInfo = `Selected Visit Date: ${selectedDate}\nFull Booking Range: ${formatDateRange(request.selected_dates)}`;
+    } else {
+      dateInfo = `Booking Range: ${formatDateRange(request.selected_dates)}`;
+    }
+
+    let warning = '';
+    if (isMultiDay) {
+      warning = `\n\n⚠️ WARNING: This is a multi-day booking. Completing this will mark ALL dates in the booking completed.`;
+    }
+
+    return `Confirm you've completed the care visit for ${pet} (${client}).\n\n${dateInfo}${warning}`;
+  };
 
   const isPending = request.status === 'PENDING_REVIEW';
   const isApproved = request.status === 'APPROVED';
@@ -535,7 +551,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
       <ConfirmationModal
         visible={showCompleteConfirmModal}
         title="Mark Visit Completed?"
-        message={`Confirm you've completed the care visit for ${request.pet_name || 'Buddy'} (${request.client_name || 'Jane Smith'}).`}
+        message={getCompleteModalMessage()}
         onConfirm={handleMarkCompleted}
         onCancel={() => setShowCompleteConfirmModal(false)}
         isLoading={isMutating}

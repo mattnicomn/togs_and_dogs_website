@@ -117,20 +117,15 @@ export const RequestCard: React.FC<RequestCardProps> = ({
     setIsMutating(true);
     try {
       const reqId = request.request_id;
-      const jobId = request.job_id || (request.job_ids && request.job_ids.length > 0 ? request.job_ids[0] : null);
       const clientId = request.client_id;
       const workerId = selectedStaff.emailOrDisplayName;
       const workerName = selectedStaff.displayName;
-
-      if (!jobId) {
-        throw new Error('This booking is still initializing and cannot be assigned yet.');
-      }
 
       if (!reqId || !clientId) {
         throw new Error('Error: Record has no valid Request or Client ID.');
       }
 
-      await assignWorker(jobId, reqId, clientId, workerId, workerName);
+      await assignWorker(reqId, reqId, clientId, workerId, workerName);
       setShowAssignConfirmModal(false);
       if (onApproveSuccess) {
         const updated: PetRequest = {
