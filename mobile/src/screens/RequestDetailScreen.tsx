@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Linking,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStaff } from '../hooks/useStaff';
@@ -18,13 +19,14 @@ import { useAuth } from '../auth/useAuth';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { StaffPickerSheet } from '../components/StaffPickerSheet';
 
-export const RequestDetailScreen = ({ route }: any) => {
+export const RequestDetailScreen = ({ route, navigation }: any) => {
   const { logout, role } = useAuth();
   const initialRequest = route.params?.request || null;
   const [request, setRequest] = useState<any>(initialRequest);
-  const { staff, isLoading: isStaffLoading, error: staffError, refresh: refreshStaff } = useStaff();
+  const { staff, isLoading: isStaffLoading, error: staffError, refresh: refreshStaff } = useStaff(role === 'staff');
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showCompleteConfirmModal, setShowCompleteConfirmModal] = useState(false);
   const [showStaffPicker, setShowStaffPicker] = useState(false);
   const [showAssignConfirmModal, setShowAssignConfirmModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<{ emailOrDisplayName: string; displayName: string } | null>(null);
@@ -113,6 +115,32 @@ export const RequestDetailScreen = ({ route }: any) => {
     }
   };
 
+  const handleMarkCompleted = async () => {
+    setMutationError(null);
+    setIsMutating(true);
+    try {
+      await reviewRequest(request.request_id, request.client_id, 'COMPLETED');
+      setShowCompleteConfirmModal(false);
+      const updated = {
+        ...request,
+        status: 'COMPLETED',
+      };
+      setRequest(updated);
+      Alert.alert('Success', 'Visit marked as completed ✓');
+      navigation.goBack();
+    } catch (error: any) {
+      const msg = error.message || '';
+      if (msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('expired')) {
+        await logout();
+      } else {
+        setMutationError(msg || 'Failed to update visit status');
+        Alert.alert('Error', msg || 'Failed to update visit status');
+      }
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
   if (!request) {
     return (
       <SafeAreaView style={styles.centerContainer}>
@@ -162,8 +190,8 @@ export const RequestDetailScreen = ({ route }: any) => {
 
   const isPending = request.status === 'PENDING_REVIEW';
   const isApproved = request.status === 'APPROVED';
-  const isAssigned = ['ASSIGNED', 'SCHEDULED', 'JOB_CREATED'].includes(request.status);
-  const showFooter = role !== 'staff' && (isPending || isApproved || isAssigned);
+  const isAssigned = ['ASSIGNED', 'SCHEDULED', 'JOB_CREATED', 'IN_PROGRESS'].includes(request.status);
+  const showFooter = (role !== 'staff' && (isPending || isApproved || isAssigned)) || (role === 'staff' && isAssigned);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -411,7 +439,7 @@ export const RequestDetailScreen = ({ route }: any) => {
               </View>
             )}
 
-            {isPending && (
+            {isPending && role !== 'staff' && (
               <TouchableOpacity
                 style={styles.approveBtn}
                 onPress={() => setShowConfirmModal(true)}
@@ -422,7 +450,7 @@ export const RequestDetailScreen = ({ route }: any) => {
               </TouchableOpacity>
             )}
 
-            {isApproved && (
+            {isApproved && role !== 'staff' && (
               <TouchableOpacity
                 style={styles.assignBtn}
                 onPress={handleAssignPress}
@@ -433,7 +461,7 @@ export const RequestDetailScreen = ({ route }: any) => {
               </TouchableOpacity>
             )}
 
-            {isAssigned && (
+            {isAssigned && role !== 'staff' && (
               <TouchableOpacity
                 style={styles.changeBtn}
                 onPress={handleAssignPress}
@@ -441,6 +469,17 @@ export const RequestDetailScreen = ({ route }: any) => {
                 activeOpacity={0.8}
               >
                 <Text style={styles.changeBtnText}>Change Staff</Text>
+              </TouchableOpacity>
+            )}
+
+            {isAssigned && role === 'staff' && (
+              <TouchableOpacity
+                style={styles.completeBtn}
+                onPress={() => setShowCompleteConfirmModal(true)}
+                disabled={isMutating}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.completeBtnText}>Mark Completed</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -454,6 +493,15 @@ export const RequestDetailScreen = ({ route }: any) => {
         message={`This will update ${request.pet_name}'s status to APPROVED. This triggers production calendar syncs and notification emails. Are you sure you want to proceed?`}
         onConfirm={handleApprove}
         onCancel={() => setShowConfirmModal(false)}
+        isLoading={isMutating}
+      />
+
+      <ConfirmationModal
+        visible={showCompleteConfirmModal}
+        title="Mark Visit Completed?"
+        message={`Confirm you've completed the care visit for ${request.pet_name || 'Buddy'} (${request.client_name || 'Jane Smith'}).`}
+        onConfirm={handleMarkCompleted}
+        onCancel={() => setShowCompleteConfirmModal(false)}
         isLoading={isMutating}
       />
 
@@ -679,5 +727,16 @@ const styles = StyleSheet.create({
     color: COLORS.danger,
     fontSize: 13,
     fontWeight: '600',
+  },
+  completeBtn: {
+    backgroundColor: COLORS.success,
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  completeBtnText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

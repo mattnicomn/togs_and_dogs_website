@@ -42,13 +42,17 @@ const request = async (path: string, method = 'GET', data: any = null, isProtect
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     const errorMessage = errorData.error || errorData.message || `Request failed with status ${response.status}`;
+    // 401 = token expired or invalid → surface as session expiry so auth layer can log out
     if (
-      response.status === 401 || 
-      response.status === 403 || 
-      errorMessage.toLowerCase().includes('expired') || 
+      response.status === 401 ||
+      errorMessage.toLowerCase().includes('expired') ||
       errorMessage.toLowerCase().includes('unauthorized')
     ) {
       throw new Error('Your session expired. Please sign in again.');
+    }
+    // 403 = valid token but insufficient role → surface as a plain permission error (do NOT trigger logout)
+    if (response.status === 403) {
+      throw new Error(errorMessage || 'You do not have permission to perform this action.');
     }
     throw new Error(errorMessage);
   }

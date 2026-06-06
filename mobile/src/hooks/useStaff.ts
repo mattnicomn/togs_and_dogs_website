@@ -3,13 +3,14 @@ import { getStaff } from '../api/client';
 import { Staff } from '../types';
 import { useAuth } from '../auth/useAuth';
 
-export const useStaff = () => {
+export const useStaff = (skip = false) => {
   const { logout } = useAuth();
   const [staff, setStaff] = useState<Staff[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchStaff = useCallback(async () => {
+    if (skip) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -35,7 +36,7 @@ export const useStaff = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [logout]);
+  }, [skip, logout]);
 
   useEffect(() => {
     fetchStaff();
