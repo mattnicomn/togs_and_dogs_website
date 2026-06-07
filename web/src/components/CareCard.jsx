@@ -211,6 +211,63 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
               </div>
             </div>
 
+            {/* Release 8Z: CareCard Visit Schedule Breakdown */}
+            {pet._originItem?.job_completion_summary && (
+              <section className="card-section" style={{ marginTop: '24px' }}>
+                <h3>Visit Schedule ({pet._originItem.job_completion_summary.completed}/{pet._originItem.job_completion_summary.total} completed)</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+                  {pet._originItem.job_completion_summary.jobs.map((job, idx) => {
+                    const isDone = job.status === 'COMPLETED';
+                    return (
+                      <div key={job.job_id || idx} className="content-box" style={{
+                        borderLeft: isDone ? '4px solid var(--success, #10b981)' : '4px solid var(--primary, #3b82f6)',
+                        padding: '12px 16px',
+                        background: 'var(--bg-muted, #f8f9fa)'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>
+                            {isDone ? '✅' : '⏳'} Visit {job.occurrence_index || (idx + 1)} — {job.occurrence_date ? new Date(job.occurrence_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Date TBD'}
+                          </span>
+                          <span className={`status-chip status-chip--${job.status.toLowerCase().replace(/_/g, '-')}`} style={{ margin: 0, padding: '2px 8px', fontSize: '0.7rem' }}>
+                            {job.status}
+                          </span>
+                        </div>
+                        {isDone ? (
+                          <div style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--text-muted, #6c757d)' }}>
+                            <p style={{ margin: '2px 0' }}>
+                              <strong>Completed By:</strong> {job.completed_by || 'Unknown'}
+                            </p>
+                            <p style={{ margin: '2px 0' }}>
+                              <strong>Completed At:</strong> {job.completed_at ? new Date(job.completed_at).toLocaleString() : 'N/A'}
+                            </p>
+                            {job.visit_notes && (
+                              <div style={{
+                                marginTop: '8px',
+                                padding: '10px',
+                                background: 'var(--bg-card, #ffffff)',
+                                borderRadius: '4px',
+                                border: '1px solid var(--border-soft, #e9ecef)',
+                                color: 'var(--text-main, #212529)',
+                                fontStyle: 'normal'
+                              }}>
+                                <strong>Visit Notes:</strong> {job.visit_notes}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--text-muted, #6c757d)' }}>
+                            <p style={{ margin: 0 }}>
+                              <strong>Assigned To:</strong> {job.worker_name || 'Unassigned'}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             {/* Completion Notes Section */}
             {pet._originItem && pet._originItem.status === 'COMPLETED' && (
               <section className="card-section" style={{ marginTop: '24px' }}>

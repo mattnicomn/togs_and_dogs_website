@@ -104,8 +104,10 @@ def sanitize_booking_for_role(record, role):
         'assignment_color',
         'visit_notes',
         'completed_at',
-        'completed_by'
+        'completed_by',
+        'job_completion_summary'
     ]
+
     
     redacted_any = False
     for field in sensitive_fields:

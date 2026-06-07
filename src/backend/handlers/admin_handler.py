@@ -1757,7 +1757,49 @@ def handler(event, context):
             
             if request_id and client_id:
                 item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
-                return success(item, event) if item else not_found(f"Request {request_id} not found", event)
+                if item:
+                    if item.get('job_ids'):
+                        jobs_summary = []
+                        completed_count = 0
+                        pending_count = 0
+                        total_count = len(item.get('job_ids'))
+                        
+                        for jid in item.get('job_ids'):
+                            job_record = get_item(f"JOB#{jid}", f"REQ#{request_id}")
+                            if job_record:
+                                status = job_record.get('status', 'JOB_CREATED')
+                                if status == 'COMPLETED':
+                                    completed_count += 1
+                                else:
+                                    pending_count += 1
+                                    
+                                jobs_summary.append({
+                                    'job_id': jid,
+                                    'occurrence_date': job_record.get('occurrence_date') or job_record.get('scheduled_date') or job_record.get('start_date'),
+                                    'occurrence_index': job_record.get('occurrence_index'),
+                                    'status': status,
+                                    'worker_id': job_record.get('worker_id'),
+                                    'worker_name': job_record.get('worker_name'),
+                                    'completed_at': job_record.get('completed_at'),
+                                    'completed_by': job_record.get('completed_by'),
+                                    'visit_notes': job_record.get('visit_notes')
+                                })
+                        
+                        # Sort jobs by date and occurrence index
+                        jobs_summary.sort(key=lambda x: (x.get('occurrence_date') or '', x.get('occurrence_index') or 0))
+                        
+                        item['job_completion_summary'] = {
+                            'total': total_count,
+                            'completed': completed_count,
+                            'pending': pending_count,
+                            'jobs': jobs_summary
+                        }
+                    
+                    role = get_effective_role(event)
+                    item = sanitize_booking_for_role(item, role)
+                    return success(item, event)
+                return not_found(f"Request {request_id} not found", event)
+
             
             # List with Pagination & Filters
             status = query_params.get('status', 'PENDING_REVIEW')
@@ -1985,22 +2027,32 @@ def handler(event, context):
                     
             # Track completed job IDs on parent REQ
             completed_jobs = parent_req.get('completed_job_ids') or []
-            if job_id not in completed_jobs:
+            is_new_completion = job_id not in completed_jobs
+            if is_new_completion:
                 completed_jobs.append(job_id)
 
-            parent_update_expr = "SET completed_job_ids = :cj"
-            parent_expr_vals = {":cj": completed_jobs}
+            parent_update_expr = "SET completed_job_ids = :cj, updated_at = :now"
+            parent_expr_vals = {
+                ":cj": completed_jobs,
+                ":now": now
+            }
             parent_expr_names = {}
+
+            if is_new_completion:
+                parent_update_expr += ", completed_count = if_not_exists(completed_count, :zero) + :one"
+                parent_expr_vals.update({
+                    ":zero": 0,
+                    ":one": 1
+                })
 
             parent_status = parent_req.get('status')
             if all_completed and parent_status != 'COMPLETED':
                 # Auto-rollup: complete parent
-                parent_update_expr += ", #stat = :s, completed_at = :cat, completed_by = :cby, updated_at = :now"
+                parent_update_expr += ", #stat = :s, completed_at = :cat, completed_by = :cby"
                 parent_expr_vals.update({
                     ":s": "COMPLETED",
                     ":cat": now,
-                    ":cby": user_email,
-                    ":now": now
+                    ":cby": user_email
                 })
                 parent_expr_names["#stat"] = "status"
                 parent_status = "COMPLETED"
@@ -2011,6 +2063,7 @@ def handler(event, context):
                 ExpressionAttributeValues=parent_expr_vals,
                 **(dict(ExpressionAttributeNames=parent_expr_names) if parent_expr_names else {})
             )
+
 
             if all_completed and parent_req.get('status') != 'COMPLETED':
                 log_action(

@@ -1555,6 +1555,7 @@ const AdminDashboard = () => {
         "Service Location": r.service_location || r.address,
         "Meet & Greet": r.meet_and_greet_completed ? "Completed" : (r.meet_and_greet_required ? "Required" : "N/A"),
         "Quote Status": r.quote_status || (r.quote_sent_date ? "Sent" : "None"),
+        "Visits Completed": (r.is_multi_day || (r.selected_dates && r.selected_dates.length > 1)) ? `${r.completed_count || 0}/${r.selected_dates?.length || r.total_occurrences || 1}` : (r.status === "COMPLETED" ? "1/1" : "0/1"),
         "Admin Notes": r.admin_notes || r.notes,
         "Visit Notes": r.visit_notes || "",
         "Completed By": r.completed_by || "",
@@ -1613,6 +1614,9 @@ const AdminDashboard = () => {
         "Status": j.status,
         "Staff Name": j.worker_name,
         "Assigned At": j.assigned_at,
+        "Completed At": j.completed_at || "",
+        "Completed By": j.completed_by || "",
+        "Visit Notes": j.visit_notes || "",
         "Updated At": j.updated_at
       }));
       XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(jobRows.length ? jobRows : [{}]), "Staff Assignments");
@@ -3854,6 +3858,23 @@ const AdminDashboard = () => {
                           {item.preferred_sitter_name && (
                             <span className="badge-preferred" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                               Prefers: {item.preferred_sitter_name}
+                            </span>
+                          )}
+                          {/* Release 8Z: per-visit completion badge */}
+                          {(item.is_multi_day || (item.selected_dates && item.selected_dates.length > 1) || (item.total_occurrences && item.total_occurrences > 1)) && (
+                            <span style={{
+                              fontSize: '0.65rem',
+                              fontWeight: 700,
+                              background: (item.completed_count || 0) >= (item.selected_dates?.length || item.total_occurrences || 1) ? '#ecfdf5' : '#eff6ff',
+                              color: (item.completed_count || 0) >= (item.selected_dates?.length || item.total_occurrences || 1) ? '#065f46' : '#1e40af',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              marginTop: '4px',
+                              display: 'inline-block',
+                              width: 'fit-content',
+                              border: (item.completed_count || 0) >= (item.selected_dates?.length || item.total_occurrences || 1) ? '1px solid #a7f3d0' : '1px solid #bfdbfe'
+                            }}>
+                              {item.completed_count || 0}/{(item.selected_dates?.length || item.total_occurrences || 1)} visits done
                             </span>
                           )}
                         </div>
