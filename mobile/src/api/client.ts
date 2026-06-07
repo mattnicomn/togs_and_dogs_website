@@ -94,3 +94,11 @@ export const assignWorker = (jobId: string, reqId: string, clientId: string, wor
     worker_name: workerName
   }, true);
 
+export const completeJob = (jobId: string, requestId: string, visitNotes = "") =>
+  request('/admin/job/complete', 'POST', {
+    job_id: jobId,
+    request_id: requestId,
+    visit_notes: visitNotes
+  }, true);
+
+

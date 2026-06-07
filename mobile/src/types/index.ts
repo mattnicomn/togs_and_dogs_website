@@ -18,6 +18,7 @@ export interface PetRequest {
   assigned_sitter_id?: string;
   job_id?: string;
   job_ids?: string[];
+  completed_job_ids?: string[];
 }
 
 export interface Staff {

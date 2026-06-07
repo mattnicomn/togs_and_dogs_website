@@ -15,7 +15,7 @@ import { useStaff } from '../hooks/useStaff';
 import { StatusBadge } from '../components/StatusBadge';
 import { COLORS } from '../theme/colors';
 import { ContentContainer } from '../components/ContentContainer';
-import { reviewRequest, assignWorker } from '../api/client';
+import { reviewRequest, assignWorker, completeJob } from '../api/client';
 import { useAuth } from '../auth/useAuth';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { StaffPickerSheet } from '../components/StaffPickerSheet';
@@ -24,6 +24,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   const { logout, role, user } = useAuth();
   const initialRequest = route.params?.request || null;
   const selectedDate = route.params?.selectedDate || null;
+  const jobId = route.params?.jobId || null;
   const [request, setRequest] = useState<any>(initialRequest);
   const { staff, isLoading: isStaffLoading, error: staffError, refresh: refreshStaff } = useStaff(role === 'staff');
 
@@ -117,17 +118,37 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
     setMutationError(null);
     setIsMutating(true);
     try {
-      await reviewRequest(request.request_id, request.client_id, 'COMPLETED', '', visitNotes);
-      setShowCompleteConfirmModal(false);
-      const updated = {
-        ...request,
-        status: 'COMPLETED',
-        visit_notes: visitNotes.trim() || undefined,
-        completed_at: new Date().toISOString(),
-        completed_by: user || 'staff',
-      };
-      setRequest(updated);
-      Alert.alert('Success', 'Visit marked as completed ✓');
+      if (jobId) {
+        await completeJob(jobId, request.request_id, visitNotes.trim());
+        setShowCompleteConfirmModal(false);
+        const completedJobs = request.completed_job_ids ? [...request.completed_job_ids] : [];
+        if (!completedJobs.includes(jobId)) {
+          completedJobs.push(jobId);
+        }
+        const updated = {
+          ...request,
+          completed_job_ids: completedJobs,
+        };
+        const allJobIds = request.job_ids || [request.job_id];
+        const allDone = allJobIds.every((id: string) => completedJobs.includes(id));
+        if (allDone) {
+          updated.status = 'COMPLETED';
+        }
+        setRequest(updated);
+        Alert.alert('Success', 'Visit marked as completed ✓');
+      } else {
+        await reviewRequest(request.request_id, request.client_id, 'COMPLETED', '', visitNotes);
+        setShowCompleteConfirmModal(false);
+        const updated = {
+          ...request,
+          status: 'COMPLETED',
+          visit_notes: visitNotes.trim() || undefined,
+          completed_at: new Date().toISOString(),
+          completed_by: user || 'staff',
+        };
+        setRequest(updated);
+        Alert.alert('Success', 'Booking marked as completed ✓');
+      }
       navigation.goBack();
     } catch (error: any) {
       const msg = error.message || '';
@@ -203,7 +224,11 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
 
     let warning = '';
     if (isMultiDay) {
-      warning = `\n\n⚠️ WARNING: This is a multi-day booking. Completing this will mark ALL dates in the booking completed.`;
+      if (jobId) {
+        warning = `\n\nNote: This will mark ONLY the visit on ${selectedDate} as completed. Other visits in this booking will remain active.`;
+      } else {
+        warning = `\n\n⚠️ WARNING: This is a multi-day booking. Completing this will mark ALL dates in the booking completed.`;
+      }
     }
 
     return `Confirm you've completed the care visit for ${pet} (${client}).\n\n${dateInfo}${warning}`;
@@ -224,6 +249,12 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
           
           {/* Core Status Summary */}
           <View style={styles.card}>
+            {selectedDate && (
+              <View style={styles.selectedDateBanner}>
+                <Text style={styles.selectedDateBannerLabel}>Target Visit Date</Text>
+                <Text style={styles.selectedDateBannerValue}>🗓️ {selectedDate}</Text>
+              </View>
+            )}
             <View style={styles.rowBetween}>
               <Text style={styles.petTitle}>🐾 {request.pet_name}</Text>
               <StatusBadge status={request.status} />
@@ -808,5 +839,26 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginTop: 6,
     fontWeight: '500',
+  },
+  selectedDateBanner: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#bfdbfe',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  selectedDateBannerLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#1e40af',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  selectedDateBannerValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1e3a8a',
+    marginTop: 4,
   },
 });

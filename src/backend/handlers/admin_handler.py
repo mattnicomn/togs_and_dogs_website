@@ -1870,6 +1870,167 @@ def handler(event, context):
                 "lastKey": json.dumps(response.get('LastEvaluatedKey')) if response.get('LastEvaluatedKey') else None
             }, event)
 
+        elif http_method == 'POST' and '/admin/job/complete' in path:
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin', 'staff']:
+                return error(403, "Forbidden", event)
+                
+            claims = get_claims(event)
+            user_email = (claims.get('email') or "").lower().strip() or claims.get('username') or 'admin-api'
+            
+            try:
+                body = json.loads(event.get('body', '{}'))
+            except Exception:
+                return bad_request("Invalid JSON body", event)
+                
+            job_id = body.get('job_id')
+            request_id = body.get('request_id')
+            visit_notes = (body.get('visit_notes') or '').strip()
+            
+            if not job_id or not request_id:
+                return bad_request("Missing required fields: job_id, request_id", event)
+                
+            if len(visit_notes) > 500:
+                return bad_request("Visit notes must not exceed 500 characters.", event)
+                
+            # 1. Get the JOB record
+            job = get_item(f"JOB#{job_id}", f"REQ#{request_id}")
+            if not job:
+                return not_found(f"Job {job_id} not found under request {request_id}", event)
+                
+            # 2. Staff ownership check
+            if role == 'staff':
+                worker_id = (job.get('worker_id') or '').lower().strip()
+                if not worker_id or worker_id != user_email:
+                    return error(403, "You can only complete visits assigned to you.", event)
+                    
+            # 3. Idempotency Check: Already completed
+            current_status = job.get('status', 'ASSIGNED')
+            if current_status == 'COMPLETED':
+                parent_req = get_item(f"REQ#{request_id}", f"CLIENT#{job.get('client_id')}")
+                parent_status = parent_req.get('status', 'ASSIGNED') if parent_req else 'COMPLETED'
+                all_job_ids = []
+                if parent_req:
+                    all_job_ids = parent_req.get('job_ids') or [parent_req.get('job_id')]
+                
+                remaining = 0
+                for jid in all_job_ids:
+                    if jid == job_id:
+                        continue
+                    sib = get_item(f"JOB#{jid}", f"REQ#{request_id}")
+                    if sib and sib.get('status') != 'COMPLETED':
+                        remaining += 1
+                
+                return success({
+                    "message": "Already completed",
+                    "job_id": job_id,
+                    "status": "COMPLETED",
+                    "parent_status": parent_status,
+                    "remaining_active_jobs": remaining
+                }, event)
+                
+            if current_status not in ['ASSIGNED', 'JOB_CREATED', 'SCHEDULED', 'PENDING']:
+                return bad_request(f"Cannot complete job in status: {current_status}", event)
+                
+            # 4. Update JOB to COMPLETED
+            now = datetime.utcnow().isoformat()
+            update_expr = "SET #stat = :s, completed_at = :cat, completed_by = :cby, updated_at = :now"
+            expr_vals = {":s": "COMPLETED", ":cat": now, ":cby": user_email, ":now": now}
+            expr_names = {"#stat": "status"}
+            
+            if visit_notes:
+                update_expr += ", visit_notes = :vn"
+                expr_vals[":vn"] = visit_notes
+                
+            table.update_item(
+                Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{request_id}"},
+                UpdateExpression=update_expr,
+                ExpressionAttributeNames=expr_names,
+                ExpressionAttributeValues=expr_vals
+            )
+            
+            # Audit log
+            log_action(
+                event,
+                "JOB_COMPLETED",
+                f"JOB#{job_id}",
+                f"REQ#{request_id}",
+                previous_status=current_status,
+                new_status="COMPLETED",
+                metadata={"client_id": job.get('client_id'), "visit_notes": visit_notes}
+            )
+            
+            # 5. Check all sibling JOBs for auto-rollup
+            parent_req = get_item(f"REQ#{request_id}", f"CLIENT#{job.get('client_id')}")
+            if not parent_req:
+                return success({
+                    "message": "Visit completed successfully. Sibling/parent record not found.",
+                    "job_id": job_id,
+                    "status": "COMPLETED",
+                    "parent_status": "UNKNOWN",
+                    "remaining_active_jobs": 0
+                }, event)
+                
+            all_job_ids = parent_req.get('job_ids') or [parent_req.get('job_id')]
+            all_completed = True
+            remaining = 0
+            
+            for jid in all_job_ids:
+                if jid == job_id:
+                    continue
+                sibling = get_item(f"JOB#{jid}", f"REQ#{request_id}")
+                if sibling and sibling.get('status') != 'COMPLETED':
+                    all_completed = False
+                    remaining += 1
+                    
+            # Track completed job IDs on parent REQ
+            completed_jobs = parent_req.get('completed_job_ids') or []
+            if job_id not in completed_jobs:
+                completed_jobs.append(job_id)
+
+            parent_update_expr = "SET completed_job_ids = :cj"
+            parent_expr_vals = {":cj": completed_jobs}
+            parent_expr_names = {}
+
+            parent_status = parent_req.get('status')
+            if all_completed and parent_status != 'COMPLETED':
+                # Auto-rollup: complete parent
+                parent_update_expr += ", #stat = :s, completed_at = :cat, completed_by = :cby, updated_at = :now"
+                parent_expr_vals.update({
+                    ":s": "COMPLETED",
+                    ":cat": now,
+                    ":cby": user_email,
+                    ":now": now
+                })
+                parent_expr_names["#stat"] = "status"
+                parent_status = "COMPLETED"
+
+            table.update_item(
+                Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{job.get('client_id')}"},
+                UpdateExpression=parent_update_expr,
+                ExpressionAttributeValues=parent_expr_vals,
+                **(dict(ExpressionAttributeNames=parent_expr_names) if parent_expr_names else {})
+            )
+
+            if all_completed and parent_req.get('status') != 'COMPLETED':
+                log_action(
+                    event,
+                    "AUTO_ROLLUP_COMPLETED",
+                    f"REQ#{request_id}",
+                    f"CLIENT#{job.get('client_id')}",
+                    previous_status=parent_req.get('status'),
+                    new_status="COMPLETED",
+                    metadata={"reason": "All child jobs completed"}
+                )
+                
+            return success({
+                "message": "Visit completed successfully.",
+                "job_id": job_id,
+                "status": "COMPLETED",
+                "parent_status": parent_status,
+                "remaining_active_jobs": remaining
+            }, event)
+
         elif http_method == 'POST':
             role = get_effective_role(event)
             if role not in ['owner', 'admin', 'staff']:

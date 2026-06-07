@@ -29,6 +29,7 @@ interface ExpandedVisit {
   status: string;
   worker_name?: string;
   assigned_sitter?: string;
+  job_id?: string;
 }
 
 export const ScheduleScreen = () => {
@@ -87,20 +88,28 @@ export const ScheduleScreen = () => {
 
       activeRequests.forEach((req: PetRequest) => {
         if (req.selected_dates && Array.isArray(req.selected_dates)) {
-          req.selected_dates.forEach((dateStr: string) => {
+          req.selected_dates.forEach((dateStr: string, index: number) => {
             if (dateStr >= todayStr) {
-              expanded.push({
-                request_id: req.request_id,
-                client_id: req.client_id,
-                client_name: req.client_name,
-                pet_name: req.pet_name,
-                service_type: req.service_type,
-                date: dateStr,
-                timeframe: req.timeframe || 'Anytime',
-                status: req.status,
-                worker_name: req.worker_name,
-                assigned_sitter: req.assigned_sitter,
-              });
+              const job_id = (req.job_ids && req.job_ids[index]) || req.job_id;
+              
+              // Skip completed child jobs
+              const isCompleted = req.completed_job_ids && job_id && req.completed_job_ids.includes(job_id);
+              
+              if (!isCompleted) {
+                expanded.push({
+                  request_id: req.request_id,
+                  client_id: req.client_id,
+                  client_name: req.client_name,
+                  pet_name: req.pet_name,
+                  service_type: req.service_type,
+                  date: dateStr,
+                  timeframe: req.timeframe || 'Anytime',
+                  status: req.status,
+                  worker_name: req.worker_name,
+                  assigned_sitter: req.assigned_sitter,
+                  job_id: job_id,
+                });
+              }
             }
           });
         }
@@ -140,6 +149,7 @@ export const ScheduleScreen = () => {
       navigation.navigate('RequestDetail', {
         request: original,
         selectedDate: item.date,
+        jobId: item.job_id,
       });
     }
   };

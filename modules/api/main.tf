@@ -136,6 +136,39 @@ resource "aws_api_gateway_integration" "assign_lambda" {
   uri                     = var.assign_handler_invoke_arn
 }
 
+# Admin /admin/job path
+resource "aws_api_gateway_resource" "admin_job" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin.id
+  path_part   = "job"
+}
+
+# Admin /admin/job/complete path
+resource "aws_api_gateway_resource" "admin_job_complete" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_job.id
+  path_part   = "complete"
+}
+
+# Admin POST /admin/job/complete
+resource "aws_api_gateway_method" "post_admin_job_complete" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_job_complete.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_admin_job_complete_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_job_complete.id
+  http_method = aws_api_gateway_method.post_admin_job_complete.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
 # Admin /admin/auth path
 resource "aws_api_gateway_resource" "admin_auth" {
   rest_api_id = aws_api_gateway_rest_api.main.id
@@ -958,7 +991,9 @@ locals {
     "client_pets" : aws_api_gateway_resource.client_pets.id,
     "client_devices" : aws_api_gateway_resource.client_devices.id,
     "client_device_id" : aws_api_gateway_resource.client_device_id.id,
-    "admin_export" : aws_api_gateway_resource.admin_export.id
+    "admin_export" : aws_api_gateway_resource.admin_export.id,
+    "admin_job" : aws_api_gateway_resource.admin_job.id,
+    "admin_job_complete" : aws_api_gateway_resource.admin_job_complete.id
   }
 
 
@@ -1086,7 +1121,8 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration_response.options_200,
     aws_api_gateway_gateway_response.unauthorized,
     aws_api_gateway_gateway_response.missing_auth_token,
-    aws_api_gateway_integration.postmark_webhook_lambda
+    aws_api_gateway_integration.postmark_webhook_lambda,
+    aws_api_gateway_integration.post_admin_job_complete_lambda
   ]
 
   rest_api_id = aws_api_gateway_rest_api.main.id
@@ -1098,6 +1134,10 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.admin_requests,
       aws_api_gateway_resource.admin_review,
       aws_api_gateway_resource.admin_assign,
+      aws_api_gateway_resource.admin_job,
+      aws_api_gateway_resource.admin_job_complete,
+      aws_api_gateway_method.post_admin_job_complete,
+      aws_api_gateway_integration.post_admin_job_complete_lambda,
       aws_api_gateway_resource.admin_auth,
       aws_api_gateway_resource.admin_auth_google,
       aws_api_gateway_resource.admin_auth_callback,
