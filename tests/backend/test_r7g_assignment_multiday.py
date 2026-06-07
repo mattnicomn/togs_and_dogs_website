@@ -189,3 +189,119 @@ def test_missing_child_job_graceful(mock_notify, mock_sync, mock_table, mock_get
     assert mock_table.update_item.call_count >= 3
     assert mock_sync.call_count == 2
     assert mock_notify.call_count == 2
+
+
+@patch('common.auth.get_effective_role', side_effect=mock_get_effective_role)
+@patch('common.auth.get_claims', side_effect=mock_get_claims)
+@patch('common.db.get_item', side_effect=mock_get_item)
+@patch('common.db.table')
+@patch('common.google_calendar.sync_calendar_event')
+@patch('common.notifications.service.notify_event')
+def test_multi_day_primary_job_assignment_cascade(mock_notify, mock_sync, mock_table, mock_get_item, mock_claims, mock_role):
+    mock_table.query.return_value = {
+        "Items": [{
+            "email": "worker-xyz@example.com",
+            "is_active": True,
+            "is_assignable": True,
+            "cognito_sub": "some-sub-uuid"
+        }]
+    }
+    
+    def local_get_item(pk, sk):
+        if pk == "REQ#req-multi-cascade":
+            return {
+                "PK": pk, "SK": sk, "status": "APPROVED",
+                "job_id": "job-1",
+                "job_ids": ["job-1", "job-2", "job-3"],
+                "client_id": "client-123",
+                "is_multi_day": True
+            }
+        if pk.startswith("JOB#"):
+            job_id = pk.split("#")[1]
+            return {
+                "PK": pk, "SK": sk, "status": "APPROVED",
+                "client_id": "client-123",
+                "start_date": "2026-07-20",
+                "google_event_id": f"cal-{job_id}"
+            }
+        return None
+        
+    mock_get_item.side_effect = local_get_item
+    
+    event = {
+        "body": json.dumps({
+            "job_id": "job-1",
+            "req_id": "req-multi-cascade",
+            "client_id": "client-123",
+            "worker_id": "worker-xyz@example.com",
+            "worker_name": "Test Worker"
+        })
+    }
+    
+    mock_sync.return_value = {"event_id": "cal-same"}
+    
+    res = assignment_handler(event, None)
+    
+    assert res["statusCode"] == 200
+    body = json.loads(res["body"])
+    assert "Worker assigned to 3 job(s) successfully" in body["message"]
+    assert len(body["job_ids"]) == 3
+    assert set(body["job_ids"]) == {"job-1", "job-2", "job-3"}
+
+
+@patch('common.auth.get_effective_role', side_effect=mock_get_effective_role)
+@patch('common.auth.get_claims', side_effect=mock_get_claims)
+@patch('common.db.get_item', side_effect=mock_get_item)
+@patch('common.db.table')
+@patch('common.google_calendar.sync_calendar_event')
+@patch('common.notifications.service.notify_event')
+def test_multi_day_single_child_explicit_assignment(mock_notify, mock_sync, mock_table, mock_get_item, mock_claims, mock_role):
+    mock_table.query.return_value = {
+        "Items": [{
+            "email": "worker-xyz@example.com",
+            "is_active": True,
+            "is_assignable": True,
+            "cognito_sub": "some-sub-uuid"
+        }]
+    }
+    
+    def local_get_item(pk, sk):
+        if pk == "REQ#req-multi-explicit":
+            return {
+                "PK": pk, "SK": sk, "status": "APPROVED",
+                "job_id": "job-1",
+                "job_ids": ["job-1", "job-2", "job-3"],
+                "client_id": "client-123",
+                "is_multi_day": True
+            }
+        if pk.startswith("JOB#"):
+            job_id = pk.split("#")[1]
+            return {
+                "PK": pk, "SK": sk, "status": "APPROVED",
+                "client_id": "client-123",
+                "start_date": "2026-07-20",
+                "google_event_id": f"cal-{job_id}"
+            }
+        return None
+        
+    mock_get_item.side_effect = local_get_item
+    
+    event = {
+        "body": json.dumps({
+            "job_id": "job-2",
+            "req_id": "req-multi-explicit",
+            "client_id": "client-123",
+            "worker_id": "worker-xyz@example.com",
+            "worker_name": "Test Worker"
+        })
+    }
+    
+    mock_sync.return_value = {"event_id": "cal-same"}
+    
+    res = assignment_handler(event, None)
+    
+    assert res["statusCode"] == 200
+    body = json.loads(res["body"])
+    assert "Worker assigned to 1 job(s)" in body["message"]
+    assert body["job_ids"] == ["job-2"]
+

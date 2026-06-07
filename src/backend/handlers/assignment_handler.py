@@ -84,33 +84,39 @@ def handler(event, context):
         # ROBUSTNESS: Handle case where UI sends REQ ID as JOB ID before sync
 
         target_job_ids = []
-        request_rec = None
+        request_rec = get_item(f"REQ#{req_id}", f"CLIENT#{client_id}")
         
-        if job_id == req_id or job_id.startswith('REQ#'):
-            print(f"INFO: Attempting to resolve Job IDs from Request REQ#{req_id}")
-            request_rec = get_item(f"REQ#{req_id}", f"CLIENT#{client_id}")
-            if request_rec:
-                if request_rec.get('job_ids'):
-                    target_job_ids = request_rec.get('job_ids')
-                    print(f"INFO: Resolved {len(target_job_ids)} Job IDs from Request job_ids list")
-                elif request_rec.get('job_id'):
-                    target_job_ids = [request_rec.get('job_id')]
-                    print(f"INFO: Resolved single Job ID from Request: {target_job_ids[0]}")
+        if request_rec:
+            parent_job_ids = request_rec.get('job_ids') or []
+            primary_job_id = request_rec.get('job_id')
+            is_multi_day = request_rec.get('is_multi_day')
             
-            if not target_job_ids:
-                print("INFO: RACE_CONDITION_DETECTED - Request has no job_ids yet. Attempting table scan for orphaned JOB records.")
-                # We do a fast scan on the SK to find the Jobs since they might be created but not linked
-                from boto3.dynamodb.conditions import Attr
-                response = table.scan(
-                    FilterExpression=Attr('SK').eq(f"REQ#{req_id}") & Attr('entity_type').eq('JOB')
-                )
-                items = response.get('Items', [])
-                if items:
-                    target_job_ids = [item.get('PK').replace('JOB#', '') for item in items]
-                    print(f"WARNING: RESOLVED_CANONICAL_JOBS via scan: {target_job_ids}")
+            # Cascade to all jobs if it is a multi-day booking and we target the parent request or the booking's primary job ID
+            if is_multi_day and (job_id == req_id or job_id.startswith('REQ#') or job_id == primary_job_id):
+                target_job_ids = parent_job_ids
+                print(f"INFO: Resolved {len(target_job_ids)} Job IDs for multi-day booking assignment cascade")
+            elif job_id == req_id or job_id.startswith('REQ#'):
+                target_job_ids = parent_job_ids if parent_job_ids else ([primary_job_id] if primary_job_id else [])
+                print(f"INFO: Resolved parent request target to Job IDs: {target_job_ids}")
+            else:
+                target_job_ids = [job_id]
         else:
-            # Single child job assignment directly from UI
-            target_job_ids = [job_id]
+            if job_id == req_id or job_id.startswith('REQ#'):
+                target_job_ids = []
+            else:
+                target_job_ids = [job_id]
+
+        # Scan fallback for race conditions (if request didn't have jobs linked yet)
+        if (job_id == req_id or job_id.startswith('REQ#')) and not target_job_ids:
+            print("INFO: RACE_CONDITION_DETECTED - Request has no job_ids yet. Attempting table scan for orphaned JOB records.")
+            from boto3.dynamodb.conditions import Attr
+            response = table.scan(
+                FilterExpression=Attr('SK').eq(f"REQ#{req_id}") & Attr('entity_type').eq('JOB')
+            )
+            items = response.get('Items', [])
+            if items:
+                target_job_ids = [item.get('PK').replace('JOB#', '') for item in items]
+                print(f"WARNING: RESOLVED_CANONICAL_JOBS via scan: {target_job_ids}")
 
         if not target_job_ids:
             print(f"ERROR: Jobs for REQ#{req_id} not found")
