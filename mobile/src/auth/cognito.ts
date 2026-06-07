@@ -51,15 +51,19 @@ export const signIn = (email: string, password: string): Promise<CognitoUserSess
     
     cognitoUser.authenticateUser(authenticationDetails, {
       onSuccess: async (result) => {
-        const idToken = result.getIdToken().getJwtToken();
-        const refreshToken = result.getRefreshToken().getToken();
-        await saveIdToken(idToken);
-        await saveRefreshToken(refreshToken);
-        await saveSessionData(JSON.stringify({
-          email: cognitoUser.getUsername(),
-          role: getEffectiveRole(result)
-        }));
-        resolve(result);
+        try {
+          const idToken = result.getIdToken().getJwtToken();
+          const refreshToken = result.getRefreshToken().getToken();
+          await saveIdToken(idToken);
+          await saveRefreshToken(refreshToken);
+          await saveSessionData(JSON.stringify({
+            email: cognitoUser.getUsername(),
+            role: getEffectiveRole(result)
+          }));
+          resolve(result);
+        } catch (storageErr) {
+          reject(storageErr);
+        }
       },
       onFailure: (err) => reject(err),
       newPasswordRequired: (userAttributes) => {
@@ -74,13 +78,32 @@ export const signIn = (email: string, password: string): Promise<CognitoUserSess
 };
 
 export const signOut = async (): Promise<void> => {
-  const cognitoUser = userPool.getCurrentUser();
-  if (cognitoUser) {
-    cognitoUser.signOut();
+  try {
+    const cognitoUser = userPool.getCurrentUser();
+    if (cognitoUser) {
+      cognitoUser.signOut();
+    }
+  } catch (err) {
+    console.warn('Cognito pool signOut failed', err);
   }
-  await clearIdToken();
-  await clearRefreshToken();
-  await clearSessionData();
+  
+  try {
+    await clearIdToken();
+  } catch (err) {
+    console.warn('Failed to clear ID token during signOut', err);
+  }
+  
+  try {
+    await clearRefreshToken();
+  } catch (err) {
+    console.warn('Failed to clear refresh token during signOut', err);
+  }
+  
+  try {
+    await clearSessionData();
+  } catch (err) {
+    console.warn('Failed to clear session data during signOut', err);
+  }
 };
 
 export const refreshSession = async (): Promise<string | null> => {
@@ -105,9 +128,14 @@ export const refreshSession = async (): Promise<string | null> => {
           console.warn('Failed to refresh Cognito session silently', err);
           resolve(null);
         } else {
-          const newIdToken = result.getIdToken().getJwtToken();
-          await saveIdToken(newIdToken);
-          resolve(newIdToken);
+          try {
+            const newIdToken = result.getIdToken().getJwtToken();
+            await saveIdToken(newIdToken);
+            resolve(newIdToken);
+          } catch (storageErr) {
+            console.warn('Failed to save refreshed token in silent refresh', storageErr);
+            resolve(null);
+          }
         }
       });
     });

@@ -5,39 +5,75 @@ const SESSION_KEY = 'usr_session_data';
 const REFRESH_TOKEN_KEY = 'usr_refresh_token';
 
 export const saveIdToken = async (token: string): Promise<void> => {
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
+  try {
+    await SecureStore.setItemAsync(TOKEN_KEY, token);
+  } catch (e: any) {
+    throw new Error(`SecureStore set ID token failed: ${e.message || e}`);
+  }
 };
 
 export const getIdToken = async (): Promise<string | null> => {
-  return await SecureStore.getItemAsync(TOKEN_KEY);
+  try {
+    return await SecureStore.getItemAsync(TOKEN_KEY);
+  } catch (e: any) {
+    throw new Error(`SecureStore get ID token failed: ${e.message || e}`);
+  }
 };
 
 export const clearIdToken = async (): Promise<void> => {
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
+  try {
+    await SecureStore.deleteItemAsync(TOKEN_KEY);
+  } catch (e: any) {
+    throw new Error(`SecureStore delete ID token failed: ${e.message || e}`);
+  }
 };
 
 export const saveRefreshToken = async (token: string): Promise<void> => {
-  await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token);
+  try {
+    await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token);
+  } catch (e: any) {
+    throw new Error(`SecureStore set refresh token failed: ${e.message || e}`);
+  }
 };
 
 export const getRefreshToken = async (): Promise<string | null> => {
-  return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+  try {
+    return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+  } catch (e: any) {
+    throw new Error(`SecureStore get refresh token failed: ${e.message || e}`);
+  }
 };
 
 export const clearRefreshToken = async (): Promise<void> => {
-  await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+  try {
+    await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+  } catch (e: any) {
+    throw new Error(`SecureStore delete refresh token failed: ${e.message || e}`);
+  }
 };
 
 export const saveSessionData = async (data: string): Promise<void> => {
-  await SecureStore.setItemAsync(SESSION_KEY, data);
+  try {
+    await SecureStore.setItemAsync(SESSION_KEY, data);
+  } catch (e: any) {
+    throw new Error(`SecureStore set session data failed: ${e.message || e}`);
+  }
 };
 
 export const getSessionData = async (): Promise<string | null> => {
-  return await SecureStore.getItemAsync(SESSION_KEY);
+  try {
+    return await SecureStore.getItemAsync(SESSION_KEY);
+  } catch (e: any) {
+    throw new Error(`SecureStore get session data failed: ${e.message || e}`);
+  }
 };
 
 export const clearSessionData = async (): Promise<void> => {
-  await SecureStore.deleteItemAsync(SESSION_KEY);
+  try {
+    await SecureStore.deleteItemAsync(SESSION_KEY);
+  } catch (e: any) {
+    throw new Error(`SecureStore delete session data failed: ${e.message || e}`);
+  }
 };
 
 export const isTokenExpired = (token: string): boolean => {
