@@ -67,27 +67,43 @@ def cascade_status_to_job(request_item, new_req_status, updated_by='system', rem
 
     for job_id in job_ids:
         try:
+            # Query child job to check status
+            resp = table.get_item(Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{request_id}"})
+            job_record = resp.get('Item')
+            current_job_status = job_record.get('status', 'JOB_CREATED') if job_record else 'JOB_CREATED'
+
             # Build update expression
-            update_expr = "SET #stat = :s, updated_at = :now, updated_by = :ub"
-            expr_attr_names = {"#stat": "status"}
+            expr_attr_names = {}
             expr_attr_vals = {
-                ":s": job_status,
                 ":now": now,
                 ":ub": updated_by,
             }
 
+            if current_job_status == 'COMPLETED':
+                update_expr = "SET updated_at = :now, updated_by = :ub"
+                print(f"INFO: [Cascade] Preserving COMPLETED status for JOB#{job_id}")
+            else:
+                update_expr = "SET #stat = :s, updated_at = :now, updated_by = :ub"
+                expr_attr_names["#stat"] = "status"
+                expr_attr_vals[":s"] = job_status
+
+            # Handle is_test_booking cascade
+            if 'is_test_booking' in request_item:
+                update_expr += ", is_test_booking = :itb"
+                expr_attr_vals[":itb"] = request_item['is_test_booking']
+
             # Remove worker_id on rollback (e.g., ASSIGNED → APPROVED)
-            if remove_worker:
+            if remove_worker and current_job_status != 'COMPLETED':
                 update_expr += " REMOVE worker_id, worker_name"
 
             table.update_item(
                 Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{request_id}"},
                 UpdateExpression=update_expr,
-                ExpressionAttributeNames=expr_attr_names,
+                **(dict(ExpressionAttributeNames=expr_attr_names) if expr_attr_names else {}),
                 ExpressionAttributeValues=expr_attr_vals
             )
 
-            print(f"INFO: [Cascade] JOB#{job_id} updated to {job_status} (from REQ#{request_id} → {new_req_status})")
+            print(f"INFO: [Cascade] JOB#{job_id} updated (status={current_job_status if current_job_status == 'COMPLETED' else job_status})")
             success_count += 1
 
         except Exception as e:
@@ -97,4 +113,5 @@ def cascade_status_to_job(request_item, new_req_status, updated_by='system', rem
             
     if fail_count > 0:
         return {"success": False, "message": f"Cascade partially failed: {success_count} succeeded, {fail_count} failed."}
-    return {"success": True, "message": f"Cascaded to {success_count} JOB(s) with status {job_status}."}
+    return {"success": True, "message": f"Cascaded to {success_count} JOB(s)."}
+

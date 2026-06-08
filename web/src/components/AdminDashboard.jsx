@@ -89,6 +89,8 @@ const AdminDashboard = () => {
   const [purgeAnalysis, setPurgeAnalysis] = useState(null);
   const [workflowDropdownOpen, setWorkflowDropdownOpen] = useState(false);
   const [decisionModal, setDecisionModal] = useState(null);
+  const [archiveConfirmModal, setArchiveConfirmModal] = useState(null); // { item }
+  const [archiveReasonText, setArchiveReasonText] = useState('');
   const [lastKey, setLastKey] = useState(null);
   const [exportModal, setExportModal] = useState(false);
   const [expandedRequestIds, setExpandedRequestIds] = useState({});
@@ -143,7 +145,7 @@ const AdminDashboard = () => {
 
   // Scroll lock: prevent background scrolling when any modal is open (mobile iOS Safari fix)
   useEffect(() => {
-    const isAnyModalOpen = !!(decisionModal || bulkConfirmModal || purgeModal || selectedPet || confirmAction);
+    const isAnyModalOpen = !!(decisionModal || bulkConfirmModal || purgeModal || selectedPet || confirmAction || archiveConfirmModal);
     if (isAnyModalOpen) {
       const scrollY = window.scrollY;
       document.body.style.position = 'fixed';
@@ -158,7 +160,7 @@ const AdminDashboard = () => {
         window.scrollTo(0, scrollY);
       };
     }
-  }, [decisionModal, bulkConfirmModal, purgeModal, selectedPet, confirmAction]);
+  }, [decisionModal, bulkConfirmModal, purgeModal, selectedPet, confirmAction, archiveConfirmModal]);
 
   const showNotification = (message, type = 'info') => {
     setNotification({ message, type });
@@ -758,9 +760,12 @@ const AdminDashboard = () => {
 
     // Lifecycle-based Actions
     if (isArchivedRecord(item)) {
-      // Release 1: Add RESTORE_APPROVED as MVP recovery action.
-      // Future enhancement: restore to exact previous_status when tracking is available.
-      state.actions = ["REOPEN_PENDING", "RESTORE_APPROVED", "DELETE"];
+      state.actions = ["UNARCHIVE", "REOPEN_PENDING", "RESTORE_APPROVED", "DELETE"];
+      if (item.is_test_booking) {
+        state.actions.push("UNMARK_TEST");
+      } else {
+        state.actions.push("MARK_TEST");
+      }
       return state;
     }
     
@@ -827,7 +832,7 @@ const AdminDashboard = () => {
           break;
         case 'ASSIGNED':
         case 'SCHEDULED':
-          state.actions = ["CHANGE_WORKER", "REVERT_TO_APPROVED", "COMPLETE", "CANCEL", "EDIT_PET"];
+          state.actions = ["CHANGE_WORKER", "REVERT_TO_APPROVED", "COMPLETE", "CANCEL", "ARCHIVE", "EDIT_PET"];
           break;
         case 'IN_PROGRESS':
           state.actions = ["COMPLETE", "CANCEL", "EDIT_PET"];
@@ -844,6 +849,15 @@ const AdminDashboard = () => {
           state.actions = ["CANCEL", "ARCHIVE"];
       }
     }
+
+    if (!isDeletedRecord(item) && !isArchivedRecord(item)) {
+      if (item.is_test_booking) {
+        state.actions.push("UNMARK_TEST");
+      } else {
+        state.actions.push("MARK_TEST");
+      }
+    }
+
     return state;
   };
 
@@ -1459,7 +1473,7 @@ const AdminDashboard = () => {
     );
   };
 
-  const updateRecordStatus = async (req, action, note = "") => {
+  const updateRecordStatus = async (req, action, note = "", extraData = null) => {
     const statusMap = {
       'APPROVE': 'APPROVED',
       'DECLINE': 'DECLINED',
@@ -1477,6 +1491,9 @@ const AdminDashboard = () => {
       // Future enhancement: restore to exact previous_status when tracking is available.
       'RESTORE_APPROVED': 'APPROVED',
       'ARCHIVE': 'ARCHIVED',
+      'UNARCHIVE': 'UNARCHIVE',
+      'MARK_TEST': 'MARK_TEST',
+      'UNMARK_TEST': 'UNMARK_TEST',
       'CREATE_PROFILE': 'PROFILE_CREATED',
       'MOVE_TO_NEW_REQUEST': 'READY_FOR_APPROVAL',
       'QUOTE': 'QUOTE_NEEDED',
@@ -1488,11 +1505,14 @@ const AdminDashboard = () => {
     };
 
     const targetStatus = statusMap[action] || action;
-    const isLifecycleAction = ['ARCHIVED', 'DELETED'].includes(targetStatus.toUpperCase());
+    const isLifecycleAction = ['ARCHIVED', 'DELETED', 'MARK_TEST', 'UNMARK_TEST', 'UNARCHIVE'].includes(targetStatus.toUpperCase());
     
     if (isLifecycleAction && req.PK && req.SK) {
-      // Direct record update for terminal record-management states (Archive/Trash)
-      return performAdminAction(req.PK, req.SK, targetStatus === 'DELETED' ? 'DELETE' : (targetStatus === 'ARCHIVED' ? 'ARCHIVE' : targetStatus));
+      // Direct record update for terminal record-management states (Archive/Trash/Test flags)
+      let finalAction = action;
+      if (targetStatus === 'DELETED') finalAction = 'DELETE';
+      if (targetStatus === 'ARCHIVED') finalAction = 'ARCHIVE';
+      return performAdminAction(req.PK, req.SK, finalAction, null, extraData);
     } else {
       // Workflow transition update — uses reviewRequest to trigger side effects (emails, jobs, etc.)
       const { reqId, clientId } = resolveIds(req);
@@ -1857,7 +1877,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const onReviewAction = async (req, action, note = "") => {
+  const onReviewAction = async (req, action, note = "", extraData = null) => {
     // Clear any previous notification before this action starts
     setError(null);
 
@@ -1891,13 +1911,16 @@ const AdminDashboard = () => {
       'MOVE_TO_NEW_REQUEST': 'Moved to New Request.',
       'MEET_GREET':          'M&G required flag set.',
       'MEET_GREET_REQUIRED': 'M&G required flag set.',
+      'UNARCHIVE':           'Record unarchived.',
+      'MARK_TEST':           'Record marked as Test.',
+      'UNMARK_TEST':         'Record unmarked as Test.',
     };
 
     let actionSucceeded = false;
 
     try {
       setLoading(true);
-      const response = await updateRecordStatus(req, action, note);
+      const response = await updateRecordStatus(req, action, note, extraData);
       actionSucceeded = true;
 
       const statusMap = {
@@ -1906,7 +1929,8 @@ const AdminDashboard = () => {
         'CANCEL': 'CANCELLED',
         'COMPLETE': 'COMPLETED',
         'ARCHIVE': 'ARCHIVED',
-        'DELETE': 'DELETED'
+        'DELETE': 'DELETED',
+        'UNARCHIVE': 'UNARCHIVE'
       };
       const targetStatus = statusMap[action] || action;
 
@@ -1920,7 +1944,11 @@ const AdminDashboard = () => {
       // Reconcile local state immediately to prevent stale display while refresh is in flight
       setAllRequests(prev => prev.map(item =>
         (item.PK === req.PK && item.SK === req.SK)
-        ? { ...item, status: targetStatus }
+        ? { 
+            ...item, 
+            status: targetStatus === 'UNARCHIVE' ? (item.worker_id ? 'ASSIGNED' : 'APPROVED') : targetStatus,
+            is_test_booking: action === 'MARK_TEST' ? true : (action === 'UNMARK_TEST' ? false : item.is_test_booking)
+          }
         : item
       ));
 
@@ -3784,7 +3812,7 @@ const AdminDashboard = () => {
                     const isExpanded = !!expandedRequestIds[recordKey];
                     return (
                       <React.Fragment key={recordKey}>
-                        <tr className={selectedIds.includes(recordKey) ? 'selected-row' : ''}>
+                        <tr className={`${selectedIds.includes(recordKey) ? 'selected-row' : ''} ${item.is_test_booking ? 'test-row' : ''}`} style={item.is_test_booking ? { borderLeft: '4px solid var(--info, #0284c7)', backgroundColor: 'var(--bg-test, #f0f9ff)' } : {}}>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <input 
@@ -3816,7 +3844,12 @@ const AdminDashboard = () => {
                           </td>
                       <td onClick={() => handleSelectPet(item)} className="clickable-cell">
                         <div className="info-stack">
-                          <span className="bold">
+                          <span className="bold" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            {item.is_test_booking && (
+                              <span className="status-chip" style={{ padding: '2px 6px', fontSize: '0.65rem', background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: '4px', textTransform: 'uppercase', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                Test Data
+                              </span>
+                            )}
                             {(() => {
                               const pets = item.pet_names || item.pet_name;
                               const client = item.client_name;
@@ -4003,7 +4036,8 @@ const AdminDashboard = () => {
                                      'REOPEN': 'Reopen', 'REOPEN_PENDING': 'Restore to Active',
                                      'RESTORE_APPROVED': 'Restore to Approved',
                                      'ARCHIVE': 'Archive', 'CREATE_PROFILE': 'Create Profile',
-                                     'MOVE_TO_NEW_REQUEST': 'To New Request', 'DELETE': 'Move to Trash'
+                                     'MOVE_TO_NEW_REQUEST': 'To New Request', 'DELETE': 'Move to Trash',
+                                     'UNARCHIVE': 'Unarchive', 'MARK_TEST': 'Mark as Test', 'UNMARK_TEST': 'Unmark Test'
                                    };
                                    
                                    const isDangerous = ['DELETE', 'CANCEL'].includes(action);
@@ -4013,8 +4047,12 @@ const AdminDashboard = () => {
                                        key={action}
                                        onClick={(e) => { 
                                          e.stopPropagation(); 
-                                         onReviewAction(item, action); 
-                                         setOpenMenuId(null); 
+                                         setOpenMenuId(null);
+                                         if (action === 'ARCHIVE') {
+                                           setArchiveConfirmModal({ item });
+                                         } else {
+                                           onReviewAction(item, action); 
+                                         }
                                        }} 
                                        className={`dropdown-item ${isDangerous ? 'dangerous' : ''}`}
                                      >
@@ -4223,6 +4261,87 @@ const AdminDashboard = () => {
                   })()}
                 </div>
               ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {archiveConfirmModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <button
+              className="modal-close-btn"
+              onClick={() => { setArchiveConfirmModal(null); setArchiveReasonText(''); }}
+              aria-label="Close dialog"
+            >
+              ✕
+            </button>
+            <div className="modal-header">
+               <h2>Archive Booking</h2>
+               <p className="text-muted">
+                 Confirm archiving for: <strong>{archiveConfirmModal.item.pet_names || archiveConfirmModal.item.pet_name || 'Pet'} ({archiveConfirmModal.item.client_name})</strong>
+               </p>
+            </div>
+
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
+              <div style={{ background: 'var(--bg-muted, #f8f9fa)', padding: '12px 16px', borderRadius: '6px', fontSize: '0.85rem' }}>
+                <p style={{ margin: '0 0 8px 0' }}><strong>Parent Request ID:</strong> {archiveConfirmModal.item.request_id || archiveConfirmModal.item.PK?.replace('REQ#', '')}</p>
+                {(() => {
+                  const summary = archiveConfirmModal.item.job_completion_summary;
+                  if (summary) {
+                    const jobs = summary.jobs || [];
+                    const completedJobsCount = jobs.filter(j => j.status === 'COMPLETED').length;
+                    return (
+                      <>
+                        <p style={{ margin: '0 0 8px 0' }}><strong>Total Visits:</strong> {summary.total || jobs.length}</p>
+                        <p style={{ margin: '0 0 8px 0' }}><strong>Completed Visits:</strong> {completedJobsCount}</p>
+                        {completedJobsCount > 0 && (
+                          <div style={{ color: 'var(--warning, #f59e0b)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px' }}>
+                            ⚠️ Warning: This booking has completed visits. Archiving preserves completed visits/sitter notes but soft-archives active child visits.
+                          </div>
+                        )}
+                      </>
+                    );
+                  }
+                  return <p style={{ margin: 0 }}>No child visits associated with this request.</p>;
+                })()}
+              </div>
+
+              <div className="field">
+                <label style={{ fontWeight: 'bold' }}>Archive Reason (Required)</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. Validation complete, Customer cancelled, Duplicate..."
+                  value={archiveReasonText}
+                  onChange={(e) => setArchiveReasonText(e.target.value)}
+                  className="form-control"
+                  style={{ width: '100%', padding: '8px 12px', marginTop: '6px', borderRadius: '4px', border: '1px solid var(--border-soft, #e9ecef)' }}
+                />
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <button 
+                onClick={() => { setArchiveConfirmModal(null); setArchiveReasonText(''); }} 
+                className="btn-secondary btn-small"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  if (!archiveReasonText.trim()) {
+                    alert('Please enter a reason for archiving.');
+                    return;
+                  }
+                  onReviewAction(archiveConfirmModal.item, 'ARCHIVE', '', { archive_reason: archiveReasonText });
+                  setArchiveConfirmModal(null);
+                  setArchiveReasonText('');
+                }} 
+                className="btn-small dangerous"
+                disabled={!archiveReasonText.trim()}
+              >
+                Confirm Archive
+              </button>
             </div>
           </div>
         </div>

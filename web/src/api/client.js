@@ -125,8 +125,8 @@ export const processCancellationDecision = (requestId, clientId, decision, note)
   request('/admin/cancel/decision', 'PUT', { request_id: requestId, client_id: clientId, decision, note }, true);
 
 // Operational Management
-export const performAdminAction = (pk, sk, action, records = null) => {
-  const payload = { action };
+export const performAdminAction = (pk, sk, action, records = null, extraData = null) => {
+  const payload = { action, ...extraData };
   if (records) {
     payload.records = records;
   } else if (pk && sk) {

@@ -299,6 +299,114 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
               </section>
             )}
 
+            {/* Release 9A: Archive Info */}
+            {pet._originItem && pet._originItem.status === 'ARCHIVED' && (
+              <section className="card-section" style={{ marginTop: '24px' }}>
+                <h3>Archive Info</h3>
+                <div className="content-box">
+                  <p><strong>Archived By:</strong> {pet._originItem.archived_by || 'Unknown'}</p>
+                  <p><strong>Archived At:</strong> {pet._originItem.archived_at ? new Date(pet._originItem.archived_at).toLocaleString() : 'N/A'}</p>
+                  <p><strong>Archive Reason:</strong> {pet._originItem.archive_reason || 'N/A'}</p>
+                </div>
+              </section>
+            )}
+
+            {/* Release 9A: Booking Controls */}
+            {['owner', 'admin'].includes(userRole) && pet._originItem && (
+              <section className="card-section" style={{ marginTop: '24px', borderTop: '1px solid var(--border-soft, #e9ecef)', paddingTop: '20px' }}>
+                <h3>Booking Controls</h3>
+                <div className="content-box" style={{ background: 'var(--bg-muted, #f8f9fa)', padding: '16px', borderRadius: '8px' }}>
+                  {/* Test Data Toggle */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <div>
+                      <strong style={{ fontSize: '0.95rem' }}>Test Data Status</strong>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted, #6c757d)' }}>
+                        Toggle whether this is a validation/test booking.
+                      </p>
+                    </div>
+                    <button
+                      className={`btn-small ${pet._originItem.is_test_booking ? 'success' : 'primary-outline'}`}
+                      onClick={() => {
+                        const nextAction = pet._originItem.is_test_booking ? 'UNMARK_TEST' : 'MARK_TEST';
+                        onStatusUpdate(pet._originItem, nextAction);
+                      }}
+                    >
+                      {pet._originItem.is_test_booking ? 'Disable Test Mode' : 'Enable Test Mode'}
+                    </button>
+                  </div>
+
+                  {/* Archive/Unarchive Action */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderTop: '1px solid var(--border-soft, #e9ecef)', paddingTop: '16px' }}>
+                    <div>
+                      <strong style={{ fontSize: '0.95rem' }}>Archive Booking</strong>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted, #6c757d)' }}>
+                        {pet._originItem.status === 'ARCHIVED' ? 'Restore this archived booking back to active.' : 'Soft-archive this booking from active dashboards.'}
+                      </p>
+                    </div>
+                    {pet._originItem.status === 'ARCHIVED' ? (
+                      <button
+                        className="btn-small primary-outline"
+                        onClick={() => onStatusUpdate(pet._originItem, 'UNARCHIVE')}
+                      >
+                        Restore Booking
+                      </button>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end', width: '60%' }}>
+                        {/* Archive reason & warning */}
+                        {(() => {
+                          const jobs = pet._originItem.job_completion_summary?.jobs || [];
+                          const hasCompleted = jobs.some(j => j.status === 'COMPLETED');
+                          return hasCompleted ? (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--warning, #f59e0b)', textAlign: 'right' }}>
+                              ⚠️ Contains completed visits! Archiving preserves them but soft-archives active children.
+                            </span>
+                          ) : null;
+                        })()}
+                        
+                        <div style={{ display: 'flex', gap: '8px', width: '100%', justifyContent: 'flex-end' }}>
+                          <input 
+                            id="archive-reason-input"
+                            type="text" 
+                            placeholder="Reason for archiving..." 
+                            className="form-control-inline" 
+                            style={{ flex: 1, fontSize: '0.85rem', padding: '4px 8px' }}
+                          />
+                          <button
+                            className="btn-small dangerous-outline"
+                            onClick={() => {
+                              const inputEl = document.getElementById('archive-reason-input');
+                              const reason = inputEl ? inputEl.value : '';
+                              onStatusUpdate(pet._originItem, 'ARCHIVE', reason);
+                            }}
+                          >
+                            Archive
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Move to Trash (Delete) */}
+                  {pet._originItem.status !== 'DELETED' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-soft, #e9ecef)', paddingTop: '16px' }}>
+                      <div>
+                        <strong style={{ fontSize: '0.95rem' }}>Move to Trash</strong>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted, #6c757d)' }}>
+                          Soft-delete this record (requires Cancel or Archive first if active).
+                        </p>
+                      </div>
+                      <button
+                        className="btn-small dangerous-outline"
+                        onClick={() => onStatusUpdate(pet._originItem, 'DELETE')}
+                      >
+                        Move to Trash
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
             {/* Terms & Privacy Acceptance */}
             {pet._originItem && (
               <section className="card-section" style={{ marginTop: '24px' }}>

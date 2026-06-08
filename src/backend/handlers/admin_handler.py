@@ -2107,8 +2107,9 @@ def handler(event, context):
             if not action or not records_to_process:
                 return bad_request("Missing action or records to process", event)
 
-            if action in ['ARCHIVE', 'DELETE', 'PURGE'] and role not in ['owner', 'admin']:
+            if action in ['ARCHIVE', 'DELETE', 'PURGE', 'MARK_TEST', 'UNMARK_TEST', 'UNARCHIVE'] and role not in ['owner', 'admin']:
                 return error(403, "Forbidden: Insufficient permissions for lifecycle action", event)
+
 
             from common.db import table as _table, update_status
             from datetime import timezone
@@ -2186,16 +2187,22 @@ def handler(event, context):
                     **results
                 }, event)
 
-            # --- DELETE / ARCHIVE: Soft lifecycle transitions ---
+            # --- DELETE / ARCHIVE / TEST DATA: Soft lifecycle transitions ---
+            is_valid_action = False
             new_status = None
             if action == 'DELETE':
                 new_status = 'DELETED'
+                is_valid_action = True
             elif action == 'ARCHIVE':
                 new_status = 'ARCHIVED'
+                is_valid_action = True
+            elif action in ['MARK_TEST', 'UNMARK_TEST', 'UNARCHIVE']:
+                is_valid_action = True
             elif action in ['COMPLETED', 'CANCELLED', 'ASSIGNED', 'APPROVED', 'PENDING_REVIEW', 'DECLINED', 'PROFILE_CREATED', 'READY_FOR_APPROVAL', 'QUOTED', 'MG_COMPLETED']:
                 new_status = action
+                is_valid_action = True
 
-            if new_status:
+            if is_valid_action:
                 bulk_op_id = str(uuid.uuid4()) if len(records_to_process) > 1 else None
                 
                 for rec in records_to_process:
@@ -2211,8 +2218,6 @@ def handler(event, context):
                     current_item, actual_pk, actual_sk = _resolve_admin_record(item_pk, item_sk)
                     
                     if not current_item:
-                        # For Data Issues, we might want to move to Trash even if not found in a strict way?
-                        # No, if we can't find it via resolution chain, we can't update it.
                         results["failed"] += 1
                         results["failures"].append({"record": f"{item_pk}/{item_sk}", "reason": "Record not found (even after healing)"})
                         continue
@@ -2220,8 +2225,6 @@ def handler(event, context):
                     prev_status = (current_item.get('status') or 'UNKNOWN').upper()
                     
                     # Release 6D: Reject DELETE on active/scheduled records.
-                    # Prevents accidental soft-delete of records that are in active workflow states.
-                    # Admin must CANCEL or ARCHIVE first before moving to Trash.
                     if action == 'DELETE':
                         protected_statuses = ['ASSIGNED', 'SCHEDULED', 'IN_PROGRESS', 'BOOKED']
                         if prev_status in protected_statuses:
@@ -2241,13 +2244,80 @@ def handler(event, context):
                         results["failures"].append({"record": f"{actual_pk}/{actual_sk}", "reason": "Already Archived"})
                         continue
 
-                    extra_attrs = {}
-                    if action == 'DELETE':
-                        extra_attrs['deleted_at'] = now_iso
+                    if action == 'UNARCHIVE' and prev_status != 'ARCHIVED':
+                        results["skipped"] += 1
+                        results["failures"].append({"record": f"{actual_pk}/{actual_sk}", "reason": "Record is not Archived"})
+                        continue
 
-                    if update_status(actual_pk, actual_sk, new_status, {"action": f"ADMIN_{action}", "timestamp": now_iso}, extra_attrs=extra_attrs):
+                    db_success = False
+                    effective_new_status = new_status
+
+                    if action in ['MARK_TEST', 'UNMARK_TEST', 'UNARCHIVE']:
+                        if action == 'UNARCHIVE':
+                            effective_new_status = 'ASSIGNED' if current_item.get('worker_id') else 'APPROVED'
+                            update_expr = "SET #stat = :s, updated_at = :now, updated_by = :ub"
+                            expr_attr_names = {"#stat": "status"}
+                            expr_attr_vals = {
+                                ":s": effective_new_status,
+                                ":now": now_iso,
+                                ":ub": user_email
+                            }
+                            audit_note = {"action": "ADMIN_UNARCHIVE", "timestamp": now_iso}
+                            update_expr += ", audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)"
+                            expr_attr_vals[":n"] = [audit_note]
+                            expr_attr_vals[":empty_list"] = []
+                            
+                            update_expr += " REMOVE archive_reason, archived_at, archived_by"
+                            
+                            try:
+                                _table.update_item(
+                                    Key={'PK': actual_pk, 'SK': actual_sk},
+                                    UpdateExpression=update_expr,
+                                    ExpressionAttributeNames=expr_attr_names,
+                                    ExpressionAttributeValues=expr_attr_vals
+                                )
+                                db_success = True
+                            except Exception as e:
+                                print(f"ERROR: [UNARCHIVE] Failed updating {actual_pk}: {e}")
+                        else:
+                            is_test = (action == 'MARK_TEST')
+                            update_expr = "SET is_test_booking = :itb, updated_at = :now, updated_by = :ub"
+                            expr_attr_vals = {
+                                ":itb": is_test,
+                                ":now": now_iso,
+                                ":ub": user_email
+                            }
+                            audit_note = {"action": f"ADMIN_{action}", "timestamp": now_iso}
+                            update_expr += ", audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)"
+                            expr_attr_vals[":n"] = [audit_note]
+                            expr_attr_vals[":empty_list"] = []
+                            
+                            try:
+                                _table.update_item(
+                                    Key={'PK': actual_pk, 'SK': actual_sk},
+                                    UpdateExpression=update_expr,
+                                    ExpressionAttributeValues=expr_attr_vals
+                                )
+                                current_item['is_test_booking'] = is_test
+                                db_success = True
+                                effective_new_status = prev_status
+                            except Exception as e:
+                                print(f"ERROR: [{action}] Failed updating {actual_pk}: {e}")
+                    else:
+                        extra_attrs = {}
+                        if action == 'DELETE':
+                            extra_attrs['deleted_at'] = now_iso
+                        elif action == 'ARCHIVE':
+                            extra_attrs['archive_reason'] = body.get('archive_reason') or 'Admin archived'
+                            extra_attrs['archived_at'] = now_iso
+                            extra_attrs['archived_by'] = user_email
+                            
+                        db_success = update_status(actual_pk, actual_sk, new_status, {"action": f"ADMIN_{action}", "timestamp": now_iso}, extra_attrs=extra_attrs)
+                        effective_new_status = new_status
+
+                    if db_success:
                         results["success"] += 1
-                        log_action(event, action, actual_pk, actual_sk, previous_status=prev_status, new_status=new_status, bulk_op_id=bulk_op_id)
+                        log_action(event, action, actual_pk, actual_sk, previous_status=prev_status, new_status=effective_new_status, bulk_op_id=bulk_op_id)
                         
                         # --- GOOGLE CALENDAR SYNC (ADMIN BULK) ---
                         try:
@@ -2258,32 +2328,36 @@ def handler(event, context):
                                 if current_item.get('job_ids'):
                                     is_multi_day_req = True
 
-                            if new_status in ['APPROVED', 'ASSIGNED', 'BOOKED', 'SCHEDULED']:
+                            if effective_new_status in ['APPROVED', 'ASSIGNED', 'BOOKED', 'SCHEDULED']:
                                 if not is_multi_day_req:
-                                    sync_data = {**current_item, 'status': new_status}
-                                    if extra_attrs: sync_data.update(extra_attrs)
-                                    
-                                    cal_res = sync_calendar_event(sync_data, google_event_id=current_item.get('google_event_id'))
-                                    if cal_res.get('event_id') and cal_res.get('event_id') != current_item.get('google_event_id'):
-                                        table.update_item(
-                                            Key={'PK': actual_pk, 'SK': actual_sk},
-                                            UpdateExpression="SET google_event_id = :gid",
-                                            ExpressionAttributeValues={":gid": cal_res['event_id']}
-                                        )
-                            elif new_status in ['CANCELLED', 'ARCHIVED', 'DELETED']:
+                                    sync_data = {**current_item, 'status': effective_new_status}
+                                    if action == 'ARCHIVE' or action == 'DELETE':
+                                        pass
+                                    else:
+                                        cal_res = sync_calendar_event(sync_data, google_event_id=current_item.get('google_event_id'))
+                                        if cal_res.get('event_id') and cal_res.get('event_id') != current_item.get('google_event_id'):
+                                            _table.update_item(
+                                                Key={'PK': actual_pk, 'SK': actual_sk},
+                                                UpdateExpression="SET google_event_id = :gid",
+                                                ExpressionAttributeValues={":gid": cal_res['event_id']}
+                                            )
+                            elif effective_new_status in ['CANCELLED', 'ARCHIVED', 'DELETED']:
                                 if not is_multi_day_req:
                                     eid = current_item.get('google_event_id')
                                     if eid:
                                         if delete_event(eid, actual_pk):
-                                            table.update_item(Key={'PK': actual_pk, 'SK': actual_sk}, UpdateExpression="REMOVE google_event_id")
+                                            _table.update_item(Key={'PK': actual_pk, 'SK': actual_sk}, UpdateExpression="REMOVE google_event_id")
                                 else:
                                     if current_item.get('job_ids'):
                                         for jid in current_item.get('job_ids'):
                                             job_item = get_item(f"JOB#{jid}", actual_pk)
+                                            if job_item and job_item.get('status') == 'COMPLETED':
+                                                print(f"INFO: [GoogleCalendar] Preserving Google Calendar event for completed JOB#{jid}")
+                                                continue
                                             if job_item and job_item.get('google_event_id'):
                                                 try:
                                                     delete_event(job_item['google_event_id'], actual_pk)
-                                                    table.update_item(
+                                                    _table.update_item(
                                                         Key={'PK': f"JOB#{jid}", 'SK': actual_pk},
                                                         UpdateExpression="REMOVE google_event_id"
                                                     )
@@ -2293,19 +2367,17 @@ def handler(event, context):
                             print(f"WARNING: [AdminBulk] Calendar sync failed for {actual_pk}: {cal_err}")
 
                         # Trigger notifications for relevant changes
-                        if new_status == 'APPROVED' and current_item.get('workflow_type') == 'CUSTOMER_INTAKE':
+                        if effective_new_status == 'APPROVED' and current_item.get('workflow_type') == 'CUSTOMER_INTAKE':
                             notify_event('CUSTOMER_APPROVED', current_item)
-                        elif new_status == 'CANCELLED':
+                        elif effective_new_status == 'CANCELLED':
                             notify_event('VISIT_CANCELLED', current_item)
                         
-                        # Release 1: Cascade REQ → JOB for bulk admin actions.
-                        # Ensures linked JOB records stay consistent when parent REQ is
-                        # archived, deleted, cancelled, or recovered via bulk action.
-                        if actual_pk.startswith('REQ#') and current_item.get('job_id'):
+                        # Cascade REQ → JOB for admin actions.
+                        if actual_pk.startswith('REQ#') and (current_item.get('job_id') or current_item.get('job_ids')):
                             try:
                                 from common.cascade import cascade_status_to_job
-                                remove_worker = (prev_status == 'ASSIGNED' and new_status == 'APPROVED')
-                                cascade_status_to_job(current_item, new_status, updated_by=user_email, remove_worker=remove_worker)
+                                remove_worker = (prev_status == 'ASSIGNED' and effective_new_status == 'APPROVED')
+                                cascade_status_to_job(current_item, effective_new_status, updated_by=user_email, remove_worker=remove_worker)
                             except Exception as cascade_err:
                                 print(f"WARNING: [AdminBulk] Cascade failed for {actual_pk}: {cascade_err}")
                     else:

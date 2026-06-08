@@ -105,8 +105,13 @@ def sanitize_booking_for_role(record, role):
         'visit_notes',
         'completed_at',
         'completed_by',
-        'job_completion_summary'
+        'job_completion_summary',
+        'is_test_booking',
+        'archive_reason',
+        'archived_at',
+        'archived_by'
     ]
+
 
     
     redacted_any = False
