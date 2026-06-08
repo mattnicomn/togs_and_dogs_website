@@ -1546,6 +1546,127 @@ const AdminDashboard = () => {
 
       const workbook = XLSX.utils.book_new();
 
+      // A. Daily Sitter Dispatch Sheet (Release 9D)
+      const WINDOW_ORDER = { 'MORNING': 1, 'MIDDAY': 2, 'AFTERNOON': 3, 'EVENING': 4, 'ANYTIME': 5 };
+      const FRIENDLY_WINDOWS = { 'MORNING': 'Morning (7-10 AM)', 'MIDDAY': 'Midday (10 AM-2 PM)', 'AFTERNOON': 'Afternoon (2-5 PM)', 'EVENING': 'Evening (5-8 PM)', 'ANYTIME': 'Anytime' };
+      const FRIENDLY_SERVICES = { 'WALK_30MIN': '30-Min Walk', 'WALK_60MIN': '60-Min Walk', 'DROPIN_1HR': '1-Hour Drop-in', 'DROPIN_3HR': '3-Hour Drop-in', 'OVERNIGHT': 'Overnight Care', 'PET_SITTING': 'Pet Sitting', 'MEET_GREET': 'Meet & Greet' };
+
+      const getWindowOrder = (win) => {
+        const key = (win || '').toUpperCase();
+        return WINDOW_ORDER[key] || 99;
+      };
+      const getFriendlyWindow = (win) => {
+        const key = (win || '').toUpperCase();
+        return FRIENDLY_WINDOWS[key] || win || 'Anytime';
+      };
+      const getFriendlyService = (svc) => {
+        const key = (svc || '').toUpperCase();
+        return FRIENDLY_SERVICES[key] || svc || '';
+      };
+      const formatDateFriendly = (dateStr) => {
+        if (!dateStr) return '';
+        const parts = dateStr.split('-');
+        if (parts.length !== 3) return dateStr;
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const date = new Date(year, month, day);
+        if (isNaN(date.getTime())) return dateStr;
+        return date.toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        });
+      };
+      const getLocalDateString = (d) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      const today = new Date();
+      const todayStr = getLocalDateString(today);
+      const maxDate = new Date();
+      maxDate.setDate(today.getDate() + 7);
+      const maxDateStr = getLocalDateString(maxDate);
+
+      const dispatchJobs = (data.jobs || []).filter(j => {
+        // Exclude test bookings by default
+        if (j.is_test_booking === true) return false;
+
+        // Exclude archived/deleted/cancelled jobs
+        if (isCancelledRecord(j) || isArchivedRecord(j) || isDeletedRecord(j)) return false;
+
+        const date = j.occurrence_date || j.start_date;
+        if (!date || date < todayStr || date > maxDateStr) return false;
+
+        // Check parent request to filter by parent status/test booking status
+        const parent = (data.requests || []).find(r => r.request_id === j.request_id || r.PK === `REQ#${j.request_id}`);
+        if (parent) {
+          if (parent.is_test_booking === true) return false;
+          if (isCancelledRecord(parent) || isArchivedRecord(parent) || isDeletedRecord(parent)) return false;
+        }
+
+        const jobStatus = (j.status || '').toUpperCase();
+        if (!['ASSIGNED', 'JOB_CREATED', 'COMPLETED', 'SCHEDULED'].includes(jobStatus)) return false;
+
+        return true;
+      });
+
+      // Sort by date ASC, worker name ASC, window order ASC
+      dispatchJobs.sort((a, b) => {
+        const dateA = a.occurrence_date || a.start_date || '';
+        const dateB = b.occurrence_date || b.start_date || '';
+        const dateComp = dateA.localeCompare(dateB);
+        if (dateComp !== 0) return dateComp;
+
+        const staffA = a.worker_name || 'Unassigned';
+        const staffB = b.worker_name || 'Unassigned';
+        const staffComp = staffA.localeCompare(staffB);
+        if (staffComp !== 0) return staffComp;
+
+        const winA = a.visit_windows?.[0] || a.visit_window || 'ANYTIME';
+        const winB = b.visit_windows?.[0] || b.visit_window || 'ANYTIME';
+        return getWindowOrder(winA) - getWindowOrder(winB);
+      });
+
+      const dispatchRows = dispatchJobs.map(j => {
+        const parent = (data.requests || []).find(r => r.request_id === j.request_id || r.PK === `REQ#${j.request_id}`);
+        const client = (data.clients || []).find(c => c.client_id === j.client_id || c.PK === `CLIENT#${j.client_id}`);
+
+        const address = parent?.service_location || parent?.address || client?.address || "";
+        const phone = parent?.client_phone || parent?.phone || client?.phone || "";
+        const instructions = parent?.pet_info || parent?.details || client?.notes || "";
+
+        return sanitizeRow({
+          "Visit Date": formatDateFriendly(j.occurrence_date || j.start_date),
+          "Staff / Sitter": j.worker_name || 'Unassigned',
+          "Visit Window / Time": getFriendlyWindow(j.visit_windows?.[0] || j.visit_window || 'ANYTIME'),
+          "Client Name": j.client_name || parent?.client_name || '',
+          "Pet Name(s)": j.pet_name || parent?.pet_names || '',
+          "Service Type": getFriendlyService(j.service_type),
+          "Address / Location": address ? address.substring(0, 100) : '',
+          "Phone / Contact": phone,
+          "Status": j.status === 'COMPLETED' ? '✅ Done' : '⏳ Pending',
+          "Completion State": j.status === 'COMPLETED' ? `Completed by ${j.completed_by || 'Staff'} at ${j.completed_at || ''}` : 'Pending',
+          "Notes / Special Instructions": instructions ? instructions.substring(0, 150) : '',
+          "Visit Notes / Feedback": j.visit_notes || ''
+        });
+      });
+
+      if (dispatchRows.length > 0) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(dispatchRows), "Daily Dispatch");
+      } else {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+          ["Daily Sitter Dispatch"],
+          ["Generated At", new Date().toLocaleString()],
+          [],
+          ["No upcoming visits scheduled for the next 7 days."]
+        ]), "Daily Dispatch");
+      }
+
       // 1. Export Summary
       const summaryData = [
         ["Tog & Dogs Offline Backup"],
