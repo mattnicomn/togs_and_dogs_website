@@ -266,6 +266,22 @@ def get_status(event):
     if not refresh_token:
         return success({"status": "NOT_CONNECTED"}, event)
         
+    # Check if cached access_token is still valid (5-minute buffer) to avoid redundant Google API calls
+    access_token = tokens.get('access_token')
+    updated_at = tokens.get('updated_at')
+    expires_in = tokens.get('expires_in', 3600)
+    
+    if access_token and updated_at:
+        try:
+            from datetime import datetime, timezone
+            # updated_at format is '%Y-%m-%dT%H:%M:%SZ'
+            update_time = datetime.strptime(updated_at, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+            elapsed = (datetime.now(timezone.utc) - update_time).total_seconds()
+            if elapsed < (expires_in - 300):
+                return success({"status": "CONNECTED"}, event)
+        except Exception as cache_err:
+            print(f"WARNING: Cached token validation failed: {cache_err}")
+
     # Validation: Try to refresh access token or check tokeninfo
     # We'll do a lightweight refresh test to confirm "Usable"
     try:

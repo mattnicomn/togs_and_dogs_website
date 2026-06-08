@@ -33,6 +33,7 @@ Before inviting external sitters or clients, the following core flows **must** p
 | 2.2 | Staff Scheduling | Staff assignment syncs the Google Calendar event to the assigned staff member. | Google Calendar UI | Assigned staff member is added to the event or synced. | Observable | Required | `[ ]` |
 | 2.3 | Active Job Deletion | Deleting/Cancelling/Archiving active bookings deletes events on the Google Calendar. | Google Calendar UI | Active events are deleted automatically. | Observable | Required | `[ ]` |
 | 2.4 | Completed Event Guard | Archiving a parent booking preserves the Google Calendar event for completed child jobs. | Google Calendar UI & admin logs | Completed visit events remain intact on the calendar; active ones are removed. | Observable | Required | `[ ]` |
+| 2.5 | Health Banner Alert | Expired, revoked, or missing calendar credentials display a clear, colored warning/error banner at the top of the Admin Dashboard. | Admin Dashboard | Warning/error banner is visible when disconnected; banner disappears upon successful reconnection. | Observable | Required | `[ ]` |
 
 ---
 

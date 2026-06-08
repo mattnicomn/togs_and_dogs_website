@@ -14,3 +14,19 @@
     - `[x]` Run build checks
     - `[x]` Create `docs/release-notes/google-calendar-scheduling-reliability.md`
     - `[x]` Final validation with test records
+
+# Release 9C: Google Calendar Connection Status Banner
+
+- [ ] Backend status checks
+  - [x] Inspect existing `/admin/auth/status` in `google_auth_handler.py`
+  - [ ] Add cache-validation check to `/admin/auth/status` in `google_auth_handler.py` to avoid redundant live Google API calls when access token is still valid
+  - [ ] Implement backend unit tests in `tests/backend/test_r9c_google_calendar_banner.py`
+  - [ ] Run targeted unit tests and full backend test suite successfully
+- [ ] Web Admin UI
+  - [ ] Render a persistent, global status banner directly below the main Header in `AdminDashboard.jsx` if `googleStatus` is not `CONNECTED`
+  - [ ] Support visual statuses:
+    - `VALIDATION_FAILED` (Needs Attention / Action Required, warning styling, prompt to reconnect)
+    - `CREDENTIALS_MISSING` (Configuration Error, danger styling, prompt to contact system administrator)
+    - `NOT_CONNECTED` (Google Calendar Not Connected, info styling, prompt to connect)
+  - [ ] Wire the reconnection/connection buttons in the banner to launch `initiateGoogleAuth()`
+  - [ ] Run `npm run build` in `/web` successfully

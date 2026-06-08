@@ -3057,6 +3057,57 @@ const AdminDashboard = () => {
         </div>
       </header>
 
+      {/* Render Google Calendar Health Banner if degraded/not connected */}
+      {googleStatus && googleStatus !== 'CONNECTED' && (
+        <div className={`google-calendar-health-banner ${googleStatus}`} style={{
+          padding: '12px 16px',
+          borderRadius: '8px',
+          marginBottom: '20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+          fontSize: '0.9rem',
+          fontWeight: '500',
+          backgroundColor: googleStatus === 'VALIDATION_FAILED' ? '#fffbeb' : (googleStatus === 'CREDENTIALS_MISSING' ? '#fef2f2' : '#eff6ff'),
+          color: googleStatus === 'VALIDATION_FAILED' ? '#b45309' : (googleStatus === 'CREDENTIALS_MISSING' ? '#b91c1c' : '#1d4ed8'),
+          border: `1px solid ${googleStatus === 'VALIDATION_FAILED' ? '#fde68a' : (googleStatus === 'CREDENTIALS_MISSING' ? '#fecaca' : '#bfdbfe')}`
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>
+              {googleStatus === 'VALIDATION_FAILED' && '⚠️'}
+              {googleStatus === 'CREDENTIALS_MISSING' && '❌'}
+              {googleStatus === 'NOT_CONNECTED' && 'ℹ️'}
+            </span>
+            <span>
+              {googleStatus === 'VALIDATION_FAILED' && 'Google Calendar connection needs reconnect. Sitter schedule sync is degraded.'}
+              {googleStatus === 'CREDENTIALS_MISSING' && 'Google Client ID/Secret config is missing in Secrets Manager. Please contact support.'}
+              {googleStatus === 'NOT_CONNECTED' && 'Google Calendar is not connected. Connect calendar to enable automatic sitter schedule sync.'}
+            </span>
+          </div>
+          {googleStatus !== 'CREDENTIALS_MISSING' && (
+            <button 
+              onClick={handleConnectGoogle}
+              className="btn-small" 
+              style={{
+                backgroundColor: googleStatus === 'VALIDATION_FAILED' ? '#d97706' : '#2563eb',
+                color: '#ffffff',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseOver={(e) => e.target.style.backgroundColor = googleStatus === 'VALIDATION_FAILED' ? '#b45309' : '#1d4ed8'}
+              onMouseOut={(e) => e.target.style.backgroundColor = googleStatus === 'VALIDATION_FAILED' ? '#d97706' : '#2563eb'}
+            >
+              {googleStatus === 'VALIDATION_FAILED' ? 'Reconnect Calendar' : 'Connect Calendar'}
+            </button>
+          )}
+        </div>
+      )}
+
       {renderStats()}
 
       <div className="admin-layout">
