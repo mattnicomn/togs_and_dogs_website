@@ -1,6 +1,6 @@
 # Release 10E: First TestFlight Internal Build & Upload Plan
 
-**Status:** Planning
+**Status:** Gate A Completed (EAS Build Succeeded)
 **Priority:** High (next step to get the app on TestFlight)
 **Risk to Production:** None (build + upload only, no backend/web changes)
 **Terraform Required:** No
@@ -23,7 +23,7 @@
 | `eas.json` submit section | Configured | ✅ (Release 10D) |
 | `app.json` production-ready | Version 1.0.0, buildNumber 1 | ✅ |
 | Encryption exemption | `ITSAppUsesNonExemptEncryption: false` | ✅ |
-| Latest validated preview build | `58efd764-f170-4d6e-801c-7a1a7e76a2af` | ✅ |
+| First iOS production build | `69682b1b-d6b2-47de-9e98-7457d9ccdde3` | ✅ Succeeded |
 | **Production build uploaded to TestFlight** | ❌ Not done | **This release** |
 | **Internal testers added** | ❌ Not done | After upload |
 
@@ -227,7 +227,7 @@ No backend, web, or production data is affected by any of these steps.
 
 | Gate | Action | Approver | Status |
 |------|--------|----------|--------|
-| **Gate A** | Run `eas build --profile production --platform ios` | Matthew | ⏳ Pending |
+| **Gate A** | Run `eas build --profile production --platform ios` | Matthew | ✅ Succeeded (`69682b1b-d6b2-47de-9e98-7457d9ccdde3`) |
 | **Gate B** | Run `eas submit --platform ios` | Matthew | ⏳ Pending |
 | **Gate C** | Add Matthew as internal tester in ASC | Matthew | ⏳ Pending |
 | **Gate D** | Create external group + submit for beta review (for Ryan) | Matthew | Future |
