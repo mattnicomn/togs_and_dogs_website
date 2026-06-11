@@ -18,9 +18,10 @@
 | iOS Bundle ID | `com.usmissionhero.toganddogs` | ✅ |
 | Apple Team ID | `2RA84Y5HZ3` | ✅ In eas.json |
 | ASC App ID | `6778488478` | ✅ In eas.json |
-| Apple ID (auth) | `mattnicomn10@gmail.com` | ✅ In eas.json |
+| Apple ID (auth) | `mattnico10@yahoo.com` | ✅ In eas.json (Corrected) |
 | App Name in ASC | `toganddogs_app_1` | ✅ (placeholder) |
 | `eas.json` submit section | Configured | ✅ (Release 10D) |
+| EAS Version Source | `remote` | ✅ Configured in eas.json (`appVersionSource`) |
 | `app.json` production-ready | Version 1.0.0, buildNumber 1 | ✅ |
 | Encryption exemption | `ITSAppUsesNonExemptEncryption: false` | ✅ |
 | First iOS production build | `69682b1b-d6b2-47de-9e98-7457d9ccdde3` | ✅ Succeeded |
@@ -269,7 +270,7 @@ Report: Build ID, build URL, success/failure.
 cd mobile
 npx eas submit --platform ios
 
-This will prompt for Apple ID authentication (mattnicomn10@gmail.com).
+This will prompt for Apple ID authentication (mattnico10@yahoo.com).
 Matthew must provide the 2FA code if prompted.
 Report: Submission success/failure, any errors.
 
