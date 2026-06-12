@@ -74,6 +74,9 @@ export const LoginScreen = () => {
     try {
       await login(email.trim().toLowerCase(), password);
     } catch (e: any) {
+      // Preserve email so the user only has to re-enter the password.
+      // Clear password for security on failure.
+      setPassword('');
       setError(getFriendlyAuthError(e));
     } finally {
       setIsLoading(false);

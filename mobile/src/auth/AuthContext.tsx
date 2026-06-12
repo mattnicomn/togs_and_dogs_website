@@ -56,11 +56,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (email: string, password: string) => {
-    setIsLoading(true);
+    // NOTE: Do NOT call setIsLoading(true) here.
+    // AppNavigator unmounts AuthNavigator (and LoginScreen) whenever isLoading is true.
+    // That destroys LoginScreen's local state — clearing the error, email, and password fields
+    // before the user can see any failure feedback.
+    // isLoading is only for the initial bootstrap/session-restore phase.
+    // LoginScreen manages its own local loading state for the button spinner.
     try {
       const session = await cognitoSignIn(email, password);
       if ((session as any).challenge) {
-        setIsLoading(false);
         return session;
       }
       
@@ -70,10 +74,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(sessionData.email);
         setRole(sessionData.role);
       }
-      setIsLoading(false);
       return session;
     } catch (error) {
-      setIsLoading(false);
       throw error;
     }
   };

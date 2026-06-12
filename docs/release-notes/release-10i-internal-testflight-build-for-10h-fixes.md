@@ -111,48 +111,26 @@ Source commit: `d43e603` — `feat(mobile): release 10h p0 auth, client appointm
 
 ---
 
-## Next Steps — Manual TestFlight Validation (Gate C)
+## Gate C — Internal TestFlight Validation Results
 
-Matthew should perform the following after Apple finishes processing `1.0.0 (2)` (typically 5–15 minutes after upload — an email confirmation will arrive at `mattnico10@yahoo.com`):
+**Build tested:** `1.0.0 (2)`  
+**Device:** iPhone 15 Pro  
+**Tester:** Matthew  
+**Date:** 2026-06-12
 
-### Pre-validation
-- [ ] Confirm Apple processing email received
-- [ ] Open App Store Connect → TestFlight → verify build `1.0.0 (2)` shows status `Ready to Test`
-- [ ] Install update via TestFlight on iPhone 15 Pro
+| Test | Result | Notes |
+|------|--------|-------|
+| Wrong-password error visibility | ❌ **FAIL** | Entering a wrong password resets the form to blank email/password with no error message visible. Root cause identified — see Release 10J. |
+| Forgot password flow | ✅ Pass | Flow works correctly end-to-end |
+| Client appointments (`brearockwell@gmail.com`) | ✅ Pass | Visits now show correctly in the Bookings tab |
+| Admin welcome header | ✅ Pass | Correct user name shown, no longer hardcoded "Ryan" |
+| Staff user regression (`mattnicomn10@yahoo.com`) | ✅ Pass | Staff user schedule and login working correctly |
 
-### Auth Error Feedback
-- [ ] On the login screen, enter a **wrong password** for any valid account
-- [ ] Verify a user-friendly error appears: *"Incorrect email or password. Please try again."* (not a raw Cognito code)
-- [ ] Verify the error **disappears** when you start typing again (or after a new login attempt)
+### Remaining Issue — Login Error Visibility
 
-### Forgot Password Flow
-- [ ] On the login screen, tap **"Forgot password?"**
-- [ ] Verify the Forgot Password screen appears with an email field
-- [ ] Enter a valid email (e.g., `mattnico10@yahoo.com`) and tap **Send Reset Code**
-- [ ] Verify a code email is received from Cognito / AWS
-- [ ] Enter the 6-digit code and a new password — verify success message appears
-- [ ] Tap **Back to Sign In** and log in with the new password
-
-### Admin Welcome Header
-- [ ] Log in as admin (`mattnicomn10@gmail.com`)
-- [ ] Navigate to the **Dashboard** tab
-- [ ] Verify welcome subtitle reads **"Welcome back, mattnicomn10"** (not "Ryan")
-
-### Admin Web-Only Notice Card
-- [ ] On the Dashboard tab, verify a blue info card appears:
-  *"💻 Web Admin Portal Features — Google Calendar management, staff/client/user administration..."*
-
-### Client Appointments (Critical — `brearockwell@gmail.com`)
-- [ ] Log out and log in as `brearockwell@gmail.com`
-- [ ] Navigate to the **Bookings** tab
-- [ ] Verify appointments are fetched and displayed (not a placeholder message)
-- [ ] If **no appointments appear** and the account has bookings on file:
-  - This indicates a client profile data linkage issue (Cognito sub / email mismatch in DynamoDB)
-  - **Do not attempt to fix this without Matthew's explicit approval** — it requires a production data correction
-  - Escalate as a separate investigation item
-
-### Ryan (External TestFlight)
-- [ ] Confirm Ryan has **not** been added to TestFlight — no action needed for Ryan in this release
+**Symptom:** Entering a wrong password causes the login form to silently reset to blank fields with no error message.  
+**Root cause:** Identified and fixed in Release 10J. See `docs/release-notes/release-10j-mobile-login-error-visibility-fix.md`.  
+**Status:** Fix implemented and pushed. New TestFlight build required.
 
 ---
 
