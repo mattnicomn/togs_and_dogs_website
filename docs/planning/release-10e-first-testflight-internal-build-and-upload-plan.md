@@ -1,7 +1,7 @@
 # Release 10E: First TestFlight Internal Build & Upload Plan
 
-**Status:** Gate B Completed (EAS Build & Upload Succeeded)
-**Priority:** High (waiting for TestFlight processing / Gate C approval)
+**Status:** Gate C Completed (Internal TestFlight Setup Succeeded)
+**Priority:** High (next up: external beta group / Gate D planning)
 **Risk to Production:** None (build + upload only, no backend/web changes)
 **Terraform Required:** No
 **Backend Changes:** None
@@ -27,7 +27,7 @@
 | Encryption exemption | `ITSAppUsesNonExemptEncryption: false` | ✅ |
 | First iOS production build | `69682b1b-d6b2-47de-9e98-7457d9ccdde3` | ✅ Succeeded |
 | **Production build uploaded to TestFlight** | ✅ Succeeded (Submission ID: `95baf1c7`) | **This release** |
-| **Internal testers added** | ❌ Not done | After upload (Gate C) |
+| **Internal testers added** | ✅ Succeeded (Matthew added) | **This release** |
 
 ---
 
@@ -231,7 +231,7 @@ No backend, web, or production data is affected by any of these steps.
 |------|--------|----------|--------|
 | **Gate A** | Run `eas build --profile production --platform ios` | Matthew | ✅ Succeeded (`69682b1b-d6b2-47de-9e98-7457d9ccdde3`) |
 | **Gate B** | Run `eas submit --platform ios` | Matthew | ✅ Succeeded (Submission ID: `95baf1c7-083b-47a3-a59c-87597af7209c`) |
-| **Gate C** | Add Matthew as internal tester in ASC | Matthew | ⏳ Pending |
+| **Gate C** | Add Matthew as internal tester in ASC | Matthew | ✅ Succeeded (Group: `Togs & Dogs Internal Testers`) |
 | **Gate D** | Create external group + submit for beta review (for Ryan) | Matthew | Future |
 
 **Gates are sequential.** Do not proceed to B without A succeeding. Do not proceed to C without B succeeding.
@@ -262,11 +262,25 @@ No backend, web, or production data is affected by any of these steps.
 > Matthew successfully completed the Gate B submission locally in an interactive terminal, authenticating the Apple ID and assigning the new App Store Connect API Key.
 > Final output: `Submitted your app to Apple App Store Connect! Your binary has been successfully uploaded to App Store Connect!`
 
-### Next-Step Guidance (Gate B Completed, Gate C Pending)
+### Gate C Execution Summary
 
-1. **Wait for Apple Processing:** App Store Connect processes the uploaded `.ipa` file after submission. This can take anywhere from 5 minutes to an hour.
-2. **Verify build in TestFlight:** Check [App Store Connect TestFlight](https://appstoreconnect.apple.com/apps/6778488478/testflight/ios) and confirm that build `1.0.0 (1)` appears in the build list and status changes to "Ready to Test".
-3. **Do NOT Invite Testers:** Wait for explicit approval of **Gate C** before adding any internal or external testers.
+- **Internal Testing Group Created:** `Togs & Dogs Internal Testers` (created manually in App Store Connect)
+- **Testers Invited & Results:**
+  - **Matthew:** Yes (Invite received: Yes, App installed: Yes, App launched: Yes, Login tested: Not yet / pending further Matthew-led testing)
+  - **Ernest:** No
+  - **Ryan:** No (Ryan is not added to internal testing; remains future External TestFlight / Gate D)
+- **TestFlight Install Details:**
+  - Build `1.0.0 (1)` was successfully installed by Matthew on iPhone 15 Pro.
+  - App Store Connect shows status `Installed 1.0.0 (1)` for Matthew's device.
+  - No crashes reported on initial open.
+  - No external testers were added.
+  - No Ryan access yet.
+
+### Next-Step Guidance (Gate C Completed, Gate D Pending)
+
+1. **Conduct Internal Testing:** Matthew to test login and app functionality on the installed TestFlight build.
+2. **Prepare Gate D Plan:** Develop the plan for setting up the external beta testing group and submitting the app for beta review to allow Ryan access.
+3. **Wait for Gate D Approval:** Do not invite external testers or submit for beta review until the Gate D plan is approved.
 
 ---
 
