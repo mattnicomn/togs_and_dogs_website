@@ -1,11 +1,12 @@
 # Release 10E: First TestFlight Internal Build & Upload Plan
 
-**Status:** Gate A Completed (EAS Build Succeeded)
-**Priority:** High (next step to get the app on TestFlight)
+**Status:** Gate B Completed (EAS Build & Upload Succeeded)
+**Priority:** High (waiting for TestFlight processing / Gate C approval)
 **Risk to Production:** None (build + upload only, no backend/web changes)
 **Terraform Required:** No
 **Backend Changes:** None
 **Scope:** EAS production build + upload to App Store Connect TestFlight
+
 
 ---
 
@@ -25,8 +26,8 @@
 | `app.json` production-ready | Version 1.0.0, buildNumber 1 | ✅ |
 | Encryption exemption | `ITSAppUsesNonExemptEncryption: false` | ✅ |
 | First iOS production build | `69682b1b-d6b2-47de-9e98-7457d9ccdde3` | ✅ Succeeded |
-| **Production build uploaded to TestFlight** | ❌ Not done | **This release** |
-| **Internal testers added** | ❌ Not done | After upload |
+| **Production build uploaded to TestFlight** | ✅ Succeeded (Submission ID: `95baf1c7`) | **This release** |
+| **Internal testers added** | ❌ Not done | After upload (Gate C) |
 
 ---
 
@@ -229,11 +230,43 @@ No backend, web, or production data is affected by any of these steps.
 | Gate | Action | Approver | Status |
 |------|--------|----------|--------|
 | **Gate A** | Run `eas build --profile production --platform ios` | Matthew | ✅ Succeeded (`69682b1b-d6b2-47de-9e98-7457d9ccdde3`) |
-| **Gate B** | Run `eas submit --platform ios` | Matthew | ⏳ Pending |
+| **Gate B** | Run `eas submit --platform ios` | Matthew | ✅ Succeeded (Submission ID: `95baf1c7-083b-47a3-a59c-87597af7209c`) |
 | **Gate C** | Add Matthew as internal tester in ASC | Matthew | ⏳ Pending |
 | **Gate D** | Create external group + submit for beta review (for Ryan) | Matthew | Future |
 
 **Gates are sequential.** Do not proceed to B without A succeeding. Do not proceed to C without B succeeding.
+
+### Gate B Execution Summary
+
+- **Submission Status:** ✅ Succeeded
+- **Submit Command Run (from `mobile`):**
+  `eas submit --platform ios --id 69682b1b-d6b2-47de-9e98-7457d9ccdde3`
+- **EAS Submission ID:** `95baf1c7-083b-47a3-a59c-87597af7209c`
+- **EAS Submission URL:** [EAS Submission Details](https://expo.dev/accounts/mattnicomn/projects/tog-and-dogs/submissions/95baf1c7-083b-47a3-a59c-87597af7209c)
+- **App Store Connect TestFlight URL:** [TestFlight Builds](https://appstoreconnect.apple.com/apps/6778488478/testflight/ios)
+- **EAS Account:** `mattnicomn` (`mbn@usmissionhero.com`)
+- **Apple ID used:** `mattnico10@yahoo.com`
+- **Apple Team:** `Matthew Nico (2RA84Y5HZ3)`
+- **Provider:** `Matthew Nico (128999242)`
+- **ASC App ID:** `6778488478`
+- **Project ID:** `6b77d541-ec62-4950-8375-aef7d21c12ea`
+- **Build ID:** `69682b1b-d6b2-47de-9e98-7457d9ccdde3` (Version `1.0.0`, Build number `1`)
+- **App Store Connect API Key Created & Assigned:**
+  - Key Name: `[Expo] EAS Submit aOSjD1M6Ph`
+  - Key ID: `2JDRC3Z2D8`
+  - Key Source: EAS servers (stored securely on Expo's servers; no private key material exposed)
+
+> [!NOTE]
+> **Execution History:**
+> AG's initial non-interactive submit attempt failed because EAS Submit requires an interactive App Store Connect authentication flow to generate/assign the API key and complete the login/2FA.
+> Matthew successfully completed the Gate B submission locally in an interactive terminal, authenticating the Apple ID and assigning the new App Store Connect API Key.
+> Final output: `Submitted your app to Apple App Store Connect! Your binary has been successfully uploaded to App Store Connect!`
+
+### Next-Step Guidance (Gate B Completed, Gate C Pending)
+
+1. **Wait for Apple Processing:** App Store Connect processes the uploaded `.ipa` file after submission. This can take anywhere from 5 minutes to an hour.
+2. **Verify build in TestFlight:** Check [App Store Connect TestFlight](https://appstoreconnect.apple.com/apps/6778488478/testflight/ios) and confirm that build `1.0.0 (1)` appears in the build list and status changes to "Ready to Test".
+3. **Do NOT Invite Testers:** Wait for explicit approval of **Gate C** before adding any internal or external testers.
 
 ---
 
