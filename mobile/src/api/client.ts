@@ -68,6 +68,9 @@ export const getAdminRequests = (status = 'PENDING_REVIEW', startKey: string | n
   return request(url, 'GET', null, true);
 };
 
+// Client portal: fetch appointments for the logged-in client
+export const getClientRequests = () => request('/client/requests', 'GET', null, true);
+
 export const getStaff = () => request('/admin/staff', 'GET', null, true);
 export const getClients = () => request('/admin/clients', 'GET', null, true);
 

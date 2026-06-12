@@ -92,7 +92,9 @@ export const DashboardScreen = () => {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
             <Text style={styles.title}>Admin Dashboard</Text>
-            <Text style={styles.subtitle}>Welcome back, Ryan</Text>
+            <Text style={styles.subtitle}>
+              Welcome back, {user ? user.split('@')[0] : 'there'}
+            </Text>
           </View>
 
           {/* Stats Grid */}
@@ -172,6 +174,13 @@ export const DashboardScreen = () => {
           <Text style={styles.infoText}>
             Connected directly to the live production API Gateway. 
             All statistics and calendar features are live.
+          </Text>
+        </View>
+
+        <View style={styles.webOnlyCard}>
+          <Text style={styles.webOnlyTitle}>💻 Web Admin Portal Features</Text>
+          <Text style={styles.webOnlyText}>
+            Google Calendar management, staff/client/user administration, and notification settings are available in the web admin portal only at this time.
           </Text>
         </View>
 
@@ -333,6 +342,25 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 14,
     color: '#713f12',
+    lineHeight: 20,
+  },
+  webOnlyCard: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#bfdbfe',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+  },
+  webOnlyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1e40af',
+    marginBottom: 8,
+  },
+  webOnlyText: {
+    fontSize: 14,
+    color: '#1e3a8a',
     lineHeight: 20,
   },
   button: {
