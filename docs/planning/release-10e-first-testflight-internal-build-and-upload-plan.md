@@ -331,7 +331,106 @@ Return: build ID, build URL, submit status, ASC screenshot or status description
 
 ---
 
-## 12. What This Document Does NOT Authorize
+## 12. Gate C: Internal TestFlight Tester Setup Plan
+
+**Status:** ⏳ Pending Matthew's approval
+**Scope:** Add Matthew as an internal TestFlight tester. Install and validate on device.
+**Ryan is NOT part of Gate C.** Ryan will be added via External TestFlight in a future Gate D.
+
+### 12.1 Preconditions
+
+| # | Check | Status |
+|---|-------|--------|
+| 1 | Build `1.0.0 (1)` visible in App Store Connect TestFlight | ✅ Verify at [ASC TestFlight](https://appstoreconnect.apple.com/apps/6778488478/testflight/ios) |
+| 2 | Build status is "Ready to Test" (not "Processing") | Verify — if still processing, wait |
+| 3 | If "Missing Compliance" banner shows | Click it → select "No" for non-exempt encryption (already declared in app.json, but ASC may ask again on first build) |
+| 4 | Matthew has TestFlight app installed on iPhone | Install from App Store if not present |
+
+### 12.2 Handle "Missing Compliance" (If Shown)
+
+Apple sometimes shows a "Missing Compliance" warning on the first TestFlight build even when `ITSAppUsesNonExemptEncryption: false` is declared in the binary:
+
+1. In App Store Connect → TestFlight → Builds → click on build `1.0.0 (1)`
+2. If you see "Missing Compliance Information" → click "Manage"
+3. Select: **"None of the algorithms mentioned above"** or **"No"** to non-exempt encryption
+4. Save → build status should change to "Ready to Test"
+
+This is a one-time step for the first build. Subsequent builds inherit the declaration.
+
+### 12.3 Create Internal Testing Group
+
+1. Open: https://appstoreconnect.apple.com/apps/6778488478/testflight/ios
+2. In the left sidebar under **"Internal Testing"**, click **"+"** (or **"Create Group"**)
+3. Name the group: **"Development Team"** (or any descriptive name)
+4. Click **"Create"**
+
+### 12.4 Add Matthew as Internal Tester
+
+1. In the newly created group, click **"+"** to add testers
+2. Select Matthew's App Store Connect account (the account currently logged in)
+3. Click **"Add"**
+4. Matthew receives an email: "You've been invited to test [toganddogs_app_1] on TestFlight"
+
+**Note:** Internal testers MUST be App Store Connect users (team members). They cannot be arbitrary email addresses — that's External TestFlight.
+
+### 12.5 Optional: Add Ernest Later
+
+If Ernest has an App Store Connect account (Developer or App Manager role):
+- Add him to the same "Development Team" internal group
+- He receives the same TestFlight email invitation
+
+**Do NOT add Ryan here.** Ryan should use External TestFlight (Gate D) to avoid giving him App Store Connect access.
+
+### 12.6 Install via TestFlight
+
+1. Open **TestFlight** app on iPhone (install from App Store if needed)
+2. The invited build should appear automatically (or check email for invite link)
+3. Tap **"Install"** next to `toganddogs_app_1` version `1.0.0 (1)`
+4. App installs on home screen
+5. Launch the app
+
+### 12.7 Validation Checklist — First Internal TestFlight Install
+
+| # | Test | Expected | Pass? |
+|---|------|----------|-------|
+| 1 | App installs from TestFlight without error | Installs to home screen | |
+| 2 | App launches without crash | Login screen appears | |
+| 3 | Login with admin credentials | Dashboard loads | |
+| 4 | Dashboard stat cards show real data | Non-zero counts if bookings exist | |
+| 5 | Request List loads with filters | Cards render, pull-to-refresh works | |
+| 6 | Schedule tab shows Today/Upcoming | Visits visible if assigned | |
+| 7 | Tap a booking → Detail view | Client/pet/service/dates visible | |
+| 8 | Approve action works (if pending requests exist) | Confirmation → success | |
+| 9 | Assign Staff action works (if approved requests exist) | Staff picker → confirm → success | |
+| 10 | Login with staff credentials (mattnicomn10@yahoo.com) | Staff schedule appears | |
+| 11 | Staff Mark Completed works | Visit notes saved, toast shown | |
+| 12 | Token refresh after idle | Session continues without re-login | |
+| 13 | Kill app → reopen | Session persists | |
+| 14 | No crash on network error | Error message shown gracefully | |
+| 15 | App name in TestFlight | Shows "toganddogs_app_1" (placeholder — acceptable) | |
+
+### 12.8 Recording Results
+
+After validation, document:
+- Screenshots of any issues
+- Pass/fail per checklist item
+- Any differences between TestFlight build and previous EAS preview build behavior
+- Whether the build is suitable for future External TestFlight (Gate D)
+
+### 12.9 What NOT to Do in Gate C
+
+| ❌ Do NOT | Reason |
+|-----------|--------|
+| Add Ryan as a tester | He's External TestFlight (Gate D) |
+| Create an external tester group | Requires Apple Beta Review |
+| Submit for beta app review | Not needed for internal testing |
+| Submit for App Store review | App is not ready for public |
+| Modify the app code | Gate C is testing only |
+| Run another EAS build | Unnecessary unless bugs found |
+
+---
+
+## 13. What This Document Does NOT Authorize
 
 - ❌ Running `eas build`
 - ❌ Running `eas submit`
