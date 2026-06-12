@@ -1,6 +1,6 @@
 # Release 10K — Internal TestFlight Build for 10J Login Error Fix
 
-**Status:** ✅ Complete — Build uploaded to App Store Connect / TestFlight  
+**Status:** ✅ Complete — Internal TestFlight Validation Passed  
 **Date:** 2026-06-12  
 **Scope:** Build and upload of the Release 10J login error visibility fix  
 **No app code changes in this release** — code changes were committed and pushed in `7cccc45` (Release 10J)
@@ -108,45 +108,30 @@ Source commit: `7cccc45` — `feat(mobile): release 10j mobile login error visib
 
 ---
 
-## Next Steps — Manual TestFlight Validation (Gate C)
+## Gate C — Internal TestFlight Validation Results
 
-Matthew should perform the following after Apple finishes processing `1.0.0 (3)` (typically 5–15 minutes after upload — an email confirmation will arrive at `mattnico10@yahoo.com`):
+**Build tested:** `1.0.0 (3)`  
+**Device:** iPhone 15 Pro  
+**Tester:** Matthew  
+**Date:** 2026-06-12  
 
-### Pre-validation
-- [ ] Confirm Apple processing email received
-- [ ] Open App Store Connect → TestFlight → verify build `1.0.0 (3)` shows status `Ready to Test`
-- [ ] Install update via TestFlight on iPhone 15 Pro
+| Test | Result | Notes |
+|------|--------|-------|
+| Wrong-password error visibility | ✅ **PASS** | Friendly login error appears as expected. The page no longer resets to blank fields. Email remains populated, password clears. |
+| Forgot password flow | ✅ **PASS** | Flow is visible and functions correctly end-to-end. |
+| Login regression (Admin) | ✅ **PASS** | Logged in successfully to `mattnicomn10@gmail.com`. |
+| Login regression (Client) | ✅ **PASS** | Logged in successfully to `brearockwell@gmail.com`. |
+| Login regression (Staff) | ✅ **PASS** | Logged in successfully to `mattnicomn10@yahoo.com`. |
+| Client visits (`brearockwell@gmail.com`) | ✅ **PASS** | Visits now show in the client account. |
+| Admin welcome header | ✅ **PASS** | Welcome name is fixed and no longer incorrectly shows "Ryan". |
+| General app stability | ✅ **PASS** | App launched successfully. No crashes observed. All tested workflows passed. |
 
-### Auth Error Feedback
-- [ ] On the login screen, enter a **wrong password** for any valid account
-- [ ] Verify a user-friendly error appears: *"Incorrect email or password. Please try again."* (not a raw Cognito code)
-- [ ] Verify the error **disappears** when you start typing again (or after a new login attempt)
-- [ ] Verify the email input field **remains populated** and the password field is **cleared**.
+### Double Submission Record Note
 
-### Forgot Password Flow
-- [ ] On the login screen, tap **"Forgot password?"**
-- [ ] Verify the Forgot Password screen appears with an email field
-- [ ] Enter a valid email (e.g., `mattnico10@yahoo.com`) and tap **Send Reset Code**
-- [ ] Verify a code email is received from Cognito / AWS
-- [ ] Enter the 6-digit code and a new password — verify success message appears
-- [ ] Tap **Back to Sign In** and log in with the new password
-
-### Admin Welcome Header
-- [ ] Log in as admin (`mattnicomn10@gmail.com`)
-- [ ] Navigate to the **Dashboard** tab
-- [ ] Verify welcome subtitle reads **"Welcome back, mattnicomn10"** (not "Ryan")
-
-### Admin Web-Only Notice Card
-- [ ] On the Dashboard tab, verify a blue info card appears:
-  *"💻 Web Admin Portal Features — Google Calendar management, staff/client/user administration..."*
-
-### Client Appointments (Critical — `brearockwell@gmail.com`)
-- [ ] Log out and log in as `brearockwell@gmail.com`
-- [ ] Navigate to the **Bookings** tab
-- [ ] Verify appointments are fetched and displayed (not a placeholder message)
-
-### Ryan (External TestFlight)
-- [ ] Confirm Ryan has **not** been added to TestFlight — no action needed for Ryan in this release
+Release 10K was submitted twice for the same build to ensure scheduling:
+* **Main submission:** `7bc75952-7a59-4ebc-98a9-78d307199487`
+* **Extra no-wait submission:** `a6106894-4df6-4f53-83b6-67ea208dc671`
+No further action was needed since App Store Connect successfully processed build `1.0.0 (3)`.
 
 ---
 
