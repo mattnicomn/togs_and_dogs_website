@@ -1,11 +1,35 @@
 # Release 11C: Existing Tenant Profile Record Creation Plan
 
-**Status:** Planning
+**Status:** Gate A Complete — Awaiting Gate B Approval
 **Priority:** Medium (foundational for multi-tenancy)
 **Risk to Production:** Very Low (one additive DynamoDB record)
 **Terraform Required:** No
 **Backend Code Changes:** None
 **Scope:** Seed one tenant metadata record for the existing `tog_and_dogs` tenant
+
+---
+
+## 1A. Gate A Validation Results
+
+**Validation commit:** `ed97200e28e25164fdfeaec2d2a14fb48fdd4486`
+
+### Results
+
+| Check | Result |
+|-------|--------|
+| No existing `TENANT#tog_and_dogs / METADATA` record | ✅ Confirmed — no record exists |
+| Existing `COMPANY#tog_and_dogs` records present | ✅ Confirmed — staff/client profiles exist |
+| No data mutation during validation | ✅ Confirmed — read-only commands only |
+
+### Blocker Found and Resolved
+
+**Issue:** The originally proposed `owner_cognito_sub` (`74b86488-1011-7029-bb6d-dad984e1463c`) belongs to `admin@toganddogs.com`, NOT to Matthew's actual admin account (`mattnicomn10@gmail.com`).
+
+**Resolution:** Use Matthew Nico's real admin account as the tenant owner:
+- `owner_email`: `mattnicomn10@gmail.com`
+- `owner_cognito_sub`: `b4a89428-9071-7063-dcad-983d4305dd8c`
+
+**Note:** `admin@toganddogs.com` / `74b86488-...` is treated as a protected root/platform admin account, not the business-tenant owner. It remains in `PROTECTED_ADMIN_SUBS` for guardrail purposes.
 
 ---
 
@@ -36,7 +60,7 @@ It is a single, additive DynamoDB `put_item` — placing one new record that no 
   "company_id": "tog_and_dogs",
   "display_name": "Tog & Dogs Pet Sitting",
   "owner_email": "mattnicomn10@gmail.com",
-  "owner_cognito_sub": "74b86488-1011-7029-bb6d-dad984e1463c",
+  "owner_cognito_sub": "b4a89428-9071-7063-dcad-983d4305dd8c",
   "subscription_tier": "professional",
   "subscription_status": "active",
   "stripe_customer_id": null,
@@ -71,7 +95,7 @@ It is a single, additive DynamoDB `put_item` — placing one new record that no 
 | `entity_type` | `TENANT` | Enables entity-type filtering if needed |
 | `company_id` | `tog_and_dogs` | Redundant but consistent with other record types |
 | `owner_email` | `mattnicomn10@gmail.com` | Ryan/Matthew's admin account |
-| `owner_cognito_sub` | `74b86488-...` | Protected admin sub from Release 6H config |
+| `owner_cognito_sub` | `b4a89428-...` | Matthew's actual admin Cognito sub |
 | `subscription_tier` | `"professional"` | Placeholder — all features currently available |
 | `subscription_status` | `"active"` | Placeholder — no billing enforcement yet |
 | Stripe fields | `null` | Placeholders for future Stripe integration |
@@ -141,7 +165,7 @@ aws dynamodb put-item \
     "company_id": {"S": "tog_and_dogs"},
     "display_name": {"S": "Tog & Dogs Pet Sitting"},
     "owner_email": {"S": "mattnicomn10@gmail.com"},
-    "owner_cognito_sub": {"S": "74b86488-1011-7029-bb6d-dad984e1463c"},
+    "owner_cognito_sub": {"S": "b4a89428-9071-7063-dcad-983d4305dd8c"},
     "subscription_tier": {"S": "professional"},
     "subscription_status": {"S": "active"},
     "stripe_customer_id": {"NULL": true},
