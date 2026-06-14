@@ -79,10 +79,11 @@ def normalize_phone_e164(phone):
     return None
 
 
-def _resolve_admin_record(pk, sk):
+def _resolve_admin_record(pk, sk, company_id=None):
     """
     Robust record resolution for administrative cleanup.
     Handles swapped keys and malformed identifiers in 'Data Issues'.
+    Release 11E: Optional company_id parameter for tenant-scoped scan fallback.
     """
     from common.db import get_item, table as _table
     from boto3.dynamodb.conditions import Attr
@@ -116,6 +117,14 @@ def _resolve_admin_record(pk, sk):
         scan_kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
         response = _table.scan(**scan_kwargs)
         found_items.extend(response.get('Items', []))
+
+    # Release 11E: Post-filter scan results to the caller's tenant
+    if company_id and found_items:
+        from common.auth import DEFAULT_COMPANY_ID
+        found_items = [
+            i for i in found_items
+            if (i.get('company_id') or DEFAULT_COMPANY_ID) == company_id
+        ]
         
     if found_items:
         # Return first match and its actual keys
@@ -185,10 +194,17 @@ def handler(event, context):
                 return error(403, "Forbidden", event)
             
             from common.db import table as _table
+            from common.auth import get_current_company_id as _get_company_id, DEFAULT_COMPANY_ID
+            from boto3.dynamodb.conditions import Attr as _Attr
+
+            # Release 11E: Filter export to caller's company only
+            _company_id = _get_company_id(event)
             
             # Fetch all records for backup
             # Low-volume operational scale allows for periodic admin scans
-            scan_kwargs = {}
+            scan_kwargs = {
+                "FilterExpression": _Attr('company_id').eq(_company_id) | _Attr('company_id').not_exists()
+            }
             response = _table.scan(**scan_kwargs)
             items = response.get('Items', [])
             while 'LastEvaluatedKey' in response:
@@ -1758,6 +1774,15 @@ def handler(event, context):
             if request_id and client_id:
                 item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
                 if item:
+                    # Release 11E: Post-read tenant ownership validation
+                    from common.auth import validate_tenant_ownership, get_claims as _gc
+                    try:
+                        validate_tenant_ownership(item, event)
+                    except PermissionError:
+                        _c = _gc(event)
+                        print(f"SECURITY: Cross-tenant GET attempt by {_c.get('email')} for REQ#{request_id}")
+                        return error(403, "Forbidden", event)
+
                     if item.get('job_ids'):
                         jobs_summary = []
                         completed_count = 0
@@ -1939,6 +1964,15 @@ def handler(event, context):
             job = get_item(f"JOB#{job_id}", f"REQ#{request_id}")
             if not job:
                 return not_found(f"Job {job_id} not found under request {request_id}", event)
+
+            # Release 11E: Post-read tenant ownership validation
+            from common.auth import validate_tenant_ownership as _vto, get_claims as _gc
+            try:
+                _vto(job, event)
+            except PermissionError:
+                _c = _gc(event)
+                print(f"SECURITY: Cross-tenant job/complete attempt by {_c.get('email')} for JOB#{job_id}")
+                return error(403, "Forbidden", event)
                 
             # 2. Staff ownership check
             if role == 'staff':
@@ -2136,8 +2170,10 @@ def handler(event, context):
                         results["failures"].append({"record": "Unknown", "reason": "Missing PK or SK"})
                         continue
 
-                    # ID Healing Resolution
-                    current_item, actual_pk, actual_sk = _resolve_admin_record(item_pk, item_sk)
+                    # ID Healing Resolution — pass company_id for tenant-scoped scan fallback (Release 11E)
+                    from common.auth import get_current_company_id as _gcc
+                    _purge_company_id = _gcc(event)
+                    current_item, actual_pk, actual_sk = _resolve_admin_record(item_pk, item_sk, company_id=_purge_company_id)
                     
                     if not current_item:
                         results["failed"] += 1
@@ -2214,8 +2250,10 @@ def handler(event, context):
                         results["failures"].append({"record": "Unknown", "reason": "Missing PK or SK"})
                         continue
 
-                    # ID Healing Resolution
-                    current_item, actual_pk, actual_sk = _resolve_admin_record(item_pk, item_sk)
+                    # ID Healing Resolution — pass company_id for tenant-scoped scan fallback (Release 11E)
+                    from common.auth import get_current_company_id as _gcc
+                    _action_company_id = _gcc(event)
+                    current_item, actual_pk, actual_sk = _resolve_admin_record(item_pk, item_sk, company_id=_action_company_id)
                     
                     if not current_item:
                         results["failed"] += 1

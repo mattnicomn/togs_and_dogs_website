@@ -124,7 +124,7 @@ def test_bulk_purge_filters_non_deleted(mock_db, mock_audit):
         "REQ#ACTIVE": ({"PK": "REQ#ACTIVE", "SK": "CLIENT#2", "status": "PENDING_REVIEW"}, "REQ#ACTIVE", "CLIENT#2")
     }
     
-    def resolve_side_effect(pk, sk):
+    def resolve_side_effect(pk, sk, *args, **kwargs):
         return items.get(pk, (None, pk, sk))
     
     event = create_event("Admin", {

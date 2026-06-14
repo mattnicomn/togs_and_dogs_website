@@ -131,6 +131,16 @@ def handler(event, context):
         if not request_item:
             print(f"ERROR: Request {request_id} (Client {client_id}) not found.")
             return not_found(f"Request {request_id} not found", event)
+
+        # Release 11E: Post-read tenant ownership validation
+        from common.auth import validate_tenant_ownership, get_claims as _get_claims
+        try:
+            validate_tenant_ownership(request_item, event)
+        except PermissionError:
+            _claims = _get_claims(event)
+            print(f"SECURITY: Cross-tenant access attempt by {_claims.get('email')} for REQ#{request_id}")
+            from common.response import error as _error
+            return _error(403, "Forbidden", event)
  
         current_status = request_item.get('status') or 'PENDING_REVIEW'
         workflow_type = determine_workflow_type(request_item)

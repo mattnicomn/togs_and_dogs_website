@@ -31,11 +31,13 @@ def get_notification_client(config):
         config.NOTIFICATION_MODE = 'log_only'
         return SESClient(config)
 
-def _get_monthly_send_count(month_key):
-    """Retrieves the current monthly send count from DynamoDB. Non-blocking."""
+def _get_monthly_send_count(month_key, company_id="tog_and_dogs"):
+    """Retrieves the current monthly send count from DynamoDB. Non-blocking.
+    Release 11E: Parameterized per tenant via company_id.
+    """
     try:
         from common.db import get_item
-        item = get_item("QUOTA#tog_and_dogs", f"MONTH#{month_key}")
+        item = get_item(f"QUOTA#{company_id}", f"MONTH#{month_key}")
         if item:
             return int(item.get('sent_count', 0))
         return 0
@@ -44,14 +46,16 @@ def _get_monthly_send_count(month_key):
         return 0
 
 
-def _increment_monthly_send_count(month_key):
-    """Atomically increments the monthly send count in DynamoDB. Non-blocking."""
+def _increment_monthly_send_count(month_key, company_id="tog_and_dogs"):
+    """Atomically increments the monthly send count in DynamoDB. Non-blocking.
+    Release 11E: Parameterized per tenant via company_id.
+    """
     try:
         from common.db import table
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc).isoformat()
         table.update_item(
-            Key={"PK": "QUOTA#tog_and_dogs", "SK": f"MONTH#{month_key}"},
+            Key={"PK": f"QUOTA#{company_id}", "SK": f"MONTH#{month_key}"},
             UpdateExpression="ADD sent_count :inc SET updated_at = :now, entity_type = :type",
             ExpressionAttributeValues={
                 ":inc": 1,
@@ -296,8 +300,11 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
         from datetime import datetime, timezone
         now_dt = datetime.now(timezone.utc)
         month_key = now_dt.isoformat()[:7] # YYYY-MM
+
+        # Release 11E: Resolve per-tenant quota key from the record's company_id
+        quota_company_id = (record.get('company_id') or 'tog_and_dogs') if record else 'tog_and_dogs'
         
-        sent_count = _get_monthly_send_count(month_key)
+        sent_count = _get_monthly_send_count(month_key, company_id=quota_company_id)
         
         # Log quota warnings on standard warning threshold crossings
         limit = config.POSTMARK_MONTHLY_LIMIT
@@ -427,7 +434,8 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
                     record=record
                 )
                 # Increment monthly send count atomically (Release 6J)
-                _increment_monthly_send_count(month_key)
+                # Release 11E: Pass per-tenant company_id
+                _increment_monthly_send_count(month_key, company_id=quota_company_id)
             else:
                 is_dry_run_or_log = (
                     "logged only" in result.get('message', '').lower() or

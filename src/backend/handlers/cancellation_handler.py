@@ -43,7 +43,16 @@ def handle_customer_request(body, event):
     item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
     if not item:
         return error(403, "Forbidden", event)
-        
+
+    # Release 11E: Post-read tenant ownership validation
+    from common.auth import validate_tenant_ownership, get_claims as _get_claims
+    try:
+        validate_tenant_ownership(item, event)
+    except PermissionError:
+        _claims = _get_claims(event)
+        print(f"SECURITY: Cross-tenant cancel attempt by {_claims.get('email')} for REQ#{request_id}")
+        return error(403, "Forbidden", event)
+
     from common.auth import require_client_booking_access
     try:
         require_client_booking_access(event, item)
@@ -124,6 +133,15 @@ def handle_admin_decision(body, event):
     item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
     if not item:
         return error(404, "Booking request not found", event)
+
+    # Release 11E: Post-read tenant ownership validation
+    from common.auth import validate_tenant_ownership, get_claims as _get_claims
+    try:
+        validate_tenant_ownership(item, event)
+    except PermissionError:
+        _claims = _get_claims(event)
+        print(f"SECURITY: Cross-tenant cancel decision attempt by {_claims.get('email')} for REQ#{request_id}")
+        return error(403, "Forbidden", event)
 
     new_status = "CANCELLED" if decision == 'APPROVE' else "CANCELLATION_DENIED"
     ts = datetime.now(timezone.utc).isoformat()

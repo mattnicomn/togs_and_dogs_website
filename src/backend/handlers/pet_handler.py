@@ -86,6 +86,16 @@ def handler(event, context):
             
             item = get_item(f"PET#{pet_id}", f"CLIENT#{client_id}")
             if item:
+                # Release 11E: Indirect PET tenant validation — verify client belongs to caller's company
+                from common.auth import get_current_company_id as _get_cid
+                from common.db import table as _pet_table
+                _cid = _get_cid(event)
+                _client_check = _pet_table.get_item(Key={"PK": f"COMPANY#{_cid}", "SK": f"CLIENT#{client_id}"}).get('Item')
+                if not _client_check:
+                    from common.auth import get_claims as _gc
+                    _c = _gc(event)
+                    print(f"SECURITY: Cross-tenant PET access attempt by {_c.get('email')} for PET#{pet_id} (client {client_id})")
+                    return error(403, "Forbidden", event)
                 item = sanitize_booking_for_role(item, role)
                 return success(item, event)
 
@@ -118,6 +128,17 @@ def handler(event, context):
                 existing_item = {}
             else:
                 existing_item = get_item(f"PET#{pet_id}", f"CLIENT#{client_id}") or {}
+
+            # Release 11E: Indirect PET tenant validation — verify client belongs to caller's company
+            _cid_check = company_id
+            from common.db import table as _pet_put_table
+            _client_verify = _pet_put_table.get_item(Key={"PK": f"COMPANY#{_cid_check}", "SK": f"CLIENT#{client_id}"}).get('Item')
+            if not _client_verify:
+                from common.auth import get_claims as _gc
+                _cp = _gc(event)
+                print(f"SECURITY: Cross-tenant PET write attempt by {_cp.get('email')} for client {client_id}")
+                from common.response import error as _error
+                return _error(403, "Forbidden", event)
             
             item = existing_item.copy()
             item.update({

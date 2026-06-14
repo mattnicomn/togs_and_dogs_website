@@ -85,6 +85,17 @@ def handler(event, context):
 
         target_job_ids = []
         request_rec = get_item(f"REQ#{req_id}", f"CLIENT#{client_id}")
+
+        # Release 11E: Post-read tenant ownership validation
+        if request_rec:
+            from common.auth import validate_tenant_ownership as _vto, get_claims as _gc
+            try:
+                _vto(request_rec, event)
+            except PermissionError:
+                _c = _gc(event)
+                print(f"SECURITY: Cross-tenant assign attempt by {_c.get('email')} for REQ#{req_id}")
+                from common.response import error as _error
+                return _error(403, "Forbidden", event)
         
         if request_rec:
             parent_job_ids = request_rec.get('job_ids') or []
@@ -135,6 +146,14 @@ def handler(event, context):
                 if not item:
                     print(f"WARNING: Job JOB#{j_id} not found, skipping.")
                     continue
+
+                # Release 11E: Post-read tenant ownership validation on each JOB record
+                from common.auth import validate_tenant_ownership as _vto_j
+                try:
+                    _vto_j(item, event)
+                except PermissionError:
+                    print(f"SECURITY: Cross-tenant JOB access blocked for JOB#{j_id}")
+                    continue  # Skip this job rather than blocking the entire batch
 
                 current_status = item.get('status')
                 

@@ -16,7 +16,7 @@ TEST_RECORD = {
     "client_id": "client-456",
     "client_email": "test-client@example.com",
     "client_name": "John Doe",
-    "company_id": "company-xyz",
+    "company_id": "tog_and_dogs",
     "approval_notification_status": None,
 }
 
