@@ -65,3 +65,9 @@ variable "postmark_webhook_handler_invoke_arn" {
   type        = string
   default     = ""
 }
+
+variable "stripe_webhook_handler_invoke_arn" {
+  description = "Invocation ARN for the Stripe webhook handler"
+  type        = string
+  default     = ""
+}

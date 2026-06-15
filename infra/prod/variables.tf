@@ -62,3 +62,49 @@ variable "postmark_webhook_secret" {
   sensitive   = true
   default     = ""
 }
+
+# --- Release 12I: Stripe sandbox route and secret wiring ---
+
+variable "stripe_secret_key" {
+  type        = string
+  description = "Stripe secret API key for creating Checkout Sessions. Set via terraform.tfvars or TF_VAR."
+  sensitive   = true
+  default     = ""
+}
+
+variable "stripe_webhook_secret" {
+  type        = string
+  description = "Stripe webhook signing secret for verifying webhook requests. Set via terraform.tfvars or TF_VAR."
+  sensitive   = true
+  default     = ""
+}
+
+variable "stripe_price_starter_monthly" {
+  type        = string
+  description = "Stripe Price ID for Starter Monthly plan."
+  default     = ""
+}
+
+variable "stripe_price_professional_monthly" {
+  type        = string
+  description = "Stripe Price ID for Professional Monthly plan."
+  default     = ""
+}
+
+variable "stripe_price_premium_monthly" {
+  type        = string
+  description = "Stripe Price ID for Premium Monthly plan."
+  default     = ""
+}
+
+variable "stripe_success_url_template" {
+  type        = string
+  description = "Stripe Checkout Session success URL template."
+  default     = ""
+}
+
+variable "stripe_cancel_url_template" {
+  type        = string
+  description = "Stripe Checkout Session cancel URL template."
+  default     = ""
+}

@@ -6,6 +6,8 @@
 **/backend.zip
 **/tfplan
 **/*.tfplan
+*.tfvars
+*.tfvars.json
 
 # Frontend
 dist/

@@ -105,11 +105,18 @@ resource "aws_lambda_function" "admin" {
   environment {
     variables = merge(
       {
-        DATA_TABLE_NAME          = module.data.table_name
-        ADMIN_USER_POOL_ID       = module.auth.user_pool_id
-        DEFAULT_COMPANY_ID       = "tog_and_dogs"
-        GOOGLE_CLIENT_CREDS_NAME = module.secrets.google_client_creds_arn
-        GOOGLE_USER_TOKENS_NAME  = module.secrets.google_user_tokens_arn
+        DATA_TABLE_NAME                   = module.data.table_name
+        ADMIN_USER_POOL_ID                = module.auth.user_pool_id
+        DEFAULT_COMPANY_ID                = "tog_and_dogs"
+        GOOGLE_CLIENT_CREDS_NAME          = module.secrets.google_client_creds_arn
+        GOOGLE_USER_TOKENS_NAME           = module.secrets.google_user_tokens_arn
+        STRIPE_SECRET_KEY                 = var.stripe_secret_key
+        STRIPE_ENVIRONMENT                = "sandbox"
+        STRIPE_PRICE_STARTER_MONTHLY      = var.stripe_price_starter_monthly
+        STRIPE_PRICE_PROFESSIONAL_MONTHLY = var.stripe_price_professional_monthly
+        STRIPE_PRICE_PREMIUM_MONTHLY      = var.stripe_price_premium_monthly
+        STRIPE_SUCCESS_URL_TEMPLATE       = var.stripe_success_url_template
+        STRIPE_CANCEL_URL_TEMPLATE        = var.stripe_cancel_url_template
       },
       local.notification_env_vars
     )
@@ -335,6 +342,39 @@ resource "aws_lambda_permission" "api_postmark_webhook" {
   principal     = "apigateway.amazonaws.com"
 }
 
+# Release 12I: Stripe Webhook Handler Lambda
+resource "aws_lambda_function" "stripe_webhook" {
+  filename         = data.archive_file.backend_zip.output_path
+  function_name    = "${local.name_prefix}-stripe-webhook"
+  role             = module.iam.lambda_role_arn
+  handler          = "handlers.stripe_webhook_handler.handler"
+  source_code_hash = data.archive_file.backend_zip.output_base64sha256
+  runtime          = "python3.11"
+  memory_size      = 256
+  timeout          = 30
+
+  environment {
+    variables = {
+      DATA_TABLE_NAME                   = module.data.table_name
+      STRIPE_WEBHOOK_SECRET             = var.stripe_webhook_secret
+      STRIPE_ENVIRONMENT                = "sandbox"
+      STRIPE_PRICE_STARTER_MONTHLY      = var.stripe_price_starter_monthly
+      STRIPE_PRICE_PROFESSIONAL_MONTHLY = var.stripe_price_professional_monthly
+      STRIPE_PRICE_PREMIUM_MONTHLY      = var.stripe_price_premium_monthly
+      DEFAULT_COMPANY_ID                = "tog_and_dogs"
+    }
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_lambda_permission" "api_stripe_webhook" {
+  statement_id  = "AllowAPIGatewayInvokeStripeWebhook"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.stripe_webhook.function_name
+  principal     = "apigateway.amazonaws.com"
+}
+
 
 # API Permissions for Google Auth
 resource "aws_lambda_permission" "api_google_auth" {
@@ -434,6 +474,7 @@ module "api" {
   pet_handler_invoke_arn              = aws_lambda_function.pet.invoke_arn
   cancellation_handler_invoke_arn     = aws_lambda_function.cancellation.invoke_arn
   postmark_webhook_handler_invoke_arn = aws_lambda_function.postmark_webhook.invoke_arn
+  stripe_webhook_handler_invoke_arn   = aws_lambda_function.stripe_webhook.invoke_arn
   device_handler_invoke_arn           = aws_lambda_function.device.invoke_arn
   tags                                = local.common_tags
 }
