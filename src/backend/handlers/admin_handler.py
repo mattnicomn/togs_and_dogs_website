@@ -1937,6 +1937,126 @@ def handler(event, context):
                 "lastKey": json.dumps(response.get('LastEvaluatedKey')) if response.get('LastEvaluatedKey') else None
             }, event)
 
+        elif http_method == 'POST' and '/admin/requests/' in path and path.endswith('/payment-session'):
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin']:
+                return error(403, "Forbidden", event)
+
+            claims = get_claims(event)
+            user_email = (claims.get('email') or "").lower().strip() or claims.get('username') or 'admin-api'
+
+            # 1. Parse request_id from path
+            request_id = path_params.get('request_id') or path_params.get('requestId')
+            if not request_id:
+                parts = [p for p in path.split('/') if p]
+                if len(parts) >= 4 and parts[0] == 'admin' and parts[1] == 'requests' and parts[3] == 'payment-session':
+                    request_id = parts[2]
+
+            if not request_id:
+                return bad_request("Missing request_id in path", event)
+
+            # 2. Parse client_id and amount_cents
+            client_id = query_params.get('clientId') or query_params.get('client_id')
+            
+            try:
+                body = json.loads(event.get('body', '{}')) if event.get('body') else {}
+            except Exception:
+                return bad_request("Invalid JSON body", event)
+
+            if not client_id:
+                client_id = body.get('client_id')
+
+            if not client_id:
+                return bad_request("Missing required client_id (clientId query param or client_id in body)", event)
+
+            amount_cents = body.get('amount_cents')
+            if amount_cents is None:
+                return bad_request("Missing required amount_cents in request body", event)
+
+            # amount_cents must be integer > 0
+            if not isinstance(amount_cents, int) or isinstance(amount_cents, bool) or amount_cents <= 0:
+                return bad_request("amount_cents must be a positive integer", event)
+
+            # 3. Retrieve request item
+            request_item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
+            if not request_item:
+                return not_found(f"Request {request_id} not found for client {client_id}", event)
+
+            # 4. Validate tenant ownership
+            from common.auth import validate_tenant_ownership as _vto, get_claims as _gc
+            try:
+                _vto(request_item, event)
+            except PermissionError:
+                _c = _gc(event)
+                print(f"SECURITY: Cross-tenant payment session attempt by {_c.get('email')} for REQ#{request_id}")
+                return error(403, "Forbidden", event)
+
+            # 5. Create Stripe Checkout Session
+            from common.stripe_client import create_checkout_session, StripeAPIError
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
+            stripe_env = os.environ.get("STRIPE_ENV", "sandbox")
+
+            try:
+                session = create_checkout_session(
+                    company_id=company_id,
+                    request_id=request_id,
+                    client_id=client_id,
+                    amount_cents=amount_cents,
+                    environment=stripe_env
+                )
+            except StripeAPIError as e:
+                return error(500, f"Stripe session creation failed: {str(e)}", event)
+
+            # 6. Update Request Record in DynamoDB
+            now_iso = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+            try:
+                table.update_item(
+                    Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                    UpdateExpression=(
+                        "SET payment_status = :ps, "
+                        "stripe_checkout_session_id = :sid, "
+                        "stripe_payment_url = :surl, "
+                        "payment_requested_at = :pat, "
+                        "payment_amount_cents = :pac, "
+                        "payment_requested_by = :prb, "
+                        "updated_at = :now"
+                    ),
+                    ExpressionAttributeValues={
+                        ":ps": "payment_link_sent",
+                        ":sid": session.get('id'),
+                        ":surl": session.get('url'),
+                        ":pat": now_iso,
+                        ":pac": amount_cents,
+                        ":prb": user_email,
+                        ":now": now_iso
+                    }
+                )
+            except Exception as db_err:
+                print(f"DATABASE ERROR: Failed to update request {request_id} billing fields: {db_err}")
+                return error(500, "Database update failed after Stripe session creation", event)
+
+            # Audit log
+            log_action(
+                event,
+                "PAYMENT_SESSION_CREATED",
+                f"REQ#{request_id}",
+                f"CLIENT#{client_id}",
+                metadata={
+                    "stripe_checkout_session_id": session.get('id'),
+                    "amount_cents": amount_cents,
+                    "stripe_payment_url": session.get('url')
+                }
+            )
+
+            return success({
+                "message": "Payment session created successfully",
+                "stripe_checkout_session_id": session.get('id'),
+                "stripe_payment_url": session.get('url'),
+                "payment_status": "payment_link_sent"
+            }, event)
+
         elif http_method == 'POST' and '/admin/job/complete' in path:
             role = get_effective_role(event)
             if role not in ['owner', 'admin', 'staff']:

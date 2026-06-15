@@ -83,6 +83,10 @@ def handler(event, context):
         # 4. Resolve company_id from event
         company_id = _resolve_company_id(event_type, event_data)
         if not company_id:
+            metadata = event_data.get('metadata', {}) or {}
+            if metadata.get('payment_type') == 'booking' or metadata.get('request_id'):
+                print(f"SECURITY/BILLING ERROR: Missing company_id for booking event {event_id}")
+                return _raw_response(400, {"error": "Missing company_id for booking event"})
             print(f"BILLING ERROR: Cannot resolve company_id for event {event_id} type={event_type}")
             return _raw_response(200, {"status": "ignored", "reason": "cannot_resolve_company_id"})
 
@@ -124,27 +128,102 @@ def handler(event, context):
 # ---------------------------------------------------------------------------
 
 def _handle_checkout_completed(company_id, event_id, event_type, session):
-    """Handle checkout.session.completed — link Stripe customer to tenant."""
-    billing_fields = {
-        'stripe_customer_id': session.get('customer'),
-        'stripe_subscription_id': session.get('subscription'),
-        'subscription_status': 'active',
-        'billing_provider': 'stripe',
-        'billing_status_reason': None,
-        'billing_status_changed_at': _now_iso(),
-    }
+    """Handle checkout.session.completed — subscription setup or booking payment."""
+    metadata = session.get('metadata') or {}
+    payment_type = metadata.get('payment_type')
 
-    # Remove None values
-    billing_fields = {k: v for k, v in billing_fields.items() if v is not None}
+    if payment_type == 'booking':
+        request_id = metadata.get('request_id')
+        client_id = metadata.get('client_id')
 
-    success = update_tenant_billing(company_id, billing_fields)
-    if not success:
-        raise RuntimeError(f"Failed to update tenant {company_id} for checkout.session.completed")
+        if not company_id or not request_id or not client_id:
+            raise ValueError(f"Booking webhook missing required metadata: company_id={company_id}, request_id={request_id}, client_id={client_id}")
 
-    write_billing_event(company_id, event_id, event_type, {
-        'stripe_customer_id': session.get('customer'),
-        'stripe_subscription_id': session.get('subscription'),
-    })
+        from common.db import get_item, table as _table
+        request_item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
+        if not request_item:
+            raise ValueError(f"Request REQ#{request_id} not found for client CLIENT#{client_id}")
+
+        # Validate tenant ownership (fail closed if company_id mismatch)
+        request_company = request_item.get('company_id')
+        from common.auth import DEFAULT_COMPANY_ID
+        if not request_company:
+            request_company = DEFAULT_COMPANY_ID
+
+        if request_company != company_id:
+            raise ValueError(f"Cross-tenant mismatch: request belongs to {request_company}, webhook is for {company_id}")
+
+        # Update DynamoDB Request record
+        billing_fields = {
+            'payment_status': 'paid',
+            'stripe_payment_intent_id': session.get('payment_intent'),
+            'stripe_checkout_session_id': session.get('id'),
+            'stripe_customer_id': session.get('customer'),
+            'payment_completed_at': _now_iso(),
+            'updated_at': _now_iso(),
+            'updated_by': 'system:stripe_webhook'
+        }
+
+        # Remove None values from billing fields
+        billing_fields = {k: v for k, v in billing_fields.items() if v is not None}
+
+        update_parts = []
+        expr_names = {}
+        expr_values = {}
+        for i, (key, value) in enumerate(billing_fields.items()):
+            name_key = f"#b{i}"
+            val_key = f":b{i}"
+            update_parts.append(f"{name_key} = {val_key}")
+            expr_names[name_key] = key
+            expr_values[val_key] = value
+
+        try:
+            _table.update_item(
+                Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                UpdateExpression="SET " + ", ".join(update_parts),
+                ExpressionAttributeNames=expr_names,
+                ExpressionAttributeValues=expr_values,
+                ConditionExpression="attribute_exists(PK)"
+            )
+        except Exception as e:
+            raise RuntimeError(f"Failed to update request {request_id} status to paid: {e}")
+
+        # Write billing event ledger entry for booking payment
+        extra_ledger_fields = {
+            'stripe_customer_id': session.get('customer'),
+            'stripe_checkout_session_id': session.get('id'),
+            'stripe_payment_intent_id': session.get('payment_intent'),
+            'request_id': request_id,
+            'client_id': client_id,
+            'payment_type': 'booking',
+            'amount_total': session.get('amount_total'),
+        }
+        extra_ledger_fields = {k: v for k, v in extra_ledger_fields.items() if v is not None}
+
+        write_billing_event(company_id, event_id, event_type, extra_ledger_fields)
+        
+    else:
+        # SaaS subscription checkout completed
+        billing_fields = {
+            'stripe_customer_id': session.get('customer'),
+            'stripe_subscription_id': session.get('subscription'),
+            'subscription_status': 'active',
+            'billing_provider': 'stripe',
+            'billing_status_reason': None,
+            'billing_status_changed_at': _now_iso(),
+        }
+
+        # Remove None values
+        billing_fields = {k: v for k, v in billing_fields.items() if v is not None}
+
+        success = update_tenant_billing(company_id, billing_fields)
+        if not success:
+            raise RuntimeError(f"Failed to update tenant {company_id} for checkout.session.completed")
+
+        write_billing_event(company_id, event_id, event_type, {
+            'stripe_customer_id': session.get('customer'),
+            'stripe_subscription_id': session.get('subscription'),
+        })
 
 
 def _handle_subscription_created(company_id, event_id, event_type, subscription):
