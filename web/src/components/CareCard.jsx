@@ -34,19 +34,18 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   const [showConfirmPaymentGen, setShowConfirmPaymentGen] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
 
-  // Release 12R: Initialize and reset payment states when active pet or request details change
+  // Release 12R: Initialize and reset payment states when pet prop changes
+  // Note: activePet is derived later from _normalizePets(); use pet prop directly here
   useEffect(() => {
     const originItem = pet._originItem || {};
     const initialAmount = originItem.payment_amount_cents 
       ? (originItem.payment_amount_cents / 100).toFixed(2) 
-      : activePet.quote_amount 
-        ? parseFloat(activePet.quote_amount).toFixed(2) 
-        : '';
+      : (pet.quote_amount ? parseFloat(pet.quote_amount).toFixed(2) : '');
     setPaymentAmount(initialAmount);
     setPaymentError('');
     setShowConfirmPaymentGen(false);
     setCopySuccess(false);
-  }, [pet, activePetIndex]);
+  }, [pet]);
 
   const handleGeneratePaymentLink = async () => {
     const parsedAmount = parseFloat(paymentAmount);
