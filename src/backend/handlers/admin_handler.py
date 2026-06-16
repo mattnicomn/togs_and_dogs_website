@@ -1991,6 +1991,25 @@ def handler(event, context):
                 print(f"SECURITY: Cross-tenant payment session attempt by {_c.get('email')} for REQ#{request_id}")
                 return error(403, "Forbidden", event)
 
+            # 4.1. Validate payment status guard and duplicate payment protection
+            current_payment_status = request_item.get('payment_status')
+            if current_payment_status:
+                current_payment_status = current_payment_status.strip().lower()
+
+            if current_payment_status in ['paid', 'refunded', 'waived']:
+                return error(409, f"Conflict: Payment session cannot be created for request with status '{request_item.get('payment_status')}'", event)
+            
+            elif current_payment_status == 'payment_link_sent':
+                existing_url = request_item.get('stripe_payment_url')
+                existing_session_id = request_item.get('stripe_checkout_session_id')
+                if existing_url and existing_session_id:
+                    return success({
+                        "message": "Payment session retrieved successfully",
+                        "stripe_checkout_session_id": existing_session_id,
+                        "stripe_payment_url": existing_url,
+                        "payment_status": "payment_link_sent"
+                    }, event)
+
             # 5. Create Stripe Checkout Session
             from common.stripe_client import create_checkout_session, StripeAPIError
             from common.auth import get_current_company_id

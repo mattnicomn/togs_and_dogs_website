@@ -197,6 +197,150 @@ class TestAdminStripeCheckoutCreation:
         resp_body = json.loads(response['body'])
         assert "Stripe session creation failed" in resp_body["error"]
 
+    @patch('common.db.get_item')
+    @patch('common.stripe_client.create_checkout_session')
+    def test_payment_status_guards_blocked(self, mock_create, mock_get):
+        """Requests with status paid, refunded, or waived return 409 Conflict and do not call Stripe."""
+        orig_get = admin_handler.__globals__.get('get_item')
+        try:
+            from common.db import get_item as real_get
+            admin_handler.__globals__['get_item'] = real_get
+
+            for status in ['paid', 'refunded', 'waived', ' PAID ', 'refunded ']:
+                record = make_req_record(company_id='tog_and_dogs')
+                record['payment_status'] = status
+                mock_get.return_value = record
+                mock_create.reset_mock()
+
+                event = make_admin_event(
+                    role='admin',
+                    company_id='tog_and_dogs',
+                    body={'amount_cents': 15000, 'client_id': 'client-001'}
+                )
+                response = admin_handler(event, None)
+                assert response['statusCode'] == 409
+                resp_body = json.loads(response['body'])
+                assert "Conflict" in resp_body["error"]
+                mock_create.assert_not_called()
+        finally:
+            admin_handler.__globals__['get_item'] = orig_get
+
+    @patch('common.db.get_item')
+    @patch('common.db.table')
+    @patch('common.stripe_client.create_checkout_session')
+    def test_payment_status_guards_allowed(self, mock_create, mock_table, mock_get):
+        """Requests with absent, null, payment_failed, or expired status allow session creation (returns 200)."""
+        mock_create.return_value = {
+            'id': 'cs_new_123',
+            'url': 'https://checkout.stripe.com/pay/cs_new_123'
+        }
+        mock_table.update_item = MagicMock()
+        
+        orig_get = admin_handler.__globals__.get('get_item')
+        orig_table = admin_handler.__globals__.get('table')
+        try:
+            from common.db import get_item as real_get, table as real_table
+            admin_handler.__globals__['get_item'] = real_get
+            admin_handler.__globals__['table'] = real_table
+
+            # Test scenarios for allowed statuses
+            # None (absent), '', 'payment_failed', 'expired'
+            for status in [None, '', 'payment_failed', 'expired', 'payment_failed ', ' EXPIRED']:
+                record = make_req_record(company_id='tog_and_dogs')
+                if status is not None:
+                    record['payment_status'] = status
+                else:
+                    record.pop('payment_status', None)
+                    
+                mock_get.return_value = record
+                mock_create.reset_mock()
+                mock_table.update_item.reset_mock()
+
+                event = make_admin_event(
+                    role='admin',
+                    company_id='tog_and_dogs',
+                    body={'amount_cents': 15000, 'client_id': 'client-001'}
+                )
+                response = admin_handler(event, None)
+                assert response['statusCode'] == 200
+                body = json.loads(response['body'])
+                assert body['stripe_checkout_session_id'] == 'cs_new_123'
+                mock_create.assert_called_once()
+                mock_table.update_item.assert_called_once()
+        finally:
+            admin_handler.__globals__['get_item'] = orig_get
+            admin_handler.__globals__['table'] = orig_table
+
+    @patch('common.db.get_item')
+    @patch('common.stripe_client.create_checkout_session')
+    def test_payment_link_sent_existing_url_resends(self, mock_create, mock_get):
+        """Requests with payment_link_sent status and existing URL return 200 with the URL without calling Stripe."""
+        record = make_req_record(company_id='tog_and_dogs')
+        record['payment_status'] = 'payment_link_sent'
+        record['stripe_payment_url'] = 'https://checkout.stripe.com/pay/cs_existing_456'
+        record['stripe_checkout_session_id'] = 'cs_existing_456'
+        mock_get.return_value = record
+
+        event = make_admin_event(
+            role='admin',
+            company_id='tog_and_dogs',
+            body={'amount_cents': 15000, 'client_id': 'client-001'}
+        )
+        
+        orig_get = admin_handler.__globals__.get('get_item')
+        try:
+            from common.db import get_item as real_get
+            admin_handler.__globals__['get_item'] = real_get
+            response = admin_handler(event, None)
+        finally:
+            admin_handler.__globals__['get_item'] = orig_get
+
+        assert response['statusCode'] == 200
+        body = json.loads(response['body'])
+        assert body['stripe_checkout_session_id'] == 'cs_existing_456'
+        assert body['stripe_payment_url'] == 'https://checkout.stripe.com/pay/cs_existing_456'
+        assert body['payment_status'] == 'payment_link_sent'
+        mock_create.assert_not_called()
+
+    @patch('common.db.get_item')
+    @patch('common.db.table')
+    @patch('common.stripe_client.create_checkout_session')
+    def test_payment_link_sent_missing_url_creates_new(self, mock_create, mock_table, mock_get):
+        """Requests with payment_link_sent status but missing URL fall back to creating a new Stripe session."""
+        record = make_req_record(company_id='tog_and_dogs')
+        record['payment_status'] = 'payment_link_sent'
+        # missing stripe_payment_url and stripe_checkout_session_id
+        mock_get.return_value = record
+        
+        mock_create.return_value = {
+            'id': 'cs_fallback_789',
+            'url': 'https://checkout.stripe.com/pay/cs_fallback_789'
+        }
+        mock_table.update_item = MagicMock()
+
+        event = make_admin_event(
+            role='admin',
+            company_id='tog_and_dogs',
+            body={'amount_cents': 15000, 'client_id': 'client-001'}
+        )
+        
+        orig_get = admin_handler.__globals__.get('get_item')
+        orig_table = admin_handler.__globals__.get('table')
+        try:
+            from common.db import get_item as real_get, table as real_table
+            admin_handler.__globals__['get_item'] = real_get
+            admin_handler.__globals__['table'] = real_table
+            response = admin_handler(event, None)
+        finally:
+            admin_handler.__globals__['get_item'] = orig_get
+            admin_handler.__globals__['table'] = orig_table
+
+        assert response['statusCode'] == 200
+        body = json.loads(response['body'])
+        assert body['stripe_checkout_session_id'] == 'cs_fallback_789'
+        mock_create.assert_called_once()
+        mock_table.update_item.assert_called_once()
+
 
 class TestStripeWebhookBookingPaymentExtension:
 
