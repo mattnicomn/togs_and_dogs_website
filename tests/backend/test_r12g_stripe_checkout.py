@@ -439,3 +439,87 @@ class TestStripeWebhookBookingPaymentExtension:
         body = json.loads(response['body'])
         assert body['status'] == 'already_processed'
         mock_table.update_item.assert_not_called()
+
+
+class TestStripeClientCheckoutSessionDirect:
+
+    @patch('urllib.request.urlopen')
+    def test_stripe_client_payload_details(self, mock_urlopen):
+        # Mock Stripe response
+        mock_response = MagicMock()
+        mock_response.read.return_value = b'{"id": "cs_test_999", "url": "https://checkout.stripe.com/c/pay/cs_test_999"}'
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        # Call function
+        from common.stripe_client import create_checkout_session
+        res = create_checkout_session(
+            company_id='tog_and_dogs',
+            request_id='req-001',
+            client_id='client-001',
+            amount_cents=15000,
+            environment='sandbox'
+        )
+
+        assert res['id'] == 'cs_test_999'
+
+        # Verify urllib.request.urlopen was called with a Request object
+        mock_urlopen.assert_called_once()
+        req_arg = mock_urlopen.call_args[0][0]
+        
+        # Verify headers and URL
+        assert req_arg.full_url == "https://api.stripe.com/v1/checkout/sessions"
+        assert req_arg.get_header("Authorization") == "Bearer sk_test_key"
+        
+        # Verify POST payload parameters
+        post_data_bytes = req_arg.data
+        post_data_str = post_data_bytes.decode('utf-8')
+        from urllib.parse import parse_qs
+        parsed_payload = parse_qs(post_data_str)
+
+        # 1. Proving Checkout payload includes payment_method_types[0]=card
+        assert parsed_payload.get('payment_method_types[0]') == ['card']
+
+        # 2. Proving success/cancel URLs use correct domain
+        success_url = parsed_payload.get('success_url')[0]
+        cancel_url = parsed_payload.get('cancel_url')[0]
+        assert success_url.startswith("https://toganddogs.usmissionhero.com")
+        assert cancel_url.startswith("https://toganddogs.usmissionhero.com")
+
+        # 3. Ensure existing booking metadata still passes
+        assert parsed_payload.get('metadata[company_id]') == ['tog_and_dogs']
+        assert parsed_payload.get('metadata[request_id]') == ['req-001']
+        assert parsed_payload.get('metadata[client_id]') == ['client-001']
+        assert parsed_payload.get('metadata[payment_type]') == ['booking']
+        assert parsed_payload.get('metadata[environment]') == ['sandbox']
+
+    @patch('urllib.request.urlopen')
+    def test_stripe_client_custom_templates(self, mock_urlopen):
+        # Mock Stripe response
+        mock_response = MagicMock()
+        mock_response.read.return_value = b'{"id": "cs_test_999"}'
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        # Set environment variables for templates
+        from common.stripe_client import create_checkout_session
+        with patch.dict(os.environ, {
+            'STRIPE_SUCCESS_URL_TEMPLATE': 'https://custom-domain.com/{request_id}/success?id={{CHECKOUT_SESSION_ID}}',
+            'STRIPE_CANCEL_URL_TEMPLATE': 'https://custom-domain.com/{request_id}/cancel'
+        }):
+            create_checkout_session(
+                company_id='tog_and_dogs',
+                request_id='req-123',
+                client_id='client-001',
+                amount_cents=1000,
+                environment='sandbox'
+            )
+
+        req_arg = mock_urlopen.call_args[0][0]
+        post_data_str = req_arg.data.decode('utf-8')
+        from urllib.parse import parse_qs
+        parsed_payload = parse_qs(post_data_str)
+
+        assert parsed_payload.get('success_url')[0] == 'https://custom-domain.com/req-123/success?id={CHECKOUT_SESSION_ID}'
+        assert parsed_payload.get('cancel_url')[0] == 'https://custom-domain.com/req-123/cancel'
+

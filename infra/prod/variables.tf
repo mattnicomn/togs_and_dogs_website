@@ -100,11 +100,11 @@ variable "stripe_price_premium_monthly" {
 variable "stripe_success_url_template" {
   type        = string
   description = "Stripe Checkout Session success URL template."
-  default     = ""
+  default     = "https://toganddogs.usmissionhero.com/booking/{request_id}/success?session_id={{CHECKOUT_SESSION_ID}}"
 }
 
 variable "stripe_cancel_url_template" {
   type        = string
   description = "Stripe Checkout Session cancel URL template."
-  default     = ""
+  default     = "https://toganddogs.usmissionhero.com/booking/{request_id}/cancel"
 }

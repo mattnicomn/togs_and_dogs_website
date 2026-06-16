@@ -26,8 +26,8 @@ def create_checkout_session(company_id, request_id, client_id, amount_cents, env
         raise StripeAPIError("STRIPE_SECRET_KEY is not configured in environment variables.")
 
     # Get success and cancel URLs from environment or use sensible defaults
-    default_success = "https://togsanddogs.com/booking/{request_id}/success?session_id={{CHECKOUT_SESSION_ID}}"
-    default_cancel = "https://togsanddogs.com/booking/{request_id}/cancel"
+    default_success = "https://toganddogs.usmissionhero.com/booking/{request_id}/success?session_id={{CHECKOUT_SESSION_ID}}"
+    default_cancel = "https://toganddogs.usmissionhero.com/booking/{request_id}/cancel"
     
     success_url_template = os.environ.get("STRIPE_SUCCESS_URL_TEMPLATE", default_success)
     cancel_url_template = os.environ.get("STRIPE_CANCEL_URL_TEMPLATE", default_cancel)
@@ -37,6 +37,7 @@ def create_checkout_session(company_id, request_id, client_id, amount_cents, env
 
     payload = {
         'mode': 'payment',
+        'payment_method_types[0]': 'card',
         'success_url': success_url,
         'cancel_url': cancel_url,
         'line_items[0][price_data][currency]': 'usd',
