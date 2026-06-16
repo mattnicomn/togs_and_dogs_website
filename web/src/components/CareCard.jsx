@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import '../Portal.css';
+import { createPaymentSession } from '../api/client';
 
-const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList = [], onAssign, onAddPet }) => {
+const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList = [], onAssign, onAddPet, onPaymentSessionCreated }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState((pet._originItem?.status || '').toUpperCase());
@@ -25,6 +26,90 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
 
   // Release 4E: Staff assignment state
   const [isAssigning, setIsAssigning] = useState(false);
+
+  // Release 12R: Stripe payment session states
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+  const [showConfirmPaymentGen, setShowConfirmPaymentGen] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  // Release 12R: Initialize and reset payment states when active pet or request details change
+  useEffect(() => {
+    const originItem = pet._originItem || {};
+    const initialAmount = originItem.payment_amount_cents 
+      ? (originItem.payment_amount_cents / 100).toFixed(2) 
+      : activePet.quote_amount 
+        ? parseFloat(activePet.quote_amount).toFixed(2) 
+        : '';
+    setPaymentAmount(initialAmount);
+    setPaymentError('');
+    setShowConfirmPaymentGen(false);
+    setCopySuccess(false);
+  }, [pet, activePetIndex]);
+
+  const handleGeneratePaymentLink = async () => {
+    const parsedAmount = parseFloat(paymentAmount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      setPaymentError("Amount is required and must be greater than $0.00.");
+      return;
+    }
+
+    const amountCents = Math.round(parsedAmount * 100);
+    const reqId = pet._originItem?.request_id || pet.request_id;
+    const clientId = pet._originItem?.linked_client_profile_id || pet._originItem?.client_id || pet.client_id;
+
+    if (!reqId || !clientId) {
+      setPaymentError("Could not resolve Request ID or Client ID.");
+      return;
+    }
+
+    setIsGeneratingLink(true);
+    setPaymentError('');
+
+    try {
+      const response = await createPaymentSession(reqId, clientId, amountCents);
+      setShowConfirmPaymentGen(false);
+      
+      if (onPaymentSessionCreated) {
+        const updatedOrigin = {
+          ...pet._originItem,
+          payment_status: response.payment_status,
+          stripe_payment_url: response.stripe_payment_url,
+          stripe_checkout_session_id: response.stripe_checkout_session_id,
+          payment_amount_cents: amountCents
+        };
+        await onPaymentSessionCreated(updatedOrigin);
+      } else if (onUpdate) {
+        await onUpdate({ ...activePet });
+      }
+    } catch (err) {
+      console.error("Payment session generation failed:", err);
+      setPaymentError(err.message || "Failed to generate payment session. Please try again.");
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  };
+
+  const getPaymentStatusBadge = (status) => {
+    const normalizedStatus = (status || '').toLowerCase().trim();
+    switch (normalizedStatus) {
+      case 'paid':
+        return { label: 'Paid', className: 'status-chip--ready', style: { backgroundColor: '#10b981', color: '#fff' } };
+      case 'payment_link_sent':
+        return { label: 'Link Sent', className: 'status-chip--primary', style: { backgroundColor: '#3b82f6', color: '#fff' } };
+      case 'payment_failed':
+        return { label: 'Payment Failed', className: 'status-chip--urgent', style: { backgroundColor: '#ef4444', color: '#fff' } };
+      case 'expired':
+        return { label: 'Expired', className: 'status-chip--expired', style: { backgroundColor: '#f59e0b', color: '#fff' } };
+      case 'refunded':
+        return { label: 'Refunded', className: 'status-chip--neutral', style: { backgroundColor: '#6b7280', color: '#fff' } };
+      case 'waived':
+        return { label: 'Waived', className: 'status-chip--neutral', style: { backgroundColor: '#6b7280', color: '#fff' } };
+      default:
+        return { label: 'Unpaid / Not Set', className: 'status-chip--pending', style: { backgroundColor: '#9ca3af', color: '#fff' } };
+    }
+  };
 
   // Release 5A Hotfix 2: Comprehensive multi-pet normalization.
   // Builds a reliable pet array from any record format and tags each pet with metadata.
@@ -670,6 +755,248 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                 )}
               </div>
             </section>
+
+            {/* Release 12R: Pricing & Payment Section (Stripe Sandbox) */}
+            {['owner', 'admin'].includes(userRole) && pet._originItem && (
+              <section className="card-section" style={{ marginTop: '24px' }}>
+                <h3>Pricing & Payment (Stripe Sandbox)</h3>
+                <div className="content-box">
+                  {/* Sandbox Warnings */}
+                  <div style={{
+                    background: 'rgba(245, 158, 11, 0.1)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    marginBottom: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                    <div style={{ fontSize: '0.85rem', color: '#b45309', fontWeight: '500' }}>
+                      <strong>Sandbox Payment Link:</strong> Do not send to real clients yet. Use test cards only.
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+                    <div>
+                      <label className="micro-text">Stripe Payment Status</label>
+                      <div style={{ marginTop: '6px' }}>
+                        {(() => {
+                          const statusDetails = getPaymentStatusBadge(pet._originItem?.payment_status);
+                          return (
+                            <span className={`status-chip ${statusDetails.className}`} style={{ ...statusDetails.style, padding: '4px 12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: '700' }}>
+                              {statusDetails.label}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
+                    {pet._originItem?.payment_amount_cents > 0 && (
+                      <div>
+                        <label className="micro-text">Payment Amount</label>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '1.25rem', fontWeight: '800' }}>
+                          ${(pet._originItem.payment_amount_cents / 100).toFixed(2)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Error Banner */}
+                  {paymentError && (
+                    <div style={{
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      color: '#dc2626',
+                      fontSize: '0.85rem',
+                      marginBottom: '16px',
+                      whiteSpace: 'pre-wrap'
+                    }}>
+                      {paymentError}
+                    </div>
+                  )}
+
+                  {/* Status-specific actions */}
+                  {(() => {
+                    const status = (pet._originItem?.payment_status || '').toLowerCase().trim();
+                    
+                    if (status === 'paid') {
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontWeight: '600', fontSize: '0.95rem' }}>
+                          <span>✓</span> Payment completed via Stripe sandbox. No actions required.
+                        </div>
+                      );
+                    }
+
+                    if (status === 'refunded' || status === 'waived') {
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6b7280', fontWeight: '600', fontSize: '0.95rem' }}>
+                          <span>ℹ️</span> Payment status is read-only ({status}). New links cannot be generated.
+                        </div>
+                      );
+                    }
+
+                    if (status === 'payment_link_sent') {
+                      const paymentUrl = pet._originItem?.stripe_payment_url || '';
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                            A payment link has been generated. Client can pay via this session.
+                          </p>
+                          
+                          {paymentUrl && (
+                            <div style={{
+                              display: 'flex',
+                              gap: '8px',
+                              background: 'var(--bg-muted, #f3f4f6)',
+                              padding: '8px 12px',
+                              borderRadius: '6px',
+                              alignItems: 'center',
+                              border: '1px solid var(--border-soft, #e5e7eb)',
+                              width: '100%',
+                              boxSizing: 'border-box'
+                            }}>
+                              <span style={{
+                                fontSize: '0.85rem',
+                                color: 'var(--text-main, #374151)',
+                                textOverflow: 'ellipsis',
+                                overflow: 'hidden',
+                                whiteSpace: 'nowrap',
+                                flex: 1
+                              }}>
+                                {paymentUrl}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(paymentUrl);
+                                  setCopySuccess(true);
+                                  setTimeout(() => setCopySuccess(false), 3000);
+                                }}
+                                className="btn-small secondary-outline"
+                                style={{ flexShrink: 0, padding: '4px 8px', fontSize: '0.8rem' }}
+                              >
+                                {copySuccess ? 'Copied!' : 'Copy Link'}
+                              </button>
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
+                            {paymentUrl && (
+                              <a 
+                                href={paymentUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="button-primary outline" 
+                                style={{ 
+                                  padding: '8px 16px', 
+                                  fontSize: '0.9rem', 
+                                  display: 'inline-flex', 
+                                  alignItems: 'center', 
+                                  justifyContent: 'center',
+                                  textDecoration: 'none',
+                                  cursor: 'pointer',
+                                  minHeight: '38px',
+                                  borderRadius: '6px'
+                                }}
+                              >
+                                Test Payment Page
+                              </a>
+                            )}
+                            <button
+                              disabled={isGeneratingLink}
+                              onClick={handleGeneratePaymentLink}
+                              className="button-secondary"
+                              style={{ padding: '8px 16px', fontSize: '0.9rem', minHeight: '38px', borderRadius: '6px' }}
+                            >
+                              {isGeneratingLink ? 'Retrieving...' : 'Retrieve Existing Link'}
+                            </button>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            Note: Retrieving verifies the existing session state and does not create a new charge.
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    // Fallback for unpaid, payment_failed, expired, or not set
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div className="field" style={{ margin: 0 }}>
+                          <label style={{ fontWeight: '600' }}>Amount to Charge (USD)</label>
+                          <div style={{ position: 'relative', marginTop: '6px' }}>
+                            <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              value={paymentAmount}
+                              onChange={(e) => setPaymentAmount(e.target.value)}
+                              placeholder="0.00"
+                              style={{ paddingLeft: '24px', width: '100%', boxSizing: 'border-box' }}
+                              disabled={isGeneratingLink}
+                            />
+                          </div>
+                        </div>
+
+                        {!showConfirmPaymentGen ? (
+                          <button
+                            onClick={() => {
+                              const parsed = parseFloat(paymentAmount);
+                              if (isNaN(parsed) || parsed <= 0) {
+                                setPaymentError("Amount is required and must be greater than $0.00.");
+                                return;
+                              }
+                              setPaymentError('');
+                              setShowConfirmPaymentGen(true);
+                            }}
+                            className="button-primary"
+                            style={{ width: 'fit-content', padding: '10px 20px', minHeight: '40px', borderRadius: '8px' }}
+                            disabled={isGeneratingLink}
+                          >
+                            Generate Payment Link
+                          </button>
+                        ) : (
+                          <div style={{
+                            background: 'var(--bg-muted, #f9fafb)',
+                            padding: '16px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border-soft, #e5e7eb)'
+                          }}>
+                            <p style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-heading)' }}>
+                              Confirm Payment Link Generation
+                            </p>
+                            <p style={{ margin: '0 0 16px 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                              Are you sure you want to generate a sandbox Stripe Checkout Session for <strong>${parseFloat(paymentAmount).toFixed(2)}</strong>?
+                            </p>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                              <button
+                                disabled={isGeneratingLink}
+                                onClick={handleGeneratePaymentLink}
+                                className="button-primary"
+                                style={{ padding: '8px 16px', fontSize: '0.9rem', minHeight: '38px', borderRadius: '6px' }}
+                              >
+                                {isGeneratingLink ? 'Generating...' : 'Yes, Generate Link'}
+                              </button>
+                              <button
+                                disabled={isGeneratingLink}
+                                onClick={() => setShowConfirmPaymentGen(false)}
+                                className="button-secondary outline"
+                                style={{ padding: '8px 16px', fontSize: '0.9rem', minHeight: '38px', borderRadius: '6px' }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </section>
+            )}
           </div>
         );
 
@@ -841,7 +1168,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                   disabled={isEditing && idx !== activePetIndex}
                   className={`pet-chip ${idx === activePetIndex ? 'active' : ''}`}
                   style={{
-                    padding: '6px 14px', borderRadius: '16px', border: 'none', cursor: isEditing && idx !== activePetIndex ? 'not-allowed' : 'pointer',
+                    padding: '6px 14px', borderRadius: '16px', cursor: isEditing && idx !== activePetIndex ? 'not-allowed' : 'pointer',
                     backgroundColor: idx === activePetIndex ? 'var(--primary)' : 'transparent',
                     color: idx === activePetIndex ? '#fff' : 'var(--text-primary)',
                     border: idx === activePetIndex ? 'none' : '1px solid var(--border)',

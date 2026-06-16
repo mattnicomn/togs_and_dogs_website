@@ -148,3 +148,9 @@ export const disconnectGoogle = () =>
 
 export const getExportData = () => request('/admin/export-data', 'GET', null, true);
 
+// Release 12R: Stripe Payment Session Creation / Retrieval
+export const createPaymentSession = (requestId, clientId, amountCents) =>
+  request(`/admin/requests/${requestId}/payment-session`, 'POST', {
+    client_id: clientId,
+    amount_cents: amountCents
+  }, true);

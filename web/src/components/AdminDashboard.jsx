@@ -4527,6 +4527,16 @@ const AdminDashboard = () => {
           onStatusUpdate={(item, status, note) => onReviewAction(item, status, note)}
           userRole={role}
           staffList={staffList}
+          onPaymentSessionCreated={async (updatedOriginItem) => {
+            if (updatedOriginItem) {
+              try {
+                await fetchAllData();
+                await handleSelectPet(updatedOriginItem);
+              } catch(e) {
+                console.error("Failed to refresh request details:", e);
+              }
+            }
+          }}
           onAssign={async (originItem, workerId) => {
             // Release 4E: Inline staff assignment from CareCard
             await handleAssignAction(originItem, workerId);
