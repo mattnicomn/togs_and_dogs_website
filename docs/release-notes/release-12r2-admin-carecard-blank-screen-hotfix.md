@@ -57,8 +57,23 @@ useEffect(() => {
 | Step | Result |
 |------|--------|
 | S3 sync | ✅ 4 files uploaded, 1 old JS bundle deleted |
-| CloudFront invalidation | ✅ `IBS9GGMG6ULAW0195DFSBNYUWT` (InProgress) |
-| Matthew manual verification | ⏳ Pending — hard refresh /admin and click a request card |
+| CloudFront invalidation | ✅ `IBS9GGMG6ULAW0195DFSBNYUWT` |
+| Matthew manual verification | ✅ Passed |
+
+## Production Validation (Matthew, 2026-06-16)
+
+- Admin page loaded: ✅
+- Request card opens CareCard/detail modal: ✅
+- Blank screen resolved: ✅
+- "Pricing & Payment (Stripe Sandbox)" section visible: ✅
+- Sandbox warning visible: ✅
+- Payment status displayed as "Unpaid / Not Set": ✅
+- Amount input visible: ✅
+- "Generate Payment Link" button visible: ✅
+- Generate Payment Link clicked: ❌ (not clicked — correct)
+- No Checkout Session created: ✅
+- No payment run: ✅
+- No DynamoDB mutation: ✅
 
 ## What Was NOT Done
 
