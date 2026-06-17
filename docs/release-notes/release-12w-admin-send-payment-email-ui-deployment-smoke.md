@@ -1,6 +1,6 @@
 # Release 12W: Admin Send Payment Email UI Deployment and Visibility Smoke
 
-**Status:** Visibility Smoke Passed (Phase 2 modal/cancel pending)
+**Status:** Phase 1 + Phase 2 Passed (Gate C email send pending approval)
 **Type:** Frontend deployment + manual production smoke
 **Deployed:** Yes (S3 sync + CloudFront invalidation)
 **Commit:** (12V implementation committed and pushed prior to deployment)
@@ -58,6 +58,30 @@ AG browser smoke was **interrupted due to credit exhaustion** after running the 
 
 ---
 
+## 3b. Matthew Gate B Validation: Confirmation Modal (2026-06-17)
+
+| Check | Result |
+|-------|--------|
+| "Send Payment Email" modal opened | ✅ Yes |
+| Recipient email shown | ✅ Yes |
+| Amount shown | ✅ Yes |
+| Client name shown | ✅ Yes |
+| Pet name shown | ✅ Yes |
+| Request ID shown | ✅ Yes |
+| Sandbox/test-mode warning shown | ✅ Yes |
+| Explicit real-email warning shown | ✅ Yes |
+| Cancel button worked | ✅ Yes (modal dismissed, no side effects) |
+| Final "Send Email" clicked | ❌ No (correct — not approved yet) |
+| Email sent | ❌ No |
+| Payment submitted | ❌ No |
+| Errors observed | ❌ None |
+
+**Phase 2 (modal/cancel) passed.** Confirmation modal renders all expected fields and Cancel dismisses cleanly.
+
+**Next gate:** First real "Send Payment Email" remains blocked until Matthew explicitly approves a controlled send to a Matthew-controlled recipient (Gate C in 12X plan).
+
+---
+
 ## 4. Additional Observation: Stripe Checkout Payment Methods
 
 Matthew opened the existing Stripe Test Payment Page link from the CareCard. The Stripe Checkout page displayed:
@@ -79,7 +103,7 @@ Matthew opened the existing Stripe Test Payment Page link from the CareCard. The
 
 | # | Item | Priority | Blocker For |
 |---|------|----------|-------------|
-| 1 | Confirmation modal open/cancel validation | Medium | Phase 2 smoke completion |
+| 1 | ~~Confirmation modal open/cancel validation~~ | ~~Medium~~ | ✅ Passed (Gate B) |
 | 2 | Investigate Stripe payment method display (Link/Bank/Klarna showing) | High | Real client payments |
 | 3 | First real "Send Payment Email" test (Matthew-controlled recipient) | Medium | Client email workflow |
 | 4 | Verify new Checkout Sessions are card-only (create fresh session and check) | High | Real client payments |
