@@ -1,6 +1,6 @@
 # Release 12X: Fresh Checkout Card-Only and First Email Send Validation Plan
 
-**Status:** Planning
+**Status:** Gate A Passed, Gate B Passed, Gate C Pending Approval
 **Priority:** High (blocker for real client payments and email workflow)
 **Risk to Production:** Low (controlled test actions with stop gates)
 **Terraform Required:** No
@@ -135,6 +135,81 @@ Proceed to investigation steps (Section 5 below).
 - Sandbox warning is visible
 - Payment link works (opens Stripe Checkout)
 - No email sent to any real client
+
+---
+
+---
+
+## 3a. Gate A Validation Results (Completed)
+
+**Date:** 2026-06-17
+**Executed by:** AG
+
+### Test Request Selected
+
+| Field | Value |
+|-------|-------|
+| Request ID | `c1b11afe-3cda-45c1-9ada-af91b14234ad` |
+| Client ID | `client_1697162f` |
+| Test data | TestClient_ScenarioB / TestPet_ScenarioB |
+| Initial status | APPROVED |
+| Initial payment_status | unpaid / none |
+| Company | tog_and_dogs |
+
+### Fresh Checkout Session Created
+
+| Field | Value |
+|-------|-------|
+| Amount | $1.00 (100 cents) |
+| Session ID | `cs_test_a1gSogQv2TumTRSZaBJ9mbXpEQjRIrSJPcS7el3N84F6cN7RQZIOtAt8lU` |
+| Payment URL domain | checkout.stripe.com |
+| Request payment_status after | `payment_link_sent` |
+
+### Payment Methods Observed on Fresh Checkout Page
+
+| Method | Shown? | Notes |
+|--------|--------|-------|
+| Card | ✅ Yes | Primary payment input |
+| Link | ✅ Yes | Stripe's "save my information" helper checkbox only — not a separate payment method |
+| Bank | ❌ No | Not shown |
+| Klarna | ❌ No | Not shown |
+
+### Conclusion
+
+**Gate A PASSED.** Fresh Checkout Sessions are card-only for practical purposes. The "Link" checkbox is Stripe's built-in information-saving feature (not a separate payment method like Klarna/BNPL). Bank and Klarna are NOT shown on freshly created sessions.
+
+The Link/Bank/Klarna observed during 12W were from an **older session created before the 12M/12N card-only patch**. No code or Stripe Dashboard changes are needed.
+
+### Actions Taken / Not Taken
+
+- ✅ Fresh session created (sandbox, $1.00)
+- ✅ Checkout page opened and inspected
+- ❌ No payment details entered
+- ❌ No payment submitted
+- ❌ No "Send Payment Email" clicked
+- ❌ No email sent
+- ❌ No Postmark call
+- ✅ Temporary scratch scripts removed
+- ✅ Git working tree clean after completion
+
+---
+
+## 3b. Gate B Validation Results (Completed)
+
+See `docs/release-notes/release-12w-admin-send-payment-email-ui-deployment-smoke.md` — Section 3b.
+
+Modal opened, all fields correct, Cancel worked, no email sent.
+
+---
+
+## 3c. Gate C: First Real Email Send (PENDING)
+
+**Status:** ⛔ Blocked until Matthew explicitly approves.
+
+**Requirements for approval:**
+- Recipient MUST be Matthew-controlled (e.g., `mattnicomn10@gmail.com`)
+- NOT a real client address
+- Matthew must say "approved" or "send email" before execution
 
 ---
 
