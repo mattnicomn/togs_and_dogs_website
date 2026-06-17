@@ -30,8 +30,11 @@ class NotificationTemplates:
         elif event_type == 'WELCOME_INVITE':
             # Generic fallback
             return NotificationTemplates.welcome_invite_client(friendly_context)
+        elif event_type == 'PAYMENT_LINK_EMAIL':
+            return NotificationTemplates.payment_link_email(friendly_context)
         
         return None, None, None
+
 
     @staticmethod
     def _safe(value, default=''):
@@ -948,3 +951,106 @@ class NotificationTemplates:
         </html>
         """
         return subject, body_text, body_html
+
+    @staticmethod
+    def payment_link_email(ctx):
+        """Payment link email sent to the client."""
+        subject = f"Payment Link for {ctx.get('pet_names')}'s Care — Tog & Dogs"
+        client_name = ctx.get('client_name', 'Valued Client')
+        pet_names = ctx.get('pet_names', 'your pets')
+        service_label = ctx.get('service_label', 'Pet Sitting')
+        date_label = ctx.get('date_label', 'your scheduled date')
+        amount_display = ctx.get('amount_display', '$0.00')
+        payment_url = ctx.get('payment_url', '#')
+        business_name = ctx.get('business_name', 'Tog & Dogs')
+        business_email = ctx.get('business_email', 'support@toganddogs.com')
+        expiry_note = ctx.get('expiry_note', 'Please note that Stripe payment links expire in 24 hours.')
+        is_sandbox = ctx.get('sandbox', False)
+
+        sandbox_banner_text = ""
+        sandbox_banner_html = ""
+        if is_sandbox:
+            sandbox_banner_text = "--- SANDBOX/TEST MODE: No real charges will be processed ---\n\n"
+            sandbox_banner_html = """
+                <div style="background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 12px; margin-bottom: 20px; border-radius: 8px; text-align: center; font-size: 14px; font-weight: bold;">
+                    ⚠️ Stripe Sandbox Mode: Test Payment Only
+                </div>
+            """
+
+        body_text = (
+            f"{sandbox_banner_text}"
+            f"Hi {client_name},\n\n"
+            f"A secure payment link has been generated for {pet_names}'s upcoming {service_label}.\n\n"
+            f"PAYMENT DETAILS:\n"
+            f"- Service: {service_label}\n"
+            f"- Pet(s): {pet_names}\n"
+            f"- Date: {date_label}\n"
+            f"- Amount Due: {amount_display}\n\n"
+            f"To complete your payment, please use the following secure link:\n"
+            f"{payment_url}\n\n"
+            f"{expiry_note}\n\n"
+            f"If you have any questions or need support, contact us at {business_email}.\n\n"
+            f"Thank you for choosing {business_name}!\n\n"
+            f"Best,\n"
+            f"The {business_name} Team"
+        )
+
+        body_html = f"""
+        <html>
+        <body style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #333; background-color: #f4f7f6; padding: 20px;">
+            <div style="max-width: 600px; margin: auto; border: 1px solid #e0e0e0; background-color: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+                {sandbox_banner_html}
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #2c3e50; margin: 0; font-size: 24px; font-weight: bold;">Payment Link Generated</h1>
+                    <div style="width: 50px; height: 4px; background: #2980b9; margin: 15px auto; border-radius: 2px;"></div>
+                </div>
+
+                <p>Hi <strong>{client_name}</strong>,</p>
+
+                <p>A secure payment link has been generated for <strong>{pet_names}</strong>'s upcoming <strong>{service_label}</strong>.</p>
+
+                <div style="background-color: #f0f7fd; border-left: 4px solid #2980b9; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+                    <p style="margin: 0 0 12px 0; font-weight: bold; color: #2c3e50;">Payment Details</p>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #555;">
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold; width: 120px;">Service:</td>
+                            <td style="padding: 6px 0;">{service_label}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold;">Pet(s):</td>
+                            <td style="padding: 6px 0;">{pet_names}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 0; font-weight: bold;">Date:</td>
+                            <td style="padding: 6px 0;">{date_label}</td>
+                        </tr>
+                        <tr style="font-size: 16px; color: #2c3e50;">
+                            <td style="padding: 10px 0 6px 0; font-weight: bold;">Amount Due:</td>
+                            <td style="padding: 10px 0 6px 0; font-weight: bold;">{amount_display}</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div style="text-align: center; margin: 35px 0;">
+                    <a href="{payment_url}" style="background-color: #2980b9; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">Pay Securely Now</a>
+                </div>
+
+                <p style="font-size: 13px; color: #7f8c8d; text-align: center; margin-top: 20px;">
+                    {expiry_note}
+                </p>
+
+                <p style="margin-top: 25px;">If you have any questions or need assistance, please reply to this email or contact us at <a href="mailto:{business_email}" style="color: #2980b9;">{business_email}</a>.</p>
+
+                <p>Thank you for choosing {business_name}!</p>
+
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
+
+                <div style="text-align: center; color: #7f8c8d; font-size: 12px;">
+                    <p style="margin: 5px 0;">&copy; 2026 {business_name} Pet Sitting</p>
+                    <p style="margin: 5px 0;">Secure Online Payments via Stripe</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return subject, body_text, body_html

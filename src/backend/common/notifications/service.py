@@ -1,5 +1,6 @@
 import logging
 import json
+import os
 from .config import NotificationConfig
 from .templates import NotificationTemplates
 from .resolver import resolve_notification_recipients, get_client_name, get_staff_name
@@ -83,8 +84,14 @@ def _write_ledger_entry(request_id, event_type, recipient, status, provider=None
         month_key = created_at[:7] # YYYY-MM
 
         company_id = "tog_and_dogs"
+        client_id = None
+        stripe_checkout_session_id = None
+        stripe_payment_url = None
         if record and isinstance(record, dict):
             company_id = record.get('company_id') or "tog_and_dogs"
+            client_id = record.get('client_id')
+            stripe_checkout_session_id = record.get('stripe_checkout_session_id')
+            stripe_payment_url = record.get('stripe_payment_url')
 
         ledger_item = {
             "PK": f"NOTIF#{notification_id}",
@@ -102,6 +109,14 @@ def _write_ledger_entry(request_id, event_type, recipient, status, provider=None
             "month_key": month_key,
             "created_at": created_at
         }
+
+        if client_id:
+            ledger_item["client_id"] = client_id
+        if stripe_checkout_session_id:
+            ledger_item["stripe_checkout_session_id"] = stripe_checkout_session_id
+        if stripe_payment_url:
+            ledger_item["stripe_payment_url"] = stripe_payment_url
+
 
         put_item(ledger_item)
         return notification_id
@@ -230,8 +245,12 @@ def _resolve_potential_recipients_with_reasons(event_type, record, config):
         
     elif event_type in ['WELCOME_INVITE_CLIENT', 'WELCOME_INVITE_STAFF', 'WELCOME_INVITE']:
         add_pot(get_client_email(record), True, "recipient")
+
+    elif event_type == 'PAYMENT_LINK_EMAIL':
+        add_pot(get_client_email(record), True, "client")
         
     return potential
+
 
 
 def notify_event(event_type, record=None, previous_record=None, **kwargs):
@@ -381,7 +400,6 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
             # For welcome events, the 'record' (or context) already contains the necessary fields
             context = record
         else:
-            # For standard booking events, we build the context from the DynamoDB record
             from .resolver import get_pet_names
             context = {
                 "client_name": get_client_name(record),
@@ -401,7 +419,16 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
                 "details": record.get('details', 'No details provided.'),
                 "portal_url": config.PORTAL_URL if config else 'https://toganddogs.usmissionhero.com',
                 "cancellation_reason": record.get('cancellation_reason') or '',
+                # Release 12T Payment Link fields:
+                "payment_url": record.get('stripe_payment_url'),
+                "amount_cents": record.get('payment_amount_cents'),
+                "amount_display": f"${record.get('payment_amount_cents', 0) / 100:.2f}" if record.get('payment_amount_cents') is not None else '$0.00',
+                "business_name": "Tog & Dogs",
+                "business_email": config.REPLY_TO,
+                "expiry_note": "Please note that Stripe payment links expire in 24 hours.",
+                "sandbox": os.environ.get("STRIPE_ENV", "sandbox").lower() == 'sandbox'
             }
+
         
         subject, body_text, body_html = NotificationTemplates.get_template(event_type, context)
         if not subject:
@@ -505,3 +532,32 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
         err_msg = f"Notification failed but approval was completed."
         logger.error(f"NOTIFICATION_CRITICAL_FAILURE: {e}")
         return {"success": False, "message": err_msg}
+
+
+def check_payment_email_rate_limit(request_id):
+    """
+    Checks if more than 3 PAYMENT_LINK_EMAIL notifications have been sent
+    for the given request_id in the last hour.
+    Returns True if rate limited (should block), False otherwise.
+    """
+    try:
+        from common.db import table
+        from boto3.dynamodb.conditions import Key, Attr
+        from datetime import datetime, timezone, timedelta
+        
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        
+        # Query StatusIndex for 'sent'
+        resp = table.query(
+            IndexName='StatusIndex',
+            KeyConditionExpression=Key('status').eq('sent'),
+            FilterExpression=Attr('request_id').eq(request_id) & 
+                             Attr('event_type').eq('PAYMENT_LINK_EMAIL') & 
+                             Attr('created_at').gt(cutoff)
+        )
+        sent_count = len(resp.get('Items', []))
+        return sent_count >= 3
+    except Exception as e:
+        print(f"WARNING: Rate limit check failed (fail-open): {e}")
+        return False
+

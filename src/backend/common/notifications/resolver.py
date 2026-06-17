@@ -113,6 +113,14 @@ def resolve_notification_recipients(event_type, record, previous_record=None, co
         else:
             logger.warning(f"NOTIFICATION_RESOLVE_FAIL: No email found in context for {event_type}")
 
+    elif event_type == 'PAYMENT_LINK_EMAIL':
+        client_email = get_client_email(record)
+        if client_email:
+            recipients.append(client_email)
+        else:
+            logger.warning(f"NOTIFICATION_RESOLVE_FAIL: No client email found in context for {event_type}")
+
+
     # 4. Filter out empty/None values, de-duplicate (case-insensitive), and CHECK SUPPRESSION
     from .suppression import is_suppressed
     

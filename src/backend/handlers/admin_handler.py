@@ -2076,7 +2076,140 @@ def handler(event, context):
                 "payment_status": "payment_link_sent"
             }, event)
 
+        elif http_method == 'POST' and '/admin/requests/' in path and path.endswith('/send-payment-email'):
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin']:
+                return error(403, "Forbidden", event)
+
+            claims = get_claims(event)
+            user_email = (claims.get('email') or "").lower().strip() or claims.get('username') or 'admin-api'
+
+            # 1. Parse request_id from path
+            request_id = path_params.get('request_id') or path_params.get('requestId')
+            if not request_id:
+                parts = [p for p in path.split('/') if p]
+                if len(parts) >= 4 and parts[0] == 'admin' and parts[1] == 'requests' and parts[3] == 'send-payment-email':
+                    request_id = parts[2]
+
+            if not request_id:
+                return bad_request("Missing request_id in path", event)
+
+            # 2. Parse client_id if available, but we can query it from DynamoDB
+            client_id = query_params.get('clientId') or query_params.get('client_id')
+            try:
+                body = json.loads(event.get('body', '{}')) if event.get('body') else {}
+            except Exception:
+                return bad_request("Invalid JSON body", event)
+
+            if not client_id:
+                client_id = body.get('client_id')
+
+            request_item = None
+            if client_id:
+                request_item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
+
+            if not request_item:
+                from boto3.dynamodb.conditions import Key
+                try:
+                    response = table.query(
+                        KeyConditionExpression=Key('PK').eq(f"REQ#{request_id}") & Key('SK').begins_with("CLIENT#")
+                    )
+                    items = response.get('Items', [])
+                    if items:
+                        request_item = items[0]
+                        client_id = request_item.get('client_id')
+                except Exception as db_err:
+                    print(f"DATABASE ERROR: Failed to query request {request_id}: {db_err}")
+                    return error(500, "Database query failed", event)
+
+            # 3. Request must exist
+            if not request_item:
+                return not_found(f"Request {request_id} not found", event)
+
+            # 4. Validate tenant ownership
+            from common.auth import validate_tenant_ownership as _vto
+            try:
+                _vto(request_item, event)
+            except PermissionError:
+                _c = get_claims(event)
+                print(f"SECURITY: Cross-tenant payment email attempt by {_c.get('email')} for REQ#{request_id}")
+                return error(403, "Forbidden", event)
+
+            # 5. Check payment status guard: block paid, refunded, waived
+            current_payment_status = request_item.get('payment_status')
+            if current_payment_status:
+                current_payment_status = current_payment_status.strip().lower()
+
+            if current_payment_status in ['paid', 'refunded', 'waived']:
+                return error(409, f"Conflict: Payment email cannot be sent for request with status '{request_item.get('payment_status')}'", event)
+
+            # 6. Require existing payment link / session URL and ID
+            payment_url = request_item.get('stripe_payment_url')
+            session_id = request_item.get('stripe_checkout_session_id')
+            if not payment_url or not session_id:
+                return bad_request("Request does not have an active payment link or session", event)
+
+            # 7. Require client email present
+            client_email = request_item.get('client_email')
+            if not client_email:
+                return bad_request("Client email is missing on request", event)
+
+            # 8. Rate limit: Max 3 sends per hour per request
+            from common.notifications.service import check_payment_email_rate_limit
+            if check_payment_email_rate_limit(request_id):
+                return error(429, "Too Many Requests: Rate limit exceeded. Maximum 3 payment email sends per request per hour.", event)
+
+            # 9. Trigger email send (mocked/stubbed if dry run / disabled)
+            from common.notifications.service import notify_event
+            notify_res = notify_event('PAYMENT_LINK_EMAIL', request_item)
+            if not notify_res.get('success'):
+                # Safe error handling if the send failed
+                return error(500, f"Notification delivery failed: {notify_res.get('message', 'Unknown error')}", event)
+
+            # 10. Update Request record only after successful send
+            now_iso = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+            try:
+                table.update_item(
+                    Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                    UpdateExpression=(
+                        "SET payment_email_sent_at = :pat, "
+                        "payment_email_last_recipient = :plr, "
+                        "payment_email_send_count = if_not_exists(payment_email_send_count, :zero) + :inc, "
+                        "updated_at = :now"
+                    ),
+                    ExpressionAttributeValues={
+                        ":pat": now_iso,
+                        ":plr": client_email,
+                        ":zero": 0,
+                        ":inc": 1,
+                        ":now": now_iso
+                    }
+                )
+            except Exception as db_err:
+                print(f"DATABASE ERROR: Failed to update request {request_id} payment email fields: {db_err}")
+                return error(500, "Database update failed after sending payment email", event)
+
+            # Audit log
+            log_action(
+                event,
+                "PAYMENT_LINK_EMAIL_SENT",
+                f"REQ#{request_id}",
+                f"CLIENT#{client_id}",
+                metadata={
+                    "recipient_email": client_email,
+                    "stripe_checkout_session_id": session_id,
+                    "stripe_payment_url": payment_url
+                }
+            )
+
+            return success({
+                "message": "Payment email sent successfully",
+                "recipient_email": client_email,
+                "payment_status": request_item.get('payment_status')
+            }, event)
+
         elif http_method == 'POST' and '/admin/job/complete' in path:
+
             role = get_effective_role(event)
             if role not in ['owner', 'admin', 'staff']:
                 return error(403, "Forbidden", event)

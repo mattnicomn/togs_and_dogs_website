@@ -994,7 +994,8 @@ locals {
     "admin_export" : aws_api_gateway_resource.admin_export.id,
     "admin_job" : aws_api_gateway_resource.admin_job.id,
     "admin_job_complete" : aws_api_gateway_resource.admin_job_complete.id,
-    "admin_payment_session" : aws_api_gateway_resource.admin_payment_session.id
+    "admin_payment_session" : aws_api_gateway_resource.admin_payment_session.id,
+    "admin_send_payment_email" : aws_api_gateway_resource.admin_send_payment_email.id
   }
 
 
@@ -1125,7 +1126,8 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.postmark_webhook_lambda,
     aws_api_gateway_integration.post_admin_job_complete_lambda,
     aws_api_gateway_integration.stripe_webhook_lambda,
-    aws_api_gateway_integration.post_admin_payment_session_lambda
+    aws_api_gateway_integration.post_admin_payment_session_lambda,
+    aws_api_gateway_integration.post_admin_send_payment_email_lambda
   ]
 
   rest_api_id = aws_api_gateway_rest_api.main.id
@@ -1172,6 +1174,9 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.admin_payment_session,
       aws_api_gateway_method.post_admin_payment_session,
       aws_api_gateway_integration.post_admin_payment_session_lambda,
+      aws_api_gateway_resource.admin_send_payment_email,
+      aws_api_gateway_method.post_admin_send_payment_email,
+      aws_api_gateway_integration.post_admin_send_payment_email_lambda,
       aws_api_gateway_resource.client_devices,
       aws_api_gateway_resource.client_device_id,
       aws_api_gateway_method.post_client_devices,
@@ -1285,3 +1290,29 @@ resource "aws_api_gateway_integration" "post_admin_payment_session_lambda" {
   type                    = "AWS_PROXY"
   uri                     = var.admin_handler_invoke_arn
 }
+
+# --- Release 12T: Admin Send Payment Email ---
+resource "aws_api_gateway_resource" "admin_send_payment_email" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_request_id.id
+  path_part   = "send-payment-email"
+}
+
+resource "aws_api_gateway_method" "post_admin_send_payment_email" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_send_payment_email.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_admin_send_payment_email_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_send_payment_email.id
+  http_method = aws_api_gateway_method.post_admin_send_payment_email.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
