@@ -154,3 +154,10 @@ export const createPaymentSession = (requestId, clientId, amountCents) =>
     client_id: clientId,
     amount_cents: amountCents
   }, true);
+
+// Release 12V: Send payment-link email
+export const sendPaymentEmail = (requestId, clientId) =>
+  request(`/admin/requests/${requestId}/send-payment-email`, 'POST', {
+    client_id: clientId
+  }, true);
+

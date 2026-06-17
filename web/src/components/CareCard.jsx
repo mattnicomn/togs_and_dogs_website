@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../Portal.css';
-import { createPaymentSession } from '../api/client';
+import { createPaymentSession, sendPaymentEmail } from '../api/client';
 
 const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList = [], onAssign, onAddPet, onPaymentSessionCreated }) => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -34,6 +34,13 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   const [showConfirmPaymentGen, setShowConfirmPaymentGen] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
 
+  // Release 12V: Send payment-link email states
+  const [showConfirmEmailModal, setShowConfirmEmailModal] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailSendSuccess, setEmailSendSuccess] = useState(false);
+  const [emailSendError, setEmailSendError] = useState('');
+  const [secondsRemaining, setSecondsRemaining] = useState(0);
+
   // Release 12R: Initialize and reset payment states when pet prop changes
   // Note: activePet is derived later from _normalizePets(); use pet prop directly here
   useEffect(() => {
@@ -45,7 +52,34 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
     setPaymentError('');
     setShowConfirmPaymentGen(false);
     setCopySuccess(false);
+
+    // Release 12V: Reset email send states on pet prop change
+    setShowConfirmEmailModal(false);
+    setEmailSendSuccess(false);
+    setEmailSendError('');
   }, [pet]);
+
+  // Release 12V: Countdown timer for rate limiting/disabled state (recently sent within 2 minutes)
+  const lastSentAt = pet._originItem?.payment_email_sent_at;
+  const clientEmail = pet._originItem?.client_email || pet.client_email || '';
+  useEffect(() => {
+    if (!lastSentAt) {
+      setSecondsRemaining(0);
+      return;
+    }
+    const updateCountdown = () => {
+      const diffMs = Date.now() - new Date(lastSentAt).getTime();
+      const remainingMs = 120000 - diffMs;
+      if (remainingMs > 0) {
+        setSecondsRemaining(Math.ceil(remainingMs / 1000));
+      } else {
+        setSecondsRemaining(0);
+      }
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [lastSentAt]);
 
   const handleGeneratePaymentLink = async () => {
     const parsedAmount = parseFloat(paymentAmount);
@@ -89,6 +123,45 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
       setIsGeneratingLink(false);
     }
   };
+
+  const handleSendPaymentEmail = async () => {
+    const reqId = pet._originItem?.request_id || pet.request_id;
+    const clientId = pet._originItem?.linked_client_profile_id || pet._originItem?.client_id || pet.client_id;
+
+    if (!reqId || !clientId) {
+      setEmailSendError("Could not resolve Request ID or Client ID.");
+      return;
+    }
+
+    setIsSendingEmail(true);
+    setEmailSendError('');
+    setEmailSendSuccess(false);
+
+    try {
+      const response = await sendPaymentEmail(reqId, clientId);
+      setEmailSendSuccess(true);
+      setShowConfirmEmailModal(false);
+
+      if (onPaymentSessionCreated) {
+        const updatedOrigin = {
+          ...pet._originItem,
+          payment_email_sent_at: new Date().toISOString(),
+          payment_email_last_recipient: clientEmail
+        };
+        await onPaymentSessionCreated(updatedOrigin);
+      }
+    } catch (err) {
+      console.error("Payment email send failed:", err);
+      if (err.message && (err.message.includes('429') || err.message.toLowerCase().includes('too many requests') || err.message.toLowerCase().includes('rate limit'))) {
+        setEmailSendError("Rate limit exceeded. Maximum 3 payment email sends per request per hour. Please wait before trying again.");
+      } else {
+        setEmailSendError(err.message || "Failed to send payment email. Please try again.");
+      }
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
 
   const getPaymentStatusBadge = (status) => {
     const normalizedStatus = (status || '').toLowerCase().trim();
@@ -916,6 +989,85 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                           <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                             Note: Retrieving verifies the existing session state and does not create a new charge.
                           </p>
+
+                          {/* Release 12V: Send Payment Email UI */}
+                          {paymentUrl && clientEmail && (
+                            <div style={{
+                              marginTop: '16px',
+                              paddingTop: '16px',
+                              borderTop: '1px solid var(--border-soft, #e5e7eb)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '8px'
+                            }}>
+                              <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: '600', color: 'var(--text-heading)' }}>Send Payment Email</h4>
+                              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                <strong>Recipient Email:</strong> {clientEmail}
+                              </p>
+                              {lastSentAt && (
+                                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                  <strong>Last Sent:</strong> {new Date(lastSentAt).toLocaleString()}
+                                </p>
+                              )}
+                              
+                              <div style={{
+                                background: 'rgba(245, 158, 11, 0.05)',
+                                border: '1px dashed rgba(245, 158, 11, 0.4)',
+                                padding: '10px 12px',
+                                borderRadius: '6px',
+                                fontSize: '0.8rem',
+                                color: '#b45309',
+                                marginTop: '4px'
+                              }}>
+                                <strong>⚠️ Sandbox Warning:</strong> The email will contain a Stripe Sandbox checkout link. Do not send this to clients for real payment processing.
+                              </div>
+
+                              <button
+                                type="button"
+                                disabled={isSendingEmail || secondsRemaining > 0}
+                                onClick={() => {
+                                  setEmailSendError('');
+                                  setEmailSendSuccess(false);
+                                  setShowConfirmEmailModal(true);
+                                }}
+                                className="button-primary"
+                                style={{ marginTop: '8px', width: 'fit-content', minHeight: '38px', borderRadius: '6px' }}
+                              >
+                                {isSendingEmail ? 'Sending...' : `Send Payment Email${secondsRemaining > 0 ? ` (Wait ${secondsRemaining}s)` : ''}`}
+                              </button>
+
+                              {/* Success / Error Banners */}
+                              {emailSendError && (
+                                <div style={{
+                                  background: 'rgba(239, 68, 68, 0.1)',
+                                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                                  padding: '12px',
+                                  borderRadius: '8px',
+                                  color: '#dc2626',
+                                  fontSize: '0.85rem',
+                                  marginTop: '12px',
+                                  whiteSpace: 'pre-wrap'
+                                }}>
+                                  {emailSendError}
+                                </div>
+                              )}
+
+                              {emailSendSuccess && (
+                                <div style={{
+                                  background: 'rgba(16, 185, 129, 0.1)',
+                                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                                  padding: '12px',
+                                  borderRadius: '8px',
+                                  color: '#10b981',
+                                  fontSize: '0.85rem',
+                                  marginTop: '12px',
+                                  whiteSpace: 'pre-wrap'
+                                }}>
+                                  ✓ Payment email sent successfully to {clientEmail}!
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     }
@@ -1470,6 +1622,112 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
           </div>
         </footer>
       </div>
+
+      {/* Release 12V: Send Payment Email Confirmation Modal */}
+      {showConfirmEmailModal && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ maxWidth: '500px', padding: '24px' }}>
+            <button
+              className="modal-close-btn"
+              onClick={() => setShowConfirmEmailModal(false)}
+              aria-label="Close dialog"
+            >
+              ✕
+            </button>
+            <div className="modal-header" style={{ marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--text-heading)' }}>
+                Confirm Send Payment Email
+              </h2>
+            </div>
+            
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.9rem', color: 'var(--text-main)' }}>
+              <p>Are you sure you want to send the payment-link email to the client?</p>
+              
+              <div style={{
+                background: 'var(--bg-muted, #f9fafb)',
+                padding: '16px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-soft, #e5e7eb)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <p style={{ margin: 0 }}><strong>Recipient Email:</strong> {clientEmail}</p>
+                <p style={{ margin: 0 }}>
+                  <strong>Amount:</strong> ${((pet._originItem?.payment_amount_cents || 0) / 100).toFixed(2)}
+                </p>
+                <p style={{ margin: 0 }}>
+                  <strong>Client Name:</strong> {pet._originItem?.client_name || pet.client_name || 'N/A'}
+                </p>
+                <p style={{ margin: 0 }}>
+                  <strong>Pet Name(s):</strong> {pet.name || pet._originItem?.pet_names || pet.pet_names || 'N/A'}
+                </p>
+                <p style={{ margin: 0 }}>
+                  <strong>Request ID:</strong> {pet._originItem?.request_id || pet.request_id || 'N/A'}
+                </p>
+              </div>
+
+              <div style={{
+                background: 'rgba(245, 158, 11, 0.08)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                color: '#b45309',
+                fontWeight: '500',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+                marginTop: '8px'
+              }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <span>⚠️</span>
+                  <strong>Sandbox / Test Mode Warning:</strong>
+                </div>
+                <div>
+                  This request is in sandbox mode. The email will contain sandbox Stripe links for testing.
+                </div>
+              </div>
+
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                color: '#dc2626',
+                fontWeight: '500',
+                display: 'flex',
+                gap: '8px',
+                alignItems: 'center',
+                marginTop: '4px'
+              }}>
+                <span>❗</span>
+                <strong>Explicit Warning: Clicking "Send Email" will send a real email.</strong>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+              <button
+                disabled={isSendingEmail}
+                onClick={() => setShowConfirmEmailModal(false)}
+                className="button-secondary outline"
+                style={{ padding: '8px 16px', fontSize: '0.9rem', minHeight: '38px', borderRadius: '6px' }}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={isSendingEmail}
+                onClick={handleSendPaymentEmail}
+                className="button-primary"
+                style={{ padding: '8px 16px', fontSize: '0.9rem', minHeight: '38px', borderRadius: '6px' }}
+              >
+                {isSendingEmail ? 'Sending...' : 'Send Email'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
