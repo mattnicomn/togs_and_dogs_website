@@ -1,9 +1,10 @@
 # Release 13D: Manual Stripe Live Readiness Checklist
 
-**Status:** Awaiting Matthew's Manual Completion
+**Status:** Blocked — Pending EIN for Stripe Business Verification
 **Type:** Manual checklist (docs only)
 **Risk to Production:** None
 **Scope:** Matthew verifies Stripe Dashboard and business readiness before live keys are wired
+**Blocker:** usmissionhero LLC EIN not yet available → Stripe business verification cannot complete
 
 ---
 
@@ -119,24 +120,26 @@ Matthew: Complete each item below. Mark status as one of:
 
 | Gate | Item | Status |
 |------|------|--------|
-| G1 | Account verification complete (1.1–1.7) | ___ |
-| G2 | Bank account connected (2.1) | ___ |
-| G3 | Card-only payment methods (3.2–3.7) | ___ |
-| G4 | Statement descriptor set (4.1) | ___ |
-| G5 | No live keys exposed (6.1–6.4) | ___ |
-| G6 | terraform.tfvars in .gitignore (6.5) | ___ |
+| G1 | Account verification complete (1.1–1.7) | ❌ **Blocked** — pending EIN |
+| G2 | Bank account connected (2.1) | ⏳ Not Started / Pending |
+| G3 | Card-only payment methods (3.2–3.7) | ⏳ Not Ready (depends on account activation) |
+| G4 | Statement descriptor set (4.1) | ⏳ Pending |
+| G5 | No live keys exposed (6.1–6.4) | ✅ Ready |
+| G6 | terraform.tfvars in .gitignore (6.5) | ✅ Ready |
 
 ### Recommended Gates (Should be Ready)
 
 | Gate | Item | Status |
 |------|------|--------|
-| G7 | Receipt emails enabled (4.6–4.7) | ___ |
-| G8 | Payment terms published (7.1) | ___ |
-| G9 | Refund policy published (7.2) | ___ |
+| G7 | Receipt emails enabled (4.6–4.7) | ⏳ Not Started |
+| G8 | Payment terms published (7.1) | ⏳ Not Started |
+| G9 | Refund policy published (7.2) | ⏳ Not Started |
 
 ### Stop Condition
 
 **Do NOT proceed to Release 13E (live secret wiring) until ALL Critical Gates (G1–G6) are marked Ready.**
+
+**Current blocker:** G1 is Blocked. Stripe business verification requires Tax details (EIN) for usmissionhero LLC. EIN is not yet available. Matthew attempted to contact IRS but could not complete due to high call volume.
 
 If any Recommended Gate (G7–G9) is Blocked, Matthew may choose to proceed at his discretion with documented acceptance of the risk.
 
@@ -144,15 +147,17 @@ If any Recommended Gate (G7–G9) is Blocked, Matthew may choose to proceed at h
 
 ## 9. Matthew's Notes
 
-_Use this space for any findings, questions, or decisions during checklist completion:_
+**2026-06-18: Initial Stripe Dashboard Review**
 
-```
-Notes:
+- Stripe Dashboard reviewed in Sandbox mode
+- Non-recurring payment setup: partially complete
+- Recurring payment setup: selected "Prebuilt checkout form"
+- Finish setup still requires: Verify email, Verify business, Create Stripe profile
+- **Business verification BLOCKED at Tax details** — usmissionhero LLC does not have an EIN available yet
+- Matthew contacted/attempted IRS but could not complete due to high call volume
+- Live Stripe activation cannot proceed until EIN is obtained
 
-
-
-
-```
+**Decision:** Keep sandbox mode active. Do not proceed to 13E live secret wiring. Continue non-live work while waiting for EIN.
 
 ---
 
@@ -160,12 +165,14 @@ Notes:
 
 | Field | Value |
 |-------|-------|
-| All Critical Gates Ready? | ___ yes / no |
-| Matthew approves proceeding to 13E (live secret wiring)? | ___ yes / no |
-| Approval date | ___ |
-| Rollback plan reviewed? | ___ yes / no |
-| First live test limited to internal $1 payment? | ___ yes / no |
-| First live test refund plan approved? | ___ yes / no |
+| All Critical Gates Ready? | ❌ No — G1 blocked (EIN) |
+| Matthew approves proceeding to 13E (live secret wiring)? | ❌ No — blocked |
+| Approval date | — |
+| Rollback plan reviewed? | ✅ Yes (documented in 13C) |
+| First live test limited to internal $1 payment? | ✅ Yes (planned) |
+| First live test refund plan approved? | ✅ Yes (planned) |
+
+**Resume condition:** Once EIN is obtained and Stripe business verification completes, revisit this checklist, mark G1 Ready, and proceed to 13E.
 
 ---
 
