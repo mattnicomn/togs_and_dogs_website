@@ -1,6 +1,6 @@
 # Release Notes: Release 13B — Payment Workflow Hardening Before Live Mode
 
-This release notes document details the security hardening, amount validation, and resend rate-limiting enhancements implemented for the payment workflows prior to transition to Live Mode.
+This release notes document details the security hardening, amount validation, and resend rate-limiting enhancements implemented and deployed for the payment workflows prior to transition to Live Mode.
 
 ## Changes Implemented
 
@@ -23,20 +23,29 @@ This release notes document details the security hardening, amount validation, a
 
 ---
 
-## Validation and Test Results
+## Deployment and Validation Results
 
-### Backend Unit & Integration Tests
-- **All 413 Backend Tests Passed** successfully:
-  - `pytest tests/backend/test_r12g_stripe_checkout.py` passed.
-  - `pytest tests/backend/test_r12t_payment_email.py` passed.
-  - Full suite `pytest tests/backend` executed and passed cleanly.
-- **New Tests**:
-  - `test_r13b_amount_validation_extended` (bounds, NaN/Infinity, custom env limits).
-  - `test_r13b_payment_email_cooldown` (60-second resend enforcement).
+### 1. Terraform Infrastructure Apply
+- **Action**: Applied the pre-generated plan `release-13b-payment-hardening.tfplan` using Terraform v1.14.8.
+- **Result**: Success. Outputs:
+  - Resources: **1 added, 13 changed, 1 destroyed**.
+  - `STRIPE_ENV = "sandbox"` applied to Lambda environment variables.
+  - All 12 Lambda functions updated with the latest codebase package.
+  - API Gateway deployment updated and stage main redeployed.
 
-### Frontend Production Build
-- **Build Command**: `npm run build` executed inside `web` directory.
-- **Result**: Success. Vite compiled all assets successfully in 398ms.
+### 2. Frontend Rebuild & Deployment
+- **Rebuild**: Rebuilt the production application successfully (`npm run build` in `web/` took 339ms).
+- **S3 Sync**: Deployed the compiled production assets to `s3://togs-and-dogs-prod-toganddogs-hosting` using profile `usmissionhero-website-prod`.
+- **CloudFront Invalidation**: Created a cache invalidation for distribution `E35L00QPA2IRCY` with invalidation ID: `IBBBXKD2H22J82N0CLLXOZ7WY0`.
+
+### 3. Smoke Validation Results
+Post-deploy smoke test was performed successfully using browser subagent execution:
+- **Admin Dashboard**: Loaded successfully. 
+- **CareCard Status Render**: CareCard details modal loaded correctly. Verified that the paid request `TestPet_ScenarioB` shows a green **Paid** payment status and all details are read-only (un-editable) under the "Pricing & Payment (Stripe Sandbox)" section. Screenshot saved: `paid_carecard_status_1781793642724.png`.
+- **Frontend Amount Input Validation**: In an unpaid request CareCard (`TestPet_ScenarioD`), the "Amount to Charge" input validation rules successfully intercepted incorrect values and blocked link generation:
+  - **Blank value**: Blocked with `"Amount is required and cannot be blank."` (screenshot: `validation_error_blank_1781793754100.png`)
+  - **Negative value (`-50`)**: Blocked with `"Amount must be greater than $0.00."` (screenshot: `validation_error_negative_1781793777952.png`)
+  - **Excessive value (`20000`)**: Blocked with `"Amount cannot exceed the maximum limit of $10,000.00."` (screenshot: `validation_error_large_1781793799808.png`)
 
 ---
 
@@ -44,7 +53,7 @@ This release notes document details the security hardening, amount validation, a
 - **No Live Stripe mode** or keys were wired or used.
 - **No real payments** or mock payment submissions occurred.
 - **No Postmark calls** or emails were sent.
-- **No Terraform apply** was run (only planning was attempted, which failed cleanly due to expired AWS SSO credentials).
-- **No production deployment** has occurred.
+- **No new Checkout Sessions** were generated.
 - **No Cognito, mobile, or tenant changes** were made.
 - **No secrets, tokens, or credentials** were exposed.
+- **No app-triggered DynamoDB writes** occurred outside standard deployment tracking.
