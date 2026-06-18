@@ -9,6 +9,8 @@ import GoogleCallback from './components/GoogleCallback';
 import ThemeToggle from './components/ThemeToggle';
 import TermsOfUse from './components/TermsOfUse';
 import PrivacyPolicy from './components/PrivacyPolicy';
+import PaymentSuccess from './components/PaymentSuccess';
+import PaymentCancel from './components/PaymentCancel';
 import usmhLogo from './assets/usmh-logo.png';
 import './App.css';
 
@@ -41,6 +43,8 @@ function App() {
             <Route path="/admin/auth/callback" element={<GoogleCallback />} />
             <Route path="/terms" element={<TermsOfUse />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/booking/:requestId/success" element={<PaymentSuccess />} />
+            <Route path="/booking/:requestId/cancel" element={<PaymentCancel />} />
             <Route path="*" element={
               <div className="section error-page">
                 <div className="container">

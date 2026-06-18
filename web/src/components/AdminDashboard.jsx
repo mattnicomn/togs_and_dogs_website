@@ -4093,6 +4093,11 @@ const AdminDashboard = () => {
                                 <span className={`${state.statusClass} ${state.isInvalid ? 'status-chip--urgent' : ''}`}>
                                   {state.isInvalid ? "Needs Assignment" : getStatusLabel(item.status)}
                                 </span>
+                                {item.payment_status === 'paid' && (
+                                  <span className="status-chip status-chip--ready" style={{ minWidth: 'auto', padding: '4px 10px', fontSize: '0.65rem' }}>
+                                    Paid
+                                  </span>
+                                )}
                                 {item.status === 'COMPLETED' && item.visit_notes && (
                                   <span title="Completion Notes Available" style={{ fontSize: '1rem', cursor: 'help' }}>📝</span>
                                 )}
