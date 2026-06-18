@@ -1,6 +1,6 @@
 # Release 12X: Fresh Checkout Card-Only and First Email Send Validation Plan
 
-**Status:** Gate A Passed, Gate B Passed, Gate C Completed (inbox validation pending)
+**Status:** Complete — All Gates Passed
 **Priority:** High (blocker for real client payments and email workflow)
 **Risk to Production:** Low (controlled test actions with stop gates)
 **Terraform Required:** No
@@ -258,7 +258,25 @@ Two `PAYMENT_LINK_EMAIL_SENT` entries recorded in the audit ledger.
 
 ### Inbox/Content Validation
 
-**Status:** ⏳ Pending — Matthew is checking whether Brea received the email(s), how many copies arrived, and whether formatting/content are correct.
+**Status:** ✅ Passed
+
+**Validated by:** Matthew (checking Brea's inbox)
+
+| Check | Result |
+|-------|--------|
+| Email received | ✅ Yes |
+| Number of copies received | 2 (matches duplicate-send deviation — expected) |
+| Subject line | "Payment Link for TestPet_ScenarioB's Care - Tog & Dogs" |
+| From address | `support@usmissionhero.com` |
+| Sandbox warning visible | ✅ Yes — "! Stripe Sandbox Mode: Test Payment Only" |
+| Amount shows $1.00 | ✅ Yes |
+| Client/pet details correct | ✅ Yes — "TestPet_ScenarioB" shown |
+| Payment link present | ✅ Yes — "Pay Secure Now" button |
+| Formatting looks good | ✅ Yes |
+| Payment link clicked/submitted | ❌ No |
+| Issues observed | None |
+
+**Conclusion:** Email content, formatting, sandbox warning, amount, pet details, and payment link are all correct. Two copies received as expected from the documented duplicate-send process deviation.
 
 ### Actions Taken / Not Taken
 
