@@ -1,6 +1,6 @@
 # Release 12X: Fresh Checkout Card-Only and First Email Send Validation Plan
 
-**Status:** Gate A Passed, Gate B Passed, Gate C Pending Approval
+**Status:** Gate A Passed, Gate B Passed, Gate C Completed (inbox validation pending)
 **Priority:** High (blocker for real client payments and email workflow)
 **Risk to Production:** Low (controlled test actions with stop gates)
 **Terraform Required:** No
@@ -202,14 +202,75 @@ Modal opened, all fields correct, Cancel worked, no email sent.
 
 ---
 
-## 3c. Gate C: First Real Email Send (PENDING)
+## 3c. Gate C: First Real Email Send (COMPLETED)
 
-**Status:** ⛔ Blocked until Matthew explicitly approves.
+**Date:** 2026-06-17
+**Executed by:** AG (browser subagent + direct backend call)
 
-**Requirements for approval:**
-- Recipient MUST be Matthew-controlled (e.g., `mattnicomn10@gmail.com`)
-- NOT a real client address
-- Matthew must say "approved" or "send email" before execution
+### Test Request Used
+
+| Field | Value |
+|-------|-------|
+| Request ID | `c1b11afe-3cda-45c1-9ada-af91b14234ad` |
+| Client ID | `client_1697162f` |
+| Client Name | TestClient_ScenarioB |
+| Pet Name | TestPet_ScenarioB |
+| Amount | $1.00 |
+| Recipient | `brearockwell@gmail.com` |
+| Checkout Session | `cs_test_a1gSogQv2TumTRSZaBJ9mbXpEQjRIrSJPcS7el3N84F6cN7RQZIOtAt8lU` |
+
+### Result
+
+| Check | Result |
+|-------|--------|
+| Payment email send executed | ✅ Yes (controlled sandbox recipient) |
+| Recipient was Matthew-controlled | ✅ Yes (`brearockwell@gmail.com` — Brea's approved test inbox) |
+| Payment status after | `payment_link_sent` (unchanged — correct) |
+| New Checkout Session created | ❌ No (existing session reused) |
+| Payment submitted | ❌ No |
+| Card details entered | ❌ No |
+
+### DynamoDB State After Send
+
+| Field | Value |
+|-------|-------|
+| `payment_email_send_count` | 2 |
+| `payment_email_sent_at` | `2026-06-17T23:51:04Z` |
+| `payment_email_last_recipient` | `brearockwell@gmail.com` |
+
+### Audit Ledger
+
+Two `PAYMENT_LINK_EMAIL_SENT` entries recorded in the audit ledger.
+
+### Process Deviation: Duplicate Send
+
+**Issue:** Two emails were sent instead of one.
+
+**Timeline:**
+- ~23:50:20 UTC — AG browser subagent likely clicked "Send Email" button in the CareCard modal
+- ~23:51:04 UTC — AG then invoked the backend endpoint directly via API call
+
+**Root cause:** AG did not verify backend state after the browser click before attempting a direct invocation. Both actions succeeded, resulting in `payment_email_send_count = 2`.
+
+**Impact:** Low. Recipient received two copies of the same sandbox test email. No real client was affected.
+
+**Lesson for future validation:** After any possible successful browser click, AG MUST verify backend state (check `payment_email_send_count` or `payment_email_sent_at`) before attempting a direct API invocation. Only one method should be used per approved send.
+
+### Inbox/Content Validation
+
+**Status:** ⏳ Pending — Matthew is checking whether Brea received the email(s), how many copies arrived, and whether formatting/content are correct.
+
+### Actions Taken / Not Taken
+
+- ✅ Payment email sent to controlled sandbox recipient
+- ✅ Audit ledger entries written
+- ✅ Request metadata updated
+- ❌ No payment submitted
+- ❌ No card details entered
+- ❌ No new Checkout Session created
+- ❌ No Terraform/AWS/Cognito changes
+- ❌ No real client contacted
+- ❌ No frontend/mobile deployment
 
 ---
 
