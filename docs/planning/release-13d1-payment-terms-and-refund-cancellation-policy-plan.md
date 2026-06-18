@@ -36,21 +36,27 @@ Prepare customer-facing payment terms, refund policy, and cancellation policy co
 
 ## 4. Open Policy Decisions for Matthew
 
-Matthew must confirm these before publishing. Marked with `[DECISION]` in the draft.
+Matthew must confirm these before publishing. Defaults have been filled in as of Release 13D.2 — marked `[PENDING MATTHEW]` in the draft policy.
 
-| # | Decision | Options | Default Placeholder |
-|---|----------|---------|---------------------|
-| 1 | Payment due window | Immediate / 24h / 48h / before service | "before scheduled service date" |
-| 2 | Late cancellation window | 24h / 48h / none | "24 hours before scheduled visit" |
-| 3 | Late cancellation fee | None / 50% / full charge / flat fee | "may apply at provider's discretion" |
-| 4 | Refund processing time | 5–10 / 7–14 business days | "5–10 business days" |
-| 5 | Refund eligibility | Before service only / case-by-case | "case-by-case review" |
-| 6 | Weather/emergency cancellation | Full refund / reschedule / credit | "reschedule or full refund" |
-| 7 | No-show policy (client) | Charge / partial charge / none | "full charge may apply" |
-| 8 | No-show policy (provider) | Full refund / reschedule | "full refund or reschedule" |
-| 9 | Cash/check accepted? | Yes as alternate / no | "online card payment only" |
-| 10 | Support email for billing | Confirm address | `support@usmissionhero.com` |
-| 11 | Attorney/accountant review | Before or after publish | Before live payments |
+| # | Decision | Recommended Default | Status |
+|---|----------|--------------------| -------|
+| 1 | Payment due window | 24h / before service | Default filled |
+| 2 | Late cancellation window (standard) | 24 hours | Default filled |
+| 3 | Late cancellation window (overnight/multi-day) | 48 hours | Default filled |
+| 4 | Late cancellation fee | Up to 50%, discretionary during rollout | Default filled |
+| 5 | Refund processing time | 5–10 business days | Default filled |
+| 6 | Refund eligibility | Full before service; partial/case-by-case otherwise | Default filled |
+| 7 | Weather/emergency policy | Reschedule or refund, fees waived | Default filled |
+| 8 | Client no-show/no-access | Fee may apply | Default filled |
+| 9 | Provider no-show | Full refund or reschedule | Default filled |
+| 10 | Cash/check accepted? | No — card only during initial rollout | Default filled |
+| 11 | Support email | [PENDING MATTHEW — needs confirmed address] | ⏳ Pending |
+| 12 | Business hours | Mon–Fri, 9 AM – 5 PM Eastern | Default filled |
+| 13 | Response time | 1 business day | Default filled |
+| 14 | Attorney/accountant review | Required before live payments | ⏳ Pending |
+| 15 | Effective date | Same as live payment activation | ⏳ Pending |
+
+**Remaining decisions requiring Matthew:** Items 11, 14, 15 (support email confirmation, attorney review timeline, effective date).
 
 ---
 
