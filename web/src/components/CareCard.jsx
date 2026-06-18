@@ -82,9 +82,24 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   }, [lastSentAt]);
 
   const handleGeneratePaymentLink = async () => {
-    const parsedAmount = parseFloat(paymentAmount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      setPaymentError("Amount is required and must be greater than $0.00.");
+    const trimmed = typeof paymentAmount === 'string' ? paymentAmount.trim() : String(paymentAmount || '');
+    if (!trimmed) {
+      setPaymentError("Amount is required and cannot be blank.");
+      return;
+    }
+    const parsedAmount = parseFloat(trimmed);
+    if (isNaN(parsedAmount)) {
+      setPaymentError("Amount must be a valid number.");
+      return;
+    }
+    if (parsedAmount <= 0) {
+      setPaymentError("Amount must be greater than $0.00.");
+      return;
+    }
+    // Limit maximum charge to $10,000.00 to prevent accidental large charges
+    const maxUsd = 10000;
+    if (parsedAmount > maxUsd) {
+      setPaymentError(`Amount cannot exceed the maximum limit of $${maxUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`);
       return;
     }
 
@@ -141,6 +156,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
       const response = await sendPaymentEmail(reqId, clientId);
       setEmailSendSuccess(true);
       setShowConfirmEmailModal(false);
+      setSecondsRemaining(120); // Immediately trigger 2-minute cooldown locally
 
       if (onPaymentSessionCreated) {
         const updatedOrigin = {
@@ -1095,9 +1111,23 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                         {!showConfirmPaymentGen ? (
                           <button
                             onClick={() => {
-                              const parsed = parseFloat(paymentAmount);
-                              if (isNaN(parsed) || parsed <= 0) {
-                                setPaymentError("Amount is required and must be greater than $0.00.");
+                              const trimmed = typeof paymentAmount === 'string' ? paymentAmount.trim() : String(paymentAmount || '');
+                              if (!trimmed) {
+                                setPaymentError("Amount is required and cannot be blank.");
+                                return;
+                              }
+                              const parsed = parseFloat(trimmed);
+                              if (isNaN(parsed)) {
+                                setPaymentError("Amount must be a valid number.");
+                                return;
+                              }
+                              if (parsed <= 0) {
+                                setPaymentError("Amount must be greater than $0.00.");
+                                return;
+                              }
+                              const maxUsd = 10000;
+                              if (parsed > maxUsd) {
+                                setPaymentError(`Amount cannot exceed the maximum limit of $${maxUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`);
                                 return;
                               }
                               setPaymentError('');

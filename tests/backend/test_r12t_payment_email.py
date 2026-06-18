@@ -269,6 +269,40 @@ class TestAdminPaymentLinkEmail:
         body = json.loads(response['body'])
         assert body['message'] == "Payment email sent successfully"
 
+    @patch('common.db.get_item')
+    @patch('common.notifications.service.check_payment_email_rate_limit')
+    def test_r13b_payment_email_cooldown(self, mock_rate_limit, mock_get):
+        """Short cooldown guard blocks sending email within cooldown window and allows it after."""
+        mock_rate_limit.return_value = False
+        event = make_admin_event(role='admin')
+
+        orig_get = admin_handler.__globals__.get('get_item')
+        try:
+            from common.db import get_item as real_get
+            admin_handler.__globals__['get_item'] = real_get
+
+            # 1. Under cooldown (e.g. sent 30 seconds ago)
+            from datetime import datetime, timezone, timedelta
+            sent_30s_ago = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
+            mock_get.return_value = make_req_record(status='PENDING_REVIEW', payment_status='payment_link_sent')
+            mock_get.return_value['payment_email_sent_at'] = sent_30s_ago
+
+            response = admin_handler(event, None)
+            assert response['statusCode'] == 429
+            assert "wait" in json.loads(response['body'])['error'].lower()
+
+            # 2. Past cooldown (e.g. sent 90 seconds ago)
+            sent_90s_ago = (datetime.now(timezone.utc) - timedelta(seconds=90)).isoformat()
+            mock_get.return_value['payment_email_sent_at'] = sent_90s_ago
+
+            with patch('common.notifications.service.notify_event', return_value={'success': True, 'message': 'Email sent.'}), \
+                 patch('common.db.table.update_item') as mock_update:
+                response = admin_handler(event, None)
+                assert response['statusCode'] == 200
+                assert json.loads(response['body'])['message'] == "Payment email sent successfully"
+        finally:
+            admin_handler.__globals__['get_item'] = orig_get
+
 
 class TestRateLimiterAndLedgerDetails:
 

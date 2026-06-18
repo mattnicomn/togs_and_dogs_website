@@ -112,6 +112,7 @@ resource "aws_lambda_function" "admin" {
         GOOGLE_USER_TOKENS_NAME           = module.secrets.google_user_tokens_arn
         STRIPE_SECRET_KEY                 = var.stripe_secret_key
         STRIPE_ENVIRONMENT                = "sandbox"
+        STRIPE_ENV                        = "sandbox"
         STRIPE_PRICE_STARTER_MONTHLY      = var.stripe_price_starter_monthly
         STRIPE_PRICE_PROFESSIONAL_MONTHLY = var.stripe_price_professional_monthly
         STRIPE_PRICE_PREMIUM_MONTHLY      = var.stripe_price_premium_monthly
@@ -358,6 +359,7 @@ resource "aws_lambda_function" "stripe_webhook" {
       DATA_TABLE_NAME                   = module.data.table_name
       STRIPE_WEBHOOK_SECRET             = var.stripe_webhook_secret
       STRIPE_ENVIRONMENT                = "sandbox"
+      STRIPE_ENV                        = "sandbox"
       STRIPE_PRICE_STARTER_MONTHLY      = var.stripe_price_starter_monthly
       STRIPE_PRICE_PROFESSIONAL_MONTHLY = var.stripe_price_professional_monthly
       STRIPE_PRICE_PREMIUM_MONTHLY      = var.stripe_price_premium_monthly

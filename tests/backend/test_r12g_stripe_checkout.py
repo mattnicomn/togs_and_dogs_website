@@ -341,6 +341,44 @@ class TestAdminStripeCheckoutCreation:
         mock_create.assert_called_once()
         mock_table.update_item.assert_called_once()
 
+    @patch('common.db.get_item')
+    def test_r13b_amount_validation_extended(self, mock_get):
+        """Extended amount validations cover NaN, Infinity, and huge/max amounts."""
+        mock_get.return_value = make_req_record(company_id='tog_and_dogs')
+
+        # 1. NaN and Infinity
+        for bad_val in [float('nan'), float('inf'), float('-inf')]:
+            event = make_admin_event(
+                role='admin',
+                company_id='tog_and_dogs',
+                body={'amount_cents': bad_val, 'client_id': 'client-001'}
+            )
+            response = admin_handler(event, None)
+            assert response['statusCode'] == 400
+            assert "amount_cents" in json.loads(response['body'])['error']
+
+        # 2. Exceeding default limit ($10,000 / 1,000,000 cents)
+        event = make_admin_event(
+            role='admin',
+            company_id='tog_and_dogs',
+            body={'amount_cents': 1000001, 'client_id': 'client-001'}
+        )
+        response = admin_handler(event, None)
+        assert response['statusCode'] == 400
+        assert "exceeds the maximum limit" in json.loads(response['body'])['error']
+
+        # 3. Configurable max amount limit via environment variable
+        with patch.dict(os.environ, {'MAX_PAYMENT_AMOUNT_CENTS': '50000'}):
+            # 50,001 cents is over the 50,000 limit
+            event = make_admin_event(
+                role='admin',
+                company_id='tog_and_dogs',
+                body={'amount_cents': 50001, 'client_id': 'client-001'}
+            )
+            response = admin_handler(event, None)
+            assert response['statusCode'] == 400
+            assert "exceeds the maximum limit of $500.00" in json.loads(response['body'])['error']
+
 
 class TestStripeWebhookBookingPaymentExtension:
 

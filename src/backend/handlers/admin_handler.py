@@ -1,7 +1,7 @@
 import json
 import os
 import boto3
-from datetime import datetime
+from datetime import datetime, timezone
 from common.db import query_by_status, get_item, update_status, table
 from common.notifications.service import notify_event
 from common.google_calendar import sync_calendar_event, delete_event
@@ -77,6 +77,35 @@ def normalize_phone_e164(phone):
     
     # Cannot safely normalize — return None (caller should skip Cognito sync)
     return None
+
+
+DEFAULT_MAX_PAYMENT_AMOUNT_CENTS = 1000000
+
+def validate_and_parse_amount_cents(amount):
+    """
+    Validates that the amount is a safe, positive integer within bounds.
+    Blocks: None, bool, non-numeric, negative, zero, NaN, floats, and huge amounts.
+    """
+    if amount is None:
+        raise ValueError("amount_cents is required")
+        
+    # Python bool is a subclass of int, so isinstance(True, int) is True!
+    if isinstance(amount, bool):
+        raise ValueError("amount_cents must be a positive integer, not boolean")
+        
+    if not isinstance(amount, int):
+        raise ValueError("amount_cents must be a positive integer")
+
+    if amount <= 0:
+        raise ValueError("amount_cents must be greater than zero")
+
+    # Prevent accidental huge charges with a reasonable configurable max amount.
+    max_amount_cents = int(os.environ.get("MAX_PAYMENT_AMOUNT_CENTS", DEFAULT_MAX_PAYMENT_AMOUNT_CENTS))
+    if amount > max_amount_cents:
+        max_usd = max_amount_cents / 100
+        raise ValueError(f"amount_cents exceeds the maximum limit of ${max_usd:,.2f} ({max_amount_cents} cents)")
+
+    return amount
 
 
 def _resolve_admin_record(pk, sk, company_id=None):
@@ -1970,12 +1999,10 @@ def handler(event, context):
                 return bad_request("Missing required client_id (clientId query param or client_id in body)", event)
 
             amount_cents = body.get('amount_cents')
-            if amount_cents is None:
-                return bad_request("Missing required amount_cents in request body", event)
-
-            # amount_cents must be integer > 0
-            if not isinstance(amount_cents, int) or isinstance(amount_cents, bool) or amount_cents <= 0:
-                return bad_request("amount_cents must be a positive integer", event)
+            try:
+                amount_cents = validate_and_parse_amount_cents(amount_cents)
+            except ValueError as val_err:
+                return bad_request(f"amount_cents validation failed: {str(val_err)}", event)
 
             # 3. Retrieve request item
             request_item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
@@ -2014,7 +2041,7 @@ def handler(event, context):
             from common.stripe_client import create_checkout_session, StripeAPIError
             from common.auth import get_current_company_id
             company_id = get_current_company_id(event)
-            stripe_env = os.environ.get("STRIPE_ENV", "sandbox")
+            stripe_env = os.environ.get("STRIPE_ENV") or os.environ.get("STRIPE_ENVIRONMENT") or "sandbox"
 
             try:
                 session = create_checkout_session(
@@ -2028,7 +2055,7 @@ def handler(event, context):
                 return error(500, f"Stripe session creation failed: {str(e)}", event)
 
             # 6. Update Request Record in DynamoDB
-            now_iso = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+            now_iso = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
             try:
                 table.update_item(
@@ -2159,6 +2186,23 @@ def handler(event, context):
             if check_payment_email_rate_limit(request_id):
                 return error(429, "Too Many Requests: Rate limit exceeded. Maximum 3 payment email sends per request per hour.", event)
 
+            # 8.5. Short cooldown guard (e.g. 60 seconds)
+            last_sent_str = request_item.get('payment_email_sent_at')
+            if last_sent_str:
+                try:
+                    if last_sent_str.endswith('Z'):
+                        last_sent_str = last_sent_str[:-1] + '+00:00'
+                    last_sent = datetime.fromisoformat(last_sent_str)
+                    now = datetime.now(timezone.utc)
+                    elapsed_seconds = (now - last_sent).total_seconds()
+                    
+                    cooldown_seconds = int(os.environ.get("PAYMENT_EMAIL_COOLDOWN_SECONDS", 60))
+                    if elapsed_seconds < cooldown_seconds:
+                        remaining = int(cooldown_seconds - elapsed_seconds)
+                        return error(429, f"Too Many Requests: Please wait {remaining} more seconds before sending another payment email.", event)
+                except Exception as parse_err:
+                    print(f"WARNING: Failed to parse payment_email_sent_at '{last_sent_str}': {parse_err}")
+
             # 9. Trigger email send (mocked/stubbed if dry run / disabled)
             from common.notifications.service import notify_event
             notify_res = notify_event('PAYMENT_LINK_EMAIL', request_item)
@@ -2167,7 +2211,7 @@ def handler(event, context):
                 return error(500, f"Notification delivery failed: {notify_res.get('message', 'Unknown error')}", event)
 
             # 10. Update Request record only after successful send
-            now_iso = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+            now_iso = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
             try:
                 table.update_item(
                     Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
@@ -2418,7 +2462,6 @@ def handler(event, context):
 
 
             from common.db import table as _table, update_status
-            from datetime import timezone
             now_iso = datetime.now(timezone.utc).isoformat()
             
             results = {

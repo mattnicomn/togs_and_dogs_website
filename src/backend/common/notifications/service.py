@@ -426,7 +426,7 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
                 "business_name": "Tog & Dogs",
                 "business_email": config.REPLY_TO,
                 "expiry_note": "Please note that Stripe payment links expire in 24 hours.",
-                "sandbox": os.environ.get("STRIPE_ENV", "sandbox").lower() == 'sandbox'
+                "sandbox": (os.environ.get("STRIPE_ENV") or os.environ.get("STRIPE_ENVIRONMENT") or "sandbox").lower() == 'sandbox'
             }
 
         

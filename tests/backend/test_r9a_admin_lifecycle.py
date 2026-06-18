@@ -53,17 +53,17 @@ def mock_table_get_item(Key):
         return {"Item": item}
     return {}
 
-# --- Monkeypatch DB Functions ---
-common.db.get_item = mock_get_item
-handlers.admin_handler.get_item = mock_get_item
-
 # Create shared mock table and setup side effect
 mock_table_obj = MagicMock()
 mock_table_obj.get_item.side_effect = mock_table_get_item
 
-common.db.table = mock_table_obj
-handlers.admin_handler.table = mock_table_obj
-common.cascade.table = mock_table_obj
+@pytest.fixture(autouse=True)
+def setup_db_mocks(monkeypatch):
+    monkeypatch.setattr(common.db, 'get_item', mock_get_item)
+    monkeypatch.setattr(handlers.admin_handler, 'get_item', mock_get_item)
+    monkeypatch.setattr(common.db, 'table', mock_table_obj)
+    monkeypatch.setattr(handlers.admin_handler, 'table', mock_table_obj)
+    monkeypatch.setattr(common.cascade, 'table', mock_table_obj)
 
 # --- Event Helper ---
 
