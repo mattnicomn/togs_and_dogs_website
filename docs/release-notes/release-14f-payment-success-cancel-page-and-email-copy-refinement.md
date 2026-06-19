@@ -30,18 +30,44 @@ All changes are restricted to copy updates across the frontend components and ba
      > After payment, you'll see a confirmation page and receive a receipt from Stripe.
    * **Sandbox Environment Warning**: Kept the sandbox/test warning conditional logic intact from Release 13B.
 
-## Build & Test Results
+## Backend Infrastructure Deployment
 
-* **Frontend Build**: The frontend production build (`npm run build` executed inside the `web` folder) compiled successfully with zero warnings or errors.
-* **Backend Tests**: The payment email unit test suite (`pytest tests/backend/test_r12t_payment_email.py`) passed successfully (12/12 tests passing).
+* **Deployment Tool**: Terraform v1.14.8
+* **Applied Plan File**: `release-14f-payment-copy-refinement.tfplan`
+* **Plan Summary**: Applied successfully with **`0 added, 12 changed, 0 destroyed`**.
+* **Impacted Lambda Handlers**: Updated in-place with the refreshed source code hash of the backend package (`backend.zip` containing the copy refined email template and service functions):
+  * `togs-and-dogs-prod-admin`
+  * `togs-and-dogs-prod-assign`
+  * `togs-and-dogs-prod-cancellation`
+  * `togs-and-dogs-prod-device`
+  * `togs-and-dogs-prod-google-auth`
+  * `togs-and-dogs-prod-intake`
+  * `togs-and-dogs-prod-job`
+  * `togs-and-dogs-prod-pet`
+  * `togs-and-dogs-prod-postmark-webhook`
+  * `togs-and-dogs-prod-review`
+  * `togs-and-dogs-prod-ses-feedback`
+  * `togs-and-dogs-prod-stripe-webhook`
+* **Plan Cleanup**: Verified that the temporary `.tfplan` file was deleted immediately after execution.
 
-## Deployment Considerations
+## Frontend Deployment
 
-* **Backend Lambda Package Deployment**: Since `templates.py` and `service.py` were modified, a backend Lambda package deployment (via Terraform or manual packaging) will be needed in the next backend deployment cycle to apply the updated email copy in production.
-* **Frontend Assets**: Rebuilding and syncing the updated build assets to the S3 hosting bucket and invalidating the CloudFront cache is recommended for the client success and cancel page copy updates to go live.
+* **Build Status**: Frontend compiled successfully via Vite.
+* **Target S3 Bucket**: `s3://togs-and-dogs-prod-toganddogs-hosting` (using AWS profile `usmissionhero-website-prod`).
+* **S3 Sync Status**: Successfully uploaded the modified CSS and JS index chunks and deleted the obsolete index bundle.
+* **CloudFront Invalidation**: Created invalidation **`I171FMCKDXGT4SKAER593O3TJS`** for distribution `E35L00QPA2IRCY` to clear global cache.
+
+## Production Smoke Verification Results
+
+A browser subagent completed a comprehensive verification directly on the live production URL. All test targets passed:
+1. **Success Page Render**: Checked `https://toganddogs.usmissionhero.com/booking/test-request-14f/success`. Verified the new Stripe receipt details, next-steps warning copy, support placeholder, and the subtle Request Reference display.
+2. **Cancel Page Render**: Checked `https://toganddogs.usmissionhero.com/booking/test-request-14f/cancel`. Verified the title renamed to "Payment Not Completed", reassurance text, Next Steps email link guidance, support placeholder, and subtle Request Reference display.
+3. **No sensitive Stripe metadata exposed**: Verified.
+4. **Admin Dashboard remains fully functional**: Verified.
+5. **Validation Safety**: Verified that no payment links were generated, no emails were sent, and no checkout sessions/payments were processed during validation.
 
 ## Guardrails & Verification Confirmation
 
-* No AWS credentials or Terraform applies occurred.
-* No Stripe Dashboard adjustments or Stripe API Checkout session calls occurred.
-* No Postmark email transmissions, SMS messages, DynamoDB writes, Cognito updates, or mobile build changes occurred.
+* No AWS credentials or manual IAM roles were modified.
+* No live Stripe keys were enabled, and `STRIPE_ENV = sandbox` remains fully enforced.
+* No live Cognito users, Postmark accounts, DynamoDB application table writes, EAS builds, or second tenants were modified or touched.
