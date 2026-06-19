@@ -21,31 +21,44 @@ This ensures that clients have a direct, correct way to contact support if they 
 4. **Draft Payment Policy (`docs/policies/payment-terms-refund-cancellation-draft.md`)**:
    * Replaced all billing/support email decision placeholders (e.g. `[PENDING MATTHEW: billing/support email to be confirmed]`) with `support@usmissionhero.com`.
 
-## Validation Outcomes
+## Backend Infrastructure Deployment
 
-* **Frontend Build**: The frontend production build (`npm run build` in the `web` folder) compiled successfully:
-  ```
-  vite v8.0.8 building client environment for production...
-  transforming...✓ 96 modules transformed.
-  rendering chunks...
-  computing gzip size...
-  dist/index.html                         1.47 kB │ gzip:   0.67 kB
-  dist/assets/usmh-logo-CrRnxp7-.png  2,583.40 kB
-  dist/assets/index-Dhj_nyZO.css         59.93 kB │ gzip:  11.05 kB
-  dist/assets/index-CmFmTpMG.js         898.04 kB │ gzip: 264.77 kB
-  ✓ built in 336ms
-  ```
-* **Backend Tests**: The payment email unit test suite (`pytest tests/backend/test_r12t_payment_email.py`) passed successfully (12/12 tests passing).
-* **Placeholder Auditing**: Verified that all active code files are free from billing/support email placeholders. Remaining `[PENDING MATTHEW]` decision tags in the draft policy document are reserved for non-email business policies (such as effective dates and payment options).
+* **Deployment Tool**: Terraform v1.14.8
+* **Applied Plan File**: `release-14h-support-contact-finalization.tfplan`
+* **Plan Summary**: Applied successfully with **`0 added, 12 changed, 0 destroyed`**.
+* **Impacted Lambda Handlers**: Updated in-place with the refreshed source code hash of the backend package (`backend.zip` containing the support email template adjustments):
+  * `togs-and-dogs-prod-admin`
+  * `togs-and-dogs-prod-assign`
+  * `togs-and-dogs-prod-cancellation`
+  * `togs-and-dogs-prod-device`
+  * `togs-and-dogs-prod-google-auth`
+  * `togs-and-dogs-prod-intake`
+  * `togs-and-dogs-prod-job`
+  * `togs-and-dogs-prod-pet`
+  * `togs-and-dogs-prod-postmark-webhook`
+  * `togs-and-dogs-prod-review`
+  * `togs-and-dogs-prod-ses-feedback`
+  * `togs-and-dogs-prod-stripe-webhook`
+* **Plan Cleanup**: Verified that the temporary `.tfplan` file was deleted immediately after execution.
 
-## Deployment Instructions
+## Frontend Deployment
 
-To promote these changes to production, the following steps are required in a future deployment cycle:
-1. **Backend Deployment**: Run a Terraform plan/apply to package the updated backend code into `backend.zip` and deploy the updated Lambdas in-place.
-2. **Frontend Deployment**: Sync the compiled `dist/` directory to the hosting S3 bucket (`s3://togs-and-dogs-prod-toganddogs-hosting`) and perform a CloudFront invalidation for `E35L00QPA2IRCY`.
+* **Build Status**: Frontend compiled successfully via Vite.
+* **Target S3 Bucket**: `s3://togs-and-dogs-prod-toganddogs-hosting` (using AWS profile `usmissionhero-website-prod`).
+* **S3 Sync Status**: Successfully uploaded the modified CSS and JS index chunks and deleted the obsolete index bundle.
+* **CloudFront Invalidation**: Created invalidation **`IA8K63W2FQIV90U5FLOJ1U2SJJ`** for distribution `E35L00QPA2IRCY` to clear global cache.
+
+## Production Smoke Verification Results
+
+A browser subagent completed a comprehensive verification directly on the live production URL. All test targets passed:
+1. **Success Page Render**: Checked `https://toganddogs.usmissionhero.com/booking/test-request-14h/success`. Verified the support email is now correctly updated to `support@usmissionhero.com` and old placeholders or emails are completely removed.
+2. **Cancel Page Render**: Checked `https://toganddogs.usmissionhero.com/booking/test-request-14h/cancel`. Verified the support email is now correctly updated to `support@usmissionhero.com`.
+3. **No sensitive Stripe metadata exposed**: Verified.
+4. **Admin Dashboard remains fully functional**: Verified that the admin page loads successfully.
+5. **Validation Safety**: Verified that no payment links were generated, no emails were sent, and no checkout sessions/payments were processed during validation.
 
 ## Guardrails & Verification Confirmation
 
-* No AWS infrastructure modifications or Terraform apply operations occurred.
-* No Stripe Dashboard settings, API keys, or checkout sessions were modified or used.
-* No Postmark email transmissions, SMS messages, DynamoDB writes, Cognito updates, or mobile builds occurred.
+* No AWS credentials or manual IAM roles were modified.
+* No live Stripe keys were enabled, and `STRIPE_ENV = sandbox` remains fully enforced.
+* No live Cognito users, Postmark accounts, DynamoDB application table writes, EAS builds, or second tenants were modified or touched.
