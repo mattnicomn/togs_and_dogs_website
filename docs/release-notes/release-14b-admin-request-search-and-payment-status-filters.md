@@ -55,22 +55,41 @@ When filtered results return empty:
   dist/assets/usmh-logo-CrRnxp7-.png  2,583.40 kB
   dist/assets/index-Dhj_nyZO.css         59.93 kB │ gzip:  11.05 kB
   dist/assets/index-DdwsoXKE.js         892.40 kB │ gzip: 263.80 kB
-  ✓ built in 418ms
+  ✓ built in 325ms
   ```
 
-## Browser/Manual Smoke Test Deferral
+## Frontend Deployment Details
 
-Manual browser/smoke tests have been **deferred to post-deployment / manual smoke testing**.
-* **Reason**: Strict credential-safety guardrails prohibit the extraction, search, or transfer of Cognito credentials, passwords, session tokens, or browser cookies from the production portal (`toganddogs.usmissionhero.com`) to the localhost dev server (`localhost:5173`). Without active credentials or local mock tokens, the local portal remains at the login challenge.
-* **Testing Scope to Perform Manually Post-Deploy**:
-  1. Load the updated Admin Dashboard.
-  2. Verify existing sidebar filters (such as Pending Review) compose correctly with the search/filter controls.
-  3. Verify searching for `TestPet_ScenarioB` returns the paid request.
-  4. Verify searching for ID `c1b11afe-3cda-45c1-9ada-af91b14234ad` finds the paid request.
-  5. Select payment filters (Paid, Payment Link Sent, Unpaid / Not Set) and verify the list matches correctly.
-  6. Click "Reset Filters" / "clear filters" to ensure the main record view is restored.
-  7. Verify expanding rows and opening CareCards function normally.
+* **Deployment Method**: S3 sync deployment
+* **Target S3 Bucket**: `s3://togs-and-dogs-prod-toganddogs-hosting`
+* **AWS CLI Sync Results**: Successfully synced the 4 final assets to S3 and deleted the old asset bundles using AWS profile `usmissionhero-website-prod`.
+* **CloudFront Invalidation ID**: `I4IMEGUY1YB7KU5K3B1Y00S0U6` for distribution `E35L00QPA2IRCY`.
 
-## Deployment Recommendation
+## Production Smoke Test Validation Results
 
-Production deployment is recommended as the frontend code is fully integrated, compile-verified, and meets all release requirements. No backend modifications are required.
+A browser subagent completed a comprehensive verification directly on the live production URL `https://toganddogs.usmissionhero.com/admin` using the active authenticated admin portal session. All test targets passed:
+1. **Admin Dashboard Loads**: Verified page reload and initial list population with no errors.
+2. **List Controls Visibility**: Verified search input and payment status select dropdown are visible at the top of the request list.
+3. **Sidebar Filter Composition**: Switched to various sidebar filters (e.g. *Scheduled with Staff*, *All Active*) and verified that they continue to compose correctly.
+4. **Search Match Verification**:
+   * Searching by pet name `'TestPet_ScenarioB'` correctly returned the paid test request.
+   * Searching by request ID `'c1b11afe-3cda-45c1-9ada-af91b14234ad'` correctly returned the matching paid test request.
+5. **Payment Filter Mappings**:
+   * Filter **Paid** successfully showed paid requests (e.g., `TestPet_ScenarioB`).
+   * Filter **Payment Link Sent** successfully showed payment-link-sent requests (e.g., `TestPet_ScenarioA`).
+   * Filter **Unpaid / not set** successfully showed unpaid requests.
+6. **Empty State & Clear Filters**:
+   * Gibberish search text (`xyz123abc`) triggered the filter empty state with the message *"No requests match the current filters. Try adjusting your search query or payment status filter, or clear filters to see all requests."*
+   * Clicking the **clear filters** action successfully reset the search input and dropdown selection, restoring all records.
+7. **CareCard Row Expansion**: Clicking the row expand caret (`▶`) successfully opened and rendered the CareCard details inline.
+
+## Final Git Status
+
+The repository is clean and up to date with the remote tracking branch `origin/main`.
+
+## Guardrails & Verification Confirmation
+
+* No backend code, schemas, or API changes were made.
+* No Terraform resource plans, configurations, or applies occurred.
+* No Stripe Dashboard settings, API keys, or checkout sessions were modified or used.
+* No Postmark email transmissions, SMS messages, DynamoDB writes, Cognito user pools/identities, mobile app/EAS packages, or second tenant configurations were changed.
