@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 15B: Mobile Readiness Audit**](release-15b-mobile-readiness-audit.md) (2026-06-19) — ✅ **Completed**
 - [**Release 11F: Tenant Enforcement Production Deployment & Smoke Validation**](release-11f-tenant-enforcement-production-deployment-and-smoke-validation.md) (2026-06-14) — ✅ **Deployed & Production Validated**
 - [**Release 11E: Tenant Enforcement Hardening Implementation**](release-11e-tenant-enforcement-hardening-implementation.md) (2026-06-14) — ✅ **All Backend Changes Implemented & 340/340 Tests Green**
 - [**Release 7T: Matthew Production Monitoring Checklist**](release-7t-validation-closeout.md) (2026-05-29) — ✅ **Accepted & Closed** — Docs only
