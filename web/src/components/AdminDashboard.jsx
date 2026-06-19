@@ -74,6 +74,8 @@ const AdminDashboard = () => {
   const [view, setView] = useState('SCHEDULER'); // SCHEDULER or LIST
   const [statusFilter, setStatusFilter] = useState('PENDING_REVIEW');
   const [timeframeFilter, setTimeframeFilter] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('ALL');
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [selectedPet, setSelectedPet] = useState(null);
   const [assigningId, setAssigningId] = useState(null); 
@@ -861,6 +863,88 @@ const AdminDashboard = () => {
     return state;
   };
 
+  const matchesSearch = (item, query) => {
+    if (!query) return true;
+    const q = query.toLowerCase().trim();
+    if (!q) return true;
+
+    const clientName = (item.client_name || '').toLowerCase();
+    const petNames = (item.pet_names || item.pet_name || '').toLowerCase();
+    const clientEmail = (item.client_email || '').toLowerCase();
+    const requestId = (item.request_id || item.PK?.replace('REQ#', '') || '').toLowerCase();
+    const serviceType = (item.service_type || '').toLowerCase();
+    const status = (item.status || '').toLowerCase();
+    const paymentStatus = (item.payment_status || 'unpaid').toLowerCase();
+
+    const serviceLabel = getServiceLabel(item.service_type).toLowerCase();
+    const statusLabel = getStatusLabel(item.status, item).toLowerCase();
+
+    return (
+      clientName.includes(q) ||
+      petNames.includes(q) ||
+      clientEmail.includes(q) ||
+      requestId.includes(q) ||
+      serviceType.includes(q) ||
+      serviceLabel.includes(q) ||
+      status.includes(q) ||
+      statusLabel.includes(q) ||
+      paymentStatus.includes(q)
+    );
+  };
+
+  const matchesPaymentStatus = (item, filter) => {
+    if (filter === 'ALL') return true;
+    const paymentStatus = (item.payment_status || 'unpaid').toLowerCase();
+    if (filter === 'UNPAID') {
+      return paymentStatus === 'unpaid' || !item.payment_status;
+    }
+    return paymentStatus === filter.toLowerCase();
+  };
+
+  const renderPaymentStatusChip = (item) => {
+    const status = (item.payment_status || 'unpaid').toLowerCase();
+    const config = {
+      paid: {
+        label: 'Paid',
+        style: { backgroundColor: '#ecfdf5', color: '#065f46', borderColor: '#a7f3d0' }
+      },
+      payment_link_sent: {
+        label: 'Payment Link Sent',
+        style: { backgroundColor: '#eff6ff', color: '#1e40af', borderColor: '#bfdbfe' }
+      },
+      waived: {
+        label: 'Waived',
+        style: { backgroundColor: '#fffbeb', color: '#b45309', borderColor: '#fde68a' }
+      },
+      refunded: {
+        label: 'Refunded',
+        style: { backgroundColor: '#faf5ff', color: '#6b21a8', borderColor: '#e9d5ff' }
+      },
+      unpaid: {
+        label: 'Unpaid',
+        style: { backgroundColor: '#f3f4f6', color: '#374151', borderColor: '#e5e7eb' }
+      }
+    };
+    const current = config[status] || config.unpaid;
+    return (
+      <span 
+        className="status-chip" 
+        style={{ 
+          minWidth: 'auto', 
+          padding: '4px 10px', 
+          fontSize: '0.65rem',
+          border: '1px solid',
+          borderRadius: '4px',
+          fontWeight: 'bold',
+          textTransform: 'uppercase',
+          ...current.style
+        }}
+      >
+        {current.label}
+      </span>
+    );
+  };
+
   /**
    * Memoized Derived State
    * visibleRecords and filterCounts are always in sync with allRequests pool.
@@ -872,8 +956,20 @@ const AdminDashboard = () => {
         return allRequests.filter(r => !terminalStatuses.includes((r.status || '').toUpperCase()));
     }
     // Filter by the current status filter
-    return allRequests.filter(getFilterPredicate(statusFilter));
-  }, [allRequests, statusFilter, view]);
+    let filtered = allRequests.filter(getFilterPredicate(statusFilter));
+
+    // Apply search query
+    if (searchQuery) {
+      filtered = filtered.filter(r => matchesSearch(r, searchQuery));
+    }
+
+    // Apply payment status filter
+    if (paymentStatusFilter && paymentStatusFilter !== 'ALL') {
+      filtered = filtered.filter(r => matchesPaymentStatus(r, paymentStatusFilter));
+    }
+
+    return filtered;
+  }, [allRequests, statusFilter, view, searchQuery, paymentStatusFilter]);
 
   const filterCounts = React.useMemo(() => {
     try {
@@ -3865,6 +3961,74 @@ const AdminDashboard = () => {
                 })()}</h2>
                 <span className="micro-text">Showing records requiring action in the {statusFilter.replace(/_/g, ' ')} phase</span>
               </div>
+              <div className="list-controls-bar" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', padding: '16px 24px', borderBottom: '1px solid var(--border)', alignItems: 'center', backgroundColor: 'var(--bg-card-header, rgba(255, 255, 255, 0.02))' }}>
+                <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="Search client, pet, email, ID..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px 10px 36px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--bg-input, rgba(255, 255, 255, 0.05))',
+                      color: 'var(--text-main)',
+                      fontSize: '0.9rem'
+                    }}
+                  />
+                  <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>🔍</span>
+                  {searchQuery && (
+                    <button 
+                      onClick={() => setSearchQuery('')}
+                      style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '1rem',
+                        color: 'var(--text-muted)',
+                        padding: '4px'
+                      }}
+                      title="Clear search"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>Payment Status:</label>
+                  <select
+                    value={paymentStatusFilter}
+                    onChange={(e) => setPaymentStatusFilter(e.target.value)}
+                    className="staff-select"
+                    style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)', minWidth: '180px' }}
+                  >
+                    <option value="ALL">All Payment Statuses</option>
+                    <option value="UNPAID">Unpaid / Not Set</option>
+                    <option value="PAYMENT_LINK_SENT">Payment Link Sent</option>
+                    <option value="PAID">Paid</option>
+                    <option value="WAIVED">Waived</option>
+                    <option value="REFUNDED">Refunded</option>
+                  </select>
+                </div>
+                {((searchQuery !== '') || (paymentStatusFilter !== 'ALL')) && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setPaymentStatusFilter('ALL');
+                    }}
+                    className="button-secondary btn-small"
+                    style={{ height: '38px', borderRadius: '8px' }}
+                  >
+                    Reset Filters
+                  </button>
+                )}
+              </div>
               {selectedIds.length > 0 && (
                 <div className="bulk-toolbar">
                   <div className="bulk-info">
@@ -4093,11 +4257,7 @@ const AdminDashboard = () => {
                                 <span className={`${state.statusClass} ${state.isInvalid ? 'status-chip--urgent' : ''}`}>
                                   {state.isInvalid ? "Needs Assignment" : getStatusLabel(item.status)}
                                 </span>
-                                {item.payment_status === 'paid' && (
-                                  <span className="status-chip status-chip--ready" style={{ minWidth: 'auto', padding: '4px 10px', fontSize: '0.65rem' }}>
-                                    Paid
-                                  </span>
-                                )}
+                                {renderPaymentStatusChip(item)}
                                 {item.status === 'COMPLETED' && item.visit_notes && (
                                   <span title="Completion Notes Available" style={{ fontSize: '1rem', cursor: 'help' }}>📝</span>
                                 )}
@@ -4290,14 +4450,30 @@ const AdminDashboard = () => {
                   {visibleRecords.length === 0 && !loading && (
                     <tr>
                       <td colSpan={6} style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--text-muted)' }}>
-                        <p style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>No records in this view</p>
+                        <p style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>
+                          {(searchQuery || paymentStatusFilter !== 'ALL') 
+                            ? 'No requests match the current filters.' 
+                            : 'No records in this view'}
+                        </p>
                         <p style={{ fontSize: '0.85rem', marginTop: '8px', margin: '8px 0 0' }}>
-                          {statusFilter === 'DATA_ISSUES' ? 'No data integrity issues found. ✓' :
-                           statusFilter === 'DELETED' || statusFilter === 'TRASH' ? 'Trash is empty.' :
-                           statusFilter === 'COMPLETED' ? 'No completed visits yet.' :
-                           statusFilter === 'CANCELLED' ? 'No cancelled records.' :
-                           statusFilter === 'ARCHIVED' ? 'No archived records.' :
-                           'No records match the current filter.'}
+                          {(searchQuery || paymentStatusFilter !== 'ALL') ? (
+                            <>
+                              Try adjusting your search query or payment status filter, or{' '}
+                              <button 
+                                onClick={() => { setSearchQuery(''); setPaymentStatusFilter('ALL'); }}
+                                style={{ background: 'none', border: 'none', color: 'var(--accent-color, #2563eb)', textDecoration: 'underline', cursor: 'pointer', padding: 0, font: 'inherit' }}
+                              >
+                                clear filters
+                              </button> to see all requests.
+                            </>
+                          ) : (
+                            statusFilter === 'DATA_ISSUES' ? 'No data integrity issues found. ✓' :
+                            statusFilter === 'DELETED' || statusFilter === 'TRASH' ? 'Trash is empty.' :
+                            statusFilter === 'COMPLETED' ? 'No completed visits yet.' :
+                            statusFilter === 'CANCELLED' ? 'No cancelled records.' :
+                            statusFilter === 'ARCHIVED' ? 'No archived records.' :
+                            'No records match the current filter.'
+                          )}
                         </p>
                       </td>
                     </tr>
