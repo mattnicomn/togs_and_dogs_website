@@ -62,8 +62,10 @@ The platform has strong single-tenant foundations but requires significant work 
 ## Resume Criteria for Multi-Tenant Work
 
 Start multi-tenant implementation (17-series) only when:
-1. ✅ EIN resolved + live payments working
-2. ✅ Ryan validates staff workflow externally
-3. ✅ Payment terms published
-4. ✅ Matthew approves second-tenant timeline
-5. ✅ Entitlement enforcement designed (17A planning)
+1. ✅ Matthew approves starting entitlement enforcement (can proceed without EIN)
+2. ⏳ EIN resolved + live payments working (for billing portal integration only)
+3. ⏳ Ryan invitation deferred until 19A re-evaluation gate
+4. ⏳ Payment terms published
+5. ✅ Matthew approves second-tenant timeline
+
+**Updated 2026-06-19 (16B):** Roadmap reprioritized. Entitlement enforcement and tenant provisioning proceed independently of EIN. Ryan remains paused until gates G1–G6 are met. See `release-16b-saas-maturity-roadmap-reprioritization-and-capability-placement-strategy.md` for full revised roadmap.
