@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 15H: Matthew Multi-Role Internal TestFlight Smoke Validation**](release-15h-matthew-multi-role-internal-testflight-smoke-validation-closeout.md) (2026-06-19) — ✅ **All Roles Passed** — Admin, Staff, Client validated
 - [**Release 15E: Internal TestFlight Smoke Validation**](release-15e-internal-testflight-smoke-validation-closeout.md) (2026-06-19) — ✅ **Passed** — Build 1.0.0 (4), Matthew admin/staff smoke
 - [**Release 15D: Fresh Internal TestFlight Build**](release-15d-fresh-internal-testflight-build.md) (2026-06-19) — ✅ **Build & Submission Completed**
 - [**Release 15C: Mobile Read-Only Payment Status Indicator**](release-15c-mobile-read-only-payment-status-indicator.md) (2026-06-19) — ✅ **Completed**
