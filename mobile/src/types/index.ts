@@ -19,6 +19,7 @@ export interface PetRequest {
   job_id?: string;
   job_ids?: string[];
   completed_job_ids?: string[];
+  payment_status?: string;
 }
 
 export interface Staff {

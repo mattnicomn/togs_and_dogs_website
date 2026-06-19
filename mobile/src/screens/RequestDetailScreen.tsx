@@ -202,6 +202,46 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
     return `${dates[0]} to ${dates[dates.length - 1]} (${dates.length} days)`;
   };
 
+  const renderPaymentStatusBadge = (status: string | undefined) => {
+    const s = (status || '').trim().toLowerCase();
+    let label = 'Unpaid / Not Set';
+    let color = '#374151'; // Dark gray
+    let bgColor = '#f9fafb';
+    let borderColor = '#f3f4f6';
+
+    if (s === 'paid') {
+      label = 'Paid';
+      color = '#065f46'; // Emerald text
+      bgColor = '#ecfdf5'; // Emerald bg
+      borderColor = '#a7f3d0';
+    } else if (s === 'payment_link_sent') {
+      label = 'Link Sent — payment pending';
+      color = '#b45309'; // Amber text
+      bgColor = '#fffbeb'; // Amber bg
+      borderColor = '#fde68a';
+    } else if (s === 'waived') {
+      label = 'Waived';
+      color = '#4b5563'; // Gray text
+      bgColor = '#f3f4f6'; // Gray bg
+      borderColor = '#e5e7eb';
+    } else if (s === 'refunded') {
+      label = 'Refunded';
+      color = '#dc2626'; // Red text
+      bgColor = '#fef2f2'; // Red bg
+      borderColor = '#fecaca';
+    }
+
+    const info = role === 'staff' ? ' (Informational only)' : '';
+
+    return (
+      <View style={[styles.paymentBadge, { backgroundColor: bgColor, borderColor: borderColor }]}>
+        <Text style={[styles.paymentBadgeText, { color: color }]}>
+          {label}{info}
+        </Text>
+      </View>
+    );
+  };
+
   // Resolve emergency contact
   const emergencyContact = request.emergency_contact_info || request.emergency_contact;
   const hasEmergencyContact = emergencyContact && (emergencyContact.name || emergencyContact.phone);
@@ -291,6 +331,11 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
                 </Text>
               </View>
             )}
+
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Payment Status</Text>
+              {renderPaymentStatusBadge(request.payment_status)}
+            </View>
           </View>
 
           {/* Client Contact Info */}
@@ -860,5 +905,18 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#1e3a8a',
     marginTop: 4,
+  },
+  paymentBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paymentBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
 });

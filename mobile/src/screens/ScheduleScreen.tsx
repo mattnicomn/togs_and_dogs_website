@@ -30,6 +30,7 @@ interface ExpandedVisit {
   worker_name?: string;
   assigned_sitter?: string;
   job_id?: string;
+  payment_status?: string;
 }
 
 export const ScheduleScreen = () => {
@@ -58,6 +59,24 @@ export const ScheduleScreen = () => {
       day: 'numeric',
       year: 'numeric',
     });
+  };
+
+  const getPaymentLabel = (status: string | undefined) => {
+    const s = (status || '').trim().toLowerCase();
+    if (s === 'paid') return 'Paid';
+    if (s === 'payment_link_sent') return 'Link Sent — pending';
+    if (s === 'waived') return 'Waived';
+    if (s === 'refunded') return 'Refunded';
+    return 'Unpaid / Not Set';
+  };
+
+  const getPaymentColor = (status: string | undefined) => {
+    const s = (status || '').trim().toLowerCase();
+    if (s === 'paid') return '#065f46'; // Emerald
+    if (s === 'payment_link_sent') return '#b45309'; // Amber
+    if (s === 'waived') return '#4b5563'; // Gray
+    if (s === 'refunded') return '#dc2626'; // Red
+    return '#374151'; // Dark gray
   };
 
   const fetchSchedule = useCallback(async (showRefreshingIndicator = false) => {
@@ -108,6 +127,7 @@ export const ScheduleScreen = () => {
                   worker_name: req.worker_name,
                   assigned_sitter: req.assigned_sitter,
                   job_id: job_id,
+                  payment_status: req.payment_status,
                 });
               }
             }
@@ -250,6 +270,12 @@ export const ScheduleScreen = () => {
               <Text style={styles.detailLabel}>Staff:</Text>
               <Text style={styles.detailValue}>
                 👤 {item.worker_name || item.assigned_sitter || 'Unassigned'}
+              </Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Payment:</Text>
+              <Text style={[styles.detailValue, { color: getPaymentColor(item.payment_status), fontWeight: '700' }]}>
+                {getPaymentLabel(item.payment_status)}
               </Text>
             </View>
           </View>
