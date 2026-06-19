@@ -56,17 +56,46 @@ The dashboard now exposes the email send history fields (if present on the reque
   dist/assets/usmh-logo-CrRnxp7-.png  2,583.40 kB
   dist/assets/index-Dhj_nyZO.css         59.93 kB │ gzip:  11.05 kB
   dist/assets/index-CJ_i6wEy.js         897.27 kB │ gzip: 264.66 kB
-  ✓ built in 336ms
+  ✓ built in 363ms
   ```
 
-## Browser/Manual Smoke Test Deferral
+## Frontend Deployment Details
 
-* **Reason**: Strict credential-safety guidelines prevent the extraction or replication of Cognito session cookies or user login tokens from the production portal to the localhost server.
-* **Scope for Post-Deploy Manual Validation**:
-  1. Open a request in **Unpaid** status. Verify the input field validation works, the Generate button is disabled dynamically for invalid amounts, and the unpaid safe message and helper text are displayed.
-  2. Open a request in **Payment Link Sent** status. Verify the active link details, copy link action, and Send Payment Email helper text are rendered. Verify the send cooldown disabling triggers correctly when the email is sent.
-  3. Open a **Paid** or **Waived/Refunded** request and verify that action buttons are hidden, showing only the safe read-only message and detailed disabled reason labels.
+* **Deployment Method**: S3 sync deployment
+* **Target S3 Bucket**: `s3://togs-and-dogs-prod-toganddogs-hosting`
+* **AWS CLI Sync Results**: Successfully synced the 4 final assets to S3 and deleted the old asset bundles using AWS profile `usmissionhero-website-prod`.
+* **CloudFront Invalidation ID**: `IBB99RNHM36UH2PQ8JW14ZYAXA` for distribution `E35L00QPA2IRCY`.
 
-## Deployment Recommendation
+## Production Smoke Test Validation Results
 
-Production deployment is recommended as the code is fully implemented, compile-verified, and meets all Release 14C specifications. No backend modifications are required.
+A browser subagent completed a comprehensive verification directly on the live production URL `https://toganddogs.usmissionhero.com/admin` using the active authenticated admin portal session. All test targets passed successfully:
+1. **Admin Dashboard Loads**: Verified page reload and initial list load on the live site.
+2. **Search/Filter composition**: Search input and payment filter from Release 14B function correctly.
+3. **Paid Request (`TestPet_ScenarioB`) CareCard**:
+   * Opens CareCard normally.
+   * Renders the Stripe Payment Status as a green, read-only **Paid** chip.
+   * Displays the completed payment text: `✓ Payment completed via Stripe sandbox. No actions required.`.
+   * Both **Generate Payment Link** and **Send Payment Email** actions are shown as disabled with explicit reason labels: `Disabled (Request is already paid)`.
+4. **Payment Link Sent Request (`TestPet_ScenarioA`) CareCard**:
+   * Renders the Stripe Payment Status as a blue **Payment Link Sent** chip.
+   * Displays the active payment link and the **Copy Link** action.
+   * Displays the new **Send Payment Email** helper text.
+   * Correctly exposes the email send history: recipient email `brearockwell@gmail.com` and last sent details.
+   * Shows **Generate Payment Link** as disabled: `Disabled (A payment link already exists...)`.
+5. **Unpaid Request (`TestPet_ScenarioD`) CareCard**:
+   * Renders the Stripe Payment Status as a grey **Unpaid / Not Set** chip with the safe message `❌ No payment has been completed for this request yet.`.
+   * Displays the new **Generate Payment Link** helper text.
+   * Renders disabled reasons next to the Generate button if validation fields are invalid (e.g. quote amount is `$0.00`).
+   * Displays `🚫 Send Payment Email: Disabled (No active payment link exists...)` underneath.
+   * Verified that no payment links were generated and no emails were sent during smoke testing.
+
+## Final Git Status
+
+The repository is clean and up to date with the remote tracking branch `origin/main`.
+
+## Guardrails & Verification Confirmation
+
+* No backend code, schemas, or API changes were made.
+* No Terraform resource plans, configurations, or applies occurred.
+* No Stripe Dashboard settings, API keys, or checkout sessions were modified or used.
+* No Postmark email transmissions, SMS messages, DynamoDB writes, Cognito user pools/identities, mobile app/EAS packages, or second tenant configurations were changed.
