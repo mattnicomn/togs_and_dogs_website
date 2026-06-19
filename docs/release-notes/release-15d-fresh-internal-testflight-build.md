@@ -1,6 +1,6 @@
 # Release 15D: Fresh Internal TestFlight Build
 
-**Status:** Triggered & Scheduled (Building on EAS)  
+**Status:** Completed (Build uploaded and submitted to TestFlight)  
 **Type:** EAS Build & TestFlight Distribution  
 **Date:** 2026-06-19  
 **Baseline Commit:** `efc06f4cd4a4828ec25dddea8c6a67f6fa301b91` (Release 15C implementation commit)  

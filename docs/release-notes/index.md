@@ -3,7 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
-- [**Release 15D: Fresh Internal TestFlight Build**](release-15d-fresh-internal-testflight-build.md) (2026-06-19) — 🔄 **Build & Submission Triggered**
+- [**Release 15D: Fresh Internal TestFlight Build**](release-15d-fresh-internal-testflight-build.md) (2026-06-19) — ✅ **Build & Submission Completed**
 - [**Release 15C: Mobile Read-Only Payment Status Indicator**](release-15c-mobile-read-only-payment-status-indicator.md) (2026-06-19) — ✅ **Completed**
 - [**Release 15B: Mobile Readiness Audit**](release-15b-mobile-readiness-audit.md) (2026-06-19) — ✅ **Completed**
 - [**Release 11F: Tenant Enforcement Production Deployment & Smoke Validation**](release-11f-tenant-enforcement-production-deployment-and-smoke-validation.md) (2026-06-14) — ✅ **Deployed & Production Validated**
