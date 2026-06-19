@@ -425,7 +425,7 @@ def notify_event(event_type, record=None, previous_record=None, **kwargs):
                 "amount_display": f"${record.get('payment_amount_cents', 0) / 100:.2f}" if record.get('payment_amount_cents') is not None else '$0.00',
                 "business_name": "Tog & Dogs",
                 "business_email": config.REPLY_TO,
-                "expiry_note": "Please note that Stripe payment links expire in 24 hours.",
+                "expiry_note": "For security, Stripe Checkout links may expire after a short period once opened. If the link no longer works, contact us and we can send a new one.",
                 "sandbox": (os.environ.get("STRIPE_ENV") or os.environ.get("STRIPE_ENVIRONMENT") or "sandbox").lower() == 'sandbox'
             }
 

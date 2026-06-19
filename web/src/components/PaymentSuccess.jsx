@@ -36,15 +36,9 @@ function PaymentSuccess() {
             fontSize: '0.9rem',
             border: '1px solid var(--border-soft)'
           }}>
-            <div style={{ marginBottom: '8px' }}>
-              <strong style={{ color: 'var(--text-primary)' }}>Request ID:</strong>
-              <code style={{ marginLeft: '8px', fontSize: '0.95rem', wordBreak: 'break-all', color: 'var(--primary)' }}>
-                {requestId}
-              </code>
-            </div>
-            <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <strong style={{ color: 'var(--text-primary)' }}>Status:</strong>
-              <span className="badge" style={{ marginLeft: '8px', textTransform: 'none', padding: '2px 10px', fontSize: '0.8rem', backgroundColor: 'rgba(74, 124, 89, 0.1)', color: 'var(--success-color)' }}>
+              <span className="badge" style={{ textTransform: 'none', padding: '2px 10px', fontSize: '0.8rem', backgroundColor: 'rgba(74, 124, 89, 0.1)', color: 'var(--success-color)' }}>
                 Paid
               </span>
             </div>
@@ -52,12 +46,18 @@ function PaymentSuccess() {
           <div style={{ textAlign: 'left', width: '100%' }}>
             <h4 style={{ marginBottom: '8px', fontFamily: 'var(--sans)', fontSize: '1rem', fontWeight: 'bold' }}>Next Steps:</h4>
             <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--text-secondary)', fontSize: '0.95rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <li>Our team is preparing for your pet's visits.</li>
-              <li>Your booking details are now being finalized with our staff.</li>
-              <li>You will receive an email confirmation once scheduling is complete.</li>
+              <li>A confirmation receipt from Stripe has been sent to your email.</li>
+              <li>Our team is preparing for your pet's visits, and you will receive scheduling and visit updates as they are finalized.</li>
+              <li>Please note that payment confirms your booking request; visits and staff assignments are officially scheduled once confirmed by our administration.</li>
             </ul>
+            <p style={{ marginTop: '16px', fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '16px 0 0 0' }}>
+              Questions? Reach out to us at <span style={{ fontWeight: '500', color: 'var(--primary)' }}>[billing/support email to be confirmed]</span>.
+            </p>
           </div>
-          <div style={{ display: 'flex', gap: '16px', width: '100%', marginTop: '16px' }}>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', width: '100%', textAlign: 'center' }}>
+            Request Reference: {requestId}
+          </div>
+          <div style={{ display: 'flex', gap: '16px', width: '100%', marginTop: '8px' }}>
             <Link to="/my-bookings" className="button-primary" style={{ flex: 1, padding: '14px' }}>
               Go to My Bookings
             </Link>

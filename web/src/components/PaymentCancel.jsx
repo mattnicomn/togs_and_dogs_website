@@ -24,9 +24,9 @@ function PaymentCancel() {
           }}>
             ×
           </div>
-          <h2>Payment Cancelled</h2>
+          <h2>Payment Not Completed</h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', margin: 0 }}>
-            The payment process was not completed. No charges were made.
+            No charges were made. Your booking request remains active.
           </p>
           <div style={{
             backgroundColor: 'var(--bg-muted)',
@@ -38,26 +38,28 @@ function PaymentCancel() {
             fontSize: '0.9rem',
             border: '1px solid var(--border-soft)'
           }}>
-            <div style={{ marginBottom: '8px' }}>
-              <strong style={{ color: 'var(--text-primary)' }}>Request ID:</strong>
-              <code style={{ marginLeft: '8px', fontSize: '0.95rem', wordBreak: 'break-all', color: 'var(--text-muted)' }}>
-                {requestId}
-              </code>
-            </div>
-            <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <strong style={{ color: 'var(--text-primary)' }}>Status:</strong>
-              <span className="badge" style={{ marginLeft: '8px', textTransform: 'none', padding: '2px 10px', fontSize: '0.8rem', backgroundColor: 'rgba(214, 73, 51, 0.1)', color: 'var(--warning-color)' }}>
+              <span className="badge" style={{ textTransform: 'none', padding: '2px 10px', fontSize: '0.8rem', backgroundColor: 'rgba(214, 73, 51, 0.1)', color: 'var(--warning-color)' }}>
                 Unpaid
               </span>
             </div>
           </div>
           <div style={{ textAlign: 'left', width: '100%' }}>
-            <h4 style={{ marginBottom: '8px', fontFamily: 'var(--sans)', fontSize: '1rem', fontWeight: 'bold' }}>Need Help?</h4>
-            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-              If you experienced an issue with payment, you can try again from the My Bookings portal or contact us directly at <a href="mailto:support@toganddogs.com" style={{ color: 'var(--primary)', fontWeight: '600' }}>support@toganddogs.com</a> for assistance.
+            <h4 style={{ marginBottom: '8px', fontFamily: 'var(--sans)', fontSize: '1rem', fontWeight: 'bold' }}>Next Steps:</h4>
+            <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--text-secondary)', fontSize: '0.95rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <li>Your booking request is still active and is being held.</li>
+              <li>Please use the secure payment link sent to your email to complete the payment.</li>
+              <li>If the payment link has expired or you need a new one sent, please contact support.</li>
+            </ul>
+            <p style={{ marginTop: '16px', fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '16px 0 0 0' }}>
+              Need help? Reach out to us at <span style={{ fontWeight: '500', color: 'var(--primary)' }}>[billing/support email to be confirmed]</span>.
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '16px', width: '100%', marginTop: '16px' }}>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', width: '100%', textAlign: 'center' }}>
+            Request Reference: {requestId}
+          </div>
+          <div style={{ display: 'flex', gap: '16px', width: '100%', marginTop: '8px' }}>
             <Link to="/my-bookings" className="button-secondary" style={{ flex: 1, padding: '12px' }}>
               Return to My Bookings
             </Link>

@@ -964,7 +964,7 @@ class NotificationTemplates:
         payment_url = ctx.get('payment_url', '#')
         business_name = ctx.get('business_name', 'Tog & Dogs')
         business_email = ctx.get('business_email', 'support@toganddogs.com')
-        expiry_note = ctx.get('expiry_note', 'Please note that Stripe payment links expire in 24 hours.')
+        expiry_note = ctx.get('expiry_note', 'For security, Stripe Checkout links may expire after a short period once opened. If the link no longer works, contact us and we can send a new one.')
         is_sandbox = ctx.get('sandbox', False)
 
         sandbox_banner_text = ""
@@ -988,6 +988,7 @@ class NotificationTemplates:
             f"- Amount Due: {amount_display}\n\n"
             f"To complete your payment, please use the following secure link:\n"
             f"{payment_url}\n\n"
+            f"After payment, you'll see a confirmation page and receive a receipt from Stripe.\n\n"
             f"{expiry_note}\n\n"
             f"If you have any questions or need support, contact us at {business_email}.\n\n"
             f"Thank you for choosing {business_name}!\n\n"
@@ -1033,6 +1034,9 @@ class NotificationTemplates:
 
                 <div style="text-align: center; margin: 35px 0;">
                     <a href="{payment_url}" style="background-color: #2980b9; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">Pay Securely Now</a>
+                    <p style="font-size: 14px; color: #555; margin-top: 15px; margin-bottom: 0;">
+                        After payment, you'll see a confirmation page and receive a receipt from Stripe.
+                    </p>
                 </div>
 
                 <p style="font-size: 13px; color: #7f8c8d; text-align: center; margin-top: 20px;">
