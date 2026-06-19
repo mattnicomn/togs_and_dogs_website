@@ -53,7 +53,7 @@ function PaymentCancel() {
               <li>If the payment link has expired or you need a new one sent, please contact support.</li>
             </ul>
             <p style={{ marginTop: '16px', fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '16px 0 0 0' }}>
-              Need help? Reach out to us at <span style={{ fontWeight: '500', color: 'var(--primary)' }}>[billing/support email to be confirmed]</span>.
+              Need help? Reach out to us at <a href="mailto:support@usmissionhero.com" style={{ color: 'var(--primary)', fontWeight: '600', textDecoration: 'none' }}>support@usmissionhero.com</a>.
             </p>
           </div>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', width: '100%', textAlign: 'center' }}>

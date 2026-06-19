@@ -47,7 +47,7 @@ If your payment does not go through:
 
 ### How to Request a Refund
 
-Contact us at `[PENDING MATTHEW: billing/support email to be confirmed]` with:
+Contact us at support@usmissionhero.com with:
 - Your name
 - Booking date(s)
 - Reason for refund request
@@ -88,7 +88,7 @@ If staff arrives for a scheduled visit and cannot access the home or pet due to 
 ### How to Cancel
 
 Contact us as soon as possible:
-- Email: `[PENDING MATTHEW: billing/support email]`
+- Email: support@usmissionhero.com
 - Through the client portal (cancellation request feature)
 - Phone/text if provided by your service provider
 
@@ -111,7 +111,7 @@ For bookings spanning multiple days:
 
 For billing, payment, refund, or cancellation questions:
 
-- **Email:** `[PENDING MATTHEW: billing/support email to be confirmed — recommend a monitored business inbox before live payment rollout]`
+- **Email:** support@usmissionhero.com
 - **Hours:** Monday–Friday, 9 AM – 5 PM Eastern
 - **Response time:** We aim to respond within 1 business day
 
@@ -152,7 +152,7 @@ For urgent scheduling changes, contact your assigned staff member directly if th
 | 8 | Client no-show/no-access | Fee may apply (visit charge equivalent) | ___ | ___ |
 | 9 | Provider no-show | Full refund or priority reschedule | ___ | ___ |
 | 10 | Cash/check accepted? | No — card only during initial rollout | ___ | ___ |
-| 11 | Support email address | [To be confirmed by Matthew] | ___ | ___ |
+| 11 | Support email address | support@usmissionhero.com | ___ | ___ |
 | 12 | Business hours | Mon–Fri, 9 AM – 5 PM Eastern | ___ | ___ |
 | 13 | Response time | 1 business day | ___ | ___ |
 | 14 | Attorney/accountant review | Required before first real client payment | ___ | ___ |

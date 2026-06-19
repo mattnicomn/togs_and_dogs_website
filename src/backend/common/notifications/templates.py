@@ -963,7 +963,7 @@ class NotificationTemplates:
         amount_display = ctx.get('amount_display', '$0.00')
         payment_url = ctx.get('payment_url', '#')
         business_name = ctx.get('business_name', 'Tog & Dogs')
-        business_email = ctx.get('business_email', 'support@toganddogs.com')
+        business_email = ctx.get('business_email', 'support@usmissionhero.com')
         expiry_note = ctx.get('expiry_note', 'For security, Stripe Checkout links may expire after a short period once opened. If the link no longer works, contact us and we can send a new one.')
         is_sandbox = ctx.get('sandbox', False)
 

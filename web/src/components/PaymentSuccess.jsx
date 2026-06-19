@@ -51,7 +51,7 @@ function PaymentSuccess() {
               <li>Please note that payment confirms your booking request; visits and staff assignments are officially scheduled once confirmed by our administration.</li>
             </ul>
             <p style={{ marginTop: '16px', fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '16px 0 0 0' }}>
-              Questions? Reach out to us at <span style={{ fontWeight: '500', color: 'var(--primary)' }}>[billing/support email to be confirmed]</span>.
+              Questions? Reach out to us at <a href="mailto:support@usmissionhero.com" style={{ color: 'var(--primary)', fontWeight: '600', textDecoration: 'none' }}>support@usmissionhero.com</a>.
             </p>
           </div>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', width: '100%', textAlign: 'center' }}>
