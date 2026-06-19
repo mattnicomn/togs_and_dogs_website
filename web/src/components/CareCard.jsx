@@ -185,7 +185,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
       case 'paid':
         return { label: 'Paid', className: 'status-chip--ready', style: { backgroundColor: '#10b981', color: '#fff' } };
       case 'payment_link_sent':
-        return { label: 'Link Sent', className: 'status-chip--primary', style: { backgroundColor: '#3b82f6', color: '#fff' } };
+        return { label: 'Payment Link Sent', className: 'status-chip--primary', style: { backgroundColor: '#3b82f6', color: '#fff' } };
       case 'payment_failed':
         return { label: 'Payment Failed', className: 'status-chip--urgent', style: { backgroundColor: '#ef4444', color: '#fff' } };
       case 'expired':
@@ -866,18 +866,24 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'top', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
                     <div>
                       <label className="micro-text">Stripe Payment Status</label>
-                      <div style={{ marginTop: '6px' }}>
+                      <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         {(() => {
                           const statusDetails = getPaymentStatusBadge(pet._originItem?.payment_status);
                           return (
-                            <span className={`status-chip ${statusDetails.className}`} style={{ ...statusDetails.style, padding: '4px 12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: '700' }}>
+                            <span className={`status-chip ${statusDetails.className}`} style={{ ...statusDetails.style, padding: '4px 12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: '700', width: 'fit-content' }}>
                               {statusDetails.label}
                             </span>
                           );
                         })()}
+                        {pet._originItem?.payment_email_send_count > 0 && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                            ✉️ Sent {pet._originItem.payment_email_send_count} time(s)
+                            {pet._originItem.payment_email_sent_at && ` (Last: ${new Date(pet._originItem.payment_email_sent_at).toLocaleDateString()})`}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -913,16 +919,28 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                     
                     if (status === 'paid') {
                       return (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontWeight: '600', fontSize: '0.95rem' }}>
-                          <span>✓</span> Payment completed via Stripe sandbox. No actions required.
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontWeight: '600', fontSize: '0.95rem' }}>
+                            <span>✓</span> Payment completed via Stripe sandbox. No actions required.
+                          </div>
+                          <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                            <div>🚫 <strong>Generate Payment Link:</strong> Disabled (Request is already paid)</div>
+                            <div>🚫 <strong>Send Payment Email:</strong> Disabled (Request is already paid)</div>
+                          </div>
                         </div>
                       );
                     }
 
                     if (status === 'refunded' || status === 'waived') {
                       return (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6b7280', fontWeight: '600', fontSize: '0.95rem' }}>
-                          <span>ℹ️</span> Payment status is read-only ({status}). New links cannot be generated.
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6b7280', fontWeight: '600', fontSize: '0.95rem' }}>
+                            <span>🛡️</span> Safe Mode: This request has been marked as {status}. No further payments or charge links can be created or processed.
+                          </div>
+                          <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                            <div>🚫 <strong>Generate Payment Link:</strong> Disabled (Request is {status})</div>
+                            <div>🚫 <strong>Send Payment Email:</strong> Disabled (Request is {status})</div>
+                          </div>
                         </div>
                       );
                     }
@@ -931,8 +949,8 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                       const paymentUrl = pet._originItem?.stripe_payment_url || '';
                       return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                          <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                            A payment link has been generated. Client can pay via this session.
+                          <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-main)', fontWeight: '500' }}>
+                            🔗 An active payment link exists for this request. The client may have been sent this link via email to complete their payment.
                           </p>
                           
                           {paymentUrl && (
@@ -1007,7 +1025,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                           </p>
 
                           {/* Release 12V: Send Payment Email UI */}
-                          {paymentUrl && clientEmail && (
+                          {paymentUrl && (
                             <div style={{
                               marginTop: '16px',
                               paddingTop: '16px',
@@ -1017,12 +1035,34 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                               gap: '8px'
                             }}>
                               <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: '600', color: 'var(--text-heading)' }}>Send Payment Email</h4>
-                              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                <strong>Recipient Email:</strong> {clientEmail}
-                              </p>
-                              {lastSentAt && (
+                              
+                              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted, #6b7280)', lineHeight: '1.4', background: 'rgba(255, 255, 255, 0.02)', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--border)', marginBottom: '4px' }}>
+                                ✉️ <strong>About this email:</strong> This will send the active Stripe Checkout link to the client email on file. To avoid spam, please do not resend repeatedly unless the client specifically requests it or the prior email delivery failed.
+                              </div>
+
+                              {clientEmail ? (
                                 <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                  <strong>Last Sent:</strong> {new Date(lastSentAt).toLocaleString()}
+                                  <strong>Recipient Email:</strong> {clientEmail}
+                                </p>
+                              ) : (
+                                <p style={{ margin: 0, fontSize: '0.85rem', color: '#dc2626', fontWeight: 'bold' }}>
+                                  ⚠️ Recipient Email is missing on this request record.
+                                </p>
+                              )}
+
+                              {pet._originItem?.payment_email_sent_at && (
+                                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                  <strong>Last Sent Email:</strong> {new Date(pet._originItem.payment_email_sent_at).toLocaleString()}
+                                </p>
+                              )}
+                              {pet._originItem?.payment_email_last_recipient && (
+                                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                  <strong>Last Recipient:</strong> {pet._originItem.payment_email_last_recipient}
+                                </p>
+                              )}
+                              {pet._originItem?.payment_email_send_count !== undefined && (
+                                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                  <strong>Email Send Count:</strong> {pet._originItem.payment_email_send_count} send(s)
                                 </p>
                               )}
                               
@@ -1040,7 +1080,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
 
                               <button
                                 type="button"
-                                disabled={isSendingEmail || secondsRemaining > 0}
+                                disabled={isSendingEmail || secondsRemaining > 0 || !clientEmail}
                                 onClick={() => {
                                   setEmailSendError('');
                                   setEmailSendSuccess(false);
@@ -1051,6 +1091,18 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                               >
                                 {isSendingEmail ? 'Sending...' : `Send Payment Email${secondsRemaining > 0 ? ` (Wait ${secondsRemaining}s)` : ''}`}
                               </button>
+
+                              {/* Disabled explanations for Send Payment Email */}
+                              {!clientEmail && (
+                                <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#dc2626' }}>
+                                  ❌ <strong>Send Disabled:</strong> A client email address is required to send the payment link.
+                                </p>
+                              )}
+                              {secondsRemaining > 0 && (
+                                <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#b45309' }}>
+                                  ⏳ <strong>Send Disabled (Cooldown):</strong> Please wait {secondsRemaining} seconds before sending another payment email to prevent duplicates.
+                                </p>
+                              )}
 
                               {/* Success / Error Banners */}
                               {emailSendError && (
@@ -1084,13 +1136,31 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                               )}
                             </div>
                           )}
+
+                          <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                            <div>🚫 <strong>Generate Payment Link:</strong> Disabled (A payment link already exists for this request. Use 'Retrieve Existing Link' to check status.)</div>
+                          </div>
                         </div>
                       );
                     }
 
                     // Fallback for unpaid, payment_failed, expired, or not set
+                    const trimmedAmount = typeof paymentAmount === 'string' ? paymentAmount.trim() : String(paymentAmount || '');
+                    const parsedAmount = parseFloat(trimmedAmount);
+                    const isAmountInvalid = !trimmedAmount || isNaN(parsedAmount) || parsedAmount <= 0;
+                    const isEmailMissing = !clientEmail;
+                    const isGenerateDisabled = isAmountInvalid || isEmailMissing || isGeneratingLink;
+
                     return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted, #6b7280)', lineHeight: '1.4', background: 'rgba(255, 255, 255, 0.02)', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                          💡 <strong>Before generating:</strong> Confirm the request amount is correct and final. Once generated, the payment link must be sent separately using the <strong>Send Payment Email</strong> action.
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6b7280', fontWeight: '600', fontSize: '0.95rem' }}>
+                          <span>❌</span> No payment has been completed for this request yet.
+                        </div>
+
                         <div className="field" style={{ margin: 0 }}>
                           <label style={{ fontWeight: '600' }}>Amount to Charge (USD)</label>
                           <div style={{ position: 'relative', marginTop: '6px' }}>
@@ -1109,36 +1179,35 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                         </div>
 
                         {!showConfirmPaymentGen ? (
-                          <button
-                            onClick={() => {
-                              const trimmed = typeof paymentAmount === 'string' ? paymentAmount.trim() : String(paymentAmount || '');
-                              if (!trimmed) {
-                                setPaymentError("Amount is required and cannot be blank.");
-                                return;
-                              }
-                              const parsed = parseFloat(trimmed);
-                              if (isNaN(parsed)) {
-                                setPaymentError("Amount must be a valid number.");
-                                return;
-                              }
-                              if (parsed <= 0) {
-                                setPaymentError("Amount must be greater than $0.00.");
-                                return;
-                              }
-                              const maxUsd = 10000;
-                              if (parsed > maxUsd) {
-                                setPaymentError(`Amount cannot exceed the maximum limit of $${maxUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`);
-                                return;
-                              }
-                              setPaymentError('');
-                              setShowConfirmPaymentGen(true);
-                            }}
-                            className="button-primary"
-                            style={{ width: 'fit-content', padding: '10px 20px', minHeight: '40px', borderRadius: '8px' }}
-                            disabled={isGeneratingLink}
-                          >
-                            Generate Payment Link
-                          </button>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <button
+                              onClick={() => {
+                                if (isGenerateDisabled) return;
+                                setPaymentError('');
+                                setShowConfirmPaymentGen(true);
+                              }}
+                              className="button-primary"
+                              style={{ width: 'fit-content', padding: '10px 20px', minHeight: '40px', borderRadius: '8px', opacity: isGenerateDisabled ? 0.5 : 1, cursor: isGenerateDisabled ? 'not-allowed' : 'pointer' }}
+                              disabled={isGenerateDisabled}
+                            >
+                              Generate Payment Link
+                            </button>
+
+                            {/* Disabled explanations for Generate Payment Link */}
+                            {isAmountInvalid && (
+                              <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#b45309' }}>
+                                ⚠️ <strong>Generate Disabled:</strong> A valid, positive charge amount (greater than $0.00) is required.
+                              </p>
+                            )}
+                            {isEmailMissing && (
+                              <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#dc2626' }}>
+                                ❌ <strong>Generate Disabled:</strong> Client email address is missing.
+                              </p>
+                            )}
+                            <p style={{ margin: '8px 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                              🚫 <strong>Send Payment Email:</strong> Disabled (No active payment link exists. Please generate a payment link first.)
+                            </p>
+                          </div>
                         ) : (
                           <div style={{
                             background: 'var(--bg-muted, #f9fafb)',
