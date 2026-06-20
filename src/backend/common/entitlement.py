@@ -16,9 +16,11 @@ from common.protected_accounts import is_protected_email, is_protected_sub
 
 class EntitlementDenied(Exception):
     """Raised when an action is denied due to entitlement limits or inactive status."""
-    def __init__(self, message, upgrade_hint=None):
+    def __init__(self, message, upgrade_hint=None, feature=None, limit=None):
         super().__init__(message)
         self.upgrade_hint = upgrade_hint
+        self.feature = feature
+        self.limit = limit
 
 
 def _is_bypass_active(context):
@@ -151,7 +153,8 @@ def check_feature(company_id, feature_name, context=None):
     if not has_feature:
         raise EntitlementDenied(
             "This feature requires a higher plan.",
-            upgrade_hint="upgrade"
+            upgrade_hint="upgrade",
+            feature=feature_name
         )
 
     return ent
@@ -174,7 +177,8 @@ def check_limit(company_id, limit_name, current_value, context=None):
     if current_value >= max_allowed:
         raise EntitlementDenied(
             f"Limit reached ({current_value}/{max_allowed}). Upgrade for more capacity.",
-            upgrade_hint="upgrade"
+            upgrade_hint="upgrade",
+            limit=limit_name
         )
 
     return ent

@@ -335,9 +335,10 @@ class TestRateLimiterAndLedgerDetails:
         res_ok = check_payment_email_rate_limit('req-001')
         assert res_ok is False
 
+    @patch('common.notifications.suppression.is_suppressed', return_value=False)
     @patch('common.db.put_item')
     @patch('common.notifications.service.PostmarkClient.send_email')
-    def test_notify_payment_link_writes_ledger_with_details(self, mock_send, mock_put):
+    def test_notify_payment_link_writes_ledger_with_details(self, mock_send, mock_put, mock_is_suppressed):
         """notify_event for PAYMENT_LINK_EMAIL writes correct metadata to notification ledger."""
         mock_send.return_value = {
             "delivered": True,

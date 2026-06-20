@@ -7,6 +7,7 @@ from common.notifications.service import notify_event
 from common.google_calendar import sync_calendar_event, delete_event
 from common.response import success, bad_request, internal_error, not_found, error
 from common.auth import get_effective_role, sanitize_booking_for_role, get_claims
+from common.entitlement import EntitlementDenied
 from common.audit import log_action
 import uuid
 import secrets
@@ -229,6 +230,10 @@ def handler(event, context):
             # Release 11E: Filter export to caller's company only
             _company_id = _get_company_id(event)
             
+            # Release 17D: Entitlement gate for export
+            from common.entitlement import check_feature
+            check_feature(_company_id, 'export_enabled', context=event)
+            
             # Fetch all records for backup
             # Low-volume operational scale allows for periodic admin scans
             scan_kwargs = {
@@ -423,6 +428,11 @@ def handler(event, context):
             )
 
             existing_staff = resp.get('Items', [])
+            
+            # Release 17D: Entitlement gate for staff limits
+            from common.entitlement import check_limit
+            check_limit(company_id, 'max_staff', len(existing_staff), context=event)
+
             for s in existing_staff:
                 if (s.get('display_name') or '').lower() == display_name.lower() and s.get('is_active') == True:
                     return error(409, f"Active staff with display_name {display_name} already exists", event)
@@ -488,6 +498,11 @@ def handler(event, context):
             )
 
             existing_staff = resp.get('Items', [])
+            
+            # Release 17D: Entitlement gate for staff limits
+            from common.entitlement import check_limit
+            check_limit(company_id, 'max_staff', len(existing_staff), context=event)
+
             for s in existing_staff:
                 if s.get('is_active') == True:
                     if (s.get('display_name') or '').lower() == display_name.lower():
@@ -2744,6 +2759,19 @@ def handler(event, context):
 
             return bad_request(f"Unsupported action: {action}. Please use ARCHIVE, DELETE, PURGE, or a valid terminal status.", event)
             
+    except EntitlementDenied as e:
+        from common.response import format_response
+        body = {
+            "error": "EntitlementDenied",
+            "message": str(e)
+        }
+        if getattr(e, "feature", None) is not None:
+            body["feature"] = e.feature
+        if getattr(e, "limit", None) is not None:
+            body["limit"] = e.limit
+        if getattr(e, "upgrade_hint", None) is not None:
+            body["upgrade_hint"] = e.upgrade_hint
+        return format_response(403, body, event)
     except Exception as e:
         print(f"Unhandled error: {e}")
         return internal_error(str(e), event)

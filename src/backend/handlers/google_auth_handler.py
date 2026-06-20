@@ -8,6 +8,7 @@ import boto3
 from common.response import success, error, bad_request, internal_error, ALLOWED_ORIGINS
 from common.db import table
 from common.auth import get_claims
+from common.entitlement import EntitlementDenied
 
 
 secrets = boto3.client('secretsmanager')
@@ -75,19 +76,33 @@ def handler(event, context):
     if event.get('source') == 'aws.scheduler' or event.get('source') == 'aws.events' or event.get('detail-type') == 'Scheduled Event' or event.get('action') == 'health_check':
         return calendar_health_check(event)
     
-    if path.endswith('/google'):
-        method = event.get('httpMethod', 'GET')
-        if method == 'DELETE':
-            return disconnect_auth(event)
-        return initiate_auth(event)
-    elif path.endswith('/callback'):
-        return handle_callback(event)
-    elif path.endswith('/status'):
-        return get_status(event)
-    elif path.endswith('/health'):
-        return calendar_health_check(event)
-    
-    return bad_request(f"Unknown auth path: {path}", event)
+    try:
+        if path.endswith('/google'):
+            method = event.get('httpMethod', 'GET')
+            if method == 'DELETE':
+                return disconnect_auth(event)
+            return initiate_auth(event)
+        elif path.endswith('/callback'):
+            return handle_callback(event)
+        elif path.endswith('/status'):
+            return get_status(event)
+        elif path.endswith('/health'):
+            return calendar_health_check(event)
+        
+        return bad_request(f"Unknown auth path: {path}", event)
+    except EntitlementDenied as e:
+        from common.response import format_response
+        body = {
+            "error": "EntitlementDenied",
+            "message": str(e)
+        }
+        if getattr(e, "feature", None) is not None:
+            body["feature"] = e.feature
+        if getattr(e, "limit", None) is not None:
+            body["limit"] = e.limit
+        if getattr(e, "upgrade_hint", None) is not None:
+            body["upgrade_hint"] = e.upgrade_hint
+        return format_response(403, body, event)
 
 def disconnect_auth(event):
     """
@@ -115,6 +130,19 @@ def initiate_auth(event):
     GET /admin/auth/google
     Generates auth URL and stores state in DynamoDB.
     """
+    try:
+        from common.auth import get_current_company_id
+        company_id = get_current_company_id(event)
+        
+        # Release 17D: Entitlement gate for google calendar enabled
+        from common.entitlement import check_feature
+        check_feature(company_id, 'google_calendar_enabled', context=event)
+    except EntitlementDenied:
+        raise
+    except Exception as e:
+        print(f"Error resolving company/entitlement: {e}")
+        return internal_error("Failed to authenticate request.", event)
+
     config = get_google_config()
     if not config:
         return internal_error("Google OAuth credentials not configured in Secrets Manager.", event)
@@ -135,9 +163,6 @@ def initiate_auth(event):
     expires_at = int(time.time()) + 600 # 10 minutes
     
     try:
-        from common.auth import get_current_company_id
-        company_id = get_current_company_id(event)
-
         table.put_item(Item={
             'PK': f"OAUTHSTATE#{state}",
             'SK': 'META',
@@ -146,8 +171,6 @@ def initiate_auth(event):
             'created_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
             # Link to admin if available in context
             'admin_id': get_claims(event).get('sub', 'dynamic-admin')
-
-
         })
     except Exception as e:
         print(f"Error saving OAuth state: {e}")
