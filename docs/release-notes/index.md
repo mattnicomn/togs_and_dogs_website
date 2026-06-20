@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 17E: Phase 1 Entitlement Gate Wiring Deployment and Smoke Validation**](release-17e-phase-1-entitlement-gate-wiring-deployment-and-smoke-validation.md) (2026-06-20) — ✅ **Completed** — Deployed and verified in production
 - [**Release 17D: Phase 1 Entitlement Gate Wiring Implementation**](release-17d-phase-1-entitlement-gate-wiring-implementation.md) (2026-06-20) — ✅ **Completed** — Phase 1 entitlement gates wired and tested
 - [**Release 17B: Entitlement Enforcement Core Helpers**](release-17b-entitlement-enforcement-core-helpers.md) (2026-06-20) — ✅ **Completed** — Core helpers & tests implementation
 - [**Release 15J: Apple Beta App Review Submission**](release-15j-apple-beta-app-review-submission.md) (2026-06-19) — ⏳ **Submitted — Awaiting Apple Review**
