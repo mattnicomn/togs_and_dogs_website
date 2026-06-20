@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 17B: Entitlement Enforcement Core Helpers**](release-17b-entitlement-enforcement-core-helpers.md) (2026-06-20) — ✅ **Completed** — Core helpers & tests implementation
 - [**Release 15J: Apple Beta App Review Submission**](release-15j-apple-beta-app-review-submission.md) (2026-06-19) — ⏳ **Submitted — Awaiting Apple Review**
 - [**Release 15H: Matthew Multi-Role Internal TestFlight Smoke Validation**](release-15h-matthew-multi-role-internal-testflight-smoke-validation-closeout.md) (2026-06-19) — ✅ **All Roles Passed** — Admin, Staff, Client validated
 - [**Release 15E: Internal TestFlight Smoke Validation**](release-15e-internal-testflight-smoke-validation-closeout.md) (2026-06-19) — ✅ **Passed** — Build 1.0.0 (4), Matthew admin/staff smoke

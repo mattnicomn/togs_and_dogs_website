@@ -18,7 +18,7 @@ The platform has strong single-tenant foundations but requires significant work 
 
 | # | Item | Status | Effort | Depends On |
 |---|------|--------|--------|------------|
-| 1 | Entitlement enforcement in handlers | ❌ Not started | High | — |
+| 1 | Entitlement enforcement in handlers | ⚠️ Helpers & tests complete (17B) | High | — |
 | 2 | Usage metering per tenant | ❌ Not started | Medium | #1 |
 | 3 | Tenant provisioning workflow/tool | ❌ Not started | High | #1 |
 | 4 | Cognito `custom:company_id` enforcement | ❌ Not started | Medium | #3 |
