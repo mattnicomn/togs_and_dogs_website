@@ -1,6 +1,6 @@
 # Release 17F: Controlled Entitlement Enforcement Test Plan
 
-**Status:** Planning
+**Status:** Completed (observability deployed in 17G)
 **Priority:** Medium (validates enforcement before broader rollout)
 **Risk to Production:** None (planning only; enforcement remains disabled)
 **Terraform Required:** No
@@ -158,7 +158,7 @@ Before setting `ENTITLEMENT_ENFORCEMENT_ENABLED=true`:
 
 | # | Check | Status |
 |---|-------|--------|
-| 1 | Structured denial logging deployed (17G) | ⏳ |
+| 1 | Structured denial logging deployed (17G) | ✅ Done (17G) |
 | 2 | Unit tests pass for all enforcement scenarios | ✅ Done (17D) |
 | 3 | Integration tests confirm professional tier allowed | ✅ Done (17D) |
 | 4 | Production smoke confirms disabled mode works | ✅ Done (17E) |

@@ -1,5 +1,5 @@
 """
-Release 17B: Entitlement Enforcement Core Helpers
+Release 17G: Entitlement Enforcement Observability and Denial Logging
 
 Provides core exception EntitlementDenied and helper functions:
   - check_subscription_active(company_id, context=None)
@@ -8,10 +8,15 @@ Provides core exception EntitlementDenied and helper functions:
 
 Enforces SaaS subscription and feature tier constraints according to the
 ENTITLEMENT_ENFORCEMENT_ENABLED environment variable and sandbox status.
+Includes structured logging for entitlement decisions.
 """
 import os
+import logging
+import json
 from common.billing import TenantEntitlement, TIER_LIMITS
 from common.protected_accounts import is_protected_email, is_protected_sub
+
+logger = logging.getLogger(__name__)
 
 
 class EntitlementDenied(Exception):
@@ -21,6 +26,59 @@ class EntitlementDenied(Exception):
         self.upgrade_hint = upgrade_hint
         self.feature = feature
         self.limit = limit
+
+
+def _get_request_id(context):
+    """
+    Safely extracts request/correlation ID from context without throwing exceptions.
+    """
+    if not context or not isinstance(context, dict):
+        return None
+
+    request_context = context.get('requestContext')
+    if isinstance(request_context, dict):
+        req_id = request_context.get('requestId')
+        if req_id:
+            return req_id
+
+    return context.get('requestId') or context.get('request_id')
+
+
+def _log_decision(event, company_id, check_type, subscription_tier, subscription_status,
+                  enforcement_enabled, allowed, reason, protected_admin_bypass=False,
+                  feature_key=None, limit_key=None, current_count=None, max_allowed=None,
+                  context=None):
+    """
+    Emits a structured JSON log event for entitlement decisions.
+    Guarantees no sensitive data (e.g. email, user IDs) is logged.
+    """
+    log_payload = {
+        "event": event,
+        "company_id": company_id,
+        "check_type": check_type,
+        "subscription_tier": subscription_tier,
+        "subscription_status": subscription_status,
+        "enforcement_enabled": enforcement_enabled,
+        "allowed": allowed,
+        "reason": reason,
+        "protected_admin_bypass": protected_admin_bypass
+    }
+
+    if feature_key is not None:
+        log_payload["feature_key"] = feature_key
+    if limit_key is not None:
+        log_payload["limit_key"] = limit_key
+    if current_count is not None:
+        log_payload["current_count"] = current_count
+    if max_allowed is not None:
+        log_payload["max_allowed"] = max_allowed
+
+    if context:
+        req_id = _get_request_id(context)
+        if req_id:
+            log_payload["request_id"] = req_id
+
+    logger.info(json.dumps(log_payload))
 
 
 def _is_bypass_active(context):
@@ -106,12 +164,26 @@ def check_subscription_active(company_id, context=None):
         )
 
     # 2. Check protected/root admin bypass
-    if _is_bypass_active(context):
-        return TenantEntitlement(
+    bypass_active = _is_bypass_active(context)
+    if bypass_active:
+        ent = TenantEntitlement(
             company_id=company_id,
             subscription_tier='enterprise',
             subscription_status='active',
         )
+        _log_decision(
+            event="ENTITLEMENT_ALLOWED",
+            company_id=company_id,
+            check_type="subscription",
+            subscription_tier="enterprise",
+            subscription_status="active",
+            enforcement_enabled=enforcement_enabled,
+            allowed=True,
+            reason="Protected admin bypass active",
+            protected_admin_bypass=True,
+            context=context
+        )
+        return ent
 
     # 3. Load tenant entitlement
     ent = _get_entitlement_safely(company_id)
@@ -119,20 +191,69 @@ def check_subscription_active(company_id, context=None):
     # 4. Check sandbox mode: bypass subscription status blocks
     is_sandbox = os.environ.get('STRIPE_ENV', 'sandbox').lower() == 'sandbox'
     if is_sandbox:
+        _log_decision(
+            event="ENTITLEMENT_ALLOWED",
+            company_id=company_id,
+            check_type="subscription",
+            subscription_tier=ent.subscription_tier,
+            subscription_status=ent.subscription_status,
+            enforcement_enabled=enforcement_enabled,
+            allowed=True,
+            reason="Subscription check allowed in sandbox mode",
+            protected_admin_bypass=False,
+            context=context
+        )
         return ent
 
     # 5. Check active status
     if not ent.is_access_allowed:
         if ent.is_read_only:
+            _log_decision(
+                event="ENTITLEMENT_DENIED",
+                company_id=company_id,
+                check_type="subscription",
+                subscription_tier=ent.subscription_tier,
+                subscription_status=ent.subscription_status,
+                enforcement_enabled=enforcement_enabled,
+                allowed=False,
+                reason="Account is past due. Read-only access until payment is updated.",
+                protected_admin_bypass=False,
+                context=context
+            )
             raise EntitlementDenied(
                 "Account is past due. Read-only access until payment is updated.",
                 upgrade_hint="update_payment"
             )
+        
+        _log_decision(
+            event="ENTITLEMENT_DENIED",
+            company_id=company_id,
+            check_type="subscription",
+            subscription_tier=ent.subscription_tier,
+            subscription_status=ent.subscription_status,
+            enforcement_enabled=enforcement_enabled,
+            allowed=False,
+            reason="Subscription is inactive. Please reactivate to continue.",
+            protected_admin_bypass=False,
+            context=context
+        )
         raise EntitlementDenied(
             "Subscription is inactive. Please reactivate to continue.",
             upgrade_hint="resubscribe"
         )
 
+    _log_decision(
+        event="ENTITLEMENT_ALLOWED",
+        company_id=company_id,
+        check_type="subscription",
+        subscription_tier=ent.subscription_tier,
+        subscription_status=ent.subscription_status,
+        enforcement_enabled=enforcement_enabled,
+        allowed=True,
+        reason="Subscription is active",
+        protected_admin_bypass=False,
+        context=context
+    )
     return ent
 
 
@@ -145,18 +266,60 @@ def check_feature(company_id, feature_name, context=None):
 
     # 2. Bypass checks if enforcement is off or bypass is active
     enforcement_enabled = os.environ.get('ENTITLEMENT_ENFORCEMENT_ENABLED', '').lower() == 'true'
-    if not enforcement_enabled or _is_bypass_active(context):
+    if not enforcement_enabled:
+        return ent
+
+    if _is_bypass_active(context):
+        _log_decision(
+            event="ENTITLEMENT_ALLOWED",
+            company_id=company_id,
+            check_type="feature",
+            feature_key=feature_name,
+            subscription_tier=ent.subscription_tier,
+            subscription_status=ent.subscription_status,
+            enforcement_enabled=enforcement_enabled,
+            allowed=True,
+            reason="Protected admin bypass active",
+            protected_admin_bypass=True,
+            context=context
+        )
         return ent
 
     # 3. Resolve feature status
     has_feature = ent.limits.get(feature_name, False) or ent.feature_flags.get(feature_name, False)
     if not has_feature:
+        _log_decision(
+            event="ENTITLEMENT_DENIED",
+            company_id=company_id,
+            check_type="feature",
+            feature_key=feature_name,
+            subscription_tier=ent.subscription_tier,
+            subscription_status=ent.subscription_status,
+            enforcement_enabled=enforcement_enabled,
+            allowed=False,
+            reason="This feature requires a higher plan.",
+            protected_admin_bypass=False,
+            context=context
+        )
         raise EntitlementDenied(
             "This feature requires a higher plan.",
             upgrade_hint="upgrade",
             feature=feature_name
         )
 
+    _log_decision(
+        event="ENTITLEMENT_ALLOWED",
+        company_id=company_id,
+        check_type="feature",
+        feature_key=feature_name,
+        subscription_tier=ent.subscription_tier,
+        subscription_status=ent.subscription_status,
+        enforcement_enabled=enforcement_enabled,
+        allowed=True,
+        reason="Feature is enabled",
+        protected_admin_bypass=False,
+        context=context
+    )
     return ent
 
 
@@ -169,16 +332,65 @@ def check_limit(company_id, limit_name, current_value, context=None):
 
     # 2. Bypass checks if enforcement is off or bypass is active
     enforcement_enabled = os.environ.get('ENTITLEMENT_ENFORCEMENT_ENABLED', '').lower() == 'true'
-    if not enforcement_enabled or _is_bypass_active(context):
+    if not enforcement_enabled:
+        return ent
+
+    if _is_bypass_active(context):
+        _log_decision(
+            event="ENTITLEMENT_ALLOWED",
+            company_id=company_id,
+            check_type="limit",
+            limit_key=limit_name,
+            subscription_tier=ent.subscription_tier,
+            subscription_status=ent.subscription_status,
+            enforcement_enabled=enforcement_enabled,
+            allowed=True,
+            reason="Protected admin bypass active",
+            protected_admin_bypass=True,
+            current_count=current_value,
+            max_allowed=ent.limits.get(limit_name, 0),
+            context=context
+        )
         return ent
 
     # 3. Resolve limit value and enforce
     max_allowed = ent.limits.get(limit_name, 0)
     if current_value >= max_allowed:
+        _log_decision(
+            event="ENTITLEMENT_DENIED",
+            company_id=company_id,
+            check_type="limit",
+            limit_key=limit_name,
+            subscription_tier=ent.subscription_tier,
+            subscription_status=ent.subscription_status,
+            enforcement_enabled=enforcement_enabled,
+            allowed=False,
+            reason=f"Limit reached ({current_value}/{max_allowed}). Upgrade for more capacity.",
+            protected_admin_bypass=False,
+            current_count=current_value,
+            max_allowed=max_allowed,
+            context=context
+        )
         raise EntitlementDenied(
             f"Limit reached ({current_value}/{max_allowed}). Upgrade for more capacity.",
             upgrade_hint="upgrade",
             limit=limit_name
         )
 
+    _log_decision(
+        event="ENTITLEMENT_ALLOWED",
+        company_id=company_id,
+        check_type="limit",
+        limit_key=limit_name,
+        subscription_tier=ent.subscription_tier,
+        subscription_status=ent.subscription_status,
+        enforcement_enabled=enforcement_enabled,
+        allowed=True,
+        reason="Limit is within bounds",
+        protected_admin_bypass=False,
+        current_count=current_value,
+        max_allowed=max_allowed,
+        context=context
+    )
     return ent
+
