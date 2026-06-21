@@ -1,6 +1,6 @@
 # Release 17J: Entitlement Structured Logging Remediation
 
-**Status:** Planning
+**Status:** Completed
 **Priority:** High (observability is required before broader SaaS testing)
 **Risk to Production:** Low (logging change only; entitlement behavior unchanged)
 **Terraform Required:** Yes (Lambda code hash update via terraform apply)

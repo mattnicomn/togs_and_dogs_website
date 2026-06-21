@@ -16,7 +16,11 @@ import json
 from common.billing import TenantEntitlement, TIER_LIMITS
 from common.protected_accounts import is_protected_email, is_protected_sub
 
+# Configure logging level for AWS Lambda environment to ensure INFO events are captured
+logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 
 class EntitlementDenied(Exception):
