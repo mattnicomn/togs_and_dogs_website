@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 17N: Platform Admin Access Bootstrap and Authorized API Smoke**](release-17n-platform-admin-access-bootstrap-and-authorized-api-smoke.md) (2026-06-21) — ✅ **Completed** — platform_admin group bootstrapped, 401/403 enforcement confirmed, 454/454 tests passed
 - [**Release 17L: Platform Admin Backend APIs**](release-17l-platform-admin-backend-apis-closeout.md) (2026-06-21) — ✅ **Completed** — Secure platform admin Cognito group and backend routes
 - [**Release 17J: Entitlement Structured Logging Remediation**](release-17j-entitlement-structured-logging-remediation-closeout.md) (2026-06-21) — ✅ **Completed** — Fixed logging level configuration so structured events propagate to CloudWatch
 - [**Release 17I: Phase 1 Entitlement Enforcement Alarm Readiness and Enablement**](release-17i-entitlement-alarm-readiness-and-enable-plan.md) (2026-06-21) — ✅ **Completed** — Enabled Phase 1 entitlement enforcement in production and added alarm alerting
@@ -78,6 +79,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Admin Soft Delete & Archive Filtering](admin-dashboard/admin-soft-delete-archive-filtering.md)
 
 ### 🛡️ RBAC, Auth & Security
+*   [Release 17N: Platform Admin Access Bootstrap and Authorized API Smoke](release-17n-platform-admin-access-bootstrap-and-authorized-api-smoke.md)
 *   [Release 11F: Tenant Enforcement Production Deployment & Smoke Validation](release-11f-tenant-enforcement-production-deployment-and-smoke-validation.md)
 *   [Release 11E: Tenant Enforcement Hardening Implementation](release-11e-tenant-enforcement-hardening-implementation.md)
 *   [Staff Protected Admin Guardrails](rbac-auth/staff-protected-admin-guardrails.md)
