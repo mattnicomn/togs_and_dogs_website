@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 17L: Platform Admin Backend APIs**](release-17l-platform-admin-backend-apis-closeout.md) (2026-06-21) — ✅ **Completed** — Secure platform admin Cognito group and backend routes
 - [**Release 17J: Entitlement Structured Logging Remediation**](release-17j-entitlement-structured-logging-remediation-closeout.md) (2026-06-21) — ✅ **Completed** — Fixed logging level configuration so structured events propagate to CloudWatch
 - [**Release 17I: Phase 1 Entitlement Enforcement Alarm Readiness and Enablement**](release-17i-entitlement-alarm-readiness-and-enable-plan.md) (2026-06-21) — ✅ **Completed** — Enabled Phase 1 entitlement enforcement in production and added alarm alerting
 - [**Release 17E: Phase 1 Entitlement Gate Wiring Deployment and Smoke Validation**](release-17e-phase-1-entitlement-gate-wiring-deployment-and-smoke-validation.md) (2026-06-20) — ✅ **Completed** — Deployed and verified in production

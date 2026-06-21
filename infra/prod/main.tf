@@ -379,6 +379,34 @@ resource "aws_lambda_permission" "api_stripe_webhook" {
   principal     = "apigateway.amazonaws.com"
 }
 
+resource "aws_lambda_function" "platform" {
+  filename         = data.archive_file.backend_zip.output_path
+  function_name    = "${local.name_prefix}-platform"
+  role             = module.iam.lambda_role_arn
+  handler          = "handlers.platform_handler.handler"
+  source_code_hash = data.archive_file.backend_zip.output_base64sha256
+  runtime          = "python3.11"
+  memory_size      = 512
+  timeout          = 60
+
+  environment {
+    variables = {
+      DATA_TABLE_NAME    = module.data.table_name
+      DEFAULT_COMPANY_ID = "tog_and_dogs"
+    }
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_lambda_permission" "api_platform" {
+  statement_id  = "AllowAPIGatewayInvokePlatform"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.platform.function_name
+  principal     = "apigateway.amazonaws.com"
+}
+
+
 
 # API Permissions for Google Auth
 resource "aws_lambda_permission" "api_google_auth" {
@@ -480,6 +508,7 @@ module "api" {
   postmark_webhook_handler_invoke_arn = aws_lambda_function.postmark_webhook.invoke_arn
   stripe_webhook_handler_invoke_arn   = aws_lambda_function.stripe_webhook.invoke_arn
   device_handler_invoke_arn           = aws_lambda_function.device.invoke_arn
+  platform_handler_invoke_arn         = aws_lambda_function.platform.invoke_arn
   tags                                = local.common_tags
 }
 

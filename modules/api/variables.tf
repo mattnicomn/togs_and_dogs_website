@@ -71,3 +71,9 @@ variable "stripe_webhook_handler_invoke_arn" {
   type        = string
   default     = ""
 }
+
+variable "platform_handler_invoke_arn" {
+  description = "Invocation ARN for the Platform handler"
+  type        = string
+}
+

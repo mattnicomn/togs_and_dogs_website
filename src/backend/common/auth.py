@@ -1,12 +1,13 @@
 import json
 from common.response import error
 
-# Priority: owner > admin > staff > client
+# Priority: owner > admin > staff > client > platform_admin
 ROLE_PRIORITY = {
     'owner': 4,
     'admin': 3,
     'staff': 2,
     'client': 1,
+    'platform_admin': 0.5,
     'unknown': 0
 }
 
@@ -53,12 +54,19 @@ def get_effective_role(event):
         return 'staff'
     if 'client' in normalized_groups:
         return 'client'
+    if 'platform_admin' in normalized_groups:
+        return 'platform_admin'
         
     # Fallback for hardcoded emails (Ryan/Devs)
     if user_email in ['mattnicomn10@gmail.com', 'support@toganddogs.usmissionhero.com']:
         return 'owner' # Ryan is the owner
         
     return 'unknown'
+
+def is_platform_admin(event):
+    groups = get_user_groups(event)
+    normalized_groups = [g.lower() for g in groups]
+    return 'platform_admin' in normalized_groups
 
 def is_owner(event):
     return get_effective_role(event) == 'owner'

@@ -47,4 +47,11 @@ resource "aws_cognito_user_pool_domain" "admin_domain" {
   user_pool_id = aws_cognito_user_pool.admin.id
 }
 
+resource "aws_cognito_user_group" "platform_admin" {
+  name         = "platform_admin"
+  user_pool_id = aws_cognito_user_pool.admin.id
+  description  = "Platform Administrator group for global management console access"
+}
+
+
 
