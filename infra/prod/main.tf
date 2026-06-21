@@ -118,7 +118,7 @@ resource "aws_lambda_function" "admin" {
         STRIPE_PRICE_PREMIUM_MONTHLY      = var.stripe_price_premium_monthly
         STRIPE_SUCCESS_URL_TEMPLATE       = var.stripe_success_url_template
         STRIPE_CANCEL_URL_TEMPLATE        = var.stripe_cancel_url_template
-        ENTITLEMENT_ENFORCEMENT_ENABLED   = "false"
+        ENTITLEMENT_ENFORCEMENT_ENABLED   = "true"
       },
       local.notification_env_vars
     )
@@ -210,10 +210,10 @@ resource "aws_lambda_function" "google_auth" {
 
   environment {
     variables = {
-      DATA_TABLE_NAME          = module.data.table_name
-      GOOGLE_CLIENT_CREDS_NAME = module.secrets.google_client_creds_arn
-      GOOGLE_USER_TOKENS_NAME  = module.secrets.google_user_tokens_arn
-      ENTITLEMENT_ENFORCEMENT_ENABLED = "false"
+      DATA_TABLE_NAME                 = module.data.table_name
+      GOOGLE_CLIENT_CREDS_NAME        = module.secrets.google_client_creds_arn
+      GOOGLE_USER_TOKENS_NAME         = module.secrets.google_user_tokens_arn
+      ENTITLEMENT_ENFORCEMENT_ENABLED = "true"
     }
   }
 
