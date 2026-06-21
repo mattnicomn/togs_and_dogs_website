@@ -4,7 +4,7 @@
 **Type:** Backend Features & API Gateway Security  
 **Date:** 2026-06-21  
 **Implementation Commit:** `c24cf9f` (all source, test, terraform, and docs)  
-**Finalization Commit:** see Section 4 below
+**Finalization Commit:** `753d296` (API Gateway stage redeployment + closeout doc)
 
 ---
 
