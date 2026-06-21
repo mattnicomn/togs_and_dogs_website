@@ -215,7 +215,7 @@ Use existing `ryan_alerts_topic_arn` (SNS) or Matthew's alert email — whicheve
 | 1 | Structured logging deployed (17G) | ✅ Done | Yes |
 | 2 | Unit tests pass for all enforcement scenarios | ✅ Done (442/442) | Yes |
 | 3 | Production smoke with enforcement disabled passes | ✅ Done (17E) | Yes |
-| 4 | CloudWatch metric filter for ENTITLEMENT_DENIED exists | ⏳ Needed | Yes (add in first step of 17I) |
+| 4 | CloudWatch metric filter for ENTITLEMENT_DENIED exists | ✅ Done (17I Stage 1) | Yes |
 | 5 | Rollback plan reviewed | ✅ This document | Yes |
 | 6 | Matthew explicitly approves 17I enablement | ⏳ Pending | Yes |
 | 7 | Terraform saved plan shows only 2 env var changes | ⏳ Verify at 17I time | Yes |

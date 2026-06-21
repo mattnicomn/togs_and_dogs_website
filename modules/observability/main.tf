@@ -154,3 +154,40 @@ resource "aws_cloudwatch_metric_alarm" "calendar_health_check_failed" {
 
   tags = var.tags
 }
+
+# Release 17I Stage 1: Entitlement Denial Metric Filters & Alarm
+
+resource "aws_cloudwatch_log_metric_filter" "entitlement_denied" {
+  for_each = toset([
+    "/aws/lambda/${var.name_prefix}-admin",
+    "/aws/lambda/${var.name_prefix}-google-auth",
+  ])
+
+  name           = "${var.name_prefix}-entitlement-denied-${replace(replace(each.value, "/aws/lambda/${var.name_prefix}-", ""), "/", "-")}"
+  pattern        = "ENTITLEMENT_DENIED"
+  log_group_name = each.value
+
+  metric_transformation {
+    name      = "EntitlementDenied"
+    namespace = "${var.name_prefix}/Entitlements"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "entitlement_denied" {
+  alarm_name          = "${var.name_prefix}-entitlement-denied"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "EntitlementDenied"
+  namespace           = "${var.name_prefix}/Entitlements"
+  period              = "300" # 5-minute window
+  statistic           = "Sum"
+  threshold           = "0"
+  alarm_description   = "Entitlement check denied in Phase 1 gates. Check Lambda logs for ENTITLEMENT_DENIED."
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = var.alarm_sns_topic_arn != "" ? [var.alarm_sns_topic_arn] : []
+
+  tags = var.tags
+}
+
