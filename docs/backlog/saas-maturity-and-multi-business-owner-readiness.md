@@ -18,15 +18,16 @@ The platform has strong single-tenant foundations but requires significant work 
 
 | # | Item | Status | Effort | Depends On |
 |---|------|--------|--------|------------|
-| 1 | Entitlement enforcement in handlers | ✅ Fully enabled (17I) | High | — |
-| 2 | Usage metering per tenant | ❌ Not started | Medium | #1 |
-| 3 | Tenant provisioning workflow/tool | ❌ Not started | High | #1 |
-| 4 | Cognito `custom:company_id` enforcement | ❌ Not started | Medium | #3 |
-| 5 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #3 |
-| 6 | Business owner billing dashboard | ❌ Not started | Medium | #5 |
-| 7 | Pricing/signup page | ❌ Not started | Medium | #5 |
-| 8 | Per-tenant branding | ❌ Not started | Medium | #3 |
-| 9 | "Getting Started" docs for new owners | ❌ Not started | Low | #3 |
+| 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
+| 2 | Platform Admin UI | ✅ Deployed and validated (17P/17R) | Done | — |
+| 3 | Credential security cleanup | ⏳ Plan ready (17T), awaiting Matthew execution | Low (manual) | — |
+| 4 | Tenant provisioning workflow/tool | ❌ Not started | High | #3 |
+| 5 | Cognito `custom:company_id` enforcement | ❌ Not started | Medium | #4 |
+| 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
+| 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
+| 8 | Pricing/signup page | ❌ Not started | Medium | #6 |
+| 9 | Per-tenant branding | ❌ Not started | Medium | #4 |
+| 10 | "Getting Started" docs for new owners | ❌ Not started | Low | #4 |
 
 ---
 
