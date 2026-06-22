@@ -21,7 +21,7 @@ The platform has strong single-tenant foundations but requires significant work 
 | 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
 | 2 | Usage metering per tenant | ❌ Not started | Medium | #1 |
 | 3 | Tenant provisioning workflow/tool | ✅ Script implemented (17W) — apply gate pending | High | #1 |
-| 5 | Cognito `custom:company_id` enforcement | ❌ Not started | Medium | #4 |
+| 5 | Cognito `custom:company_id` enforcement | ⏳ Design complete (17X), implementation pending (17Y/17Z) | Medium | #4 |
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
 | 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
 | 8 | Pricing/signup page | ❌ Not started | Medium | #6 |
