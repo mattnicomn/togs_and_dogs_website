@@ -61,11 +61,13 @@ The platform has strong single-tenant foundations but requires significant work 
 
 ## Resume Criteria for Multi-Tenant Work
 
-Start multi-tenant implementation (17-series) only when:
-1. ✅ Matthew approves starting entitlement enforcement (can proceed without EIN)
-2. ⏳ EIN resolved + live payments working (for billing portal integration only)
-3. ⏳ Ryan invitation deferred until 19A re-evaluation gate
-4. ⏳ Payment terms published
-5. ✅ Matthew approves second-tenant timeline
+Start second-tenant creation only when:
+1. ✅ Entitlement enforcement active (Phase 1 gates working — 17D/17I)
+2. ✅ Platform Admin UI deployed and validated (17P/17R)
+3. ❌ Credential security cleanup complete (shared dev password rotated — 17T)
+4. ❌ Tenant provisioning tooling exists (creation script or API — 17U/17V)
+5. ❌ Matthew explicitly approves second-tenant creation
+6. ⏳ EIN resolved + live payments working (for billing portal only — not required for dry run)
+7. ⏳ Ryan invitation deferred until 19A re-evaluation gate
 
-**Updated 2026-06-19 (16B):** Roadmap reprioritized. Entitlement enforcement and tenant provisioning proceed independently of EIN. Ryan remains paused until gates G1–G6 are met. See `release-16b-saas-maturity-roadmap-reprioritization-and-capability-placement-strategy.md` for full revised roadmap.
+**Updated 2026-06-21 (17S):** Structural review complete. Three hard blockers remain before second-tenant dry run: no provisioning tool (G1/G2), shared dev password not rotated (G11), Matthew approval not given (G12). Next releases: 17T (credential cleanup) → 17U (provisioning design) → 17V (implementation) → 17W (dry run).
