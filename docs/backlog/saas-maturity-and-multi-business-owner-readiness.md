@@ -19,15 +19,22 @@ The platform has strong single-tenant foundations but requires significant work 
 | # | Item | Status | Effort | Depends On |
 |---|------|--------|--------|------------|
 | 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
-| 2 | Platform Admin UI | ✅ Deployed and validated (17P/17R) | Done | — |
-| 3 | Credential security cleanup | ✅ Complete (17T/17U) | Done | — |
-| 4 | Tenant provisioning workflow/tool | ⏳ Design complete (17V), implementation pending (17W) | High | #3 |
+| 2 | Usage metering per tenant | ❌ Not started | Medium | #1 |
+| 3 | Tenant provisioning workflow/tool | ✅ Script implemented (17W) — apply gate pending | High | #1 |
 | 5 | Cognito `custom:company_id` enforcement | ❌ Not started | Medium | #4 |
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
 | 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
 | 8 | Pricing/signup page | ❌ Not started | Medium | #6 |
 | 9 | Per-tenant branding | ❌ Not started | Medium | #4 |
 | 10 | "Getting Started" docs for new owners | ❌ Not started | Low | #4 |
+
+---
+
+## Known Risks
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| `DEFAULT_COMPANY_ID` fallback | Critical | Any Cognito user created without a `custom:company_id` will default to "tog_and_dogs". Must implement post-auth Lambda trigger or strict attribute enforcement before the first secondary tenant is onboarded. |
 
 ---
 
@@ -71,4 +78,4 @@ Start second-tenant creation only when:
 6. ⏳ EIN resolved + live payments working (for billing portal only — not required for dry run)
 7. ⏳ Ryan invitation deferred until 19A re-evaluation gate
 
-**Updated 2026-06-21 (17S):** Structural review complete. Three hard blockers remain before second-tenant dry run: no provisioning tool (G1/G2), shared dev password not rotated (G11), Matthew approval not given (G12). Next releases: 17T (credential cleanup) → 17U (provisioning design) → 17V (implementation) → 17W (dry run).
+**Updated 2026-06-21 (17W):** Tenant provisioning script (`scripts/provision_tenant.py`) implemented. Dry-run mode is safe. Apply mode requires explicit gate approval. Company ID resolution audit completed — `custom:company_id` claim correctly takes precedence. Known risk documented: a Cognito user without `custom:company_id` set falls through to `DEFAULT_COMPANY_ID` ("tog_and_dogs"). Remediation required before any second-tenant Cognito user is created (post-auth Lambda trigger or strict Cognito user attribute enforcement).

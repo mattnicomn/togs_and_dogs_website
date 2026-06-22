@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 17W: Tenant Provisioning Script Implementation and Company ID Resolution Verification**](release-17w-tenant-provisioning-script-implementation.md) (2026-06-21) — ✅ **Complete** — Provisioning script, 72 new tests, DEFAULT_COMPANY_ID risk documented
 - [**Release 17U: Credential Security Cleanup Closeout**](release-17u-credential-security-cleanup-closeout.md) (2026-06-21) — ✅ **Complete** — All shared dev passwords rotated
 - [**Release 17R: Safe Tenant Metadata Edit Smoke and Audit Validation**](release-17r-safe-tenant-metadata-edit-smoke-and-audit-validation.md) (2026-06-21) — ✅ **Completed** — Safe production edit verification and audit trail validation
 - [**Release 17P-Fix2: Platform Admin Edit Flow Review/Confirmation Fix**](release-17p-fix2-platform-admin-edit-review-flow.md) (2026-06-21) — ✅ **Completed** — Single state-driven modal flow, risky change style, no-change safeguards
