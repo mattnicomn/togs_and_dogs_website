@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 17R: Safe Tenant Metadata Edit Smoke and Audit Validation**](release-17r-safe-tenant-metadata-edit-smoke-and-audit-validation.md) (2026-06-21) — ✅ **Completed** — Safe production edit verification and audit trail validation
 - [**Release 17P-Fix2: Platform Admin Edit Flow Review/Confirmation Fix**](release-17p-fix2-platform-admin-edit-review-flow.md) (2026-06-21) — ✅ **Completed** — Single state-driven modal flow, risky change style, no-change safeguards
 - [**Release 17P-Fix1: Platform Admin UI CORS Preflight Remediation**](release-17p-fix1-platform-admin-fetch-cors-remediation.md) (2026-06-21) — ✅ **Completed** — API Gateway OPTIONS/CORS redeployed, preflight issues resolved
 - [**Release 17P: Platform Management UI MVP Implementation**](release-17p-platform-management-ui-mvp-closeout.md) (2026-06-21) — ✅ **Completed** — platform_admin Console UI built, guarded, and deployed
@@ -82,6 +83,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Admin Soft Delete & Archive Filtering](admin-dashboard/admin-soft-delete-archive-filtering.md)
 
 ### 🛡️ RBAC, Auth & Security
+*   [Release 17R: Safe Tenant Metadata Edit Smoke and Audit Validation](release-17r-safe-tenant-metadata-edit-smoke-and-audit-validation.md)
 *   [Release 17P-Fix2: Platform Admin Edit Flow Review/Confirmation Fix](release-17p-fix2-platform-admin-edit-review-flow.md)
 *   [Release 17P-Fix1: Platform Admin UI CORS Preflight Remediation](release-17p-fix1-platform-admin-fetch-cors-remediation.md)
 *   [Release 17P: Platform Management UI MVP Implementation](release-17p-platform-management-ui-mvp-closeout.md)
