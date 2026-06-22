@@ -191,3 +191,86 @@ resource "aws_cloudwatch_metric_alarm" "entitlement_denied" {
   tags = var.tags
 }
 
+# Release 17Y: Tenant Resolution Hardening Metric Filters & Alarms
+
+resource "aws_cloudwatch_log_metric_filter" "tenant_resolution_fallback" {
+  for_each = toset([
+    "/aws/lambda/${var.name_prefix}-intake",
+    "/aws/lambda/${var.name_prefix}-admin",
+    "/aws/lambda/${var.name_prefix}-review",
+    "/aws/lambda/${var.name_prefix}-assign",
+    "/aws/lambda/${var.name_prefix}-cancellation",
+    "/aws/lambda/${var.name_prefix}-google-auth",
+    "/aws/lambda/${var.name_prefix}-pet",
+    "/aws/lambda/${var.name_prefix}-device",
+  ])
+
+  name           = "${var.name_prefix}-tenant-fallback-${replace(replace(each.value, "/aws/lambda/${var.name_prefix}-", ""), "/", "-")}"
+  pattern        = "TENANT_RESOLUTION_FALLBACK"
+  log_group_name = each.value
+
+  metric_transformation {
+    name      = "TenantResolutionFallback"
+    namespace = "${var.name_prefix}/TenantResolution"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "tenant_resolution_failed" {
+  for_each = toset([
+    "/aws/lambda/${var.name_prefix}-intake",
+    "/aws/lambda/${var.name_prefix}-admin",
+    "/aws/lambda/${var.name_prefix}-review",
+    "/aws/lambda/${var.name_prefix}-assign",
+    "/aws/lambda/${var.name_prefix}-cancellation",
+    "/aws/lambda/${var.name_prefix}-google-auth",
+    "/aws/lambda/${var.name_prefix}-pet",
+    "/aws/lambda/${var.name_prefix}-device",
+  ])
+
+  name           = "${var.name_prefix}-tenant-failed-${replace(replace(each.value, "/aws/lambda/${var.name_prefix}-", ""), "/", "-")}"
+  pattern        = "TENANT_RESOLUTION_FAILED"
+  log_group_name = each.value
+
+  metric_transformation {
+    name      = "TenantResolutionFailed"
+    namespace = "${var.name_prefix}/TenantResolution"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "tenant_resolution_fallback" {
+  alarm_name          = "${var.name_prefix}-tenant-resolution-fallback"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "TenantResolutionFallback"
+  namespace           = "${var.name_prefix}/TenantResolution"
+  period              = "300" # 5-minute window
+  statistic           = "Sum"
+  threshold           = "0"
+  alarm_description   = "Tenant company ID fell back to DEFAULT_COMPANY_ID. Verify Cognito user attributes."
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = var.alarm_sns_topic_arn != "" ? [var.alarm_sns_topic_arn] : []
+
+  tags = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "tenant_resolution_failed" {
+  alarm_name          = "${var.name_prefix}-tenant-resolution-failed"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "TenantResolutionFailed"
+  namespace           = "${var.name_prefix}/TenantResolution"
+  period              = "300" # 5-minute window
+  statistic           = "Sum"
+  threshold           = "0"
+  alarm_description   = "Tenant resolution failed in multi-tenant mode due to missing custom:company_id."
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = var.alarm_sns_topic_arn != "" ? [var.alarm_sns_topic_arn] : []
+
+  tags = var.tags
+}
+
+

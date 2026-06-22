@@ -30,6 +30,7 @@ FINDINGS FROM RELEASE 17W AUDIT:
 """
 
 import os
+import json
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -324,3 +325,100 @@ class TestMissingCompanyIdSafetyDocumentation:
         result = get_current_company_id(event)
         assert result == 'acme_pets'
         assert result != 'tog_and_dogs'
+
+
+# ---------------------------------------------------------------------------
+# 6. Tenant Resolution Mode: single | multi (Release 17Y)
+# ---------------------------------------------------------------------------
+
+class TestTenantResolutionMode:
+
+    @pytest.fixture(autouse=True)
+    def set_up_logging(self, caplog):
+        caplog.set_level("INFO")
+
+    def test_default_mode_is_single(self):
+        """By default, when env var is unset, it behaves as single mode."""
+        with patch.dict(os.environ, {}):
+            if 'TENANT_RESOLUTION_MODE' in os.environ:
+                del os.environ['TENANT_RESOLUTION_MODE']
+            event = make_event(groups=['owner'])  # Missing company_id
+            result = get_current_company_id(event)
+            assert result == 'tog_and_dogs'
+
+    def test_single_mode_missing_company_id_fallback(self, caplog):
+        """In single mode, missing company_id falls back to default and logs fallback."""
+        with patch.dict(os.environ, {'TENANT_RESOLUTION_MODE': 'single'}):
+            event = make_event(groups=['owner'])
+            result = get_current_company_id(event)
+            assert result == 'tog_and_dogs'
+            
+            # Check log
+            assert len(caplog.records) == 1
+            log_data = json.loads(caplog.records[0].message)
+            assert log_data['event'] == 'TENANT_RESOLUTION_FALLBACK'
+            assert log_data['mode'] == 'single'
+            assert log_data['is_empty_company_id'] is True
+            assert log_data['has_claims'] is True
+            assert log_data['default_company_id'] == 'tog_and_dogs'
+            # Verify no sensitive claims are present
+            for key in ['email', 'sub', 'username', 'cognito:groups', 'claims']:
+                assert key not in log_data
+
+    def test_single_mode_empty_company_id_fallback(self, caplog):
+        """In single mode, empty/whitespace company_id falls back to default."""
+        with patch.dict(os.environ, {'TENANT_RESOLUTION_MODE': 'single'}):
+            event = make_event(groups=['owner'], custom_company_id='   ')
+            result = get_current_company_id(event)
+            assert result == 'tog_and_dogs'
+            
+            assert len(caplog.records) == 1
+            log_data = json.loads(caplog.records[0].message)
+            assert log_data['event'] == 'TENANT_RESOLUTION_FALLBACK'
+            assert log_data['is_empty_company_id'] is True
+
+    def test_single_mode_with_valid_company_id_does_not_log_fallback(self, caplog):
+        """In single mode, a valid company_id resolves and does not log anything."""
+        with patch.dict(os.environ, {'TENANT_RESOLUTION_MODE': 'single'}):
+            event = make_event(groups=['owner'], custom_company_id='my_company')
+            result = get_current_company_id(event)
+            assert result == 'my_company'
+            assert len(caplog.records) == 0
+
+    def test_multi_mode_missing_company_id_raises_and_logs(self, caplog):
+        """In multi mode, missing company_id raises PermissionError and logs failure."""
+        with patch.dict(os.environ, {'TENANT_RESOLUTION_MODE': 'multi'}):
+            event = make_event(groups=['owner'])
+            with pytest.raises(PermissionError, match="TENANT_RESOLUTION_FAILED"):
+                get_current_company_id(event)
+                
+            assert len(caplog.records) == 1
+            log_data = json.loads(caplog.records[0].message)
+            assert log_data['event'] == 'TENANT_RESOLUTION_FAILED'
+            assert log_data['mode'] == 'multi'
+            assert log_data['is_empty_company_id'] is True
+            assert log_data['has_claims'] is True
+            assert 'default_company_id' not in log_data
+            # Verify no sensitive claims are present
+            for key in ['email', 'sub', 'username', 'cognito:groups', 'claims']:
+                assert key not in log_data
+
+    def test_multi_mode_empty_company_id_raises_and_logs(self, caplog):
+        """In multi mode, empty/whitespace company_id raises PermissionError and logs."""
+        with patch.dict(os.environ, {'TENANT_RESOLUTION_MODE': 'multi'}):
+            event = make_event(groups=['owner'], custom_company_id='')
+            with pytest.raises(PermissionError, match="TENANT_RESOLUTION_FAILED"):
+                get_current_company_id(event)
+                
+            assert len(caplog.records) == 1
+            log_data = json.loads(caplog.records[0].message)
+            assert log_data['event'] == 'TENANT_RESOLUTION_FAILED'
+            assert log_data['is_empty_company_id'] is True
+
+    def test_multi_mode_with_valid_company_id_passes(self, caplog):
+        """In multi mode, a valid company_id resolves and does not raise or log."""
+        with patch.dict(os.environ, {'TENANT_RESOLUTION_MODE': 'multi'}):
+            event = make_event(groups=['owner'], custom_company_id='other_tenant')
+            result = get_current_company_id(event)
+            assert result == 'other_tenant'
+            assert len(caplog.records) == 0

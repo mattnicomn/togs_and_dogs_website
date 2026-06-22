@@ -1,5 +1,10 @@
 import json
+import logging
+import os
 from common.response import error
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 # Priority: owner > admin > staff > client > platform_admin
 ROLE_PRIORITY = {
@@ -211,8 +216,33 @@ def require_client_booking_access(event, booking):
             
     raise PermissionError("Forbidden: You do not have access to this booking")
 
-import os
 DEFAULT_COMPANY_ID = os.environ.get("DEFAULT_COMPANY_ID", "tog_and_dogs")
+
+def _get_request_id(event):
+    if not isinstance(event, dict):
+        return None
+    request_context = event.get('requestContext')
+    if isinstance(request_context, dict):
+        req_id = request_context.get('requestId')
+        if req_id:
+            return req_id
+    return event.get('requestId') or event.get('request_id')
+
+def _log_tenant_resolution(event_name, mode, is_empty_company_id, has_claims, default_company_id=None, event=None):
+    log_payload = {
+        "event": event_name,
+        "mode": mode,
+        "is_empty_company_id": is_empty_company_id,
+        "has_claims": has_claims
+    }
+    if default_company_id is not None:
+        log_payload["default_company_id"] = default_company_id
+        
+    req_id = _get_request_id(event)
+    if req_id:
+        log_payload["request_id"] = req_id
+        
+    logger.info(json.dumps(log_payload))
 
 def get_current_company_id(event, claims=None):
     # Phase 4 current behavior:
@@ -223,9 +253,35 @@ def get_current_company_id(event, claims=None):
         claims = get_claims(event) if isinstance(event, dict) else {}
     
     custom_company = claims.get('custom:company_id')
+    if isinstance(custom_company, str):
+        custom_company = custom_company.strip()
+        
     if custom_company:
         return custom_company
         
+    has_claims = bool(claims)
+    is_empty_company = (custom_company == "") or (custom_company is None)
+    mode = os.environ.get("TENANT_RESOLUTION_MODE", "single").lower().strip()
+    
+    if mode == "multi":
+        _log_tenant_resolution(
+            event_name="TENANT_RESOLUTION_FAILED",
+            mode=mode,
+            is_empty_company_id=is_empty_company,
+            has_claims=has_claims,
+            event=event
+        )
+        raise PermissionError("TENANT_RESOLUTION_FAILED: user missing custom:company_id in multi-tenant mode")
+        
+    # Single mode fallback
+    _log_tenant_resolution(
+        event_name="TENANT_RESOLUTION_FALLBACK",
+        mode=mode,
+        is_empty_company_id=is_empty_company,
+        has_claims=has_claims,
+        default_company_id=DEFAULT_COMPANY_ID,
+        event=event
+    )
     return DEFAULT_COMPANY_ID
 
 def validate_tenant_ownership(item, event):
