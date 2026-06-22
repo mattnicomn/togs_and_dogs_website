@@ -20,7 +20,7 @@ The platform has strong single-tenant foundations but requires significant work 
 |---|------|--------|--------|------------|
 | 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
 | 2 | Platform Admin UI | ✅ Deployed and validated (17P/17R) | Done | — |
-| 3 | Credential security cleanup | ⏳ Plan ready (17T), awaiting Matthew execution | Low (manual) | — |
+| 3 | Credential security cleanup | ✅ Complete (17T/17U) | Done | — |
 | 4 | Tenant provisioning workflow/tool | ❌ Not started | High | #3 |
 | 5 | Cognito `custom:company_id` enforcement | ❌ Not started | Medium | #4 |
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
