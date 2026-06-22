@@ -1,7 +1,7 @@
 import CONFIG from './config';
 import { getIdToken } from './auth';
 
-const request = async (path, method = 'GET', data = null, isProtected = false) => {
+export const request = async (path, method = 'GET', data = null, isProtected = false) => {
   const options = {
     method,
     headers: {
