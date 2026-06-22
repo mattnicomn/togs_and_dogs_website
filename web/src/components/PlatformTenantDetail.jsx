@@ -59,6 +59,7 @@ const PlatformTenantDetail = () => {
 
   // Edit Modal State
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [modalStep, setModalStep] = useState('edit'); // 'edit' or 'review'
   const [formFields, setFormFields] = useState({
     display_name: '',
     subscription_tier: 'starter',
@@ -67,9 +68,9 @@ const PlatformTenantDetail = () => {
     notes: '',
   });
 
-  // Confirmation Modal State
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [modalError, setModalError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
 
   const fetchTenantDetail = async () => {
     try {
@@ -223,11 +224,14 @@ const PlatformTenantDetail = () => {
 
   const handleOpenEdit = () => {
     setIsEditOpen(true);
+    setModalStep('edit');
+    setModalError(null);
   };
 
   const handleCloseEdit = () => {
     setIsEditOpen(false);
-    setIsConfirmOpen(false);
+    setModalStep('edit');
+    setModalError(null);
   };
 
   const handleSaveAttempt = (e) => {
@@ -236,17 +240,18 @@ const PlatformTenantDetail = () => {
       alert('Display Name is required.');
       return;
     }
-    if (changesList.length === 0) {
-      setIsEditOpen(false);
+    const currentChanges = getChanges();
+    if (currentChanges.length === 0) {
       return;
     }
-    setIsConfirmOpen(true);
+    setModalError(null);
+    setModalStep('review');
   };
 
   const handleConfirmSave = async () => {
     try {
       setSaving(true);
-      setError(null);
+      setModalError(null);
 
       // Construct PATCH payload matching backend expected format
       const payload = {
@@ -261,12 +266,14 @@ const PlatformTenantDetail = () => {
       await updatePlatformTenant(companyId, payload);
       
       // Close modal and refresh details
-      setIsConfirmOpen(false);
       setIsEditOpen(false);
       await fetchTenantDetail();
+
+      setSuccessMessage('Subscription plan updated successfully.');
+      setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
       console.error('Failed to update tenant:', err);
-      alert(err.message || 'Failed to update subscription metadata.');
+      setModalError(err.message || 'Failed to update subscription metadata.');
     } finally {
       setSaving(false);
     }
@@ -304,6 +311,15 @@ const PlatformTenantDetail = () => {
   return (
     <div className="platform-admin-container">
       <Link to="/platform-admin" className="btn-back-platform">← Back to Tenant Registry</Link>
+
+      {successMessage && (
+        <div className="platform-card-section" style={{ borderLeft: '4px solid var(--success-color)', padding: '16px 24px', margin: '24px 0 0 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '1.2rem' }}>✅</span>
+          <p style={{ margin: 0, color: 'var(--success-color)', fontWeight: 600 }}>
+            {successMessage}
+          </p>
+        </div>
+      )}
 
       <header className="platform-header-section" style={{ marginTop: '24px' }}>
         <div className="platform-title-group">
@@ -458,185 +474,224 @@ const PlatformTenantDetail = () => {
         </div>
       </div>
 
-      {/* EDIT MODAL */}
+      {/* EDIT & CONFIRMATION MODAL */}
       {isEditOpen && (
         <div className="platform-modal-overlay">
-          <div className="platform-modal-card">
+          <div className="platform-modal-card" style={modalStep === 'review' ? { maxWidth: '480px' } : {}}>
             <header className="platform-modal-header">
-              <h2>Edit Subscription Plan</h2>
+              <h2>{modalStep === 'edit' ? 'Edit Subscription Plan' : 'Confirm Tenant Updates'}</h2>
               <button onClick={handleCloseEdit} className="btn-close-modal" aria-label="Close edit modal">×</button>
             </header>
             
-            <form onSubmit={handleSaveAttempt}>
-              <div className="platform-modal-body">
-                <div className="edit-form-grid">
-                  <div className="field">
-                    <label htmlFor="display_name">Business Display Name</label>
-                    <input
-                      id="display_name"
-                      type="text"
-                      maxLength={100}
-                      value={formFields.display_name}
-                      onChange={(e) => setFormFields({ ...formFields, display_name: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  <div className="field">
-                    <label htmlFor="subscription_tier">Subscription Tier</label>
-                    <select
-                      id="subscription_tier"
-                      value={formFields.subscription_tier}
-                      onChange={(e) => setFormFields({ ...formFields, subscription_tier: e.target.value })}
-                    >
-                      <option value="starter">Starter</option>
-                      <option value="professional">Professional</option>
-                      <option value="premium">Premium</option>
-                      <option value="enterprise">Enterprise</option>
-                    </select>
-                  </div>
-
-                  <div className="field">
-                    <label htmlFor="subscription_status">Subscription Status</label>
-                    <select
-                      id="subscription_status"
-                      value={formFields.subscription_status}
-                      onChange={(e) => setFormFields({ ...formFields, subscription_status: e.target.value })}
-                    >
-                      <option value="active">Active</option>
-                      <option value="trialing">Trialing</option>
-                      <option value="past_due">Past Due</option>
-                      <option value="paused">Paused</option>
-                      <option value="canceled">Canceled</option>
-                      <option value="disabled">Disabled</option>
-                    </select>
-                  </div>
-
-                  <div className="field">
-                    <label htmlFor="admin_override_until">Admin Override Expiration (UTC)</label>
-                    <input
-                      id="admin_override_until"
-                      type="datetime-local"
-                      value={formFields.admin_override_until}
-                      onChange={(e) => setFormFields({ ...formFields, admin_override_until: e.target.value })}
-                    />
-                    <small style={{ color: 'var(--text-muted)' }}>
-                      Set a future timestamp to override and keep the tenant active regardless of billing status. Clear to let standard billing rule.
-                    </small>
-                  </div>
-
-                  <div className="field">
-                    <label htmlFor="notes">Internal Platform Notes</label>
-                    <textarea
-                      id="notes"
-                      maxLength={1000}
-                      rows={4}
-                      value={formFields.notes}
-                      onChange={(e) => setFormFields({ ...formFields, notes: e.target.value })}
-                      placeholder="Enter administrator notes (audits, override explanations, custom arrangements)..."
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="platform-modal-footer">
-                <button type="button" onClick={handleCloseEdit} className="button-secondary" style={{ padding: '10px 24px' }}>
-                  Cancel
-                </button>
-                <button type="submit" className="button-primary" style={{ padding: '10px 24px' }}>
-                  Next: Review Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* CONFIRMATION MODAL */}
-      {isConfirmOpen && (
-        <div className="platform-modal-overlay" style={{ zIndex: 1010 }}>
-          <div className="platform-modal-card" style={{ maxWidth: '480px' }}>
-            <header className="platform-modal-header">
-              <h2>Confirm Tenant Updates</h2>
-              <button onClick={() => setIsConfirmOpen(false)} className="btn-close-modal">×</button>
-            </header>
-
-            <div className="platform-modal-body">
-              <p style={{ margin: '0 0 16px 0', fontSize: '0.95rem' }}>
-                You are updating tenant metadata for <strong className="monospace">{companyId}</strong>. Please review the pending changes:
-              </p>
-
-              <ul className="changes-diff-list">
-                {changesList.map((ch, idx) => (
-                  <li key={idx}>
-                    <span className="diff-field-name">{ch.field}</span>
-                    <div className="diff-change-vals">
-                      <span className="diff-old-val">{ch.oldVal}</span>
-                      <span>➔</span>
-                      <span className="diff-new-val">{ch.newVal}</span>
+            {modalStep === 'edit' ? (
+              <form onSubmit={handleSaveAttempt}>
+                <div className="platform-modal-body">
+                  {modalError && (
+                    <div className="platform-alert-banner danger" style={{ marginBottom: '20px' }}>
+                      <span>⚠️</span>
+                      <div>
+                        <strong>Error Saving Changes</strong>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem' }}>{modalError}</p>
+                      </div>
                     </div>
-                  </li>
-                ))}
-              </ul>
+                  )}
 
-              {/* Alert Banners for Risky Changes */}
-              {isTierDowngrade() && (
-                <div className="platform-alert-banner warning">
-                  <span>⚠️</span>
-                  <div>
-                    <strong>Downgrade Warning</strong>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem' }}>
-                      Downgrading subscription tier restricts entitlement limits immediately. This may cause the tenant to exceed limits (e.g. staff users: {tenant.usage_counts?.active_staff || 0} vs new limit: {TIER_LIMITS[formFields.subscription_tier]?.max_staff || 0}).
-                    </p>
+                  <div className="edit-form-grid">
+                    <div className="field">
+                      <label htmlFor="display_name">Business Display Name</label>
+                      <input
+                        id="display_name"
+                        type="text"
+                        maxLength={100}
+                        value={formFields.display_name}
+                        onChange={(e) => setFormFields({ ...formFields, display_name: e.target.value })}
+                        required
+                      />
+                    </div>
+
+                    <div className="field">
+                      <label htmlFor="subscription_tier">Subscription Tier</label>
+                      <select
+                        id="subscription_tier"
+                        value={formFields.subscription_tier}
+                        onChange={(e) => setFormFields({ ...formFields, subscription_tier: e.target.value })}
+                      >
+                        <option value="starter">Starter</option>
+                        <option value="professional">Professional</option>
+                        <option value="premium">Premium</option>
+                        <option value="enterprise">Enterprise</option>
+                      </select>
+                    </div>
+
+                    <div className="field">
+                      <label htmlFor="subscription_status">Subscription Status</label>
+                      <select
+                        id="subscription_status"
+                        value={formFields.subscription_status}
+                        onChange={(e) => setFormFields({ ...formFields, subscription_status: e.target.value })}
+                      >
+                        <option value="active">Active</option>
+                        <option value="trialing">Trialing</option>
+                        <option value="past_due">Past Due</option>
+                        <option value="paused">Paused</option>
+                        <option value="canceled">Canceled</option>
+                        <option value="disabled">Disabled</option>
+                      </select>
+                    </div>
+
+                    <div className="field">
+                      <label htmlFor="admin_override_until">Admin Override Expiration (UTC)</label>
+                      <input
+                        id="admin_override_until"
+                        type="datetime-local"
+                        value={formFields.admin_override_until}
+                        onChange={(e) => setFormFields({ ...formFields, admin_override_until: e.target.value })}
+                      />
+                      <small style={{ color: 'var(--text-muted)' }}>
+                        Set a future timestamp to override and keep the tenant active regardless of billing status. Clear to let standard billing rule.
+                      </small>
+                    </div>
+
+                    <div className="field">
+                      <label htmlFor="notes">Internal Platform Notes</label>
+                      <textarea
+                        id="notes"
+                        maxLength={1000}
+                        rows={4}
+                        value={formFields.notes}
+                        onChange={(e) => setFormFields({ ...formFields, notes: e.target.value })}
+                        placeholder="Enter administrator notes (audits, override explanations, custom arrangements)..."
+                      />
+                    </div>
                   </div>
                 </div>
-              )}
 
-              {isSuspension && (
-                <div className="platform-alert-banner danger">
-                  <span>⚠️</span>
-                  <div>
-                    <strong>Access Suspension Alert</strong>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem' }}>
-                      Setting subscription status to Canceled or Disabled blocks all tenant users (including owners, sitters, and clients) from logging in or using the application.
-                    </p>
+                <div className="platform-modal-footer">
+                  <div style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'flex-end' }}>
+                    {changesList.length === 0 && (
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginRight: '16px', fontStyle: 'italic' }}>
+                        No changes to review
+                      </span>
+                    )}
+                    <button type="button" onClick={handleCloseEdit} className="button-secondary" style={{ padding: '10px 24px', marginRight: '12px' }}>
+                      Cancel
+                    </button>
+                    <button type="submit" className="button-primary" style={{ padding: '10px 24px' }} disabled={changesList.length === 0}>
+                      Next: Review Changes
+                    </button>
                   </div>
                 </div>
-              )}
+              </form>
+            ) : (
+              <div>
+                <div className="platform-modal-body">
+                  {modalError && (
+                    <div className="platform-alert-banner danger" style={{ marginBottom: '20px' }}>
+                      <span>⚠️</span>
+                      <div>
+                        <strong>Error Saving Changes</strong>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem' }}>{modalError}</p>
+                      </div>
+                    </div>
+                  )}
 
-              {isPastDue && (
-                <div className="platform-alert-banner warning">
-                  <span>⚠️</span>
-                  <div>
-                    <strong>Past Due State</strong>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem' }}>
-                      Marking status as Past Due triggers a 7-day grace period. Users will experience degraded/blocked access after the grace period expires.
-                    </p>
-                  </div>
+                  <p style={{ margin: '0 0 16px 0', fontSize: '0.95rem' }}>
+                    You are updating tenant metadata for <strong className="monospace">{companyId}</strong>. Please review the pending changes:
+                  </p>
+
+                  <ul className="changes-diff-list">
+                    {changesList.map((ch, idx) => {
+                      const isRisky = ['Subscription Tier', 'Subscription Status', 'Admin Override Until'].includes(ch.field);
+                      return (
+                        <li 
+                          key={idx}
+                          style={{
+                            borderLeft: isRisky ? '4px solid var(--warning-color)' : '4px solid var(--border-color)',
+                            backgroundColor: isRisky ? 'rgba(214, 73, 51, 0.03)' : 'var(--card-bg-muted)'
+                          }}
+                        >
+                          <span className="diff-field-name">
+                            {isRisky ? '⚠️ ' : ''}{ch.field}
+                          </span>
+                          <div className="diff-change-vals">
+                            <span className="diff-old-val">{ch.oldVal}</span>
+                            <span>➔</span>
+                            <span className="diff-new-val">{ch.newVal}</span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+
+                  {/* Alert Banners for Risky Changes */}
+                  {isTierDowngrade() && (
+                    <div className="platform-alert-banner warning">
+                      <span>⚠️</span>
+                      <div>
+                        <strong>Downgrade Warning</strong>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem' }}>
+                          Downgrading subscription tier restricts entitlement limits immediately. This may cause the tenant to exceed limits (e.g. staff users: {tenant.usage_counts?.active_staff || 0} vs new limit: {TIER_LIMITS[formFields.subscription_tier]?.max_staff || 0}).
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {isSuspension && (
+                    <div className="platform-alert-banner danger">
+                      <span>⚠️</span>
+                      <div>
+                        <strong>Access Suspension Alert</strong>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem' }}>
+                          Setting subscription status to Canceled or Disabled blocks all tenant users (including owners, sitters, and clients) from logging in or using the application.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {isPastDue && (
+                    <div className="platform-alert-banner warning">
+                      <span>⚠️</span>
+                      <div>
+                        <strong>Past Due State</strong>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem' }}>
+                          Marking status as Past Due triggers a 7-day grace period. Users will experience degraded/blocked access after the grace period expires.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div className="platform-modal-footer">
-              <button 
-                type="button" 
-                onClick={() => setIsConfirmOpen(false)} 
-                className="button-secondary" 
-                style={{ padding: '10px 24px' }}
-                disabled={saving}
-              >
-                Go Back
-              </button>
-              <button 
-                type="button" 
-                onClick={handleConfirmSave} 
-                className="button-primary" 
-                style={{ padding: '10px 24px', backgroundColor: isSuspension ? 'var(--warning-color)' : 'var(--primary)' }}
-                disabled={saving}
-              >
-                {saving ? 'Saving...' : 'Confirm & Save Changes'}
-              </button>
-            </div>
+                <div className="platform-modal-footer">
+                  <button 
+                    type="button" 
+                    onClick={() => { setModalStep('edit'); setModalError(null); }} 
+                    className="button-secondary" 
+                    style={{ padding: '10px 24px', marginRight: '12px' }}
+                    disabled={saving}
+                  >
+                    Back to Edit
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={handleCloseEdit} 
+                    className="button-secondary" 
+                    style={{ padding: '10px 24px', marginRight: '12px' }}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={handleConfirmSave} 
+                    className="button-primary" 
+                    style={{ padding: '10px 24px', backgroundColor: isSuspension ? 'var(--warning-color)' : 'var(--primary)' }}
+                    disabled={saving}
+                  >
+                    {saving ? 'Saving...' : 'Confirm & Save Changes'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

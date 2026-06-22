@@ -124,6 +124,9 @@ A browser subagent verified the live production site (`https://toganddogs.usmiss
 
 ---
 
-## 11. Next Release
+## 11. Next Release & Defect Remediation
+
+*   [**Release 17P-Fix1: Platform Admin UI CORS Preflight Remediation**](release-17p-fix1-platform-admin-fetch-cors-remediation.md) (2026-06-21) — Resolved data fetch preflight OPTIONS failures.
+*   [**Release 17P-Fix2: Platform Admin Edit Flow Review/Confirmation Fix**](release-17p-fix2-platform-admin-edit-review-flow.md) (2026-06-21) — Refactored the edit flow into a secure, state-driven step modal with diff review and validation.
 
 **Release 17Q:** Matthew manual platform-admin UI smoke testing and authorization validation using his `platform_admin` credentials.
