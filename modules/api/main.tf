@@ -1093,7 +1093,11 @@ locals {
     "admin_job" : aws_api_gateway_resource.admin_job.id,
     "admin_job_complete" : aws_api_gateway_resource.admin_job_complete.id,
     "admin_payment_session" : aws_api_gateway_resource.admin_payment_session.id,
-    "admin_send_payment_email" : aws_api_gateway_resource.admin_send_payment_email.id
+    "admin_send_payment_email" : aws_api_gateway_resource.admin_send_payment_email.id,
+    "platform" : aws_api_gateway_resource.platform.id,
+    "platform_tenants" : aws_api_gateway_resource.platform_tenants.id,
+    "platform_tenants_id" : aws_api_gateway_resource.platform_tenants_id.id,
+    "platform_audit" : aws_api_gateway_resource.platform_audit.id
   }
 
 

@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 17P-Fix1: Platform Admin UI CORS Preflight Remediation**](release-17p-fix1-platform-admin-fetch-cors-remediation.md) (2026-06-21) — ✅ **Completed** — API Gateway OPTIONS/CORS redeployed, preflight issues resolved
 - [**Release 17P: Platform Management UI MVP Implementation**](release-17p-platform-management-ui-mvp-closeout.md) (2026-06-21) — ✅ **Completed** — platform_admin Console UI built, guarded, and deployed
 - [**Release 17N: Platform Admin Access Bootstrap and Authorized API Smoke**](release-17n-platform-admin-access-bootstrap-and-authorized-api-smoke.md) (2026-06-21) — ✅ **Completed** — platform_admin group bootstrapped, 401/403 enforcement confirmed, 454/454 tests passed
 - [**Release 17L: Platform Admin Backend APIs**](release-17l-platform-admin-backend-apis-closeout.md) (2026-06-21) — ✅ **Completed** — Secure platform admin Cognito group and backend routes
@@ -80,6 +81,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Admin Soft Delete & Archive Filtering](admin-dashboard/admin-soft-delete-archive-filtering.md)
 
 ### 🛡️ RBAC, Auth & Security
+*   [Release 17P-Fix1: Platform Admin UI CORS Preflight Remediation](release-17p-fix1-platform-admin-fetch-cors-remediation.md)
 *   [Release 17P: Platform Management UI MVP Implementation](release-17p-platform-management-ui-mvp-closeout.md)
 *   [Release 17N: Platform Admin Access Bootstrap and Authorized API Smoke](release-17n-platform-admin-access-bootstrap-and-authorized-api-smoke.md)
 *   [Release 11F: Tenant Enforcement Production Deployment & Smoke Validation](release-11f-tenant-enforcement-production-deployment-and-smoke-validation.md)
