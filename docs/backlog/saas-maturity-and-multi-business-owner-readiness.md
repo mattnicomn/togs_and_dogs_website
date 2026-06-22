@@ -21,7 +21,7 @@ The platform has strong single-tenant foundations but requires significant work 
 | 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
 | 2 | Usage metering per tenant | ❌ Not started | Medium | #1 |
 | 3 | Tenant provisioning workflow/tool | ✅ Script implemented (17W) — apply gate pending | High | #1 |
-| 5 | Cognito `custom:company_id` enforcement | ⏳ Design complete (17X), implementation pending (17Y/17Z) | Medium | #4 |
+| 5 | Cognito `custom:company_id` enforcement | ⏳ Implementation complete (17Y), audit/migration pending (17Z) | Medium | #4 |
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
 | 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
 | 8 | Pricing/signup page | ❌ Not started | Medium | #6 |
@@ -34,7 +34,7 @@ The platform has strong single-tenant foundations but requires significant work 
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| `DEFAULT_COMPANY_ID` fallback | Critical | Any Cognito user created without a `custom:company_id` will default to "tog_and_dogs". Must implement post-auth Lambda trigger or strict attribute enforcement before the first secondary tenant is onboarded. |
+| `DEFAULT_COMPANY_ID` fallback | Critical | Hardened in 17Y to support strict mode (PermissionError if mode=multi). Single mode remains active for backward compatibility; once Cognito attribute audit (17Z) is complete, strict mode (18A) will be enabled. |
 
 ---
 
@@ -72,10 +72,12 @@ The platform has strong single-tenant foundations but requires significant work 
 Start second-tenant creation only when:
 1. ✅ Entitlement enforcement active (Phase 1 gates working — 17D/17I)
 2. ✅ Platform Admin UI deployed and validated (17P/17R)
-3. ❌ Credential security cleanup complete (shared dev password rotated — 17T)
-4. ❌ Tenant provisioning tooling exists (creation script or API — 17U/17V)
+3. ✅ Credential security cleanup complete (shared dev passwords rotated — 17U)
+4. ✅ Tenant provisioning tooling exists (creation script — 17W)
 5. ❌ Matthew explicitly approves second-tenant creation
 6. ⏳ EIN resolved + live payments working (for billing portal only — not required for dry run)
 7. ⏳ Ryan invitation deferred until 19A re-evaluation gate
 
 **Updated 2026-06-21 (17W):** Tenant provisioning script (`scripts/provision_tenant.py`) implemented. Dry-run mode is safe. Apply mode requires explicit gate approval. Company ID resolution audit completed — `custom:company_id` claim correctly takes precedence. Known risk documented: a Cognito user without `custom:company_id` set falls through to `DEFAULT_COMPANY_ID` ("tog_and_dogs"). Remediation required before any second-tenant Cognito user is created (post-auth Lambda trigger or strict Cognito user attribute enforcement).
+
+**Updated 2026-06-22 (17Y):** Implemented strict/compatibility tenant resolution modes (`TENANT_RESOLUTION_MODE=single|multi`) and structured logging with CloudWatch observability metrics/alarms. Ready for Cognito audit (17Z) and strict mode enablement (18A).
