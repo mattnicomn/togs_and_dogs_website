@@ -3,6 +3,8 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 18I: Post-Reconnect Calendar Sync Controlled Validation Execution**](release-18i-post-reconnect-calendar-sync-controlled-validation.md) (2026-06-23) — ⏳ **Blocked / Stopped for Feedback** — Create controlled test booking, verify Google Calendar event, stop before cancellation due to notification risk
+- [**Release 18H: Post-Reconnect Calendar Sync Validation Plan**](../planning/release-18h-post-reconnect-calendar-sync-validation-plan.md) (2026-06-23) — ✅ **Complete** — Planning safe controlled calendar sync validation without customer-facing side effects
 - [**Release 18G: Matthew-Approved Google Calendar Reconnect Execution and Validation**](release-18g-google-calendar-reconnect-execution-and-validation.md) (2026-06-23) — ✅ **Complete** — Reconnect Google Calendar account via manual OAuth and verify connection is healthy
 - [**Release 18F: Google Calendar Reconnect and Scheduler Sync Reliability Review**](../planning/release-18f-google-calendar-reconnect-and-scheduler-sync-reliability-review.md) (2026-06-23) — ✅ **Complete** — Review degraded connection state, risks, and validation checklists
 - [**Release 18E: Strict Mode Enablement Gate Review**](release-18e-strict-mode-enablement-gate-review.md) (2026-06-23) — ⏳ **Interim Checkpoint** — Interim read-only check of fallback/failed metrics; final review after June 30

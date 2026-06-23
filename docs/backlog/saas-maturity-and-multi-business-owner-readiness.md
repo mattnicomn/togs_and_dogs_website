@@ -93,3 +93,7 @@ Start second-tenant creation only when:
 **Updated 2026-06-23 (18F):** Completed the Google Calendar connection and scheduler sync reliability review, mapping out degraded state behavior, risks, and post-reconnect validation checklist.
 
 **Updated 2026-06-23 (18G):** Matthew manually completed the Google OAuth consent flow. Verified that the connection status is CONNECTED and healthy. The degraded connection warning on /admin has been cleared.
+
+**Updated 2026-06-23 (18H):** Completed the validation plan for the post-reconnect Google Calendar sync, defining safe test data parameters and notification suppression strategies.
+
+**Updated 2026-06-23 (18I):** Executed the controlled validation run. Confirmed successful test booking and Google Calendar event sync. Paused execution before cleanup/cancellation due to Postmark admin notification risk, awaiting instruction.
