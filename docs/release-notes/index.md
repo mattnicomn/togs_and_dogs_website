@@ -3,6 +3,8 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 18G: Matthew-Approved Google Calendar Reconnect Execution and Validation**](release-18g-google-calendar-reconnect-execution-and-validation.md) (2026-06-23) — ✅ **Complete** — Reconnect Google Calendar account via manual OAuth and verify connection is healthy
+- [**Release 18F: Google Calendar Reconnect and Scheduler Sync Reliability Review**](../planning/release-18f-google-calendar-reconnect-and-scheduler-sync-reliability-review.md) (2026-06-23) — ✅ **Complete** — Review degraded connection state, risks, and validation checklists
 - [**Release 18E: Strict Mode Enablement Gate Review**](release-18e-strict-mode-enablement-gate-review.md) (2026-06-23) — ⏳ **Interim Checkpoint** — Interim read-only check of fallback/failed metrics; final review after June 30
 - [**Release 18D: Tenant Resolution Fallback Metric Observation Period Kickoff**](release-18d-tenant-resolution-fallback-metric-observation-kickoff.md) (2026-06-23) — ⏳ **In Progress** — Start 7+ day read-only observation of fallback/failed metrics
 - [**Release 18C: Manual Cognito User Company ID Backfill Closeout**](release-18c-manual-cognito-user-company-id-backfill-closeout.md) (2026-06-22) — ✅ **Complete** — All users have custom:company_id set
@@ -114,6 +116,8 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Permanent Delete Key Resolution Hotfix](data-integrity/permanent-delete-key-resolution-hotfix.md)
 
 ### 📅 Calendar & Integrations
+*   [Release 18G: Matthew-Approved Google Calendar Reconnect Execution and Validation](release-18g-google-calendar-reconnect-execution-and-validation.md)
+*   [Release 18F: Google Calendar Reconnect and Scheduler Sync Reliability Review](../planning/release-18f-google-calendar-reconnect-and-scheduler-sync-reliability-review.md)
 *   [Google Calendar Approved Trigger](calendar/google-calendar-approved-trigger.md)
 
 ### 👤 Client Portal
