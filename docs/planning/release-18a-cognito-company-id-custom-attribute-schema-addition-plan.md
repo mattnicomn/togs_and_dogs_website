@@ -1,6 +1,6 @@
 # Release 18A: Cognito Company ID Custom Attribute Schema Addition Plan
 
-**Status:** Planning
+**Status:** ✅ Completed (Implemented in 18B)  
 **Date:** 2026-06-22
 **Priority:** High (unblocks user backfill → strict mode → second tenant)
 **Scope:** Design safe addition of `custom:company_id` to Cognito user pool schema

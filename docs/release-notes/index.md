@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 18B: Cognito Company ID Custom Attribute Schema Addition Implementation**](release-18b-cognito-company-id-custom-attribute-schema-addition.md) (2026-06-23) — ✅ **Complete** — Add custom:company_id custom attribute to Cognito user pool schema via Terraform; configure client app read/write permissions
 - [**Release 17Y: Company ID Resolution Hardening Implementation**](release-17y-company-id-resolution-hardening-implementation.md) (2026-06-22) — ✅ **Complete** — TENANT_RESOLUTION_MODE environment toggle, structured logging, CloudWatch metric filters/alarms
 - [**Release 17W: Tenant Provisioning Script Implementation and Company ID Resolution Verification**](release-17w-tenant-provisioning-script-implementation.md) (2026-06-21) — ✅ **Complete** — Provisioning script, 72 new tests, DEFAULT_COMPANY_ID risk documented
 - [**Release 17U: Credential Security Cleanup Closeout**](release-17u-credential-security-cleanup-closeout.md) (2026-06-21) — ✅ **Complete** — All shared dev passwords rotated
@@ -86,6 +87,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Admin Soft Delete & Archive Filtering](admin-dashboard/admin-soft-delete-archive-filtering.md)
 
 ### 🛡️ RBAC, Auth & Security
+*   [Release 18B: Cognito Company ID Custom Attribute Schema Addition Implementation](release-18b-cognito-company-id-custom-attribute-schema-addition.md)
 *   [Release 17Y: Company ID Resolution Hardening Implementation](release-17y-company-id-resolution-hardening-implementation.md)
 *   [Release 17R: Safe Tenant Metadata Edit Smoke and Audit Validation](release-17r-safe-tenant-metadata-edit-smoke-and-audit-validation.md)
 *   [Release 17P-Fix2: Platform Admin Edit Flow Review/Confirmation Fix](release-17p-fix2-platform-admin-edit-review-flow.md)

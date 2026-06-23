@@ -15,6 +15,18 @@ resource "aws_cognito_user_pool" "admin" {
     require_uppercase = true
   }
 
+  schema {
+    name                = "company_id"
+    attribute_data_type = "String"
+    mutable             = true
+    required            = false
+
+    string_attribute_constraints {
+      min_length = 1
+      max_length = 64
+    }
+  }
+
   tags = var.tags
 }
 
@@ -40,6 +52,43 @@ resource "aws_cognito_user_pool_client" "admin_client" {
   allowed_oauth_flows                  = ["code", "implicit"]
   allowed_oauth_scopes                 = ["email", "openid", "profile"]
   supported_identity_providers         = ["COGNITO"]
+
+  read_attributes = [
+    "email",
+    "email_verified",
+    "family_name",
+    "given_name",
+    "name",
+    "phone_number",
+    "phone_number_verified",
+    "middle_name",
+    "nickname",
+    "preferred_username",
+    "picture",
+    "website",
+    "gender",
+    "locale",
+    "zoneinfo",
+    "updated_at",
+    "custom:company_id"
+  ]
+
+  write_attributes = [
+    "email",
+    "family_name",
+    "given_name",
+    "name",
+    "phone_number",
+    "middle_name",
+    "nickname",
+    "preferred_username",
+    "picture",
+    "website",
+    "gender",
+    "locale",
+    "zoneinfo",
+    "updated_at"
+  ]
 }
 
 resource "aws_cognito_user_pool_domain" "admin_domain" {

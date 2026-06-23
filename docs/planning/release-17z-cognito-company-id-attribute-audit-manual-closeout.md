@@ -1,6 +1,6 @@
 # Release 17Z: Cognito Company ID Attribute Audit / Manual Closeout
 
-**Status:** Planning — Awaiting Matthew Manual Execution
+**Status:** ✅ Completed (Cognito schema added in 18B; audit/backfill tasks moved to 18C)  
 **Date:** 2026-06-22
 **Priority:** High (prerequisite for strict multi-tenant mode)
 **Scope:** Manual Cognito audit checklist + safe completion documentation
