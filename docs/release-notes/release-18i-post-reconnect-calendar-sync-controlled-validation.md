@@ -2,7 +2,7 @@
 
 **Release Name:** 18I — Post-Reconnect Calendar Sync Controlled Validation Execution  
 **Date:** 2026-06-23  
-**Status:** ⏳ **Blocked / Stopped for Admin Feedback**  
+**Status:** ✅ **Complete**  
 **Commit Baseline:** `5dc1f20`  
 
 ---
@@ -20,7 +20,7 @@
    - When a booking is cancelled (via `handle_admin_decision` or admin bulk status updates), it triggers `notify_event('VISIT_CANCELLED')`.
    - In `resolve_notification_recipients` under `resolver.py`, the cancellation event checks `NOTIFY_ADMIN_ON_CANCELLED`.
    - Since `NOTIFY_ADMIN_ON_CANCELLED` defaults to `true` and the production environment has live notifications enabled (`NOTIFICATIONS_ENABLED=true`, `NOTIFICATION_DRY_RUN=false`), standard cancellation **will attempt to send a live Postmark email to Matthew (`mbn@usmissionhero.com`)**.
-   - **Safety Action:** In accordance with the guardrail *"If cancellation would send external notifications, stop and report before cancelling,"* execution was paused before performing the cleanup/cancellation.
+   - **Safety Action:** Stopped and reported the blocker. Matthew approved Option B (Standard Cancellation) to let the single admin email go through while ensuring no client notifications were sent.
 
 ---
 
@@ -62,6 +62,24 @@
 
 ---
 
+## 🧹 Standard Cancellation & Cleanup Execution (Option B)
+
+1. **Standard Cancellation Invocation:**
+   - Invoked the `/admin/cancellation/decision` path on the cancellation Lambda.
+   - Event status on both the Request (`REQ#2e304415-327e-4e4d-9032-db2471eb7eda`) and Child Job (`JOB#02e59a06-1329-4bad-b585-bb6994564548`) records were successfully updated to `CANCELLED`.
+
+2. **Google Calendar Removal:**
+   - Checked the Google Calendar event status via API and confirmed the event `00o04gs5mqh32sv1bhb1fuino8` was successfully deleted (returned status `cancelled`).
+
+3. **Notification Verification (from CloudWatch Logs):**
+   - Verified that one notification was sent:
+     - **Event Type:** `VISIT_CANCELLED`
+     - **Recipient Domain:** `usmissionhero.com` (`mbn@usmissionhero.com` admin email)
+     - **Postmark Status:** `success` (MessageId: `5c8110f4-fdad-4878-9964-7bf8e6f6e213`)
+   - **Client/Sitter Verification:** Verified no other notifications were resolved or delivered (no client email/phone was present).
+
+---
+
 ## 🚦 Post-Test System Status & Telemetry
 
 * **Admin Portal (`/admin`):** ✅ Loading successfully (HTTP 200)
@@ -76,19 +94,10 @@
 
 ---
 
-## 🛑 Blocker and Recommended Next Steps
+## 🏁 Closeout & Next Steps
 
-Because standard cancellation triggers a Postmark notification email to `mbn@usmissionhero.com`, we have paused the cleanup phase.
-
-### Proposed Cleanup Options for Matthew's Approval:
-
-1. **Option A: Cancel with Suppression (Recommended)**
-   - Temporarily write a suppression record `SUPPRESSION#mbn@usmissionhero.com` in DynamoDB.
-   - Run the cancellation API call. The notification resolver will see `mbn@usmissionhero.com` is suppressed, skip sending the email, and successfully delete the Google Calendar event.
-   - Remove the suppression record.
-2. **Option B: Proceed with Standard Cancellation (Matthew accepts email)**
-   - Proceed with standard cancellation, accepting that a single visit cancellation email will be sent to `mbn@usmissionhero.com`.
-3. **Option C: Manual DynamoDB and Calendar Deletion**
-   - Manually delete the Google Calendar event via API and delete the DynamoDB records directly (bypassing the cancellation workflow entirely).
-
-Please review the findings and confirm which cleanup option to execute.
+With the post-reconnect calendar sync controlled validation successfully completed and all test data cleaned up via standard workflows:
+- Google Calendar sync is verified as fully operational.
+- The degraded warning alert on `/admin` remains cleared.
+- No secrets or credentials were exposed.
+- Next step: Continue with multi-tenant readiness backlog items.
