@@ -95,6 +95,21 @@ aws logs filter-log-events \
 
 ---
 
+### 1b. Tenant Resolution Fallbacks/Failures (Release 18D Observation)
+
+Monitor the status of tenant resolution alarms and log metrics during the 7+ day observation window:
+- Verify that `togs-and-dogs-prod-tenant-resolution-fallback` and `togs-and-dogs-prod-tenant-resolution-failed` alarms remain in the **OK** state.
+- In CloudWatch Logs Insights, run this query over the Lambda logs to search for any fallback or failure occurrences:
+  ```
+  fields @timestamp, @message
+  | filter @message like /TENANT_RESOLUTION_FALLBACK/ or @message like /TENANT_RESOLUTION_FAILED/
+  | sort @timestamp desc
+  | limit 10
+  ```
+- **Normal:** 0 results. If any fallback occurs, pause the multi-tenant migration and investigate the logs to identify the user flow lacking `custom:company_id`.
+
+---
+
 ### 2. Google Calendar Health Check (Daily Auto-Run)
 
 The EventBridge rule `togs-and-dogs-prod-calendar-health-check` triggers the `togs-and-dogs-prod-google-auth` Lambda once per day. Check its log group for the latest execution:

@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 18D: Tenant Resolution Fallback Metric Observation Period Kickoff**](release-18d-tenant-resolution-fallback-metric-observation-kickoff.md) (2026-06-23) — ⏳ **In Progress** — Start 7+ day read-only observation of fallback/failed metrics
 - [**Release 18C: Manual Cognito User Company ID Backfill Closeout**](release-18c-manual-cognito-user-company-id-backfill-closeout.md) (2026-06-22) — ✅ **Complete** — All users have custom:company_id set
 - [**Release 18B: Cognito Company ID Custom Attribute Schema Addition Implementation**](release-18b-cognito-company-id-custom-attribute-schema-addition.md) (2026-06-23) — ✅ **Complete** — Add custom:company_id custom attribute to Cognito user pool schema via Terraform; configure client app read/write permissions
 - [**Release 17Y: Company ID Resolution Hardening Implementation**](release-17y-company-id-resolution-hardening-implementation.md) (2026-06-22) — ✅ **Complete** — TENANT_RESOLUTION_MODE environment toggle, structured logging, CloudWatch metric filters/alarms
@@ -88,6 +89,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Admin Soft Delete & Archive Filtering](admin-dashboard/admin-soft-delete-archive-filtering.md)
 
 ### 🛡️ RBAC, Auth & Security
+*   [Release 18C: Manual Cognito User Company ID Backfill Closeout](release-18c-manual-cognito-user-company-id-backfill-closeout.md)
 *   [Release 18B: Cognito Company ID Custom Attribute Schema Addition Implementation](release-18b-cognito-company-id-custom-attribute-schema-addition.md)
 *   [Release 17Y: Company ID Resolution Hardening Implementation](release-17y-company-id-resolution-hardening-implementation.md)
 *   [Release 17R: Safe Tenant Metadata Edit Smoke and Audit Validation](release-17r-safe-tenant-metadata-edit-smoke-and-audit-validation.md)
@@ -118,6 +120,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Client Access Management Phase 5a](client-portal/client-access-management-phase-5a.md)
 
 ### 🚀 Deployment & Operations
+*   [Release 18D: Tenant Resolution Fallback Metric Observation Period Kickoff](release-18d-tenant-resolution-fallback-metric-observation-kickoff.md)
 *   [Production UAT Validation](deployment/production-uat-staff-client-workflow-validation.md)
 *   [Production Audit Remediation](deployment/production-audit-remediation.md)
 *   [Backend Intake Validation Tests](deployment/backend-intake-validation-tests.md)

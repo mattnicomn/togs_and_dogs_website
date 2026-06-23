@@ -83,3 +83,7 @@ Start second-tenant creation only when:
 **Updated 2026-06-22 (17Y):** Implemented strict/compatibility tenant resolution modes (`TENANT_RESOLUTION_MODE=single|multi`) and structured logging with CloudWatch observability metrics/alarms. Ready for Cognito audit (17Z) and strict mode enablement (18A).
 
 **Updated 2026-06-23 (18B):** Added `custom:company_id` custom attribute to Cognito user pool schema via Terraform and updated app client read/write attributes (read includes `custom:company_id`, write excludes it) to prevent self-service modification. Ready for manual backfill of users (18C).
+
+**Updated 2026-06-23 (18C):** Completed Cognito user audit and backfilled all production users with `custom:company_id = tog_and_dogs` attribute. Verified admin/platform admin logins.
+
+**Updated 2026-06-23 (18D):** Initiated 7-day observation period for tenant resolution fallback and failure metrics to ensure zero fallback logs before strict mode enablement.
