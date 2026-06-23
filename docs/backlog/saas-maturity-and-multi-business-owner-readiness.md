@@ -19,7 +19,7 @@ The platform has strong single-tenant foundations but requires significant work 
 | # | Item | Status | Effort | Depends On |
 |---|------|--------|--------|------------|
 | 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
-| 2 | Usage metering per tenant | ❌ Not started | Medium | #1 |
+| 2 | Usage metering per tenant | ✅ Phase 2 active (18L) | Done | #1 |
 | 3 | Tenant provisioning workflow/tool | ✅ Script implemented (17W) — apply gate pending | High | #1 |
 | 5 | Cognito `custom:company_id` enforcement | ⏳ Schema added (18B), backfilled (18C), 7-day observation active (18D/18E) | Medium | #4 |
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
@@ -70,7 +70,7 @@ The platform has strong single-tenant foundations but requires significant work 
 ## Resume Criteria for Multi-Tenant Work
 
 Start second-tenant creation only when:
-1. ✅ Entitlement enforcement active (Phase 1 gates working — 17D/17I)
+1. ✅ Entitlement enforcement active (Phase 1 & 2 gates working — 17D/17I/18L)
 2. ✅ Platform Admin UI deployed and validated (17P/17R)
 3. ✅ Credential security cleanup complete (shared dev passwords rotated — 17U)
 4. ✅ Tenant provisioning tooling exists (creation script — 17W)
@@ -97,3 +97,5 @@ Start second-tenant creation only when:
 **Updated 2026-06-23 (18H):** Completed the validation plan for the post-reconnect Google Calendar sync, defining safe test data parameters and notification suppression strategies.
 
 **Updated 2026-06-23 (18I):** Executed the controlled validation run. Confirmed successful test booking and Google Calendar event sync. Cancelled the booking using standard cancellation flow and verified event deletion in Google Calendar. Only the configured admin cancellation email was sent.
+
+**Updated 2026-06-23 (18L):** Implemented Phase 2 entitlement gates (active/disabled client limit gating and monthly booking atomic counter gating). Verified via unit tests and successfully deployed Lambda updates to production.

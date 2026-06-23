@@ -178,6 +178,28 @@ def auto_create_or_link_client_profile(request_item, request_id, client_id, comp
         }
 
     # 6. No match — create new client profile
+    # Entitlement Check
+    try:
+        from common.entitlement import check_limit, get_active_client_count, EntitlementDenied
+        current_count = get_active_client_count(company_id)
+        check_limit(company_id, 'max_active_clients', current_count)
+    except EntitlementDenied as ed:
+        print(f"WARNING: [AutoProfile] Client limit reached. Cannot auto-create profile: {ed}")
+        _update_request_link_status(request_id, client_id, 'FAILED_LIMIT_EXCEEDED', None, 'failed_limit_exceeded', now)
+        _append_audit_to_request(request_id, client_id, {
+            "action": "CLIENT_PROFILE_LIMIT_EXCEEDED",
+            "timestamp": now,
+            "email": email,
+            "error": str(ed),
+            "updated_by": "system_auto_profile"
+        })
+        return {
+            "action": "failed",
+            "link_status": "FAILED_LIMIT_EXCEEDED",
+            "client_profile_id": None,
+            "message": f"Client limit reached: {str(ed)}"
+        }
+
     import uuid
     new_profile_id = f"client_{str(uuid.uuid4())[:8]}"
 

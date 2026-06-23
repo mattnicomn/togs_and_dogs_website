@@ -360,6 +360,14 @@ def check_limit(company_id, limit_name, current_value, context=None):
     # 3. Resolve limit value and enforce
     max_allowed = ent.limits.get(limit_name, 0)
     if current_value >= max_allowed:
+        # Customize message based on limit_name
+        if limit_name == 'max_active_clients':
+            reason_msg = f"Client limit reached ({current_value}/{max_allowed})."
+        elif limit_name == 'max_monthly_bookings':
+            reason_msg = f"Monthly booking limit reached ({current_value}/{max_allowed})."
+        else:
+            reason_msg = f"Limit reached ({current_value}/{max_allowed}). Upgrade for more capacity."
+
         _log_decision(
             event="ENTITLEMENT_DENIED",
             company_id=company_id,
@@ -369,14 +377,14 @@ def check_limit(company_id, limit_name, current_value, context=None):
             subscription_status=ent.subscription_status,
             enforcement_enabled=enforcement_enabled,
             allowed=False,
-            reason=f"Limit reached ({current_value}/{max_allowed}). Upgrade for more capacity.",
+            reason=reason_msg,
             protected_admin_bypass=False,
             current_count=current_value,
             max_allowed=max_allowed,
             context=context
         )
         raise EntitlementDenied(
-            f"Limit reached ({current_value}/{max_allowed}). Upgrade for more capacity.",
+            reason_msg,
             upgrade_hint="upgrade",
             limit=limit_name
         )
@@ -397,4 +405,86 @@ def check_limit(company_id, limit_name, current_value, context=None):
         context=context
     )
     return ent
+
+
+def get_active_client_count(company_id):
+    """
+    Get the count of active + disabled clients, excluding archived clients.
+    """
+    from common.db import table
+    from boto3.dynamodb.conditions import Key
+    try:
+        response = table.query(
+            KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("CLIENT#")
+        )
+        items = response.get('Items', [])
+        count = 0
+        for item in items:
+            if item.get('status') == 'ARCHIVED' or item.get('is_archived') is True:
+                continue
+            count += 1
+        return count
+    except Exception as e:
+        print(f"ERROR: Failed to query client count for {company_id}: {e}")
+        return 0
+
+
+def get_monthly_bookings_count(company_id, date_str=None):
+    """
+    Get the monthly booking count for a company in YYYY-MM format.
+    Defaults to the current month in UTC if date_str is not provided.
+    """
+    from common.db import table
+    if not date_str:
+        from datetime import datetime
+        date_str = datetime.utcnow().strftime('%Y-%m')
+    else:
+        if len(date_str) >= 7:
+            date_str = date_str[:7]
+            
+    try:
+        response = table.get_item(
+            Key={
+                'PK': f"USAGE#{company_id}",
+                'SK': f"BOOKINGS#{date_str}"
+            }
+        )
+        item = response.get('Item')
+        if not item:
+            return 0
+        return int(item.get('booking_count', 0))
+    except Exception as e:
+        print(f"ERROR: Failed to get monthly bookings count for {company_id}: {e}")
+        return 0
+
+
+def increment_monthly_bookings(company_id, date_str=None):
+    """
+    Atomically increment the monthly booking counter for a company.
+    Defaults to the current month in UTC if date_str is not provided.
+    """
+    from common.db import table
+    if not date_str:
+        from datetime import datetime
+        date_str = datetime.utcnow().strftime('%Y-%m')
+    else:
+        if len(date_str) >= 7:
+            date_str = date_str[:7]
+            
+    try:
+        table.update_item(
+            Key={
+                'PK': f"USAGE#{company_id}",
+                'SK': f"BOOKINGS#{date_str}"
+            },
+            UpdateExpression="ADD booking_count :val",
+            ExpressionAttributeValues={
+                ':val': 1
+            }
+        )
+        return True
+    except Exception as e:
+        print(f"ERROR: Failed to increment monthly bookings count for {company_id}: {e}")
+        return False
+
 

@@ -731,6 +731,14 @@ def handler(event, context):
             if is_protected_email(email):
                 return error(403, "Cannot create a standard profile using a protected account identity.", event)
 
+            # Entitlement Check
+            try:
+                from common.entitlement import check_limit, get_active_client_count
+                current_count = get_active_client_count(company_id)
+                check_limit(company_id, 'max_active_clients', current_count, context=event)
+            except EntitlementDenied as ed:
+                return error(403, str(ed), event)
+
             import boto3
             cognito = boto3.client('cognito-idp')
             user_pool_id = os.environ.get('ADMIN_USER_POOL_ID')
@@ -1579,6 +1587,14 @@ def handler(event, context):
                     # Release 6H: Block client creation with protected admin email
                     if is_protected_email(email):
                         return error(403, "Cannot create a standard profile using a protected account identity.", event)
+
+                # Entitlement Check
+                try:
+                    from common.entitlement import check_limit, get_active_client_count
+                    current_count = get_active_client_count(company_id)
+                    check_limit(company_id, 'max_active_clients', current_count, context=event)
+                except EntitlementDenied as ed:
+                    return error(403, str(ed), event)
                         
                 client_id = f"client_{str(uuid.uuid4())[:8]}"
                 

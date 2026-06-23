@@ -175,6 +175,17 @@ def _handle_admin_created_booking(event, body):
     if client_profile.get('company_id') and client_profile.get('company_id') != company_id:
         return error(403, "Forbidden: Cross-tenant booking creation is not allowed.", event)
 
+    is_test = body.get('is_test_booking') is True or body.get('is_test') is True
+
+    # Entitlement Check
+    if not is_test:
+        try:
+            from common.entitlement import check_limit, get_monthly_bookings_count, EntitlementDenied
+            current_bookings = get_monthly_bookings_count(company_id)
+            check_limit(company_id, 'max_monthly_bookings', current_bookings, context=event)
+        except EntitlementDenied as ed:
+            return error(403, str(ed), event)
+
     # 4. Create the Request record
     request_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
@@ -215,9 +226,19 @@ def _handle_admin_created_booking(event, body):
         'linked_client_profile_id': client_id,
         'client_profile_link_status': 'ADMIN_CREATED',
     }
+    if is_test:
+        item['is_test_booking'] = True
 
     if not put_item(item):
         return internal_error("Failed to save booking to database.", event)
+
+    # Increment monthly bookings count
+    if not is_test:
+        try:
+            from common.entitlement import increment_monthly_bookings
+            increment_monthly_bookings(company_id)
+        except Exception as inc_err:
+            print(f"WARNING: [AdminBooking] Failed to increment monthly bookings: {inc_err}")
 
     # 5. Trigger JOB creation Lambda (async, fail-safe)
     job_warning = None
@@ -394,9 +415,39 @@ def handler(event, context):
 
         client_email = client_email.lower().strip()
 
+        is_test = body.get('is_test_booking') is True or body.get('is_test') is True
+
+        # 1. Client count gate (only for public intake/new email)
+        if workflow_type == WorkflowType.CUSTOMER_INTAKE:
+            from boto3.dynamodb.conditions import Key
+            resp = table.query(
+                KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("CLIENT#")
+            )
+            existing_clients = resp.get('Items', [])
+            has_matching_profile = False
+            for c in existing_clients:
+                if (c.get('email') or '').lower().strip() == client_email:
+                    has_matching_profile = True
+                    break
+            
+            if not has_matching_profile:
+                try:
+                    from common.entitlement import check_limit, get_active_client_count, EntitlementDenied
+                    current_count = get_active_client_count(company_id)
+                    check_limit(company_id, 'max_active_clients', current_count, context=event)
+                except EntitlementDenied as ed:
+                    return error(403, str(ed), event)
+
+        # 2. Monthly booking limit gate
+        if not is_test:
+            try:
+                from common.entitlement import check_limit, get_monthly_bookings_count, EntitlementDenied
+                current_bookings = get_monthly_bookings_count(company_id)
+                check_limit(company_id, 'max_monthly_bookings', current_bookings, context=event)
+            except EntitlementDenied as ed:
+                return error(403, str(ed), event)
+
         request_id = str(uuid.uuid4())
-        client_id = client_id or body.get('client_id', str(uuid.uuid4()))
-        
         client_id = client_id or body.get('client_id', str(uuid.uuid4()))
 
         # Create the Request record
@@ -437,6 +488,8 @@ def handler(event, context):
             'created_at': datetime.utcnow().isoformat(),
             'entity_type': 'REQUEST'
         }
+        if is_test:
+            item['is_test_booking'] = True
         
         if workflow_type == WorkflowType.CUSTOMER_INTAKE:
             item['accepted_terms'] = True
@@ -448,6 +501,14 @@ def handler(event, context):
             item['source'] = 'public_intake'
         
         if put_item(item):
+            # Increment monthly bookings count
+            if not is_test:
+                try:
+                    from common.entitlement import increment_monthly_bookings
+                    increment_monthly_bookings(company_id)
+                except Exception as inc_err:
+                    print(f"WARNING: Failed to increment monthly bookings: {inc_err}")
+
             # Trigger Step Function Lifecycle
             if STATE_MACHINE_ARN:
                 try:
