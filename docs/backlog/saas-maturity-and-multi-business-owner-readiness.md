@@ -21,7 +21,7 @@ The platform has strong single-tenant foundations but requires significant work 
 | 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
 | 2 | Usage metering per tenant | ❌ Not started | Medium | #1 |
 | 3 | Tenant provisioning workflow/tool | ✅ Script implemented (17W) — apply gate pending | High | #1 |
-| 5 | Cognito `custom:company_id` enforcement | ✅ Schema added (18B), backfilled (18C), observation complete & gate review passed (18E) | Medium | #4 |
+| 5 | Cognito `custom:company_id` enforcement | ⏳ Schema added (18B), backfilled (18C), 7-day observation active (18D/18E) | Medium | #4 |
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
 | 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
 | 8 | Pricing/signup page | ❌ Not started | Medium | #6 |
@@ -86,6 +86,6 @@ Start second-tenant creation only when:
 
 **Updated 2026-06-23 (18C):** Completed Cognito user audit and backfilled all production users with `custom:company_id = tog_and_dogs` attribute. Verified admin/platform admin logins.
 
-**Updated 2026-06-23 (18D):** Initiated 7-day observation period for tenant resolution fallback and failure metrics to ensure zero fallback logs before strict mode enablement.
+**Updated 2026-06-23 (18D):** Initiated 7-day observation period for tenant resolution fallback and failure metrics to ensure zero fallback logs before strict mode enablement. Window runs through June 30, 2026.
 
-**Updated 2026-06-23 (18E):** Completed the 7-day observation period gate review. Fallback/failed metric totals remained at zero with no regressions reported. Strict mode recommended for next release.
+**Updated 2026-06-23 (18E):** Completed interim checkpoint review of the observation period. Telemetry shows 0 fallback/failure events so far. Strict mode remains disabled; final gate review scheduled on or after June 30, 2026.
