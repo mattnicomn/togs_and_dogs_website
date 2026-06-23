@@ -21,7 +21,7 @@ The platform has strong single-tenant foundations but requires significant work 
 | 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
 | 2 | Usage metering per tenant | ❌ Not started | Medium | #1 |
 | 3 | Tenant provisioning workflow/tool | ✅ Script implemented (17W) — apply gate pending | High | #1 |
-| 5 | Cognito `custom:company_id` enforcement | ⏳ Code deployed (17Y), audit checklist ready (17Z), awaiting Matthew manual audit | Medium | #4 |
+| 5 | Cognito `custom:company_id` enforcement | ⏳ Code deployed (17Y), schema MISSING on pool (found during 17Z audit), schema addition plan ready (18A) | Medium | #4 |
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
 | 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
 | 8 | Pricing/signup page | ❌ Not started | Medium | #6 |
