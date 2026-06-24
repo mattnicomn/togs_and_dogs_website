@@ -1,6 +1,6 @@
 # Matthew's Production Monitoring Checklist
 
-**Last Updated:** Release 18I  
+**Last Updated:** Release 18N  
 **Audience:** Matthew / Developer / Technical Support  
 **Release Type:** Documentation-only  
 **Portal URL:** [https://toganddogs.usmissionhero.com](https://toganddogs.usmissionhero.com)  
@@ -107,6 +107,31 @@ Monitor the status of tenant resolution alarms and log metrics during the 7+ day
   | limit 10
   ```
 - **Normal:** 0 results. If any fallback occurs, pause the multi-tenant migration and investigate the logs to identify the user flow lacking `custom:company_id`.
+
+---
+
+### 1c. SaaS Entitlement Gating Limits Check (Release 18L / 18N)
+
+Check the active client count and monthly bookings count relative to the Professional tier limit:
+
+```bash
+# Query active client list (filters out status=ARCHIVED or is_archived=true)
+aws dynamodb query \
+  --table-name togs-and-dogs-prod-data \
+  --key-condition-expression "PK = :pk AND begins_with(SK, :sk)" \
+  --expression-attribute-values '{":pk": {"S": "COMPANY#tog_and_dogs"}, ":sk": {"S": "CLIENT#"}}' \
+  --query 'Items[?status.S!=`ARCHIVED` && is_archived.BOOL!=`true`].client_id' \
+  --output table \
+  --profile usmissionhero-website-prod
+
+# Query monthly bookings counter for the current month (YYYY-MM)
+aws dynamodb get-item \
+  --table-name togs-and-dogs-prod-data \
+  --key '{"PK": {"S": "USAGE#tog_and_dogs"}, "SK": {"S": "BOOKINGS#2026-06"}}' \
+  --profile usmissionhero-website-prod
+```
+
+> **Normal:** Client count should be <= 100 (Professional tier limit), and bookings count should be <= 250 (Professional tier limit).
 
 ---
 

@@ -3,6 +3,8 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 18N: Phase 2 Entitlement Controlled Validation Execution**](release-18n-phase-2-entitlement-controlled-validation-execution.md) (2026-06-24) — ✅ **Complete** — Validate Professional tier client and booking limit gates using controlled test client and bookings
+- [**Release 18M: Phase 2 Entitlement Controlled Validation Plan**](../planning/release-18m-phase-2-entitlement-controlled-validation-plan.md) (2026-06-23) — ✅ **Complete** — Design and obtain approval for controlled validation of client/booking entitlement gates
 - [**Release 18L: Monthly Booking Counter and Client Limit Implementation**](release-18l-monthly-booking-counter-and-client-limit-implementation.md) (2026-06-23) — ✅ **Complete** — Gate client creation on active/disabled client limit and track/gate monthly bookings atomically in DynamoDB
 - [**Release 18I: Post-Reconnect Calendar Sync Controlled Validation Execution**](release-18i-post-reconnect-calendar-sync-controlled-validation.md) (2026-06-23) — ✅ **Complete** — Create controlled test booking, verify Google Calendar event, and cancel booking using standard cancellation flow
 - [**Release 18H: Post-Reconnect Calendar Sync Validation Plan**](../planning/release-18h-post-reconnect-calendar-sync-validation-plan.md) (2026-06-23) — ✅ **Complete** — Planning safe controlled calendar sync validation without customer-facing side effects

@@ -19,7 +19,7 @@ The platform has strong single-tenant foundations but requires significant work 
 | # | Item | Status | Effort | Depends On |
 |---|------|--------|--------|------------|
 | 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
-| 2 | Usage metering per tenant | ✅ Phase 2 active (18L) | Done | #1 |
+| 2 | Usage metering per tenant | ✅ Phase 2 active & validated (18N) | Done | #1 |
 | 3 | Tenant provisioning workflow/tool | ✅ Script implemented (17W) — apply gate pending | High | #1 |
 | 5 | Cognito `custom:company_id` enforcement | ⏳ Schema added (18B), backfilled (18C), 7-day observation active (18D/18E) | Medium | #4 |
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
@@ -99,3 +99,7 @@ Start second-tenant creation only when:
 **Updated 2026-06-23 (18I):** Executed the controlled validation run. Confirmed successful test booking and Google Calendar event sync. Cancelled the booking using standard cancellation flow and verified event deletion in Google Calendar. Only the configured admin cancellation email was sent.
 
 **Updated 2026-06-23 (18L):** Implemented Phase 2 entitlement gates (active/disabled client limit gating and monthly booking atomic counter gating). Verified via unit tests and successfully deployed Lambda updates to production.
+
+**Updated 2026-06-23 (18M):** Designed the validation plan for Phase 2 entitlement limits, identifying safe test client profiles and test bookings.
+
+**Updated 2026-06-24 (18N):** Executed the controlled validation run for Phase 2 entitlement gates in production. Verified that client creation increments the active client count, test bookings marked with `is_test_booking = true` are exempt from limits/counter, and normal bookings increment the monthly usage counter by exactly 1. Cancelled all bookings via the cancellation workflow, manually cleaned up Google Calendar events, and disabled/archived the test client profile. Verified zero customer-facing notification impact.
