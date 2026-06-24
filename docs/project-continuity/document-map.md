@@ -76,4 +76,4 @@
 | `release-timeline.md` | Major milestones |
 | `lessons-learned.md` | Patterns and anti-patterns |
 | `master-handoff-prompt.md` | New-session prompt |
-| `document-map.md` | This file |
+| `continuity-maintenance-checklist.md` | How to keep these docs accurate |

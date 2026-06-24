@@ -20,6 +20,7 @@ This folder contains everything a new AI assistant needs to understand the Togs 
 6. **`document-map.md`** — Where to find detailed docs by topic
 7. **`lessons-learned.md`** — Mistakes and patterns to avoid
 8. **`master-handoff-prompt.md`** — Copy/paste prompt for starting a new ChatGPT session
+9. **`continuity-maintenance-checklist.md`** — How to keep these docs accurate
 
 ---
 
@@ -40,5 +41,7 @@ Update these docs when:
 - A key decision changes
 - A new guardrail is established
 - The project state significantly shifts
+
+See **`continuity-maintenance-checklist.md`** for the full update protocol including release closeout steps and AI handoff procedures.
 
 Keep documents concise. Link to detailed release notes rather than duplicating content.
