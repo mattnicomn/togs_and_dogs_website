@@ -58,7 +58,7 @@ def mock_get_effective_role(event):
 
 @patch('handlers.cancellation_handler.get_item', side_effect=mock_get_item)
 @patch('handlers.cancellation_handler.table')
-@patch('handlers.cancellation_handler.delete_event', return_value=True)
+@patch('common.google_calendar.delete_event_detailed', return_value=(True, False, None))
 @patch('handlers.cancellation_handler.notify_event')
 @patch('common.auth.get_effective_role', side_effect=mock_get_effective_role)
 @patch('common.cascade.cascade_status_to_job')
@@ -79,7 +79,7 @@ def test_cancel_single_day_req(mock_log, mock_cascade, mock_role, mock_notify, m
 
 @patch('handlers.cancellation_handler.get_item', side_effect=mock_get_item)
 @patch('handlers.cancellation_handler.table')
-@patch('handlers.cancellation_handler.delete_event', return_value=True)
+@patch('common.google_calendar.delete_event_detailed', return_value=(True, False, None))
 @patch('handlers.cancellation_handler.notify_event')
 @patch('common.auth.get_effective_role', side_effect=mock_get_effective_role)
 @patch('common.cascade.cascade_status_to_job')
@@ -101,4 +101,4 @@ def test_cancel_multi_day_req(mock_log, mock_cascade, mock_role, mock_notify, mo
     import json
     res_body = json.loads(res["body"])
     # 1 child was successfully deleted since job-2 has no event
-    assert "Deleted 1 child events" in res_body["message"]
+    assert "Deleted 1 calendar event(s)" in res_body["message"]

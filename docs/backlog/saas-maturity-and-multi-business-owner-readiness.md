@@ -103,3 +103,6 @@ Start second-tenant creation only when:
 **Updated 2026-06-23 (18M):** Designed the validation plan for Phase 2 entitlement limits, identifying safe test client profiles and test bookings.
 
 **Updated 2026-06-24 (18N):** Executed the controlled validation run for Phase 2 entitlement gates in production. Verified that client creation increments the active client count, test bookings marked with `is_test_booking = true` are exempt from limits/counter, and normal bookings increment the monthly usage counter by exactly 1. Cancelled all bookings via the cancellation workflow, manually cleaned up Google Calendar events, and disabled/archived the test client profile. Verified zero customer-facing notification impact.
+
+**Updated 2026-06-24 (18P):** Implemented defensive Google Calendar cancellation cascade fix to collect, deduplicate, and delete events from parent requests and child jobs. Added detailed error tolerance for HTTP 404/410 and API exceptions, database cleanups, and structured logs. Verified via 9 unit tests.
+

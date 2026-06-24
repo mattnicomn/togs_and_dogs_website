@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 18P: Calendar Cancellation Cascade Defensive Fix**](release-18p-calendar-cancellation-cascade-defensive-fix.md) (2026-06-24) — ✅ **Complete** — Defensive calendar cancellation cascade to ensure event cleanup even under timing race conditions
 - [**Release 18N: Phase 2 Entitlement Controlled Validation Execution**](release-18n-phase-2-entitlement-controlled-validation-execution.md) (2026-06-24) — ✅ **Complete** — Validate Professional tier client and booking limit gates using controlled test client and bookings
 - [**Release 18M: Phase 2 Entitlement Controlled Validation Plan**](../planning/release-18m-phase-2-entitlement-controlled-validation-plan.md) (2026-06-23) — ✅ **Complete** — Design and obtain approval for controlled validation of client/booking entitlement gates
 - [**Release 18L: Monthly Booking Counter and Client Limit Implementation**](release-18l-monthly-booking-counter-and-client-limit-implementation.md) (2026-06-23) — ✅ **Complete** — Gate client creation on active/disabled client limit and track/gate monthly bookings atomically in DynamoDB
@@ -121,6 +122,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Permanent Delete Key Resolution Hotfix](data-integrity/permanent-delete-key-resolution-hotfix.md)
 
 ### 📅 Calendar & Integrations
+*   [Release 18P: Calendar Cancellation Cascade Defensive Fix](release-18p-calendar-cancellation-cascade-defensive-fix.md)
 *   [Release 18G: Matthew-Approved Google Calendar Reconnect Execution and Validation](release-18g-google-calendar-reconnect-execution-and-validation.md)
 *   [Release 18F: Google Calendar Reconnect and Scheduler Sync Reliability Review](../planning/release-18f-google-calendar-reconnect-and-scheduler-sync-reliability-review.md)
 *   [Google Calendar Approved Trigger](calendar/google-calendar-approved-trigger.md)

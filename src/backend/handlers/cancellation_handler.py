@@ -200,48 +200,100 @@ def handle_admin_decision(body, event):
     calendar_msg = ""
     if decision == 'APPROVE':
         # 1. Google Calendar Removal
-        is_multi_day_req = False
-        if item.get('end_date') and item.get('start_date') != item.get('end_date'):
-            is_multi_day_req = True
-        if item.get('job_ids'):
-            is_multi_day_req = True
+        from common.google_calendar import delete_event_detailed
+        
+        # Collect event IDs from parent Request and all child Jobs
+        event_to_records = {} # unique_event_id -> list of record keys to update
+        job_ids = item.get('job_ids') or []
+        company_id = item.get('company_id') or 'tog_and_dogs'
+        
+        parent_event_id = item.get('google_event_id')
+        if parent_event_id:
+            event_to_records.setdefault(parent_event_id, []).append({
+                "PK": f"REQ#{request_id}",
+                "SK": f"CLIENT#{client_id}"
+            })
             
-        if not is_multi_day_req:
-            google_event_id = item.get('google_event_id')
-            if google_event_id:
+        for jid in job_ids:
+            job_item = get_item(f"JOB#{jid}", f"REQ#{request_id}")
+            if job_item and job_item.get('google_event_id'):
+                jid_event_id = job_item['google_event_id']
+                event_to_records.setdefault(jid_event_id, []).append({
+                    "PK": f"JOB#{jid}",
+                    "SK": f"REQ#{request_id}"
+                })
+                
+        # Deduplicate and count unique event IDs
+        unique_event_ids = list(event_to_records.keys())
+        event_id_count = len(unique_event_ids)
+        
+        if event_id_count > 0:
+            # Structured log for collection
+            print(json.dumps({
+                "event": "CALENDAR_CLEANUP_COLLECTED",
+                "company_id": company_id,
+                "request_id": request_id,
+                "job_count": len(job_ids),
+                "event_id_count": event_id_count
+            }))
+            
+            deleted_count = 0
+            for event_id in unique_event_ids:
                 try:
-                    if delete_event(google_event_id, request_id):
-                        calendar_msg = "Calendar event deleted."
-                        table.update_item(
-                            Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
-                            UpdateExpression="REMOVE google_event_id"
-                        )
-                    else:
-                        raise Exception("delete_event returned False")
-                except Exception as ex:
-                    fail_msg = f"GCal cleanup failed: {str(ex)}"
-                    print(fail_msg)
-                    record_sync_failure(request_id, client_id, "GOOGLE_CALENDAR", fail_msg)
-                    calendar_msg = f"Warning: {fail_msg}"
-        else:
-            if item.get('job_ids'):
-                deleted_count = 0
-                for jid in item.get('job_ids'):
-                    job_item = get_item(f"JOB#{jid}", f"REQ#{request_id}")
-                    if job_item and job_item.get('google_event_id'):
-                        try:
-                            delete_event(job_item['google_event_id'], request_id)
-                            table.update_item(
-                                Key={'PK': f"JOB#{jid}", 'SK': f"REQ#{request_id}"},
-                                UpdateExpression="REMOVE google_event_id"
-                            )
+                    gcal_success, already_gone, err_msg = delete_event_detailed(event_id, request_id)
+                    if gcal_success:
+                        if already_gone:
+                            print(json.dumps({
+                                "event": "CALENDAR_CLEANUP_ALREADY_GONE",
+                                "company_id": company_id,
+                                "request_id": request_id,
+                                "event_id": event_id,
+                                "deletion_status": "already_gone"
+                            }))
+                        else:
+                            print(json.dumps({
+                                "event": "CALENDAR_CLEANUP_DELETED",
+                                "company_id": company_id,
+                                "request_id": request_id,
+                                "event_id": event_id,
+                                "deletion_status": "deleted"
+                            }))
                             deleted_count += 1
-                        except Exception as ex:
-                            fail_msg = f"GCal child cleanup failed: {str(ex)}"
-                            print(fail_msg)
-                            record_sync_failure(request_id, client_id, "GOOGLE_CALENDAR", fail_msg)
-                if deleted_count > 0:
-                    calendar_msg = f"Deleted {deleted_count} child events."
+                        
+                        # Remove google_event_id from all associated records in DynamoDB
+                        for rec in event_to_records[event_id]:
+                            try:
+                                table.update_item(
+                                    Key={'PK': rec['PK'], 'SK': rec['SK']},
+                                    UpdateExpression="REMOVE google_event_id"
+                                )
+                            except Exception as db_err:
+                                print(f"WARNING: Failed to remove google_event_id from {rec['PK']}: {db_err}")
+                    else:
+                        raise Exception(err_msg or "Unknown error")
+                except Exception as ex:
+                    fail_msg = str(ex)
+                    print(json.dumps({
+                        "event": "CALENDAR_CLEANUP_WARNING",
+                        "company_id": company_id,
+                        "request_id": request_id,
+                        "event_id": event_id,
+                        "deletion_status": "failed",
+                        "error_type": fail_msg
+                    }))
+                    record_sync_failure(request_id, client_id, "GOOGLE_CALENDAR", f"Event ID {event_id} cleanup failed: {fail_msg}")
+            
+            if deleted_count > 0:
+                calendar_msg = f"Deleted {deleted_count} calendar event(s)."
+        else:
+            # Structured log for no events
+            print(json.dumps({
+                "event": "CALENDAR_CLEANUP_NONE",
+                "company_id": company_id,
+                "request_id": request_id,
+                "job_count": len(job_ids),
+                "event_id_count": 0
+            }))
 
         # 2. Worker Notification (SNS)
         worker_id = item.get('worker_id')

@@ -456,11 +456,14 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
     return {"status": "calendar_failed", "message": last_error or "Unknown error"}
 
 
-def delete_event(google_event_id, request_id="UNKNOWN"):
-    """Deletes a Google Calendar event."""
+def delete_event_detailed(google_event_id, request_id="UNKNOWN"):
+    """
+    Deletes a Google Calendar event and returns detailed status:
+    (success, already_gone, error_str)
+    """
     token = _get_valid_token(request_id)
     if not token:
-        return False
+        return False, False, "Token missing"
 
     try:
         url = f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{google_event_id}"
@@ -469,8 +472,22 @@ def delete_event(google_event_id, request_id="UNKNOWN"):
 
         with urllib.request.urlopen(req) as response:
             print(f"SUCCESS: [Req:{request_id}] Deleted Calendar Event: {google_event_id}")
-            return True
+            return True, False, None
 
+    except urllib.error.HTTPError as he:
+        if he.code in [404, 410]:
+            print(f"INFO: [Req:{request_id}] Calendar event {google_event_id} is already gone (HTTP {he.code}).")
+            return True, True, None
+        err_msg = f"HTTP Error {he.code}: {he.reason}"
+        print(f"ERROR: [Req:{request_id}] Failed to delete Calendar event {google_event_id}: {err_msg}")
+        return False, False, err_msg
     except Exception as e:
-        print(f"ERROR: [Req:{request_id}] Failed to delete Calendar event {google_event_id}: {e}")
-        return False
+        err_msg = str(e)
+        print(f"ERROR: [Req:{request_id}] Failed to delete Calendar event {google_event_id}: {err_msg}")
+        return False, False, err_msg
+
+
+def delete_event(google_event_id, request_id="UNKNOWN"):
+    """Deletes a Google Calendar event (backward compatible wrapper)."""
+    success, _, _ = delete_event_detailed(google_event_id, request_id)
+    return success
