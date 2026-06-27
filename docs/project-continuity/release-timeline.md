@@ -88,6 +88,9 @@
 | 19C | Second-tenant metadata approval checkpoint |
 | 19D | **Controlled second-tenant metadata creation (test_tenant_alpha)** |
 | 19E | Platform Admin second-tenant visibility validation |
+| 19F | Second-tenant owner Cognito user creation planning |
+| 19G | **Second-tenant owner Cognito user creation approval checkpoint & runbook** |
+
 
 
 

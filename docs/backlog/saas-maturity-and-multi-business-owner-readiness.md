@@ -21,7 +21,7 @@ The platform has strong single-tenant foundations but requires significant work 
 | 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
 | 2 | Usage metering per tenant | ✅ Phase 2 active & validated (18N) | Done | #1 |
 | 3 | Tenant provisioning workflow/tool | ✅ Second test tenant created (19D) | High | #1 |
-| 5 | Cognito `custom:company_id` enforcement | ✅ Readiness review complete (18R) | Medium | #4 |
+| 5 | Cognito `custom:company_id` enforcement | ✅ Readiness review complete (18R), owner runbook ready (19G) | Medium | #4 |
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
 | 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
 | 8 | Pricing/signup page | ❌ Not started | Medium | #6 |
@@ -123,6 +123,11 @@ Start second-tenant creation only when:
 **Updated 2026-06-26 (19D):** Executed `scripts/provision_tenant.py` in apply mode to create `test_tenant_alpha` (metadata-only) in production DynamoDB. Verified that the metadata record and audit record were written successfully, tenant count is now 2, and no Cognito, Google Calendar, or Stripe changes occurred. Confirmed `/admin` and `/platform-admin` remain fully operational with alarms in OK state.
 
 **Updated 2026-06-26 (19E):** Performed read-only validation of Platform Admin second-tenant visibility. Verified both `tog_and_dogs` and `test_tenant_alpha` display correctly in the list view, detail view, and audit trails without modifying the existing tenant or triggering user/access changes.
+
+**Updated 2026-06-26 (19F):** Completed Cognito owner user creation design planning, including group mapping rules and message suppression configuration.
+
+**Updated 2026-06-26 (19G):** Prepared the final checkpoint and runbook for creating the Cognito owner user for `test_tenant_alpha`. Confirmed the environment pre-flight status (active tenant, strict resolution mode, group names, zero existing users) and specified the exact CLI commands, placeholders, and approval gates.
+
 
 
 
