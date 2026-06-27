@@ -110,7 +110,8 @@ Start second-tenant creation only when:
 
 **Updated 2026-06-26 (18S):** Configured `TENANT_RESOLUTION_MODE = "multi"` across all 13 backend Lambdas in production Terraform config (`locals.tf` and `main.tf`). Generated and saved `release18s-strict-mode.tfplan` showing `0 to add, 13 to change, 0 to destroy` for in-place environment updates only. Ready for approval to apply.
 
-**Updated 2026-06-26 (18T):** Executed Terraform apply using the approved `release18s-strict-mode.tfplan` to enable strict tenant-resolution mode in production. Verified that all 13 backend Lambdas have `TENANT_RESOLUTION_MODE = "multi"`. Confirmed that `/admin` and `/platform-admin` portals load normally, Google Calendar health remains healthy/connected, and all 6 platform alarms remain OK.
+**Updated 2026-06-26 (18T):** Executed Terraform apply using the approved `release18s-strict-mode.tfplan` to enable strict tenant-resolution mode in production. Verified that all 13 backend Lambdas have `TENANT_RESOLUTION_MODE = "multi"`. Confirmed that `/admin` and `/platform-admin` portals load normally, Google Calendar health remains healthy/connected, and all 6 platform alarms remain OK. Matthew completed manual validation (logout, login, verification of `/admin` and `/platform-admin`), confirming no authentication or session errors were encountered. Strict-mode routing is fully operational.
+
 
 
 

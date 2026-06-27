@@ -60,14 +60,16 @@ Verified using the AWS Lambda API that all 13 backend Lambdas have `TENANT_RESOL
 
 ---
 
-## 4. Next Step: Matthew Manual Validation
+## 4. Matthew Manual Validation (PASS)
 
-Matthew must complete manual validation to verify that client-side access is fully operational under strict-mode routing:
-1.  Log out of `https://toganddogs.usmissionhero.com`.
-2.  Log back in to obtain a fresh access token containing the `custom:company_id` claim.
-3.  Open `/admin` and confirm the dashboard displays data normally.
-4.  Open `/platform-admin` and confirm tenant and audit logs display normally.
-5.  Report any `401 Unauthorized` or `403 Forbidden` errors immediately.
+Matthew successfully completed manual validation of strict-mode tenant routing:
+1.  Logged out and logged back in successfully to obtain a fresh access token containing `custom:company_id`.
+2.  Verified that `/admin` loaded successfully and dashboard data displayed normally.
+3.  Verified that `/platform-admin` loaded successfully and platform tenant/audit views displayed normally.
+4.  No `401 Unauthorized`, `403 Forbidden`, or auth/session errors were observed.
+
+Strict-mode tenant resolution is fully operational and verified end-to-end.
+
 
 ---
 
