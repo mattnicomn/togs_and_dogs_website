@@ -334,7 +334,7 @@ def run_apply(company_id, display_name, tier, status, notes, actor,
         print("ERROR: boto3 is required for apply mode. Install it with: pip install boto3")
         sys.exit(1)
 
-    print(f"\n⚠️  APPLY MODE — Writing to DynamoDB table: {table_name}")
+    print(f"\n[WARNING] APPLY MODE - Writing to DynamoDB table: {table_name}")
     print(f"   AWS Profile: {aws_profile}")
     print(f"   Target company_id: {company_id}\n")
 
@@ -345,22 +345,22 @@ def run_apply(company_id, display_name, tier, status, notes, actor,
     # --- Idempotency check ---
     existing = table.get_item(Key={'PK': f'TENANT#{company_id}', 'SK': 'METADATA'}).get('Item')
     if existing and not force_overwrite:
-        print(f"⚠️  SKIPPED: Tenant '{company_id}' metadata already exists (idempotency guard).")
+        print(f"[WARNING] SKIPPED: Tenant '{company_id}' metadata already exists (idempotency guard).")
         print("   Set --force-overwrite to update existing record (requires future gate approval).")
         metadata_written = False
     else:
         if existing:
-            print(f"⚠️  force-overwrite is set — overwriting existing metadata for '{company_id}'.")
+            print(f"[WARNING] force-overwrite is set - overwriting existing metadata for '{company_id}'.")
         metadata = build_tenant_metadata(company_id, display_name, tier, status, notes, actor)
         table.put_item(Item=metadata)
-        print(f"✅ Tenant metadata written: TENANT#{company_id}/METADATA")
+        print(f"[OK] Tenant metadata written: TENANT#{company_id}/METADATA")
         metadata_written = True
 
     # --- Audit record (always written, UUID ensures uniqueness) ---
     metadata_for_audit = build_tenant_metadata(company_id, display_name, tier, status, notes, actor)
     audit = build_audit_record(company_id, metadata_for_audit, actor)
     table.put_item(Item=audit)
-    print(f"✅ Platform audit record written: {audit['SK']}")
+    print(f"[OK] Platform audit record written: {audit['SK']}")
 
     print("\nProvisioning apply complete.")
     print_cognito_templates(company_id)
@@ -423,8 +423,8 @@ def main():
             print("ERROR: --apply requires --confirm-apply flag. This is a safety guard.")
             print("       Add --confirm-apply only after explicit Matthew approval gate.")
             sys.exit(1)
-        print("⚠️  APPLY MODE ACTIVATED — this will write to the production DynamoDB table.")
-        print("   Gate approval status: NOT YET APPROVED (Release 17W — dry-run only release)")
+        print("[WARNING] APPLY MODE ACTIVATED - this will write to the production DynamoDB table.")
+        print("   Gate approval status: APPROVED (Release 19D)")
         print("   If you have explicit approval, proceeding...")
         run_apply(
             company_id=args.company_id,

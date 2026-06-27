@@ -3,7 +3,8 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
-- [**Release 19C: Matthew Approval Checkpoint for Controlled Second-Tenant Metadata Creation**](release-19c-second-tenant-approval-checkpoint.md) (2026-06-26) — ⏳ **Plan Approved** — Establish parameters, safety boundaries, and exact CLI command for future metadata-only second test tenant creation
+- [**Release 19D: Controlled Second-Tenant Metadata Creation**](release-19d-controlled-second-tenant-metadata-creation.md) (2026-06-26) — ✅ **Complete** — Execute provision_tenant.py in apply mode to create test_tenant_alpha metadata and audit records in production DynamoDB
+- [**Release 19C: Matthew Approval Checkpoint for Controlled Second-Tenant Metadata Creation**](release-19c-second-tenant-approval-checkpoint.md) (2026-06-26) — ✅ **Complete** — Establish parameters, safety boundaries, and exact CLI command for future metadata-only second test tenant creation
 - [**Release 19B: Tenant Provisioning Script Dry Run**](release-19b-tenant-provisioning-script-dry-run.md) (2026-06-26) — ✅ **Complete** — Run scripts/provision_tenant.py in dry-run mode for test_tenant_alpha and verify proposed DynamoDB records and Cognito instructions
 - [**Release 19A: Second-Tenant Provisioning Dry-Run Planning**](../planning/release-19a-second-tenant-provisioning-dry-run-planning.md) (2026-06-25) — ✅ **Complete** — Planning second-tenant provisioning dry run parameters and safety guards
 - [**Release 18U: Strict Mode Post-Enable Monitoring Checkpoint**](release-18u-strict-mode-post-enable-monitoring-checkpoint.md) (2026-06-26) — ✅ **Complete** — Read-only post-enable monitoring checkpoint to verify 0.0 fallbacks/failures and check alarm status after strict-mode apply
@@ -138,6 +139,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Client Access Management Phase 5a](client-portal/client-access-management-phase-5a.md)
 
 ### 🚀 Deployment & Operations
+*   [Release 19D: Controlled Second-Tenant Metadata Creation](release-19d-controlled-second-tenant-metadata-creation.md)
 *   [Release 19C: Matthew Approval Checkpoint for Controlled Second-Tenant Metadata Creation](release-19c-second-tenant-approval-checkpoint.md)
 *   [Release 19B: Tenant Provisioning Script Dry Run](release-19b-tenant-provisioning-script-dry-run.md)
 *   [Release 19A: Second-Tenant Provisioning Dry-Run Planning](../planning/release-19a-second-tenant-provisioning-dry-run-planning.md)

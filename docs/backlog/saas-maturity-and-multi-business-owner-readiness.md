@@ -20,7 +20,7 @@ The platform has strong single-tenant foundations but requires significant work 
 |---|------|--------|--------|------------|
 | 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
 | 2 | Usage metering per tenant | ✅ Phase 2 active & validated (18N) | Done | #1 |
-| 3 | Tenant provisioning workflow/tool | ✅ Dry run validated (19B) — apply gate pending | High | #1 |
+| 3 | Tenant provisioning workflow/tool | ✅ Second test tenant created (19D) | High | #1 |
 | 5 | Cognito `custom:company_id` enforcement | ✅ Readiness review complete (18R) | Medium | #4 |
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
 | 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
@@ -119,6 +119,9 @@ Start second-tenant creation only when:
 **Updated 2026-06-26 (19B):** Ran `scripts/provision_tenant.py` in dry-run/no-write mode for `test_tenant_alpha`. Confirmed the output correctly builds the metadata record, audit record, Cognito templates, and rollback guidance without making any AWS writes. Resolved Unicode terminal printing encoding bugs. Verified no records were created in Cognito or DynamoDB, and confirmed the tenant count remains exactly 1 (`tog_and_dogs` only).
 
 **Updated 2026-06-26 (19C):** Prepared and documented the final checkpoint and approval plan for the controlled creation of `test_tenant_alpha` (metadata-only) in the production DynamoDB table. Verified the exact CLI apply command parameters, scope of database writes, non-actions (no Cognito, Stripe, calendar, or email writes), and rollback/disable processes. Halted before execution.
+
+**Updated 2026-06-26 (19D):** Executed `scripts/provision_tenant.py` in apply mode to create `test_tenant_alpha` (metadata-only) in production DynamoDB. Verified that the metadata record and audit record were written successfully, tenant count is now 2, and no Cognito, Google Calendar, or Stripe changes occurred. Confirmed `/admin` and `/platform-admin` remain fully operational with alarms in OK state.
+
 
 
 
