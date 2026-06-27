@@ -21,7 +21,7 @@ The platform has strong single-tenant foundations but requires significant work 
 | 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
 | 2 | Usage metering per tenant | ✅ Phase 2 active & validated (18N) | Done | #1 |
 | 3 | Tenant provisioning workflow/tool | ✅ Script implemented (17W) — apply gate pending | High | #1 |
-| 5 | Cognito `custom:company_id` enforcement | ⏳ Schema added (18B), backfilled (18C), 7-day observation active (18D/18E) | Medium | #4 |
+| 5 | Cognito `custom:company_id` enforcement | ✅ Readiness review complete (18R) | Medium | #4 |
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
 | 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
 | 8 | Pricing/signup page | ❌ Not started | Medium | #6 |
@@ -105,4 +105,7 @@ Start second-tenant creation only when:
 **Updated 2026-06-24 (18N):** Executed the controlled validation run for Phase 2 entitlement gates in production. Verified that client creation increments the active client count, test bookings marked with `is_test_booking = true` are exempt from limits/counter, and normal bookings increment the monthly usage counter by exactly 1. Cancelled all bookings via the cancellation workflow, manually cleaned up Google Calendar events, and disabled/archived the test client profile. Verified zero customer-facing notification impact.
 
 **Updated 2026-06-24 (18P):** Implemented defensive Google Calendar cancellation cascade fix to collect, deduplicate, and delete events from parent requests and child jobs. Added detailed error tolerance for HTTP 404/410 and API exceptions, database cleanups, and structured logs. Verified via 9 unit tests.
+
+**Updated 2026-06-26 (18R):** Completed early read-only strict-mode readiness review. Confirmed all 5 Cognito users backfilled with custom:company_id = 'tog_and_dogs'. Confirmed exactly 1 tenant metadata record exists in DynamoDB. Verified all CloudWatch alarms are OK. Analyzed the single fallback event on June 23 and confirmed zero fallbacks/failures occurred in the subsequent 3+ days. Strict mode is recommended for enablement in a separate release.
+
 

@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-06-24
+**Last Updated:** 2026-06-26
 
 ---
 
@@ -46,8 +46,8 @@
 | Platform Admin UI | ✅ Deployed (/platform-admin) |
 | Platform audit trail | ✅ Working |
 | Cognito custom:company_id | ✅ Schema added (18B), all users backfilled (18C) |
-| TENANT_RESOLUTION_MODE | `single` (strict `multi` not yet enabled) |
-| Strict-mode observation | In progress (gate review ≥ June 30, 2026) |
+| TENANT_RESOLUTION_MODE | `single` (strict `multi` early readiness review complete — PASS) |
+| Strict-mode observation | ✅ Early readiness review complete (18R) — PASS |
 | Second tenant | ❌ Not created |
 | Tenant provisioning script | ✅ Implemented (17W), not run in apply mode |
 

@@ -77,6 +77,8 @@
 | 18A–18C | Cognito custom:company_id schema + backfill |
 | 18F–18I | Google Calendar reconnect + sync validation |
 | 18K–18N | Phase 2 entitlement gates (client limit, booking counter) |
-| 18O–18P | Calendar cancellation cascade race fix |
+| 18O–18P | **Calendar cancellation cascade race condition fix** |
 | 18Q | Strict-mode gate review preparation |
+| 18R | **Strict-mode early readiness review** |
 | 18UI-A | Web/mobile UI parity review |
+

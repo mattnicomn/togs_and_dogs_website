@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 18R: Early Strict Mode Readiness Review**](release-18r-early-strict-mode-readiness-review.md) (2026-06-26) — ✅ **Complete** — Read-only check of Cognito user company IDs, DynamoDB tenant records, fallback metrics, and CloudWatch alarms
 - [**Release 18P: Calendar Cancellation Cascade Defensive Fix**](release-18p-calendar-cancellation-cascade-defensive-fix.md) (2026-06-24) — ✅ **Complete** — Defensive calendar cancellation cascade to ensure event cleanup even under timing race conditions
 - [**Release 18N: Phase 2 Entitlement Controlled Validation Execution**](release-18n-phase-2-entitlement-controlled-validation-execution.md) (2026-06-24) — ✅ **Complete** — Validate Professional tier client and booking limit gates using controlled test client and bookings
 - [**Release 18M: Phase 2 Entitlement Controlled Validation Plan**](../planning/release-18m-phase-2-entitlement-controlled-validation-plan.md) (2026-06-23) — ✅ **Complete** — Design and obtain approval for controlled validation of client/booking entitlement gates
@@ -132,6 +133,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Client Access Management Phase 5a](client-portal/client-access-management-phase-5a.md)
 
 ### 🚀 Deployment & Operations
+*   [Release 18R: Early Strict Mode Readiness Review](release-18r-early-strict-mode-readiness-review.md)
 *   [Release 18E: Strict Mode Enablement Gate Review](release-18e-strict-mode-enablement-gate-review.md)
 *   [Release 18D: Tenant Resolution Fallback Metric Observation Period Kickoff](release-18d-tenant-resolution-fallback-metric-observation-kickoff.md)
 *   [Production UAT Validation](deployment/production-uat-staff-client-workflow-validation.md)
