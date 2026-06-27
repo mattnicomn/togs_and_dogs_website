@@ -60,14 +60,34 @@ Release **19N** implements the frontend-only brand separation and operator attri
 
 ---
 
-## Manual Validation Required
+## Manual Validation Results — PASS (2026-06-27)
 
-Matthew should verify the following as `test_tenant_alpha` owner:
-- [ ] Admin shell top-left logo shows `Test Tenant Alpha: A Pet Business Platform`
-- [ ] Admin header subtitle shows `Powered by usmissionhero`
-- [ ] Profile dropdown Company shows `Test Tenant Alpha`
-- [ ] Admin footer shows `© 2026 Test Tenant Alpha. Powered by usmissionhero.`
-- [ ] Google Calendar remains NOT CONNECTED (no Togs & Dogs calendar leak)
-- [ ] No Togs & Dogs bookings/requests/jobs/pets/staff/clients visible
-- [ ] Existing `tog_and_dogs` admin still works normally
-- [ ] Use incognito/hard refresh if service worker serves stale assets
+Matthew performed manual validation in a fresh incognito/private browser session.
+
+### Checklist A — `test_tenant_alpha` Owner: PASS
+
+| Item | Result |
+|------|--------|
+| Top-left/admin shell displays `Test Tenant Alpha: A Pet Business Platform` | PASS |
+| Admin subtitle displays `Powered by usmissionhero` | PASS |
+| Profile dropdown Company displays `Test Tenant Alpha` | PASS |
+| Footer displays `© 2026 Test Tenant Alpha. Powered by usmissionhero.` | PASS |
+| Google Calendar NOT CONNECTED (no Togs & Dogs calendar leak) | PASS |
+| No Togs & Dogs tenant-owned data visible | PASS |
+| No 401/403/auth/session errors observed | PASS |
+
+### Checklist B — `tog_and_dogs` Admin/Platform User: PASS
+
+| Item | Result |
+|------|--------|
+| Existing Togs & Dogs admin behavior intact | PASS |
+| Google Calendar connected and healthy | PASS |
+| Existing staff/client/booking views work normally | PASS |
+| Platform Admin loaded and showed both tenants | PASS |
+| No 401/403/auth/session errors observed | PASS |
+
+### Overall Status: ✅ PASS
+
+Release 19N is **complete**. The tenant branding model cleanup is fully validated in production.
+
+> This validation also resolves the outstanding display branding failure from Release 19M (PARTIAL PASS / PENDING DISPLAY FIX). The 19M display defect is now considered remediated by Release 19N.
