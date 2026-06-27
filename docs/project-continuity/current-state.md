@@ -47,7 +47,7 @@
 | Platform audit trail | ✅ Working |
 | Cognito custom:company_id | ✅ Schema added (18B), all users backfilled (18C) |
 | TENANT_RESOLUTION_MODE | ✅ Enabled (strict `multi` mode active — 18T validated) |
-| Strict-mode observation | ✅ Early readiness review complete (18R) — PASS |
+| Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
 | Second tenant | ❌ Not created |
 | Tenant provisioning script | ✅ Implemented (17W), not run in apply mode |
 
