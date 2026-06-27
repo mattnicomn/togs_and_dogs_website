@@ -219,8 +219,8 @@ STEP 4 — Verify the user and group membership:
 
     print("=" * 60)
     print("ROLE CLARIFICATION:")
-    print("  owner group      → tenant-level admin for company_id=" + company_id)
-    print("  platform_admin   → usmissionhero operator ONLY — do NOT assign to tenant owners")
+    print("  owner group      -> tenant-level admin for company_id=" + company_id)
+    print("  platform_admin   -> usmissionhero operator ONLY - do NOT assign to tenant owners")
     print("=" * 60)
 
 
@@ -307,7 +307,7 @@ def run_dry_run(company_id, display_name, tier, status, notes, actor):
     print("  - A new audit record with a unique UUID SK is written on each apply call.")
     print("=" * 60)
 
-    print("\n✅ Dry-run complete. No writes occurred.")
+    print("\n[OK] Dry-run complete. No writes occurred.")
     print("   To apply (requires Matthew approval gate): add --apply --confirm-apply")
 
 

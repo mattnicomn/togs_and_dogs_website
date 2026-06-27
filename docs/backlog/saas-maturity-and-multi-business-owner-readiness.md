@@ -20,7 +20,7 @@ The platform has strong single-tenant foundations but requires significant work 
 |---|------|--------|--------|------------|
 | 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
 | 2 | Usage metering per tenant | ✅ Phase 2 active & validated (18N) | Done | #1 |
-| 3 | Tenant provisioning workflow/tool | ✅ Script implemented (17W), dry-run planning complete (19A) — apply approval pending (19C) | High | #1 |
+| 3 | Tenant provisioning workflow/tool | ✅ Dry run validated (19B) — apply gate pending | High | #1 |
 | 5 | Cognito `custom:company_id` enforcement | ✅ Readiness review complete (18R) | Medium | #4 |
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
 | 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
@@ -113,6 +113,11 @@ Start second-tenant creation only when:
 **Updated 2026-06-26 (18T):** Executed Terraform apply using the approved `release18s-strict-mode.tfplan` to enable strict tenant-resolution mode in production. Verified that all 13 backend Lambdas have `TENANT_RESOLUTION_MODE = "multi"`. Confirmed that `/admin` and `/platform-admin` portals load normally, Google Calendar health remains healthy/connected, and all 6 platform alarms remain OK. Matthew completed manual validation (logout, login, verification of `/admin` and `/platform-admin`), confirming no authentication or session errors were encountered. Strict-mode routing is fully operational.
 
 **Updated 2026-06-26 (18U):** Performed post-enable monitoring checkpoint for strict tenant-resolution mode in production. Confirmed all 13 backend Lambdas maintain `TENANT_RESOLUTION_MODE = "multi"`. Verified exactly 1 tenant exists and verified 0.0 fallback/failed metrics and OK alarm states since Release 18T apply.
+
+**Updated 2026-06-26 (19A):** Completed design planning for the second-tenant provisioning dry run, defining parameters and safety verification requirements.
+
+**Updated 2026-06-26 (19B):** Ran `scripts/provision_tenant.py` in dry-run/no-write mode for `test_tenant_alpha`. Confirmed the output correctly builds the metadata record, audit record, Cognito templates, and rollback guidance without making any AWS writes. Resolved Unicode terminal printing encoding bugs. Verified no records were created in Cognito or DynamoDB, and confirmed the tenant count remains exactly 1 (`tog_and_dogs` only).
+
 
 
 

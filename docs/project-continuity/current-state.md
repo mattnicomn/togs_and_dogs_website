@@ -49,7 +49,7 @@
 | TENANT_RESOLUTION_MODE | ✅ Enabled (strict `multi` mode active — 18T validated) |
 | Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
 | Second tenant | ❌ Not created |
-| Tenant provisioning script | ✅ Implemented (17W), not run in apply mode |
+| Tenant provisioning script | ✅ Dry run validated (19B) |
 
 ## Current Blockers
 

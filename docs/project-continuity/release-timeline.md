@@ -83,4 +83,5 @@
 | 18S–18T | **Strict mode enabled (`TENANT_RESOLUTION_MODE=multi` on all 13 Lambdas)** |
 | 18U | Post-enable monitoring checkpoint (PASS — zero fallback/failure events) |
 | 18UI-A | Web/mobile UI parity review |
-
+| 19A | Second-tenant provisioning dry-run planning |
+| 19B | **Tenant provisioning script dry run (validated for test_tenant_alpha)** |

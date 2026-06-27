@@ -3,8 +3,9 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 19B: Tenant Provisioning Script Dry Run**](release-19b-tenant-provisioning-script-dry-run.md) (2026-06-26) — ✅ **Complete** — Run scripts/provision_tenant.py in dry-run mode for test_tenant_alpha and verify proposed DynamoDB records and Cognito instructions
+- [**Release 19A: Second-Tenant Provisioning Dry-Run Planning**](../planning/release-19a-second-tenant-provisioning-dry-run-planning.md) (2026-06-25) — ✅ **Complete** — Planning second-tenant provisioning dry run parameters and safety guards
 - [**Release 18U: Strict Mode Post-Enable Monitoring Checkpoint**](release-18u-strict-mode-post-enable-monitoring-checkpoint.md) (2026-06-26) — ✅ **Complete** — Read-only post-enable monitoring checkpoint to verify 0.0 fallbacks/failures and check alarm status after strict-mode apply
-- [**Release 18T: Strict Mode Enablement Apply and Smoke Validation**](release-18t-strict-mode-enablement-apply-and-smoke-validation.md) (2026-06-26) — ✅ **Complete** — Execute Terraform apply to set TENANT_RESOLUTION_MODE=multi for all 13 backend Lambdas and smoke test portals and integration health
 - [**Release 18S: Strict Mode Enablement Plan and Terraform Plan-Only Checkpoint**](release-18s-strict-mode-enable-plan-checkpoint.md) (2026-06-26) — ✅ **Complete** — Prepare minimal environment configuration change to set TENANT_RESOLUTION_MODE=multi for all 13 backend Lambdas and generate plan
 - [**Release 18R: Early Strict Mode Readiness Review**](release-18r-early-strict-mode-readiness-review.md) (2026-06-26) — ✅ **Complete** — Read-only check of Cognito user company IDs, DynamoDB tenant records, fallback metrics, and CloudWatch alarms
 - [**Release 18P: Calendar Cancellation Cascade Defensive Fix**](release-18p-calendar-cancellation-cascade-defensive-fix.md) (2026-06-24) — ✅ **Complete** — Defensive calendar cancellation cascade to ensure event cleanup even under timing race conditions
@@ -136,6 +137,8 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Client Access Management Phase 5a](client-portal/client-access-management-phase-5a.md)
 
 ### 🚀 Deployment & Operations
+*   [Release 19B: Tenant Provisioning Script Dry Run](release-19b-tenant-provisioning-script-dry-run.md)
+*   [Release 19A: Second-Tenant Provisioning Dry-Run Planning](../planning/release-19a-second-tenant-provisioning-dry-run-planning.md)
 *   [Release 18U: Strict Mode Post-Enable Monitoring Checkpoint](release-18u-strict-mode-post-enable-monitoring-checkpoint.md)
 *   [Release 18T: Strict Mode Enablement Apply and Smoke Validation](release-18t-strict-mode-enablement-apply-and-smoke-validation.md)
 *   [Release 18S: Strict Mode Enablement Plan and Terraform Plan-Only Checkpoint](release-18s-strict-mode-enable-plan-checkpoint.md)
