@@ -24,9 +24,9 @@ Release **19M** documents the deployment of backend tenant isolation remediation
   - **S3 Sync Command:** `aws s3 sync dist/ s3://togs-and-dogs-prod-toganddogs-hosting --delete --profile usmissionhero-website-prod`
   - **Status:** **SUCCESSFUL** (replaced old JS/CSS files with dynamic, tenant-aware builds).
 - Invalidated CloudFront cache to purge cached assets globally:
-  - **CF Invalidation Command:** `aws cloudfront create-invalidation --distribution-id E13D5EZXYI3DNP --paths "/*" --profile usmissionhero-website-prod`
-  - **Invalidation ID:** `I92WAE52EGH8CY3341ZZKLLUCR`
-  - **Status:** **SUCCESSFUL** (completed).
+  - **CF Invalidation Command:** `aws cloudfront create-invalidation --distribution-id E35L00QPA2IRCY --paths "/*" --profile usmissionhero-website-prod`
+  - **Invalidation ID:** `ICQK85ACQV8Y5H3ACV13G5TRD4`
+  - **Status:** **SUCCESSFUL** (completed on correct production distribution).
 
 ---
 
