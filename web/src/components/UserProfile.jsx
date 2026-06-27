@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getSession, getEffectiveRole, signOut } from '../api/auth';
-import { getTenantInfo } from '../api/client';
 
-const UserProfile = ({ staffProfile, externalCurrentUser }) => {
+const UserProfile = ({ staffProfile, externalCurrentUser, tenantInfo }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [role, setRole] = useState('unknown');
-  const [tenantInfo, setTenantInfo] = useState(null);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -44,20 +42,6 @@ const UserProfile = ({ staffProfile, externalCurrentUser }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [externalCurrentUser]);
-
-  useEffect(() => {
-    const fetchTenant = async () => {
-      try {
-        const info = await getTenantInfo();
-        setTenantInfo(info);
-      } catch (err) {
-        console.error('Failed to load tenant info in profile:', err);
-      }
-    };
-    if (user) {
-      fetchTenant();
-    }
-  }, [user]);
 
   const handleLogout = () => {
     signOut();

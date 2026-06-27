@@ -3257,7 +3257,7 @@ const AdminDashboard = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <h1>{tenantInfo?.display_name || "Pet Care Admin"}</h1>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '500', opacity: 0.8 }}>
-              Powered by Tog&Dogs
+              Powered by usmissionhero
             </span>
           </div>
           <nav className="view-selector">
@@ -3288,6 +3288,7 @@ const AdminDashboard = () => {
           <UserProfile 
             externalCurrentUser={currentUser} 
             staffProfile={staffList.find(s => s.cognito_sub === currentUser?.sub || (s.email && s.email.toLowerCase() === currentUser?.email?.toLowerCase()))}
+            tenantInfo={tenantInfo}
           />
         </div>
       </header>

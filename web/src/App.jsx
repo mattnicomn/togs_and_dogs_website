@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import React, { useState, useEffect } from 'react';
 import { getSession } from './api/auth';
+import { getTenantInfo } from './api/client';
 import PortalGateway from './components/PortalGateway';
 import About from './components/About';
 import Services from './components/Services';
@@ -65,7 +66,10 @@ function PlatformAdminGuard({ children }) {
 
 function AppContent() {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [tenantInfo, setTenantInfo] = useState(null);
   const location = useLocation();
+  
+  const isAdminRoute = location.pathname.startsWith('/admin') || location.pathname.startsWith('/platform-admin');
 
   useEffect(() => {
     const checkPlatformAdmin = async () => {
@@ -89,12 +93,42 @@ function AppContent() {
     checkPlatformAdmin();
   }, [location.pathname]);
 
+  useEffect(() => {
+    const fetchTenant = async () => {
+      try {
+        const session = await getSession();
+        if (session) {
+          const info = await getTenantInfo();
+          setTenantInfo(info);
+        } else {
+          setTenantInfo(null);
+        }
+      } catch (e) {
+        console.error('Failed to fetch tenant info for App shell:', e);
+        setTenantInfo(null);
+      }
+    };
+    if (isAdminRoute) {
+      fetchTenant();
+    } else {
+      setTenantInfo(null);
+    }
+  }, [location.pathname, isAdminRoute]);
+
   return (
     <div className="app-container">
       <header className="main-header">
         <div className="header-content">
-          <Link to="/" className="logo-link">
-            <div className="logo">Tog&Dogs</div>
+          <Link 
+            to={isAdminRoute ? "#" : "/"} 
+            className="logo-link" 
+            style={{ pointerEvents: isAdminRoute ? 'none' : 'auto' }}
+          >
+            <div className="logo">
+              {isAdminRoute 
+                ? `${tenantInfo?.display_name || "Pet Care Admin"}: A Pet Business Platform` 
+                : "Tog&Dogs"}
+            </div>
           </Link>
           <nav className="main-nav">
             <Link to="/" className="nav-link">Portal</Link>
@@ -154,41 +188,55 @@ function AppContent() {
       </main>
 
       <footer className="main-footer">
-        <div className="footer-content">
-          <div className="footer-brand">
-            <div className="logo">Tog&Dogs</div>
-            <p>Premium, local pet care services providing peace of mind for you and personalized attention for your pets.</p>
-            <div className="footer-badges">
-              <span className="badge">Pet Tech CPR Certified</span>
-              <span className="badge">First-Aid Trained</span>
-            </div>
-            <div className="usmh-attribution" style={{ marginTop: '24px', fontSize: '0.8rem', opacity: 0.7, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <img src={usmhLogo} alt="US Mission Hero logo" style={{ height: '24px', width: 'auto', objectFit: 'contain' }} />
-              <span>Powered by <strong>US Mission Hero</strong></span>
+        {isAdminRoute ? (
+          <div className="footer-bottom">
+            <div className="container" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '16px' }}>
+              <p>&copy; 2026 {tenantInfo?.display_name || "Pet Care Admin"}. Powered by usmissionhero.</p>
+              <div className="legal-links" style={{ display: 'flex', gap: '24px' }}>
+                <Link to="/privacy" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy Policy</Link>
+                <Link to="/terms" style={{ color: 'inherit', textDecoration: 'none' }}>Terms of Service</Link>
+              </div>
             </div>
           </div>
-          <div className="footer-links">
-            <h4>Portal</h4>
-            <Link to="/my-bookings">Client Login</Link>
-            <Link to="/book">Request Care</Link>
-            <Link to="/admin">Staff Portal</Link>
-          </div>
-          <div className="footer-links">
-            <h4>External</h4>
-            <a href="https://toganddogs.com">Main Website</a>
-            <Link to="/about">About Us</Link>
-            <Link to="/services">Services List</Link>
-          </div>
-        </div>
-        <div className="footer-bottom">
-          <div className="container" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '16px' }}>
-            <p>&copy; 2026 Tog and Dogs Pet Sitting Services</p>
-            <div className="legal-links" style={{ display: 'flex', gap: '24px' }}>
-              <Link to="/privacy" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy Policy</Link>
-              <Link to="/terms" style={{ color: 'inherit', textDecoration: 'none' }}>Terms of Service</Link>
+        ) : (
+          <>
+            <div className="footer-content">
+              <div className="footer-brand">
+                <div className="logo">Tog&Dogs</div>
+                <p>Premium, local pet care services providing peace of mind for you and personalized attention for your pets.</p>
+                <div className="footer-badges">
+                  <span className="badge">Pet Tech CPR Certified</span>
+                  <span className="badge">First-Aid Trained</span>
+                </div>
+                <div className="usmh-attribution" style={{ marginTop: '24px', fontSize: '0.8rem', opacity: 0.7, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <img src={usmhLogo} alt="US Mission Hero logo" style={{ height: '24px', width: 'auto', objectFit: 'contain' }} />
+                  <span>Powered by <strong>US Mission Hero</strong></span>
+                </div>
+              </div>
+              <div className="footer-links">
+                <h4>Portal</h4>
+                <Link to="/my-bookings">Client Login</Link>
+                <Link to="/book">Request Care</Link>
+                <Link to="/admin">Staff Portal</Link>
+              </div>
+              <div className="footer-links">
+                <h4>External</h4>
+                <a href="https://toganddogs.com">Main Website</a>
+                <Link to="/about">About Us</Link>
+                <Link to="/services">Services List</Link>
+              </div>
             </div>
-          </div>
-        </div>
+            <div className="footer-bottom">
+              <div className="container" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '16px' }}>
+                <p>&copy; 2026 Tog and Dogs Pet Sitting Services</p>
+                <div className="legal-links" style={{ display: 'flex', gap: '24px' }}>
+                  <Link to="/privacy" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy Policy</Link>
+                  <Link to="/terms" style={{ color: 'inherit', textDecoration: 'none' }}>Terms of Service</Link>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </footer>
     </div>
   );

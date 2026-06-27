@@ -50,6 +50,7 @@
 | Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
 | Second tenant | ✅ Created & Validated in Platform Admin (19E) |
 | Tenant provisioning script | ✅ Dry run validated (19B) |
+| Tenant display branding | ✅ Dynamic shell logo + admin footer implemented (19N pre-deploy) |
 
 ## Current Blockers
 
@@ -57,10 +58,11 @@
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
-| Tenant display branding failure | Test Tenant Alpha owner still sees 'Tog and Dogs' in admin shell/profile | AG / Matthew |
+| 19N pre-deploy — awaiting Matthew approval to push to S3/CloudFront | Tenant branding cleanup built but not yet live | Matthew |
 
 ## Latest Completed Releases
 
+- 19N: Tenant Branding Model Cleanup (⏳ Pre-Deploy / Awaiting Approval)
 - 19M: Production Deployment and Tenant Isolation Revalidation (PARTIAL PASS / PENDING DISPLAY FIX)
 - 19L: Frontend Tenant Display Remediation (Pre-Deploy Complete)
 - 19K: Backend Tenant Isolation Remediation Plan (Pre-Deploy Complete)
@@ -75,5 +77,4 @@
 
 ## Next Recommended Action
 
-**Frontend Tenant Display Triage and Fix (Release 19N)** — Triage and implement remediation for the frontend display name rendering bug, ensuring `Test Tenant Alpha` renders dynamically on the header bar and profile dropdown company fields.
-
+**Deploy Release 19N to Production** — Build is complete. Matthew should approve S3 sync and CloudFront invalidation to publish the tenant branding model cleanup. Post-deploy, revalidate `test_tenant_alpha` login to confirm `Test Tenant Alpha: A Pet Business Platform` renders in the shell logo and footer.

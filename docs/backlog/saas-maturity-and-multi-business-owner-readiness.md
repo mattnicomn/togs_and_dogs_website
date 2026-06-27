@@ -25,7 +25,7 @@ The platform has strong single-tenant foundations but requires significant work 
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
 | 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
 | 8 | Pricing/signup page | ❌ Not started | Medium | #6 |
-| 9 | Per-tenant branding | ✅ Dynamic tenant brand name implemented (19L) | Medium | #4 |
+| 9 | Per-tenant branding | ✅ Dynamic brand name, shell logo, and footer separated by route (19N pre-deploy) | Medium | #4 |
 | 10 | "Getting Started" docs for new owners | ❌ Not started | Low | #4 |
 
 ---
@@ -138,3 +138,5 @@ Start second-tenant creation only when:
 **Updated 2026-06-27 (19L):** Implemented frontend tenant display remediation. Integrated with `/admin/tenant-info` to fetch and render the correct brand names inside the admin header shell and user profile company fields. Replaced all hardcoded references to "Tog and Dogs" in administrative contexts with dynamically resolved values and fallbacks. Ran frontend Vite build and confirmed successful compilation.
 
 **Updated 2026-06-27 (19M):** Deployed tenant isolation fixes to production. Ran Terraform apply to update all 13 Lambdas and API Gateway configurations; synchronized built Vite frontend files to S3; cleared CDN caches via CloudFront cache invalidation. Verified that the DynamoDB tenant configuration has exactly 2 records and all CloudWatch observability alarms remain OK. Matthew completed manual validation, confirming data/access isolation PASS. However, display branding failed manual verification (header and dropdown still show hardcoded Tog and Dogs brand names). Status updated to PARTIAL PASS / PENDING DISPLAY FIX.
+
+**Updated 2026-06-27 (19N):** Implemented frontend tenant branding model cleanup. Replaced the hardcoded `Tog&Dogs` top-left product logo in `App.jsx` with a dynamic value (`<Tenant Display Name>: A Pet Business Platform`) that resolves for authenticated admin/platform routes. Replaced the admin header subtitle `Powered by Tog&Dogs` with `Powered by usmissionhero` in `AdminDashboard.jsx`. Rendered a minimal, tenant-aware admin footer on `/admin` and `/platform-admin` routes, while preserving the full `Tog&Dogs` marketing footer on public routes. Removed duplicate `/admin/tenant-info` fetch from `UserProfile.jsx` and replaced with prop-passing from the parent `AdminDashboard`. Frontend Vite build succeeded with new bundle `dist/assets/index-z7VYqP25.js`. Pre-deploy checkpoint reached; awaiting Matthew approval before S3/CloudFront deployment.
