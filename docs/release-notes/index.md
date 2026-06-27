@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 18S: Strict Mode Enablement Plan and Terraform Plan-Only Checkpoint**](release-18s-strict-mode-enable-plan-checkpoint.md) (2026-06-26) — ⏳ **Plan Pending** — Prepare minimal environment configuration change to set TENANT_RESOLUTION_MODE=multi for all 13 backend Lambdas and generate plan
 - [**Release 18R: Early Strict Mode Readiness Review**](release-18r-early-strict-mode-readiness-review.md) (2026-06-26) — ✅ **Complete** — Read-only check of Cognito user company IDs, DynamoDB tenant records, fallback metrics, and CloudWatch alarms
 - [**Release 18P: Calendar Cancellation Cascade Defensive Fix**](release-18p-calendar-cancellation-cascade-defensive-fix.md) (2026-06-24) — ✅ **Complete** — Defensive calendar cancellation cascade to ensure event cleanup even under timing race conditions
 - [**Release 18N: Phase 2 Entitlement Controlled Validation Execution**](release-18n-phase-2-entitlement-controlled-validation-execution.md) (2026-06-24) — ✅ **Complete** — Validate Professional tier client and booking limit gates using controlled test client and bookings
@@ -133,6 +134,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Client Access Management Phase 5a](client-portal/client-access-management-phase-5a.md)
 
 ### 🚀 Deployment & Operations
+*   [Release 18S: Strict Mode Enablement Plan and Terraform Plan-Only Checkpoint](release-18s-strict-mode-enable-plan-checkpoint.md)
 *   [Release 18R: Early Strict Mode Readiness Review](release-18r-early-strict-mode-readiness-review.md)
 *   [Release 18E: Strict Mode Enablement Gate Review](release-18e-strict-mode-enablement-gate-review.md)
 *   [Release 18D: Tenant Resolution Fallback Metric Observation Period Kickoff](release-18d-tenant-resolution-fallback-metric-observation-kickoff.md)

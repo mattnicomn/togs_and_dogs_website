@@ -192,6 +192,7 @@ resource "aws_lambda_function" "job" {
       DATA_TABLE_NAME          = module.data.table_name
       GOOGLE_CLIENT_CREDS_NAME = module.secrets.google_client_creds_arn
       GOOGLE_USER_TOKENS_NAME  = module.secrets.google_user_tokens_arn
+      TENANT_RESOLUTION_MODE   = "multi"
     }
   }
 
@@ -214,6 +215,7 @@ resource "aws_lambda_function" "google_auth" {
       GOOGLE_CLIENT_CREDS_NAME        = module.secrets.google_client_creds_arn
       GOOGLE_USER_TOKENS_NAME         = module.secrets.google_user_tokens_arn
       ENTITLEMENT_ENFORCEMENT_ENABLED = "true"
+      TENANT_RESOLUTION_MODE          = "multi"
     }
   }
 
@@ -232,7 +234,8 @@ resource "aws_lambda_function" "pet" {
 
   environment {
     variables = {
-      DATA_TABLE_NAME = module.data.table_name
+      DATA_TABLE_NAME        = module.data.table_name
+      TENANT_RESOLUTION_MODE = "multi"
     }
   }
 
@@ -276,7 +279,8 @@ resource "aws_lambda_function" "device" {
 
   environment {
     variables = {
-      DATA_TABLE_NAME = module.data.table_name
+      DATA_TABLE_NAME        = module.data.table_name
+      TENANT_RESOLUTION_MODE = "multi"
     }
   }
 
@@ -295,7 +299,8 @@ resource "aws_lambda_function" "ses_feedback" {
 
   environment {
     variables = {
-      DATA_TABLE_NAME = module.data.table_name
+      DATA_TABLE_NAME        = module.data.table_name
+      TENANT_RESOLUTION_MODE = "multi"
     }
   }
 
@@ -332,6 +337,7 @@ resource "aws_lambda_function" "postmark_webhook" {
     variables = {
       DATA_TABLE_NAME         = module.data.table_name
       POSTMARK_WEBHOOK_SECRET = var.postmark_webhook_secret
+      TENANT_RESOLUTION_MODE  = "multi"
     }
   }
 
@@ -366,6 +372,7 @@ resource "aws_lambda_function" "stripe_webhook" {
       STRIPE_PRICE_PROFESSIONAL_MONTHLY = var.stripe_price_professional_monthly
       STRIPE_PRICE_PREMIUM_MONTHLY      = var.stripe_price_premium_monthly
       DEFAULT_COMPANY_ID                = "tog_and_dogs"
+      TENANT_RESOLUTION_MODE            = "multi"
     }
   }
 
@@ -391,8 +398,9 @@ resource "aws_lambda_function" "platform" {
 
   environment {
     variables = {
-      DATA_TABLE_NAME    = module.data.table_name
-      DEFAULT_COMPANY_ID = "tog_and_dogs"
+      DATA_TABLE_NAME        = module.data.table_name
+      DEFAULT_COMPANY_ID     = "tog_and_dogs"
+      TENANT_RESOLUTION_MODE = "multi"
     }
   }
 

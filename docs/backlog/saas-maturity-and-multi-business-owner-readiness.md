@@ -108,4 +108,7 @@ Start second-tenant creation only when:
 
 **Updated 2026-06-26 (18R):** Completed early read-only strict-mode readiness review. Confirmed all 5 Cognito users backfilled with custom:company_id = 'tog_and_dogs'. Confirmed exactly 1 tenant metadata record exists in DynamoDB. Verified all CloudWatch alarms are OK. Analyzed the single fallback event on June 23 and confirmed zero fallbacks/failures occurred in the subsequent 3+ days. Strict mode is recommended for enablement in a separate release.
 
+**Updated 2026-06-26 (18S):** Configured `TENANT_RESOLUTION_MODE = "multi"` across all 13 backend Lambdas in production Terraform config (`locals.tf` and `main.tf`). Generated and saved `release18s-strict-mode.tfplan` showing `0 to add, 13 to change, 0 to destroy` for in-place environment updates only. Ready for approval to apply.
+
+
 

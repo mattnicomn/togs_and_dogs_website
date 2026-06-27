@@ -46,5 +46,8 @@ locals {
     PUSH_ENABLED  = "false"
     PUSH_DRY_RUN  = "true"
     PUSH_PROVIDER = "expo"
+
+    # Release 18S: Enable strict tenant resolution mode in production
+    TENANT_RESOLUTION_MODE = "multi"
   }
 }

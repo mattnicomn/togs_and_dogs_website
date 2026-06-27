@@ -46,7 +46,7 @@
 | Platform Admin UI | ✅ Deployed (/platform-admin) |
 | Platform audit trail | ✅ Working |
 | Cognito custom:company_id | ✅ Schema added (18B), all users backfilled (18C) |
-| TENANT_RESOLUTION_MODE | `single` (strict `multi` early readiness review complete — PASS) |
+| TENANT_RESOLUTION_MODE | `single` (strict `multi` plan generated — 18S pending approval) |
 | Strict-mode observation | ✅ Early readiness review complete (18R) — PASS |
 | Second tenant | ❌ Not created |
 | Tenant provisioning script | ✅ Implemented (17W), not run in apply mode |
