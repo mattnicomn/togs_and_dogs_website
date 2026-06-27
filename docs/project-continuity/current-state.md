@@ -56,17 +56,18 @@
 | Blocker | Impact | Owner |
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
-| Strict-mode observation window | Must pass before second tenant | Time-based (June 30+) |
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
+| Second-tenant creation not approved | No multi-business testing yet | Matthew approval required |
 
 ## Latest Completed Releases
 
+- 18U: Post-enable strict-mode monitoring checkpoint (PASS)
+- 18T: Strict-mode enablement (`TENANT_RESOLUTION_MODE=multi` on all 13 Lambdas)
 - 18Q: Strict mode final gate review preparation plan
 - 18UI-A: Web/mobile UI parity review plan
 - 18P: Calendar cancellation cascade defensive fix
 - 18N: Phase 2 entitlement controlled validation
-- 18L: Monthly booking counter + client limit implementation
 
 ## Next Recommended Action
 
-**18R — Read-only strict-mode gate review** (on or after June 30, 2026). AG executes CloudWatch query to confirm zero fallback/failure events over 7+ days. If PASS → Matthew approval → enable strict mode.
+**Second-tenant provisioning dry-run planning** — strict mode is validated, provisioning script exists (17W). Next step is planning the controlled creation of a test second tenant through the Platform Admin workflow or provisioning script. Requires Matthew's explicit approval before execution.

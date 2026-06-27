@@ -35,9 +35,10 @@ CURRENT STATE SUMMARY (verify against docs/project-continuity/current-state.md):
 - Mobile app is TestFlight internal only (not public App Store).
 - Stripe payments are sandbox-only (live blocked on EIN).
 - Tenant isolation is enforced. Entitlement gates Phase 1+2 are active.
-- Platform Admin UI exists. Strict tenant-resolution mode is NOT enabled yet.
-- No second tenant exists. Ryan testing is paused.
-- Next major action: 18R strict-mode gate review (on/after June 30, 2026).
+- TENANT_RESOLUTION_MODE=multi is ACTIVE and validated (strict mode enabled 18T, confirmed 18U).
+- Platform Admin UI exists. No second tenant exists.
+- Ryan testing is paused. Second-tenant creation requires Matthew approval.
+- Next major action: second-tenant provisioning dry-run planning.
 
 Please read the continuity docs and confirm you understand the current state before proceeding with any recommendations.
 ```

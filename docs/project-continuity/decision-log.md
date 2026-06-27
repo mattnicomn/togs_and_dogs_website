@@ -21,7 +21,7 @@
 | No website rewrite | Web is already React (Vite). Parity through style alignment only. | 2026-06 (18UI-A) |
 | Backend entitlement over App Store IAP | Business owners pay via web; staff/clients use free app. | 2026-06 (12A) |
 | Platform Admin separate from tenant admin | /platform-admin is usmissionhero-only; /admin is per-tenant. | 2026-06 (17K) |
-| TENANT_RESOLUTION_MODE toggle (single/multi) | Allows safe phased rollout of strict tenant routing. | 2026-06 (17X) |
+| TENANT_RESOLUTION_MODE toggle (single/multi) | Allows safe phased rollout of strict tenant routing. **Now active in `multi` mode (18T/18U).** | 2026-06 (17X), enabled 2026-06 (18T) |
 | Defensive calendar cancellation (collect all event IDs) | Fixes race condition where child job misses parent's event ID. | 2026-06 (18O/18P) |
 | Payment does not gate scheduling | Admin can schedule before payment received. Web-first billing. | 2026-06 (12F) |
 | Card-only Stripe Checkout | No Klarna/BNPL/bank for booking payments. | 2026-06 (12M) |

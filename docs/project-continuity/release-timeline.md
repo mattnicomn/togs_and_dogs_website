@@ -79,6 +79,8 @@
 | 18K–18N | Phase 2 entitlement gates (client limit, booking counter) |
 | 18O–18P | **Calendar cancellation cascade race condition fix** |
 | 18Q | Strict-mode gate review preparation |
-| 18R | **Strict-mode early readiness review** |
+| 18R | Strict-mode early readiness review |
+| 18S–18T | **Strict mode enabled (`TENANT_RESOLUTION_MODE=multi` on all 13 Lambdas)** |
+| 18U | Post-enable monitoring checkpoint (PASS — zero fallback/failure events) |
 | 18UI-A | Web/mobile UI parity review |
 
