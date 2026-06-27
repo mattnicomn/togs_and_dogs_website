@@ -95,3 +95,4 @@
 | 19J | **Second-tenant owner login isolation remediation planning** |
 | 19K | **Backend tenant isolation remediation (Pre-Deploy)** |
 | 19L | **Frontend tenant display remediation (Pre-Deploy)** |
+| 19M | **Production deployment and tenant isolation revalidation** |

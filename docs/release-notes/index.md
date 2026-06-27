@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 19M: Production Deployment and Tenant Isolation Revalidation**](release-19m-production-deployment-and-tenant-isolation-revalidation.md) (2026-06-27) — ✅ **Complete** — Deploy backend calendar gates, Cognito filters, tenant-info endpoint, and frontend dynamic display updates to production
 - [**Release 19L: Frontend Tenant Display Remediation (Pre-Deploy)**](release-19l-frontend-tenant-display-remediation-predeploy.md) (2026-06-27) — ✅ **Complete** — Integrate with GET /admin/tenant-info to dynamically display tenant brand names in header shell and profile labels
 - [**Release 19K: Backend Tenant Isolation Remediation Plan (Pre-Deploy)**](release-19k-backend-tenant-isolation-remediation-predeploy.md) (2026-06-27) — ✅ **Complete** — Implement backend Google Calendar tenant gate, Cognito user group/company filtering, and safe tenant-info endpoint
 - [**Release 19J: Second-Tenant Owner Login Isolation Remediation Planning**](../planning/release-19j-second-tenant-owner-login-isolation-remediation-plan.md) (2026-06-27) — ✅ **Complete** — Plan backend filters for Cognito, isolate Google Calendar, and design dynamic UI elements
@@ -147,6 +148,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Client Access Management Phase 5a](client-portal/client-access-management-phase-5a.md)
 
 ### 🚀 Deployment & Operations
+*   [Release 19M: Production Deployment and Tenant Isolation Revalidation](release-19m-production-deployment-and-tenant-isolation-revalidation.md)
 *   [Release 19L: Frontend Tenant Display Remediation (Pre-Deploy)](release-19l-frontend-tenant-display-remediation-predeploy.md)
 *   [Release 19K: Backend Tenant Isolation Remediation Plan (Pre-Deploy)](release-19k-backend-tenant-isolation-remediation-predeploy.md)
 *   [Release 19J: Second-Tenant Owner Login Isolation Remediation Planning](../planning/release-19j-second-tenant-owner-login-isolation-remediation-plan.md)

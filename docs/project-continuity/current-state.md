@@ -57,10 +57,11 @@
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
-| Tenant isolation validation | Production deployment of backend 19K and frontend 19L required before revalidation | Matthew / AG |
+| Tenant isolation validation | Pending Matthew manual validation run for test_tenant_alpha | Matthew |
 
 ## Latest Completed Releases
 
+- 19M: Production Deployment and Tenant Isolation Revalidation
 - 19L: Frontend Tenant Display Remediation (Pre-Deploy Complete)
 - 19K: Backend Tenant Isolation Remediation Plan (Pre-Deploy Complete)
 - 19J: Second-Tenant Owner Login Isolation Remediation Planning
@@ -74,5 +75,5 @@
 
 ## Next Recommended Action
 
-**Production Deploy and Revalidation (Release 19M)** — Build the production zip package, run Terraform apply to deploy backend/API Gateway updates, deploy the Vite static frontend app, and conduct a manual validation run to verify complete tenant isolation for the second tenant owner user.
+**Manual Onboarding Validation (Release 19N)** — Matthew to log in to the production portals as the test tenant owner user and the default tenant admin to verify that the tenant isolation fixes are fully validated in the live environment.
 
