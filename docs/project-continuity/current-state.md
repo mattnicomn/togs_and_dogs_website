@@ -57,10 +57,11 @@
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
-| SaaS isolation defects (Frontend) | Profile/company label shows "Tog and Dogs" instead of "Test Tenant Alpha" | Frontend branding fix required (19L/next) |
+| Tenant isolation validation | Production deployment of backend 19K and frontend 19L required before revalidation | Matthew / AG |
 
 ## Latest Completed Releases
 
+- 19L: Frontend Tenant Display Remediation (Pre-Deploy Complete)
 - 19K: Backend Tenant Isolation Remediation Plan (Pre-Deploy Complete)
 - 19J: Second-Tenant Owner Login Isolation Remediation Planning
 - 19I: Second-tenant owner login isolation defect triage (Triage Complete)
@@ -73,4 +74,5 @@
 
 ## Next Recommended Action
 
-**Remediation of SaaS Isolation Defects (Frontend Branding - 19L)** — Update the frontend React UI (e.g. `AdminDashboard.jsx`, `UserProfile.jsx`, etc.) to dynamically retrieve the tenant display name from the backend `/admin/tenant-info` endpoint rather than hardcoding "Tog and Dogs".
+**Production Deploy and Revalidation (Release 19M)** — Build the production zip package, run Terraform apply to deploy backend/API Gateway updates, deploy the Vite static frontend app, and conduct a manual validation run to verify complete tenant isolation for the second tenant owner user.
+

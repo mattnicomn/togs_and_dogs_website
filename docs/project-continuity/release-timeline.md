@@ -92,9 +92,6 @@
 | 19G | **Second-tenant owner Cognito user creation approval checkpoint & runbook** |
 | 19H | **Controlled second-tenant owner Cognito user creation** |
 | 19I | **Second-tenant owner login isolation defect triage** |
-
-
-
-
-
-
+| 19J | **Second-tenant owner login isolation remediation planning** |
+| 19K | **Backend tenant isolation remediation (Pre-Deploy)** |
+| 19L | **Frontend tenant display remediation (Pre-Deploy)** |

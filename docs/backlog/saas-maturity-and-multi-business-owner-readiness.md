@@ -25,7 +25,7 @@ The platform has strong single-tenant foundations but requires significant work 
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
 | 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
 | 8 | Pricing/signup page | ❌ Not started | Medium | #6 |
-| 9 | Per-tenant branding | ❌ Not started | Medium | #4 |
+| 9 | Per-tenant branding | ✅ Dynamic tenant brand name implemented (19L) | Medium | #4 |
 | 10 | "Getting Started" docs for new owners | ❌ Not started | Low | #4 |
 
 ---
@@ -135,6 +135,5 @@ Start second-tenant creation only when:
 **Updated 2026-06-27 (19J):** Completed backend and API Gateway planning for tenant isolation remediation. Designed Cognito user list company ID checks and a dedicated `/admin/tenant-info` endpoint.
 
 **Updated 2026-06-27 (19K):** Implemented backend tenant isolation fixes: gated Google Calendar to only allow the default tenant (`tog_and_dogs`); filtered Cognito lists (`/admin/staff` and `/admin/clients`) by the caller's tenant ID under strict mode; and built a safe authenticated `/admin/tenant-info` endpoint. Added 9 unit tests in `tests/backend/test_r19k_tenant_isolation.py` and verified 100% pass rate.
-
-
+**Updated 2026-06-27 (19L):** Implemented frontend tenant display remediation. Integrated with `/admin/tenant-info` to fetch and render the correct brand names inside the admin header shell and user profile company fields. Replaced all hardcoded references to "Tog and Dogs" in administrative contexts with dynamically resolved values and fallbacks. Ran frontend Vite build and confirmed successful compilation.
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { signIn, getSession, getEffectiveRole } from '../api/auth';
 
-import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData, createAdminBooking, listAdminClientPets } from '../api/client';
+import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData, createAdminBooking, listAdminClientPets, getTenantInfo } from '../api/client';
 import * as XLSX from 'xlsx';
 
 
@@ -33,6 +33,7 @@ const AdminDashboard = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [challengeContext, setChallengeContext] = useState(null);
   const [googleStatus, setGoogleStatus] = useState(null);
+  const [tenantInfo, setTenantInfo] = useState(null);
   const [staffList, setStaffList] = useState([]);
   const [staffLoading, setStaffLoading] = useState(false);
   const [staffError, setStaffError] = useState(null);
@@ -493,6 +494,15 @@ const AdminDashboard = () => {
       setGoogleStatus(status.status);
     } catch (err) {
       console.error("Failed to fetch Google status", err);
+    }
+  };
+
+  const fetchTenantInfo = async () => {
+    try {
+      const info = await getTenantInfo();
+      setTenantInfo(info);
+    } catch (err) {
+      console.error("Failed to fetch tenant info:", err);
     }
   };
 
@@ -1064,6 +1074,7 @@ const AdminDashboard = () => {
           setRole(userRole);
           fetchAllData();
           fetchGoogleStatus();
+          fetchTenantInfo();
         } else if (userRole === 'client') {
           window.location.href = '/my-bookings';
         } else {
@@ -1123,6 +1134,7 @@ const AdminDashboard = () => {
         setRole(userRole);
         fetchAllData();
         fetchGoogleStatus();
+        fetchTenantInfo();
       } else if (userRole === 'client') {
         window.location.href = '/my-bookings';
       } else {
@@ -1169,6 +1181,7 @@ const AdminDashboard = () => {
             setRole(userRole);
             fetchAllData();
             fetchGoogleStatus();
+            fetchTenantInfo();
           } else {
             setError("Access denied. Insufficient permissions.");
             setIsAuthenticated(false);
@@ -3241,7 +3254,12 @@ const AdminDashboard = () => {
       )}
       <header className="admin-header-bar card">
         <div className="header-left">
-          <h1>Tog and Dogs Admin</h1>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <h1>{tenantInfo?.display_name || "Pet Care Admin"}</h1>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '500', opacity: 0.8 }}>
+              Powered by Tog&Dogs
+            </span>
+          </div>
           <nav className="view-selector">
             {capabilities.canViewScheduler && (
               <button className={view === 'SCHEDULER' ? 'active' : ''} onClick={() => { setView('SCHEDULER'); setStatusFilter('ALL'); }}>Scheduler</button>

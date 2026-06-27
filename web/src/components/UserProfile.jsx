@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getSession, getEffectiveRole, signOut } from '../api/auth';
+import { getTenantInfo } from '../api/client';
 
 const UserProfile = ({ staffProfile, externalCurrentUser }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [role, setRole] = useState('unknown');
+  const [tenantInfo, setTenantInfo] = useState(null);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -42,6 +44,20 @@ const UserProfile = ({ staffProfile, externalCurrentUser }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [externalCurrentUser]);
+
+  useEffect(() => {
+    const fetchTenant = async () => {
+      try {
+        const info = await getTenantInfo();
+        setTenantInfo(info);
+      } catch (err) {
+        console.error('Failed to load tenant info in profile:', err);
+      }
+    };
+    if (user) {
+      fetchTenant();
+    }
+  }, [user]);
 
   const handleLogout = () => {
     signOut();
@@ -97,7 +113,7 @@ const UserProfile = ({ staffProfile, externalCurrentUser }) => {
           <div className="dropdown-body">
             <div className="company-info">
               <span className="label">Company</span>
-              <span className="value">Tog and Dogs</span>
+              <span className="value">{tenantInfo?.display_name || "Current Tenant"}</span>
             </div>
           </div>
 

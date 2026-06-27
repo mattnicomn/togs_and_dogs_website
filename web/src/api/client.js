@@ -161,3 +161,6 @@ export const sendPaymentEmail = (requestId, clientId) =>
     client_id: clientId
   }, true);
 
+// Release 19L: Fetch safe tenant display metadata
+export const getTenantInfo = () => request('/admin/tenant-info', 'GET', null, true);
+

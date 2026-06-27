@@ -191,7 +191,7 @@ def handler(event, context):
         # --- NEW TENANT INFO ENDPOINT ---
         if http_method == 'GET' and (path == '/admin/tenant-info' or path.endswith('/admin/tenant-info')):
             role = get_effective_role(event)
-            if role not in ['owner', 'admin', 'staff', 'client']:
+            if role not in ['owner', 'admin', 'staff', 'client', 'platform_admin']:
                 return error(403, "Forbidden", event)
                 
             from common.auth import get_current_company_id
