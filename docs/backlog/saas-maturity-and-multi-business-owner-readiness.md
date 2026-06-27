@@ -122,6 +122,9 @@ Start second-tenant creation only when:
 
 **Updated 2026-06-26 (19D):** Executed `scripts/provision_tenant.py` in apply mode to create `test_tenant_alpha` (metadata-only) in production DynamoDB. Verified that the metadata record and audit record were written successfully, tenant count is now 2, and no Cognito, Google Calendar, or Stripe changes occurred. Confirmed `/admin` and `/platform-admin` remain fully operational with alarms in OK state.
 
+**Updated 2026-06-26 (19E):** Performed read-only validation of Platform Admin second-tenant visibility. Verified both `tog_and_dogs` and `test_tenant_alpha` display correctly in the list view, detail view, and audit trails without modifying the existing tenant or triggering user/access changes.
+
+
 
 
 

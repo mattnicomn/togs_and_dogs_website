@@ -48,7 +48,7 @@
 | Cognito custom:company_id | ✅ Schema added (18B), all users backfilled (18C) |
 | TENANT_RESOLUTION_MODE | ✅ Enabled (strict `multi` mode active — 18T validated) |
 | Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
-| Second tenant | ✅ Created (19D — metadata only) |
+| Second tenant | ✅ Created & Validated in Platform Admin (19E) |
 | Tenant provisioning script | ✅ Dry run validated (19B) |
 
 ## Current Blockers

@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 19E: Platform Admin Second-Tenant Visibility Validation**](release-19e-platform-admin-second-tenant-visibility-validation.md) (2026-06-26) — ✅ **Complete** — Read-only validation verifying platform admin console correctly displays and audits test_tenant_alpha without affecting tog_and_dogs
 - [**Release 19D: Controlled Second-Tenant Metadata Creation**](release-19d-controlled-second-tenant-metadata-creation.md) (2026-06-26) — ✅ **Complete** — Execute provision_tenant.py in apply mode to create test_tenant_alpha metadata and audit records in production DynamoDB
 - [**Release 19C: Matthew Approval Checkpoint for Controlled Second-Tenant Metadata Creation**](release-19c-second-tenant-approval-checkpoint.md) (2026-06-26) — ✅ **Complete** — Establish parameters, safety boundaries, and exact CLI command for future metadata-only second test tenant creation
 - [**Release 19B: Tenant Provisioning Script Dry Run**](release-19b-tenant-provisioning-script-dry-run.md) (2026-06-26) — ✅ **Complete** — Run scripts/provision_tenant.py in dry-run mode for test_tenant_alpha and verify proposed DynamoDB records and Cognito instructions
@@ -139,6 +140,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Client Access Management Phase 5a](client-portal/client-access-management-phase-5a.md)
 
 ### 🚀 Deployment & Operations
+*   [Release 19E: Platform Admin Second-Tenant Visibility Validation](release-19e-platform-admin-second-tenant-visibility-validation.md)
 *   [Release 19D: Controlled Second-Tenant Metadata Creation](release-19d-controlled-second-tenant-metadata-creation.md)
 *   [Release 19C: Matthew Approval Checkpoint for Controlled Second-Tenant Metadata Creation](release-19c-second-tenant-approval-checkpoint.md)
 *   [Release 19B: Tenant Provisioning Script Dry Run](release-19b-tenant-provisioning-script-dry-run.md)
