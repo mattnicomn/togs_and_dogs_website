@@ -55,18 +55,27 @@ Ran a production verification script to inspect metadata and observability statu
 
 ## 👤 Matthew Manual Validation
 
-- **Status:** **PASS** (remediated all tenant isolation defects found in Release 19H/19I)
-- **Checklist A (test_tenant_alpha owner) - PASS**:
+- **Overall Status:** **PARTIAL PASS / PENDING DISPLAY FIX**
+- **Validation Breakdown:**
+  - Data Isolation Remediation: **PASS** (bookings, requests, jobs, pets correctly scoped)
+  - Google Calendar Tenant Isolation: **PASS** (no leak of default connection status)
+  - Staff/Client List Isolation: **PASS** (Togs & Dogs users successfully filtered out)
+  - Tenant Display/Profile Branding: **FAIL/PENDING** (brand names still hardcoded/incorrect)
+
+- **Checklist A (test_tenant_alpha owner) - PARTIAL PASS / PENDING DISPLAY FIX**:
   - Logged in successfully to the admin portal.
-  - Header and profile dropdown correctly displayed `Test Tenant Alpha` company branding.
-  - Google Calendar card correctly showed "not connected / not configured" and did not leak default `tog_and_dogs` calendar status.
-  - Request List staff quick view, Staff Management, and Client Management lists did not show any Togs & Dogs users/profiles.
-  - Bookings, requests, jobs, and pets were empty/test-tenant scoped.
-  - No authentication, session, 401, or 403 errors were observed.
+  - **FAIL:** Header still displays `Tog and Dogs Admin` instead of `Test Tenant Alpha`.
+  - **FAIL:** Profile dropdown still displays Company as `Tog and Dogs` instead of `Test Tenant Alpha`.
+  - **PASS:** Google Calendar card correctly showed "not connected / not configured" and did not leak default `tog_and_dogs` calendar status.
+  - **PASS:** Request List staff quick view, Staff Management, and Client Management lists did not show any Togs & Dogs users/profiles.
+  - **PASS:** Bookings, requests, jobs, and pets were empty/test-tenant scoped.
+  - **PASS:** No authentication, session, 401, or 403 errors were observed.
+
 - **Checklist B (tog_and_dogs admin/platform user) - PASS**:
   - Logged in successfully.
   - Header and profile dropdown correctly displayed `Tog & Dogs Pet Sitting` branding.
   - Google Calendar showed connected and healthy.
   - Existing Togs & Dogs staff, clients, and bookings loaded and functioned normally.
   - `/platform-admin` loaded and correctly displayed both tenants.
+
 

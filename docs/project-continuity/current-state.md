@@ -57,15 +57,16 @@
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
+| Tenant display branding failure | Test Tenant Alpha owner still sees 'Tog and Dogs' in admin shell/profile | AG / Matthew |
 
 ## Latest Completed Releases
 
-- 19M: Production Deployment and Tenant Isolation Revalidation (PASS)
+- 19M: Production Deployment and Tenant Isolation Revalidation (PARTIAL PASS / PENDING DISPLAY FIX)
 - 19L: Frontend Tenant Display Remediation (Pre-Deploy Complete)
 - 19K: Backend Tenant Isolation Remediation Plan (Pre-Deploy Complete)
 - 19J: Second-Tenant Owner Login Isolation Remediation Planning
-- 19I: Second-tenant owner login isolation defect triage (PASS - Remediated by 19M)
-- 19H: Controlled second-tenant owner Cognito user creation (PASS - Remediated by 19M)
+- 19I: Second-tenant owner login isolation defect triage (PARTIAL PASS - Data Remediated)
+- 19H: Controlled second-tenant owner Cognito user creation (PARTIAL PASS - Data Remediated)
 - 19G: Second-tenant owner Cognito user creation approval runbook
 - 19E: Platform Admin second-tenant visibility validation
 - 19D: Controlled second-tenant metadata creation
@@ -74,5 +75,5 @@
 
 ## Next Recommended Action
 
-**Tenant Self-Service Stripe Checkout (Release 20A)** — Plan and implement the Stripe subscription Checkout flows for secondary tenants, enabling dynamic registration, subscription tier selection, and automated billing provisioning in sandbox mode.
+**Frontend Tenant Display Triage and Fix (Release 19N)** — Triage and implement remediation for the frontend display name rendering bug, ensuring `Test Tenant Alpha` renders dynamically on the header bar and profile dropdown company fields.
 
