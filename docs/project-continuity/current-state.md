@@ -76,4 +76,4 @@
 
 ## Next Recommended Action
 
-**Resume SaaS Maturity Backlog** — Release 19N is fully validated. All tenant isolation and branding defects from 19H/19M are resolved. Next strategic items are Stripe live payments (blocked on EIN) and external tester onboarding (Ryan, deferred).
+**20-series: SaaS maturity next phase** — Tenant isolation is complete (19N validated). Next priorities: Stripe sandbox architecture decision (booking vs subscription tracks), tenant lifecycle disable/cleanup runbook, owner onboarding simplification, and external tester readiness gates. See `release-20a-saas-maturity-next-phase-plan.md`.
