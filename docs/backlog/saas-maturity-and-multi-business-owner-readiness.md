@@ -132,15 +132,9 @@ Start second-tenant creation only when:
 
 **Updated 2026-06-27 (19I):** Conducted read-only triage and defect source analysis for the four isolation issues. Identified that Google Calendar credentials, Cognito staff lists, and client lists lack tenant scoping (`custom:company_id` check), and the dashboard branding remains hardcoded on the frontend.
 
+**Updated 2026-06-27 (19J):** Completed backend and API Gateway planning for tenant isolation remediation. Designed Cognito user list company ID checks and a dedicated `/admin/tenant-info` endpoint.
 
-
-
-
-
-
-
-
-
+**Updated 2026-06-27 (19K):** Implemented backend tenant isolation fixes: gated Google Calendar to only allow the default tenant (`tog_and_dogs`); filtered Cognito lists (`/admin/staff` and `/admin/clients`) by the caller's tenant ID under strict mode; and built a safe authenticated `/admin/tenant-info` endpoint. Added 9 unit tests in `tests/backend/test_r19k_tenant_isolation.py` and verified 100% pass rate.
 
 
 

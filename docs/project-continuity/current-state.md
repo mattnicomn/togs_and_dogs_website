@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-06-26
+**Last Updated:** 2026-06-27
 
 ---
 
@@ -45,7 +45,7 @@
 | Entitlement enforcement Phase 2 | ✅ Deployed (client limit, monthly booking counter) — 18L |
 | Platform Admin UI | ✅ Deployed (/platform-admin) |
 | Platform audit trail | ✅ Working |
-| Cognito custom:company_id | ⚠️ Triage complete; isolation defects found in validation (19I) |
+| Cognito custom:company_id | ✅ Backend tenant isolation remediation implemented & verified (19K) |
 | TENANT_RESOLUTION_MODE | ✅ Enabled (strict `multi` mode active — 18T validated) |
 | Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
 | Second tenant | ✅ Created & Validated in Platform Admin (19E) |
@@ -57,10 +57,12 @@
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
-| SaaS isolation defects | Owner user sees global staff/clients/calendar status (19I) | Defect fix required (19J) |
+| SaaS isolation defects (Frontend) | Profile/company label shows "Tog and Dogs" instead of "Test Tenant Alpha" | Frontend branding fix required (19L/next) |
 
 ## Latest Completed Releases
 
+- 19K: Backend Tenant Isolation Remediation Plan (Pre-Deploy Complete)
+- 19J: Second-Tenant Owner Login Isolation Remediation Planning
 - 19I: Second-tenant owner login isolation defect triage (Triage Complete)
 - 19H: Controlled second-tenant owner Cognito user creation (FAIL/BLOCKED)
 - 19G: Second-tenant owner Cognito user creation approval runbook
@@ -71,5 +73,4 @@
 
 ## Next Recommended Action
 
-**Remediation of SaaS Isolation Defects (19J)** — Implement backend filters for Cognito list queries, isolate Google Calendar stored tokens per tenant, and update the frontend UI dashboard/profile labels to be dynamic rather than hardcoded "Tog and Dogs".
-
+**Remediation of SaaS Isolation Defects (Frontend Branding - 19L)** — Update the frontend React UI (e.g. `AdminDashboard.jsx`, `UserProfile.jsx`, etc.) to dynamically retrieve the tenant display name from the backend `/admin/tenant-info` endpoint rather than hardcoding "Tog and Dogs".

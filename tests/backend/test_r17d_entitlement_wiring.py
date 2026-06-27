@@ -134,12 +134,12 @@ def test_export_enabled_denies_invalid_tier(mock_db):
 def test_google_oauth_disabled_allows_all(mock_db):
     """When enforcement is disabled, google oauth initiation is allowed."""
     os.environ['ENTITLEMENT_ENFORCEMENT_ENABLED'] = 'false'
-    event = create_event("Admin", "/admin/auth/google")
+    event = create_event("Admin", "/admin/auth/google", company_id="tog_and_dogs")
     
     mock_db["get_item"].return_value = {
-        "PK": "TENANT#test_company",
+        "PK": "TENANT#tog_and_dogs",
         "SK": "METADATA",
-        "company_id": "test_company",
+        "company_id": "tog_and_dogs",
         "subscription_tier": "starter", # Starter has google_calendar_enabled = False
         "subscription_status": "active"
     }
@@ -152,11 +152,11 @@ def test_google_oauth_disabled_allows_all(mock_db):
 
 def test_google_oauth_enabled_allows_valid_tier(mock_db):
     """When enforcement is enabled, google oauth is allowed for professional/premium."""
-    event = create_event("Admin", "/admin/auth/google")
+    event = create_event("Admin", "/admin/auth/google", company_id="tog_and_dogs")
     mock_db["get_item"].return_value = {
-        "PK": "TENANT#test_company",
+        "PK": "TENANT#tog_and_dogs",
         "SK": "METADATA",
-        "company_id": "test_company",
+        "company_id": "tog_and_dogs",
         "subscription_tier": "professional", # Has google_calendar_enabled = True
         "subscription_status": "active"
     }
@@ -169,11 +169,11 @@ def test_google_oauth_enabled_allows_valid_tier(mock_db):
 
 def test_google_oauth_enabled_denies_invalid_tier(mock_db):
     """When enforcement is enabled, google oauth is denied for starter tier."""
-    event = create_event("Admin", "/admin/auth/google")
+    event = create_event("Admin", "/admin/auth/google", company_id="tog_and_dogs")
     mock_db["get_item"].return_value = {
-        "PK": "TENANT#test_company",
+        "PK": "TENANT#tog_and_dogs",
         "SK": "METADATA",
-        "company_id": "test_company",
+        "company_id": "tog_and_dogs",
         "subscription_tier": "starter", # Starter has google_calendar_enabled = False
         "subscription_status": "active"
     }

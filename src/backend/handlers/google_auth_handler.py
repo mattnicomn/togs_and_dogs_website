@@ -69,6 +69,20 @@ def save_tokens(new_tokens):
         print(f"ERROR: Failed to save tokens to Secrets Manager: {e}")
         return False
 
+def get_company_id_safe(event):
+    if not isinstance(event, dict):
+        from common.auth import DEFAULT_COMPANY_ID
+        return DEFAULT_COMPANY_ID
+    if event.get('source') in ['aws.scheduler', 'aws.events'] or event.get('detail-type') == 'Scheduled Event' or event.get('action') == 'health_check':
+        from common.auth import DEFAULT_COMPANY_ID
+        return DEFAULT_COMPANY_ID
+    try:
+        from common.auth import get_current_company_id
+        return get_current_company_id(event)
+    except Exception:
+        from common.auth import DEFAULT_COMPANY_ID
+        return DEFAULT_COMPANY_ID
+
 def handler(event, context):
     path = event.get('path', '')
     
@@ -109,6 +123,11 @@ def disconnect_auth(event):
     DELETE /admin/auth/google
     Clears the stored tokens in Secrets Manager to disconnect Google Calendar.
     """
+    company_id = get_company_id_safe(event)
+    from common.auth import DEFAULT_COMPANY_ID
+    if company_id != DEFAULT_COMPANY_ID:
+        return success({"message": "Google Calendar disconnected successfully."}, event)
+        
     secret_name = os.environ.get('GOOGLE_USER_TOKENS_NAME')
     try:
         # Clear the tokens to effectively disconnect
@@ -131,8 +150,10 @@ def initiate_auth(event):
     Generates auth URL and stores state in DynamoDB.
     """
     try:
-        from common.auth import get_current_company_id
+        from common.auth import get_current_company_id, DEFAULT_COMPANY_ID
         company_id = get_current_company_id(event)
+        if company_id != DEFAULT_COMPANY_ID:
+            return error(403, "Google Calendar integration is not supported for this tenant in this release.", event)
         
         # Release 17D: Entitlement gate for google calendar enabled
         from common.entitlement import check_feature
@@ -211,6 +232,11 @@ def handle_callback(event):
         if not state_record:
             return bad_request("Invalid or expired OAuth state.", event)
         
+        company_id = state_record.get('company_id')
+        from common.auth import DEFAULT_COMPANY_ID
+        if company_id != DEFAULT_COMPANY_ID:
+            return error(403, "Google Calendar integration callback is not supported for this tenant.", event)
+            
         # Cleanup state immediately
         table.delete_item(Key={'PK': f"OAUTHSTATE#{state}", 'SK': 'META'})
         
@@ -271,6 +297,11 @@ def get_status(event):
     GET /admin/auth/status
     Returns the current connection state.
     """
+    company_id = get_company_id_safe(event)
+    from common.auth import DEFAULT_COMPANY_ID
+    if company_id != DEFAULT_COMPANY_ID:
+        return success({"status": "NOT_CONNECTED"}, event)
+        
     config = get_google_config()
     if not config or not config.get('client_id'):
         return success({"status": "CREDENTIALS_MISSING"}, event)
@@ -343,6 +374,11 @@ def calendar_health_check(event):
     """
     print("CALENDAR_HEALTH_CHECK: Starting scheduled health check.")
     
+    company_id = get_company_id_safe(event)
+    from common.auth import DEFAULT_COMPANY_ID
+    if company_id != DEFAULT_COMPANY_ID:
+        return _health_response("NOT_CONNECTED", "Google Calendar is not configured for this tenant.", event)
+        
     # 1. Check Google client credentials exist
     config = get_google_config()
     if not config or not config.get('client_id'):

@@ -42,6 +42,19 @@ from common.protected_accounts import is_protected_profile, is_protected_email, 
 PROTECTED_SUBS = None  # Deprecated — use is_protected_sub() instead
 PROTECTED_USERNAMES = None  # Deprecated — use is_protected_email() instead
 
+def is_cognito_user_in_company(user, company_id, mode):
+    user_attrs = {a['Name']: a['Value'] for a in user.get('Attributes', [])}
+    user_company = user_attrs.get('custom:company_id')
+    
+    if mode == "multi":
+        return user_company == company_id
+    else:
+        if not user_company:
+            from common.auth import DEFAULT_COMPANY_ID
+            return company_id == DEFAULT_COMPANY_ID
+        return user_company == company_id
+
+
 
 def normalize_phone_e164(phone):
     """
@@ -175,6 +188,52 @@ def handler(event, context):
         
         path = event.get('path', '')
         
+        # --- NEW TENANT INFO ENDPOINT ---
+        if http_method == 'GET' and (path == '/admin/tenant-info' or path.endswith('/admin/tenant-info')):
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin', 'staff', 'client']:
+                return error(403, "Forbidden", event)
+                
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
+            
+            tenant = get_item(f"TENANT#{company_id}", "METADATA")
+            
+            if tenant:
+                display_name = tenant.get('display_name')
+                subscription_tier = tenant.get('subscription_tier', 'starter')
+                subscription_status = tenant.get('subscription_status', 'disabled')
+            else:
+                from common.auth import DEFAULT_COMPANY_ID
+                if company_id == DEFAULT_COMPANY_ID:
+                    display_name = "Tog and Dogs"
+                    subscription_tier = "starter"
+                    subscription_status = "active"
+                else:
+                    display_name = company_id
+                    subscription_tier = "starter"
+                    subscription_status = "disabled"
+                    
+            # Safe calendar check
+            calendar_status = "NOT_CONNECTED"
+            from common.auth import DEFAULT_COMPANY_ID
+            if company_id == DEFAULT_COMPANY_ID:
+                try:
+                    from handlers.google_auth_handler import get_status as _get_status
+                    status_resp = _get_status(event)
+                    body = json.loads(status_resp.get('body', '{}'))
+                    calendar_status = body.get('status', 'NOT_CONNECTED')
+                except Exception as e:
+                    print(f"Warning: Failed to resolve calendar status: {e}")
+                    
+            return success({
+                "company_id": company_id,
+                "display_name": display_name,
+                "subscription_tier": subscription_tier,
+                "subscription_status": subscription_status,
+                "google_calendar_status": calendar_status
+            }, event)
+            
         # --- CLIENT PORTAL BOUNDARIES ---
         if path.startswith('/client/'):
             role = get_effective_role(event)
@@ -308,8 +367,10 @@ def handler(event, context):
                 u_resp = cognito_client.list_users_in_group(UserPoolId=user_pool_id, GroupName=grp)
                 for u in u_resp.get('Users', []):
                     if u['Username'] not in seen_usernames:
-                        seen_usernames.add(u['Username'])
-                        cognito_staff.append(u)
+                        mode = os.environ.get("TENANT_RESOLUTION_MODE", "single").lower().strip()
+                        if is_cognito_user_in_company(u, company_id, mode):
+                            seen_usernames.add(u['Username'])
+                            cognito_staff.append(u)
 
             # Merge Cognito + DynamoDB
             merged_staff = []
@@ -1480,8 +1541,10 @@ def handler(event, context):
                     u_resp = cognito_client.list_users_in_group(UserPoolId=user_pool_id, GroupName=grp)
                     for u in u_resp.get('Users', []):
                         if u['Username'] not in seen_usernames:
-                            seen_usernames.add(u['Username'])
-                            cognito_clients.append(u)
+                            mode = os.environ.get("TENANT_RESOLUTION_MODE", "single").lower().strip()
+                            if is_cognito_user_in_company(u, company_id, mode):
+                                seen_usernames.add(u['Username'])
+                                cognito_clients.append(u)
 
                 # Merge
                 merged_clients = []

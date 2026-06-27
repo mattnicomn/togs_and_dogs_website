@@ -366,6 +366,31 @@ resource "aws_api_gateway_integration" "google_status_lambda" {
   uri                     = var.google_auth_handler_invoke_arn
 }
 
+resource "aws_api_gateway_resource" "admin_tenant_info" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin.id
+  path_part   = "tenant-info"
+}
+
+# Admin GET /admin/tenant-info
+resource "aws_api_gateway_method" "get_tenant_info" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_tenant_info.id
+  http_method   = "GET"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "get_tenant_info_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_tenant_info.id
+  http_method = aws_api_gateway_method.get_tenant_info.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
 # ------------------------------------------------------------------------------
 # Pets / Care Cards
 # ------------------------------------------------------------------------------
@@ -1068,6 +1093,7 @@ locals {
     "admin_auth_google" : aws_api_gateway_resource.admin_auth_google.id,
     "admin_auth_callback" : aws_api_gateway_resource.admin_auth_callback.id,
     "admin_auth_status" : aws_api_gateway_resource.admin_auth_status.id,
+    "admin_tenant_info" : aws_api_gateway_resource.admin_tenant_info.id,
     "admin_pets" : aws_api_gateway_resource.admin_pets.id,
     "admin_pet_id" : aws_api_gateway_resource.admin_pet_id.id,
     "client_cancel" : aws_api_gateway_resource.client_cancel.id,
@@ -1198,6 +1224,7 @@ resource "aws_api_gateway_deployment" "main" {
   depends_on = [
     aws_api_gateway_integration.intake_lambda,
     aws_api_gateway_integration.admin_lambda,
+    aws_api_gateway_integration.get_tenant_info_lambda,
     aws_api_gateway_integration.post_admin_requests_lambda,
     aws_api_gateway_integration.review_lambda,
     aws_api_gateway_integration.assign_lambda,
@@ -1253,6 +1280,9 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.admin_auth_google,
       aws_api_gateway_resource.admin_auth_callback,
       aws_api_gateway_resource.admin_auth_status,
+      aws_api_gateway_resource.admin_tenant_info,
+      aws_api_gateway_method.get_tenant_info,
+      aws_api_gateway_integration.get_tenant_info_lambda,
       aws_api_gateway_resource.admin_pets,
       aws_api_gateway_resource.admin_pet_id,
       aws_api_gateway_resource.client_cancel,

@@ -3,6 +3,8 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 19K: Backend Tenant Isolation Remediation Plan (Pre-Deploy)**](release-19k-backend-tenant-isolation-remediation-predeploy.md) (2026-06-27) — ✅ **Complete** — Implement backend Google Calendar tenant gate, Cognito user group/company filtering, and safe tenant-info endpoint
+- [**Release 19J: Second-Tenant Owner Login Isolation Remediation Planning**](../planning/release-19j-second-tenant-owner-login-isolation-remediation-plan.md) (2026-06-27) — ✅ **Complete** — Plan backend filters for Cognito, isolate Google Calendar, and design dynamic UI elements
 - [**Release 19I: Second-Tenant Owner Login Isolation Defect Triage**](release-19i-second-tenant-owner-login-isolation-defect-triage.md) (2026-06-27) — ✅ **Complete** — Diagnose tenant isolation defects found during 19H validation (Google Calendar status, Staff/Client listing, branding)
 - [**Release 19H: Controlled Second-Tenant Owner Cognito User Creation**](release-19h-controlled-second-tenant-owner-cognito-user-creation.md) (2026-06-26) — ❌ **FAIL/BLOCKED** — Create Cognito owner user for test_tenant_alpha; manual validation revealed tenant isolation issues
 - [**Release 19G: Second-Tenant Owner Cognito User Creation Approval Checkpoint and Runbook**](release-19g-second-tenant-owner-cognito-approval-runbook.md) (2026-06-26) — ✅ **Complete** — Define temporary password parameters, group mappings, verification commands, and approval gates for test_tenant_alpha owner creation
@@ -144,6 +146,8 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Client Access Management Phase 5a](client-portal/client-access-management-phase-5a.md)
 
 ### 🚀 Deployment & Operations
+*   [Release 19K: Backend Tenant Isolation Remediation Plan (Pre-Deploy)](release-19k-backend-tenant-isolation-remediation-predeploy.md)
+*   [Release 19J: Second-Tenant Owner Login Isolation Remediation Planning](../planning/release-19j-second-tenant-owner-login-isolation-remediation-plan.md)
 *   [Release 19I: Second-Tenant Owner Login Isolation Defect Triage](release-19i-second-tenant-owner-login-isolation-defect-triage.md)
 *   [Release 19H: Controlled Second-Tenant Owner Cognito User Creation](release-19h-controlled-second-tenant-owner-cognito-user-creation.md)
 *   [Release 19G: Second-Tenant Owner Cognito User Creation Approval Checkpoint and Runbook](release-19g-second-tenant-owner-cognito-approval-runbook.md)

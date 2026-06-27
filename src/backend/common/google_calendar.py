@@ -19,8 +19,11 @@ def _get_google_config():
         print(f"ERROR: Failed to retrieve Google client config: {e}")
         return None
 
-def _get_stored_tokens():
+def _get_stored_tokens(company_id=None):
     """Internal: Retrieves tokens from Secrets Manager."""
+    from common.auth import DEFAULT_COMPANY_ID
+    if company_id is not None and company_id != DEFAULT_COMPANY_ID:
+        return {}
     secret_name = os.environ.get('GOOGLE_USER_TOKENS_NAME')
     try:
         response = secrets.get_secret_value(SecretId=secret_name)
@@ -29,10 +32,13 @@ def _get_stored_tokens():
         print(f"INFO: No existing tokens found: {e}")
         return {}
 
-def _save_tokens(new_tokens):
+def _save_tokens(new_tokens, company_id=None):
     """Internal: Saves/Updates tokens in Secrets Manager."""
+    from common.auth import DEFAULT_COMPANY_ID
+    if company_id is not None and company_id != DEFAULT_COMPANY_ID:
+        return False
     secret_name = os.environ.get('GOOGLE_USER_TOKENS_NAME')
-    existing = _get_stored_tokens()
+    existing = _get_stored_tokens(company_id)
     merged = {**existing, **new_tokens}
     
     # Preserve refresh_token if not in new_tokens
@@ -52,7 +58,7 @@ def _save_tokens(new_tokens):
         print(f"ERROR: Failed to persist refreshed tokens: {e}")
         return False
 
-def _refresh_access_token(tokens, request_id="UNKNOWN"):
+def _refresh_access_token(tokens, request_id="UNKNOWN", company_id=None):
     """Internal: Refreshes the Google access token."""
     print(f"INFO: [Req:{request_id}] Starting Google access token refresh.")
     refresh_token = tokens.get('refresh_token')
@@ -76,7 +82,7 @@ def _refresh_access_token(tokens, request_id="UNKNOWN"):
         req = urllib.request.Request("https://oauth2.googleapis.com/token", data=data)
         with urllib.request.urlopen(req) as response:
             res_data = json.loads(response.read().decode())
-            _save_tokens(res_data)
+            _save_tokens(res_data, company_id)
             print(f"SUCCESS: [Req:{request_id}] Google access token refreshed.")
             return res_data['access_token']
     except urllib.error.HTTPError as http_err:
@@ -102,17 +108,20 @@ def _refresh_access_token(tokens, request_id="UNKNOWN"):
         return None
 
 
-def _mark_token_revoked(request_id="UNKNOWN"):
+def _mark_token_revoked(request_id="UNKNOWN", company_id=None):
     """
     Release 6G Phase 0C: Marks the stored Google token as revoked.
     This ensures the /admin/auth/status endpoint returns VALIDATION_FAILED
     and the admin knows they need to reconnect.
     """
+    from common.auth import DEFAULT_COMPANY_ID
+    if company_id is not None and company_id != DEFAULT_COMPANY_ID:
+        return
     try:
         secret_name = os.environ.get('GOOGLE_USER_TOKENS_NAME')
         if not secret_name:
             return
-        existing = _get_stored_tokens()
+        existing = _get_stored_tokens(company_id)
         existing['token_status'] = 'revoked'
         existing['revoked_at'] = datetime.utcnow().isoformat()
         existing['revoked_reason'] = 'invalid_grant'
@@ -128,9 +137,9 @@ def _mark_token_revoked(request_id="UNKNOWN"):
     except Exception as e:
         print(f"WARNING: [Req:{request_id}] Failed to mark token as revoked: {e}")
 
-def _get_valid_token(request_id="UNKNOWN"):
+def _get_valid_token(request_id="UNKNOWN", company_id=None):
     """Internal: Gets a valid access token, refreshing if necessary."""
-    tokens = _get_stored_tokens()
+    tokens = _get_stored_tokens(company_id)
     
     # Release 6G Phase 0C: Check if token is marked as revoked
     if tokens.get('token_status') == 'revoked':
@@ -157,7 +166,7 @@ def _get_valid_token(request_id="UNKNOWN"):
         except Exception as e:
             print(f"WARNING: Token expiry check failed: {e}")
 
-    return _refresh_access_token(tokens, request_id)
+    return _refresh_access_token(tokens, request_id, company_id)
 
 SERVICE_DURATIONS = {
     'WALK_30MIN': 30, 'WALK_60MIN': 60, 'DROPIN_1HR': 60,
@@ -348,15 +357,24 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
     Returns: { "status": str, "event_id": str, "message": str }
     """
     request_id = item.get('request_id') or item.get('PK', '').replace('REQ#', '').replace('JOB#', 'UNKNOWN')
+    company_id = item.get('company_id')
     
     try:
-        token = _get_valid_token(request_id)
+        token = _get_valid_token(request_id, company_id)
         if not token:
-            print(f"CALENDAR_SYNC_FAILED: [Req:{request_id}] No valid token available (disconnected or revoked).")
-            return {
-                "status": "calendar_failed",
-                "message": "Google Calendar disconnected or token expired."
-            }
+            from common.auth import DEFAULT_COMPANY_ID
+            if company_id is not None and company_id != DEFAULT_COMPANY_ID:
+                print(f"CALENDAR_SYNC_SKIPPED: [Req:{request_id}] Google Calendar not configured for this tenant.")
+                return {
+                    "status": "calendar_skipped",
+                    "message": "Google Calendar integration not configured for this tenant."
+                }
+            else:
+                print(f"CALENDAR_SYNC_FAILED: [Req:{request_id}] No valid token available (disconnected or revoked).")
+                return {
+                    "status": "calendar_failed",
+                    "message": "Google Calendar disconnected or token expired."
+                }
     except Exception as e:
         print(f"CALENDAR_SYNC_FAILED: [Req:{request_id}] Auth error: {e}")
         return {
@@ -456,14 +474,14 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
     return {"status": "calendar_failed", "message": last_error or "Unknown error"}
 
 
-def delete_event_detailed(google_event_id, request_id="UNKNOWN"):
+def delete_event_detailed(google_event_id, request_id="UNKNOWN", company_id=None):
     """
     Deletes a Google Calendar event and returns detailed status:
     (success, already_gone, error_str)
     """
-    token = _get_valid_token(request_id)
+    token = _get_valid_token(request_id, company_id)
     if not token:
-        return False, False, "Token missing"
+        return True, True, "Not configured"
 
     try:
         url = f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{google_event_id}"
@@ -487,7 +505,7 @@ def delete_event_detailed(google_event_id, request_id="UNKNOWN"):
         return False, False, err_msg
 
 
-def delete_event(google_event_id, request_id="UNKNOWN"):
+def delete_event(google_event_id, request_id="UNKNOWN", company_id=None):
     """Deletes a Google Calendar event (backward compatible wrapper)."""
-    success, _, _ = delete_event_detailed(google_event_id, request_id)
+    success, _, _ = delete_event_detailed(google_event_id, request_id, company_id)
     return success
