@@ -3,7 +3,8 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
-- [**Release 19G: Second-Tenant Owner Cognito User Creation Approval Checkpoint and Runbook**](release-19g-second-tenant-owner-cognito-approval-runbook.md) (2026-06-26) — ⏳ **Plan Approved** — Define temporary password parameters, group mappings, verification commands, and approval gates for test_tenant_alpha owner creation
+- [**Release 19H: Controlled Second-Tenant Owner Cognito User Creation**](release-19h-controlled-second-tenant-owner-cognito-user-creation.md) (2026-06-26) — ✅ **Complete** — Create Cognito owner user for test_tenant_alpha and verify custom attributes and group membership
+- [**Release 19G: Second-Tenant Owner Cognito User Creation Approval Checkpoint and Runbook**](release-19g-second-tenant-owner-cognito-approval-runbook.md) (2026-06-26) — ✅ **Complete** — Define temporary password parameters, group mappings, verification commands, and approval gates for test_tenant_alpha owner creation
 - [**Release 19F: Second-Tenant Owner Cognito User Creation Planning**](../planning/release-19f-second-tenant-owner-cognito-user-creation-planning.md) (2026-06-25) — ✅ **Complete** — Planning Cognito owner user configuration, group roles, and welcome email suppression settings for test_tenant_alpha
 - [**Release 19E: Platform Admin Second-Tenant Visibility Validation**](release-19e-platform-admin-second-tenant-visibility-validation.md) (2026-06-26) — ✅ **Complete** — Read-only validation verifying platform admin console correctly displays and audits test_tenant_alpha without affecting tog_and_dogs
 - [**Release 19D: Controlled Second-Tenant Metadata Creation**](release-19d-controlled-second-tenant-metadata-creation.md) (2026-06-26) — ✅ **Complete** — Execute provision_tenant.py in apply mode to create test_tenant_alpha metadata and audit records in production DynamoDB
@@ -142,6 +143,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Client Access Management Phase 5a](client-portal/client-access-management-phase-5a.md)
 
 ### 🚀 Deployment & Operations
+*   [Release 19H: Controlled Second-Tenant Owner Cognito User Creation](release-19h-controlled-second-tenant-owner-cognito-user-creation.md)
 *   [Release 19G: Second-Tenant Owner Cognito User Creation Approval Checkpoint and Runbook](release-19g-second-tenant-owner-cognito-approval-runbook.md)
 *   [Release 19F: Second-Tenant Owner Cognito User Creation Planning](../planning/release-19f-second-tenant-owner-cognito-user-creation-planning.md)
 *   [Release 19E: Platform Admin Second-Tenant Visibility Validation](release-19e-platform-admin-second-tenant-visibility-validation.md)

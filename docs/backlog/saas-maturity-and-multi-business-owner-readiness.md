@@ -21,7 +21,7 @@ The platform has strong single-tenant foundations but requires significant work 
 | 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
 | 2 | Usage metering per tenant | ✅ Phase 2 active & validated (18N) | Done | #1 |
 | 3 | Tenant provisioning workflow/tool | ✅ Second test tenant created (19D) | High | #1 |
-| 5 | Cognito `custom:company_id` enforcement | ✅ Readiness review complete (18R), owner runbook ready (19G) | Medium | #4 |
+| 5 | Cognito `custom:company_id` enforcement | ✅ Owner user created (19H) | Medium | #4 |
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
 | 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
 | 8 | Pricing/signup page | ❌ Not started | Medium | #6 |
@@ -127,6 +127,9 @@ Start second-tenant creation only when:
 **Updated 2026-06-26 (19F):** Completed Cognito owner user creation design planning, including group mapping rules and message suppression configuration.
 
 **Updated 2026-06-26 (19G):** Prepared the final checkpoint and runbook for creating the Cognito owner user for `test_tenant_alpha`. Confirmed the environment pre-flight status (active tenant, strict resolution mode, group names, zero existing users) and specified the exact CLI commands, placeholders, and approval gates.
+
+**Updated 2026-06-26 (19H):** Executed Cognito owner user creation for `test_tenant_alpha` using Cognito-generated temporary invitations (no temporary password parameters or suppression). Verified user has `custom:company_id = test_tenant_alpha`, resides in group `owner` only (and not in `platform_admin`, `staff`, or `client`), and existing `tog_and_dogs` users remain unaffected.
+
 
 
 

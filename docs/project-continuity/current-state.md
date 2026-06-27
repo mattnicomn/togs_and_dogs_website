@@ -45,7 +45,7 @@
 | Entitlement enforcement Phase 2 | ✅ Deployed (client limit, monthly booking counter) — 18L |
 | Platform Admin UI | ✅ Deployed (/platform-admin) |
 | Platform audit trail | ✅ Working |
-| Cognito custom:company_id | ✅ Schema added (18B), all users backfilled (18C), owner runbook ready (19G) |
+| Cognito custom:company_id | ✅ Schema added (18B), all users backfilled (18C), owner user created (19H) |
 | TENANT_RESOLUTION_MODE | ✅ Enabled (strict `multi` mode active — 18T validated) |
 | Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
 | Second tenant | ✅ Created & Validated in Platform Admin (19E) |
