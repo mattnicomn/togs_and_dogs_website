@@ -58,11 +58,11 @@
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
-| 19N pre-deploy — awaiting Matthew approval to push to S3/CloudFront | Tenant branding cleanup built but not yet live | Matthew |
+| 19N manual validation pending | Matthew must confirm tenant branding in browser after hard refresh | Matthew |
 
 ## Latest Completed Releases
 
-- 19N: Tenant Branding Model Cleanup (⏳ Pre-Deploy / Awaiting Approval)
+- 19N: Tenant Branding Model Cleanup (✅ Deployed — Pending Manual Validation)
 - 19M: Production Deployment and Tenant Isolation Revalidation (PARTIAL PASS / PENDING DISPLAY FIX)
 - 19L: Frontend Tenant Display Remediation (Pre-Deploy Complete)
 - 19K: Backend Tenant Isolation Remediation Plan (Pre-Deploy Complete)
@@ -77,4 +77,4 @@
 
 ## Next Recommended Action
 
-**Deploy Release 19N to Production** — Build is complete. Matthew should approve S3 sync and CloudFront invalidation to publish the tenant branding model cleanup. Post-deploy, revalidate `test_tenant_alpha` login to confirm `Test Tenant Alpha: A Pet Business Platform` renders in the shell logo and footer.
+**Manually Validate Release 19N** — S3 and CloudFront deployment is complete (invalidation `I7OEVMLKTLFX37G0NZOTYWK20N` confirmed `Completed`). Matthew should log in as `test_tenant_alpha` owner in an incognito/fresh browser tab and confirm the new tenant-aware branding renders correctly.

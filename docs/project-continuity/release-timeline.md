@@ -96,4 +96,4 @@
 | 19K | **Backend tenant isolation remediation (Pre-Deploy)** |
 | 19L | **Frontend tenant display remediation (Pre-Deploy)** |
 | 19M | **Production deployment and tenant isolation revalidation** |
-| 19N | **Tenant branding model cleanup (Pre-Deploy — awaiting Matthew approval)** |
+| 19N | **Tenant branding model cleanup — deployed, pending Matthew validation** |
