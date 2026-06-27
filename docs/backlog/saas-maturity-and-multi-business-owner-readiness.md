@@ -21,7 +21,7 @@ The platform has strong single-tenant foundations but requires significant work 
 | 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
 | 2 | Usage metering per tenant | ✅ Phase 2 active & validated (18N) | Done | #1 |
 | 3 | Tenant provisioning workflow/tool | ✅ Second test tenant created (19D) | High | #1 |
-| 5 | Cognito `custom:company_id` enforcement | ✅ Owner user created (19H) | Medium | #4 |
+| 5 | Cognito `custom:company_id` enforcement | ✅ Verified & isolated in prod (19M) | Medium | #4 |
 | 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
 | 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
 | 8 | Pricing/signup page | ❌ Not started | Medium | #6 |
@@ -127,13 +127,14 @@ Start second-tenant creation only when:
 **Updated 2026-06-26 (19F):** Completed Cognito owner user creation design planning, including group mapping rules and message suppression configuration.
 
 **Updated 2026-06-26 (19G):** Prepared the final checkpoint and runbook for creating the Cognito owner user for `test_tenant_alpha`. Confirmed the environment pre-flight status (active tenant, strict resolution mode, group names, zero existing users) and specified the exact CLI commands, placeholders, and approval gates.
+**Updated 2026-06-26 (19H):** Executed Cognito owner user creation for `test_tenant_alpha` using Cognito-generated temporary invitations. Manual validation of this user login failed due to tenant isolation defects. Remediation deployed and revalidated as PASS in Release 19M.
 
-**Updated 2026-06-26 (19H):** Executed Cognito owner user creation for `test_tenant_alpha` using Cognito-generated temporary invitations. Manual validation of this user login failed due to tenant isolation defects in Google Calendar connectivity status, staff/client list filtering, and hardcoded UI branding.
-
-**Updated 2026-06-27 (19I):** Conducted read-only triage and defect source analysis for the four isolation issues. Identified that Google Calendar credentials, Cognito staff lists, and client lists lack tenant scoping (`custom:company_id` check), and the dashboard branding remains hardcoded on the frontend.
+**Updated 2026-06-27 (19I):** Conducted read-only triage and defect source analysis for the four isolation issues. Identified that Google Calendar credentials, Cognito staff lists, and client lists lack tenant scoping (`custom:company_id` check), and the dashboard branding remains hardcoded on the frontend. Remediation planned and deployed in 19K-19M.
 
 **Updated 2026-06-27 (19J):** Completed backend and API Gateway planning for tenant isolation remediation. Designed Cognito user list company ID checks and a dedicated `/admin/tenant-info` endpoint.
 
 **Updated 2026-06-27 (19K):** Implemented backend tenant isolation fixes: gated Google Calendar to only allow the default tenant (`tog_and_dogs`); filtered Cognito lists (`/admin/staff` and `/admin/clients`) by the caller's tenant ID under strict mode; and built a safe authenticated `/admin/tenant-info` endpoint. Added 9 unit tests in `tests/backend/test_r19k_tenant_isolation.py` and verified 100% pass rate.
+
 **Updated 2026-06-27 (19L):** Implemented frontend tenant display remediation. Integrated with `/admin/tenant-info` to fetch and render the correct brand names inside the admin header shell and user profile company fields. Replaced all hardcoded references to "Tog and Dogs" in administrative contexts with dynamically resolved values and fallbacks. Ran frontend Vite build and confirmed successful compilation.
-**Updated 2026-06-27 (19M):** Deployed tenant isolation fixes to production. Ran Terraform apply to update all 13 Lambdas and API Gateway configurations; synchronized built Vite frontend files to S3; cleared CDN caches via CloudFront cache invalidation. Verified that the DynamoDB tenant configuration has exactly 2 records and all CloudWatch observability alarms remain OK.
+
+**Updated 2026-06-27 (19M):** Deployed tenant isolation fixes to production. Ran Terraform apply to update all 13 Lambdas and API Gateway configurations; synchronized built Vite frontend files to S3; cleared CDN caches via CloudFront cache invalidation. Verified that the DynamoDB tenant configuration has exactly 2 records and all CloudWatch observability alarms remain OK. Matthew completed manual validation, confirming 100% tenant isolation. All revalidation checklists marked as PASS.

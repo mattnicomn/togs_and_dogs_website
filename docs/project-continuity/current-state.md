@@ -45,7 +45,7 @@
 | Entitlement enforcement Phase 2 | ✅ Deployed (client limit, monthly booking counter) — 18L |
 | Platform Admin UI | ✅ Deployed (/platform-admin) |
 | Platform audit trail | ✅ Working |
-| Cognito custom:company_id | ✅ Backend tenant isolation remediation implemented & verified (19K) |
+| Cognito custom:company_id | ✅ Deployed & verified in production (19M) |
 | TENANT_RESOLUTION_MODE | ✅ Enabled (strict `multi` mode active — 18T validated) |
 | Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
 | Second tenant | ✅ Created & Validated in Platform Admin (19E) |
@@ -57,16 +57,15 @@
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
-| Tenant isolation validation | Pending Matthew manual validation run for test_tenant_alpha | Matthew |
 
 ## Latest Completed Releases
 
-- 19M: Production Deployment and Tenant Isolation Revalidation
+- 19M: Production Deployment and Tenant Isolation Revalidation (PASS)
 - 19L: Frontend Tenant Display Remediation (Pre-Deploy Complete)
 - 19K: Backend Tenant Isolation Remediation Plan (Pre-Deploy Complete)
 - 19J: Second-Tenant Owner Login Isolation Remediation Planning
-- 19I: Second-tenant owner login isolation defect triage (Triage Complete)
-- 19H: Controlled second-tenant owner Cognito user creation (FAIL/BLOCKED)
+- 19I: Second-tenant owner login isolation defect triage (PASS - Remediated by 19M)
+- 19H: Controlled second-tenant owner Cognito user creation (PASS - Remediated by 19M)
 - 19G: Second-tenant owner Cognito user creation approval runbook
 - 19E: Platform Admin second-tenant visibility validation
 - 19D: Controlled second-tenant metadata creation
@@ -75,5 +74,5 @@
 
 ## Next Recommended Action
 
-**Manual Onboarding Validation (Release 19N)** — Matthew to log in to the production portals as the test tenant owner user and the default tenant admin to verify that the tenant isolation fixes are fully validated in the live environment.
+**Tenant Self-Service Stripe Checkout (Release 20A)** — Plan and implement the Stripe subscription Checkout flows for secondary tenants, enabling dynamic registration, subscription tier selection, and automated billing provisioning in sandbox mode.
 
