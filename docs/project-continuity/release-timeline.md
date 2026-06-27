@@ -91,6 +91,8 @@
 | 19F | Second-tenant owner Cognito user creation planning |
 | 19G | **Second-tenant owner Cognito user creation approval checkpoint & runbook** |
 | 19H | **Controlled second-tenant owner Cognito user creation** |
+| 19I | **Second-tenant owner login isolation defect triage** |
+
 
 
 

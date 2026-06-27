@@ -128,7 +128,10 @@ Start second-tenant creation only when:
 
 **Updated 2026-06-26 (19G):** Prepared the final checkpoint and runbook for creating the Cognito owner user for `test_tenant_alpha`. Confirmed the environment pre-flight status (active tenant, strict resolution mode, group names, zero existing users) and specified the exact CLI commands, placeholders, and approval gates.
 
-**Updated 2026-06-26 (19H):** Executed Cognito owner user creation for `test_tenant_alpha` using Cognito-generated temporary invitations (no temporary password parameters or suppression). Verified user has `custom:company_id = test_tenant_alpha`, resides in group `owner` only (and not in `platform_admin`, `staff`, or `client`), and existing `tog_and_dogs` users remain unaffected.
+**Updated 2026-06-26 (19H):** Executed Cognito owner user creation for `test_tenant_alpha` using Cognito-generated temporary invitations. Manual validation of this user login failed due to tenant isolation defects in Google Calendar connectivity status, staff/client list filtering, and hardcoded UI branding.
+
+**Updated 2026-06-27 (19I):** Conducted read-only triage and defect source analysis for the four isolation issues. Identified that Google Calendar credentials, Cognito staff lists, and client lists lack tenant scoping (`custom:company_id` check), and the dashboard branding remains hardcoded on the frontend.
+
 
 
 

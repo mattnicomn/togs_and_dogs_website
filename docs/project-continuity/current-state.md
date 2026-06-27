@@ -45,7 +45,7 @@
 | Entitlement enforcement Phase 2 | ✅ Deployed (client limit, monthly booking counter) — 18L |
 | Platform Admin UI | ✅ Deployed (/platform-admin) |
 | Platform audit trail | ✅ Working |
-| Cognito custom:company_id | ✅ Schema added (18B), all users backfilled (18C), owner user created (19H) |
+| Cognito custom:company_id | ⚠️ Triage complete; isolation defects found in validation (19I) |
 | TENANT_RESOLUTION_MODE | ✅ Enabled (strict `multi` mode active — 18T validated) |
 | Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
 | Second tenant | ✅ Created & Validated in Platform Admin (19E) |
@@ -57,17 +57,19 @@
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
-| Second-tenant creation not approved | No multi-business testing yet | Matthew approval required |
+| SaaS isolation defects | Owner user sees global staff/clients/calendar status (19I) | Defect fix required (19J) |
 
 ## Latest Completed Releases
 
+- 19I: Second-tenant owner login isolation defect triage (Triage Complete)
+- 19H: Controlled second-tenant owner Cognito user creation (FAIL/BLOCKED)
+- 19G: Second-tenant owner Cognito user creation approval runbook
+- 19E: Platform Admin second-tenant visibility validation
+- 19D: Controlled second-tenant metadata creation
+- 19B: Tenant provisioning script dry run
 - 18U: Post-enable strict-mode monitoring checkpoint (PASS)
-- 18T: Strict-mode enablement (`TENANT_RESOLUTION_MODE=multi` on all 13 Lambdas)
-- 18Q: Strict mode final gate review preparation plan
-- 18UI-A: Web/mobile UI parity review plan
-- 18P: Calendar cancellation cascade defensive fix
-- 18N: Phase 2 entitlement controlled validation
 
 ## Next Recommended Action
 
-**Second-tenant provisioning dry-run planning** — strict mode is validated, provisioning script exists (17W). Next step is planning the controlled creation of a test second tenant through the Platform Admin workflow or provisioning script. Requires Matthew's explicit approval before execution.
+**Remediation of SaaS Isolation Defects (19J)** — Implement backend filters for Cognito list queries, isolate Google Calendar stored tokens per tenant, and update the frontend UI dashboard/profile labels to be dynamic rather than hardcoded "Tog and Dogs".
+
