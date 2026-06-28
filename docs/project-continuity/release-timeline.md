@@ -59,7 +59,7 @@
 | 15H | Matthew multi-role (admin/staff/client) validation passed |
 | 15J | Apple Beta App Review submitted |
 
-## SaaS Maturity (Releases 16–18)
+## SaaS Maturity & Tenant Lifecycle (Releases 16–20)
 
 | Release | Milestone |
 |---------|-----------|
@@ -97,3 +97,4 @@
 | 19L | **Frontend tenant display remediation (Pre-Deploy)** |
 | 19M | **Production deployment and tenant isolation revalidation** |
 | 19N | **Tenant branding model cleanup — PASS (manually validated 2026-06-27)** |
+| 20C | **Controlled tenant disable and restore validation — PASS (manually validated 2026-06-28)** |

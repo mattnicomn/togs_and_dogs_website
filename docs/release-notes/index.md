@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 20C: Controlled Tenant Disable and Restore Validation**](release-20c-controlled-tenant-disable-restore-validation.md) (2026-06-28) — ✅ **PASS** — Execute and validate tenant disable/restore lifecycle operations, audit logging, and document backend access enforcement findings
 - [**Release 19N: Tenant Branding Model Cleanup**](release-19n-tenant-branding-model-cleanup.md) (2026-06-27) — ✅ **PASS** — Dynamic shell logo, conditional admin footer, platform attribution updated to `usmissionhero`; manual validation complete (both tenants)
 - [**Release 19M: Production Deployment and Tenant Isolation Revalidation**](release-19m-production-deployment-and-tenant-isolation-revalidation.md) (2026-06-27) — ✅ **PASS** — Deploy backend calendar gates, Cognito filters, tenant-info endpoint, and frontend dynamic display updates; data/access isolation and tenant display branding verified (display fix completed by Release 19N)
 - [**Release 19L: Frontend Tenant Display Remediation (Pre-Deploy)**](release-19l-frontend-tenant-display-remediation-predeploy.md) (2026-06-27) — ✅ **Complete** — Integrate with GET /admin/tenant-info to dynamically display tenant brand names in header shell and profile labels
@@ -149,6 +150,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Client Access Management Phase 5a](client-portal/client-access-management-phase-5a.md)
 
 ### 🚀 Deployment & Operations
+*   [Release 20C: Controlled Tenant Disable and Restore Validation](release-20c-controlled-tenant-disable-restore-validation.md)
 *   [Release 19M: Production Deployment and Tenant Isolation Revalidation](release-19m-production-deployment-and-tenant-isolation-revalidation.md)
 *   [Release 19L: Frontend Tenant Display Remediation (Pre-Deploy)](release-19l-frontend-tenant-display-remediation-predeploy.md)
 *   [Release 19K: Backend Tenant Isolation Remediation Plan (Pre-Deploy)](release-19k-backend-tenant-isolation-remediation-predeploy.md)
