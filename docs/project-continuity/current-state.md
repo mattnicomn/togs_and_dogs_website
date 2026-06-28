@@ -51,7 +51,7 @@
 | Second tenant | ✅ Created & Validated in Platform Admin (19E) |
 | Tenant provisioning script | ✅ Dry run validated (19B) |
 | Tenant display branding | ✅ Dynamic brand name, shell logo, and footer separated by route (19N pre-deploy) |
-| Tenant disable & restore | ✅ Validated (20C — backend audit and restore PASS; access finding documented) |
+| Tenant disable & restore | ✅ Gated (20E — require_active_tenant helper implemented & tested for 8 handlers) |
 
 ## Current Blockers
 
@@ -62,6 +62,7 @@
 
 ## Latest Completed Releases
 
+- 20E: Disabled Tenant Backend Access Enforcement Implementation (✅ PASS — 2026-06-28)
 - 20C: Controlled Tenant Disable and Restore Validation (✅ PASS — 2026-06-28)
 - 19N: Tenant Branding Model Cleanup (✅ PASS — Manually Validated 2026-06-27)
 - 19M: Production Deployment and Tenant Isolation Revalidation (✅ PASS — display defect resolved by Release 19N)

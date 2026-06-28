@@ -306,6 +306,11 @@ def _handle_admin_created_booking(event, body):
 
 def handler(event, context):
     try:
+        from common.entitlement import require_active_tenant
+        block_resp = require_active_tenant(event)
+        if block_resp:
+            return block_resp
+
         body = json.loads(event.get('body', '{}'))
         
         # Release 2: Public staff-options endpoint for preferred sitter selection.

@@ -143,3 +143,6 @@ Start second-tenant creation only when:
 
 **Updated 2026-06-28 (20C):** Executed controlled tenant disable and restore validation for `test_tenant_alpha`. Verified status transitions in DynamoDB, full audit trail logging for both actions, and verified `tog_and_dogs` remains active and unaffected. Documented finding that the `/admin/tenant-info` endpoint is not blocked at the backend level when a tenant is disabled (instead returning 200 with `subscription_status: "disabled"`), which relies on frontend enforcement. Recommended backend-level endpoint gating for future hardening.
 
+**Updated 2026-06-28 (20E):** Implemented centralized backend disabled-tenant access enforcement. Added `require_active_tenant(event)` helper in `common/entitlement.py` and integrated it across 8 tenant-scoped handlers (`admin_handler.py`, `assignment_handler.py`, `cancellation_handler.py`, `device_handler.py`, `google_auth_handler.py`, `intake_handler.py`, `pet_handler.py`, `review_handler.py`). Configured `/admin/tenant-info` to return a safe minimal status (`company_id`, `display_name`, `subscription_status`, `is_access_allowed: false`, `is_blocked: true`) when the tenant is disabled. Created a new backend test suite with 14 tests in `tests/backend/test_r20e_disabled_tenant_enforcement.py` and verified 100% pass rate.
+
+

@@ -187,7 +187,7 @@ def handler(event, context):
         query_params = event.get('queryStringParameters', {}) or {}
         
         path = event.get('path', '')
-        
+
         # --- NEW TENANT INFO ENDPOINT ---
         if http_method == 'GET' and (path == '/admin/tenant-info' or path.endswith('/admin/tenant-info')):
             role = get_effective_role(event)
@@ -214,6 +214,18 @@ def handler(event, context):
                     subscription_tier = "starter"
                     subscription_status = "disabled"
                     
+            from common.entitlement import _get_entitlement_safely
+            ent = _get_entitlement_safely(company_id)
+            
+            if not ent.is_access_allowed or ent.is_blocked:
+                return success({
+                    "company_id": company_id,
+                    "display_name": display_name,
+                    "subscription_status": subscription_status,
+                    "is_access_allowed": False,
+                    "is_blocked": True
+                }, event)
+                    
             # Safe calendar check
             calendar_status = "NOT_CONNECTED"
             from common.auth import DEFAULT_COMPANY_ID
@@ -231,8 +243,17 @@ def handler(event, context):
                 "display_name": display_name,
                 "subscription_tier": subscription_tier,
                 "subscription_status": subscription_status,
-                "google_calendar_status": calendar_status
+                "google_calendar_status": calendar_status,
+                "is_access_allowed": True,
+                "is_blocked": False
             }, event)
+            
+        # Enforce active tenant check for all other routes
+        from common.entitlement import require_active_tenant
+        block_resp = require_active_tenant(event)
+        if block_resp:
+            return block_resp
+
             
         # --- CLIENT PORTAL BOUNDARIES ---
         if path.startswith('/client/'):

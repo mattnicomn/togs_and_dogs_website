@@ -11,6 +11,11 @@ from common.auth import get_effective_role, sanitize_booking_for_role
 
 def handler(event, context):
     try:
+        from common.entitlement import require_active_tenant
+        block_resp = require_active_tenant(event)
+        if block_resp:
+            return block_resp
+
         http_method = event.get('httpMethod')
         path_params = event.get('pathParameters', {}) or {}
         pet_id = path_params.get('petId')

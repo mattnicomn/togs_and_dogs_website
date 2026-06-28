@@ -2,6 +2,11 @@ import json
 
 def handler(event, context):
     print("HANDLER_STARTED")
+    from common.entitlement import require_active_tenant
+    block_resp = require_active_tenant(event)
+    if block_resp:
+        return block_resp
+
     # Lazy imports to avoid initialization overhead/failures
     from datetime import datetime
     try:

@@ -8,6 +8,11 @@ from boto3.dynamodb.conditions import Key, Attr
 
 def handler(event, context):
     try:
+        from common.entitlement import require_active_tenant
+        block_resp = require_active_tenant(event)
+        if block_resp:
+            return block_resp
+
         http_method = event.get('httpMethod')
         path_params = event.get('pathParameters', {}) or {}
         device_id = path_params.get('device_id')

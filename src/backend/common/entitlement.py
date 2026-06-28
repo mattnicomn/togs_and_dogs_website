@@ -488,3 +488,43 @@ def increment_monthly_bookings(company_id, date_str=None):
         return False
 
 
+def require_active_tenant(event):
+    """
+    Validates that the resolved tenant for the request is active.
+    - Resolves the company context via get_current_company_id(event).
+    - Bypasses enforcement for platform_admin callers or root admin bypasses.
+    - Loads the tenant's entitlement metadata from DynamoDB.
+    - If the tenant is disabled/inactive (is_blocked = True or is_access_allowed = False):
+      Returns a formatted 403 TenantDisabled response.
+    - Returns None if the tenant is active.
+    """
+    from common.auth import get_current_company_id, is_platform_admin
+    from common.entitlement import _is_bypass_active, _get_entitlement_safely
+    from common.response import format_response
+
+    # 1. Platform Admin Bypass
+    if is_platform_admin(event) or _is_bypass_active(event):
+        return None
+
+    # 2. Resolve Company ID
+    try:
+        company_id = get_current_company_id(event)
+    except PermissionError:
+        # If tenant resolution fails (e.g. missing custom:company_id in multi-tenant mode),
+        # let the handler's default resolution error handling execute.
+        return None
+
+    # 3. Fetch Entitlement (bypasses sandbox mode check to enforce actual status)
+    ent = _get_entitlement_safely(company_id)
+
+    # 4. Enforce Status Block
+    if not ent.is_access_allowed or ent.is_blocked:
+        return format_response(403, {
+            "error": "TenantDisabled",
+            "message": "Tenant is disabled"
+        }, event)
+
+    return None
+
+
+

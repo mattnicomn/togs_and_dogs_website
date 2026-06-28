@@ -91,6 +91,11 @@ def handler(event, context):
         return calendar_health_check(event)
     
     try:
+        from common.entitlement import require_active_tenant
+        block_resp = require_active_tenant(event)
+        if block_resp:
+            return block_resp
+
         if path.endswith('/google'):
             method = event.get('httpMethod', 'GET')
             if method == 'DELETE':

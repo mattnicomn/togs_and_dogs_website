@@ -14,6 +14,11 @@ sns = boto3.client('sns')
 
 def handler(event, context):
     try:
+        from common.entitlement import require_active_tenant
+        block_resp = require_active_tenant(event)
+        if block_resp:
+            return block_resp
+
         http_method = event.get('httpMethod')
         path = event.get('path', '')
         body = json.loads(event.get('body', '{}'))

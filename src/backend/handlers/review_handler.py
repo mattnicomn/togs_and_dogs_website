@@ -42,6 +42,11 @@ def handle_notifications(workflow_type, current_status, new_status, request_item
 
 def handler(event, context):
     try:
+        from common.entitlement import require_active_tenant
+        block_resp = require_active_tenant(event)
+        if block_resp:
+            return block_resp
+
         # Extract user context
         from common.auth import get_effective_role, get_claims
         from common.response import error
