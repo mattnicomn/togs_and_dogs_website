@@ -151,6 +151,9 @@ Start second-tenant creation only when:
 
 **Updated 2026-07-02 (21D):** Implemented tenant calendar provider metadata defaults in code. Added `get_tenant_calendar_config` in `calendar_metadata.py` to derive calendar providers, statuses, and capabilities with defaults for `tog_and_dogs` (Google) and other tenants (None). Integrated into `/admin/tenant-info` and Platform Admin detail responses. Updated `AdminDashboard.jsx` to use metadata `calendar_provider` checks rather than hardcoded company ID checks, and updated `PlatformTenantDetail.jsx` to display these metadata attributes. Created 7 new tests under `test_r21d_calendar_metadata_defaults.py` and verified 100% pass across all tests.
 
+**Updated 2026-07-02 (21E):** Deployed tenant calendar provider metadata defaults code and frontend assets to production. Ran Terraform apply to update all 13 backend Lambda function packages with the new metadata helper and endpoint updates. Synced the built Vite frontend assets to S3 and invalidated the CloudFront CDN cache distribution `E35L00QPA2IRCY`. Confirmed live index serves the new 21E bundle. All automated smoke validations passed. Manual validation checklist pending Matthew's review.
+
+
 
 
 

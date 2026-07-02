@@ -3,7 +3,8 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
-- [**Release 21D: Tenant Calendar Provider Metadata Defaults Implementation**](release-21d-tenant-calendar-provider-metadata-defaults-implementation.md) (2026-07-02) — ✅ **Complete (Pre-Deploy)** — Implement code-level tenant calendar provider metadata defaults, expose safe metadata fields in tenant-info and Platform Admin API responses, update frontend to check provider, and verify with 7 new tests
+- [**Release 21E: Calendar Metadata Defaults Production Deployment and Validation**](release-21e-calendar-metadata-defaults-production-deployment-validation.md) (2026-07-02) — ⚠️ **PENDING VALIDATION** — Deploy Release 21D calendar provider metadata defaults backend Lambdas and frontend assets in production; verify safe derived config defaults, unconfigured UI fallbacks, and Platform Admin details
+- [**Release 21D: Tenant Calendar Provider Metadata Defaults Implementation**](release-21d-tenant-calendar-provider-metadata-defaults-implementation.md) (2026-07-02) — ✅ **PASS** — Implement code-level tenant calendar provider metadata defaults, expose safe metadata fields in tenant-info and Platform Admin API responses, update frontend to check provider, and verify with 7 new tests
 - [**Release 21B: Calendar UI Unconfigured-State Cleanup**](release-21b-calendar-ui-unconfigured-state-cleanup.md) (2026-07-02) — ✅ **PASS (Manually Validated)** — Deployed and validated frontend-only calendar UI unconfigured-state cleanup in production; verify unconfigured status cards, blocked connection triggers, and hidden health banners for non-default tenants
 - [**Release 20F: Disabled Tenant Backend Access Enforcement Production Deployment and Validation**](release-20f-disabled-tenant-backend-access-enforcement-production-validation.md) (2026-07-02) — ✅ **PASS** — Deploy and validate Release 20E backend gating changes in production; verify 403 TenantDisabled blocks, minimal tenant-info responses, active tenant isolation, and audit logging
 - [**Release 20E: Disabled Tenant Backend Access Enforcement Implementation**](release-20e-disabled-tenant-backend-access-enforcement-implementation.md) (2026-06-28) — ✅ **PASS** — Implement centralized require_active_tenant helper, protect 8 tenant-scoped handlers, handle tenant-info minimal status specially, and add 14 new backend tests
@@ -154,6 +155,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Client Access Management Phase 5a](client-portal/client-access-management-phase-5a.md)
 
 ### 🚀 Deployment & Operations
+*   [Release 21E: Calendar Metadata Defaults Production Deployment and Validation](release-21e-calendar-metadata-defaults-production-deployment-validation.md)
 *   [Release 21D: Tenant Calendar Provider Metadata Defaults Implementation](release-21d-tenant-calendar-provider-metadata-defaults-implementation.md)
 *   [Release 21B: Calendar UI Unconfigured-State Cleanup](release-21b-calendar-ui-unconfigured-state-cleanup.md)
 *   [Release 20F: Disabled Tenant Backend Access Enforcement Production Deployment and Validation](release-20f-disabled-tenant-backend-access-enforcement-production-validation.md)
