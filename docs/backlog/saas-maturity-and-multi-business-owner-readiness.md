@@ -147,5 +147,8 @@ Start second-tenant creation only when:
 
 **Updated 2026-07-02 (20F):** Deployed centralized backend disabled-tenant access enforcement to production. Successfully ran pre-deploy checks, executed targeted test verification (all 100+ backend tests passed), ran production Terraform plan/apply, validated 403 TenantDisabled blocks, verified minimal tenant-info responses, validated active tenant isolation, confirmed audit logs, and verified CloudWatch alarms remain OK. Controlled disable and restore validation complete.
 
+**Updated 2026-07-02 (21B):** Implemented frontend-only unconfigured-state calendar UI cleanup for non-default tenants. Modified `AdminDashboard.jsx` to gate the connection handler (early return if `company_id !== 'tog_and_dogs'`), hide the top Google Calendar warning banner, and render a provider-neutral unconfigured settings card (`Calendar Integration` with status `NOT CONFIGURED`) for non-default tenants (e.g. `test_tenant_alpha`), while preserving full Google Calendar integrations for the default tenant. Ran Vite production build successfully.
+
+
 
 

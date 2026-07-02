@@ -2094,6 +2094,9 @@ const AdminDashboard = () => {
 
 
   const handleConnectGoogle = async () => {
+    if (tenantInfo && tenantInfo.company_id !== 'tog_and_dogs') {
+      return;
+    }
     try {
       setLoading(true);
       const { auth_url } = await initiateGoogleAuth();
@@ -3294,7 +3297,7 @@ const AdminDashboard = () => {
       </header>
 
       {/* Render Google Calendar Health Banner if degraded/not connected */}
-      {googleStatus && googleStatus !== 'CONNECTED' && (
+      {(tenantInfo ? tenantInfo.company_id === 'tog_and_dogs' : true) && googleStatus && googleStatus !== 'CONNECTED' && (
         <div className={`google-calendar-health-banner ${googleStatus}`} style={{
           padding: '12px 16px',
           borderRadius: '8px',
@@ -3482,6 +3485,32 @@ const AdminDashboard = () => {
           <div className="settings-section">
             <h4 style={{ marginBottom: '16px' }}>System Integrations</h4>
             {(() => {
+              const isGoogleCalendarSupported = tenantInfo ? tenantInfo.company_id === 'tog_and_dogs' : true;
+              if (!isGoogleCalendarSupported) {
+                return (
+                  <div className="google-integration-card">
+                    <div className="integration-header">
+                      <div className="integration-title-area">
+                        <h3>Calendar Integration</h3>
+                        <p>Automated scheduling sync</p>
+                      </div>
+                      <span className="integration-status-badge status-disconnected">
+                        NOT CONFIGURED
+                      </span>
+                    </div>
+
+                    <div style={{ padding: '16px', borderTop: '1px solid var(--border-color, #e5e7eb)' }}>
+                      <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted, #6b7280)', lineHeight: '1.4' }}>
+                        Calendar integration is not configured for this business yet.
+                      </p>
+                      <p style={{ margin: '8px 0 0 0', fontSize: '0.85rem', color: 'var(--text-light, #9ca3af)', lineHeight: '1.4' }}>
+                        Schedule sync can be enabled by the platform owner when this tenant is ready.
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+
               const config = getGoogleStatusConfig(googleStatus);
               return (
                 <div className="google-integration-card">
