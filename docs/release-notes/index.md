@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 20F: Disabled Tenant Backend Access Enforcement Production Deployment and Validation**](release-20f-disabled-tenant-backend-access-enforcement-production-validation.md) (2026-07-02) — ✅ **PASS** — Deploy and validate Release 20E backend gating changes in production; verify 403 TenantDisabled blocks, minimal tenant-info responses, active tenant isolation, and audit logging
 - [**Release 20E: Disabled Tenant Backend Access Enforcement Implementation**](release-20e-disabled-tenant-backend-access-enforcement-implementation.md) (2026-06-28) — ✅ **PASS** — Implement centralized require_active_tenant helper, protect 8 tenant-scoped handlers, handle tenant-info minimal status specially, and add 14 new backend tests
 - [**Release 20C: Controlled Tenant Disable and Restore Validation**](release-20c-controlled-tenant-disable-restore-validation.md) (2026-06-28) — ✅ **PASS** — Execute and validate tenant disable/restore lifecycle operations, audit logging, and document backend access enforcement findings
 - [**Release 19N: Tenant Branding Model Cleanup**](release-19n-tenant-branding-model-cleanup.md) (2026-06-27) — ✅ **PASS** — Dynamic shell logo, conditional admin footer, platform attribution updated to `usmissionhero`; manual validation complete (both tenants)
@@ -151,6 +152,7 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 *   [Client Access Management Phase 5a](client-portal/client-access-management-phase-5a.md)
 
 ### 🚀 Deployment & Operations
+*   [Release 20F: Disabled Tenant Backend Access Enforcement Production Deployment and Validation](release-20f-disabled-tenant-backend-access-enforcement-production-validation.md)
 *   [Release 20E: Disabled Tenant Backend Access Enforcement Implementation](release-20e-disabled-tenant-backend-access-enforcement-implementation.md)
 *   [Release 20C: Controlled Tenant Disable and Restore Validation](release-20c-controlled-tenant-disable-restore-validation.md)
 *   [Release 19M: Production Deployment and Tenant Isolation Revalidation](release-19m-production-deployment-and-tenant-isolation-revalidation.md)

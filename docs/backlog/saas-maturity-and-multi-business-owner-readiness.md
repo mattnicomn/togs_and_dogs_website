@@ -145,4 +145,7 @@ Start second-tenant creation only when:
 
 **Updated 2026-06-28 (20E):** Implemented centralized backend disabled-tenant access enforcement. Added `require_active_tenant(event)` helper in `common/entitlement.py` and integrated it across 8 tenant-scoped handlers (`admin_handler.py`, `assignment_handler.py`, `cancellation_handler.py`, `device_handler.py`, `google_auth_handler.py`, `intake_handler.py`, `pet_handler.py`, `review_handler.py`). Configured `/admin/tenant-info` to return a safe minimal status (`company_id`, `display_name`, `subscription_status`, `is_access_allowed: false`, `is_blocked: true`) when the tenant is disabled. Created a new backend test suite with 14 tests in `tests/backend/test_r20e_disabled_tenant_enforcement.py` and verified 100% pass rate.
 
+**Updated 2026-07-02 (20F):** Deployed centralized backend disabled-tenant access enforcement to production. Successfully ran pre-deploy checks, executed targeted test verification (all 100+ backend tests passed), ran production Terraform plan/apply, validated 403 TenantDisabled blocks, verified minimal tenant-info responses, validated active tenant isolation, confirmed audit logs, and verified CloudWatch alarms remain OK. Controlled disable and restore validation complete.
+
+
 
