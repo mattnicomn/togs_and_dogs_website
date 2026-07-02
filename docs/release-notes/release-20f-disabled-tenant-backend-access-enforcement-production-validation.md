@@ -52,7 +52,25 @@ Ran all targeted backend test suites successfully before deployment:
 - Verified that `tog_and_dogs` remained fully active and operational.
 - Verified that `tog_and_dogs` admin and staff views loaded successfully (returned `200 OK`).
 
-#### C. Restore Action
+#### C. Matthew Manual Verification
+- **Checklist A (test_tenant_alpha Owner after Restore):** PASS
+  - Logged in successfully using a fresh incognito/private browser session.
+  - `/admin` loaded properly.
+  - Tenant branding displayed correctly for `Test Tenant Alpha`.
+  - Google Calendar remained `NOT CONNECTED` / not configured.
+  - No Togs & Dogs staff, client, booking, pet, job, or operational data was visible.
+  - No 401/403/auth/session errors observed after restore.
+  - Logged out.
+- **Checklist B (existing tog_and_dogs Admin/Platform User):** PASS
+  - Logged in successfully.
+  - `/admin` loaded normally.
+  - Google Calendar remained connected and healthy.
+  - Existing Togs & Dogs staff/client/booking views worked normally.
+  - `/platform-admin` loaded and showed both tenants.
+  - No 401/403/auth/session errors observed.
+  - Logged out.
+
+#### D. Restore Action
 - Restored `test_tenant_alpha` status to `active` immediately after validation.
 - Verified that `test_tenant_alpha` owner claims can once again access tenant-scoped routes.
 
@@ -85,7 +103,9 @@ Checked all CloudWatch alarms and confirmed all are in healthy states (`OK` or `
 
 ---
 
-## Overall Status: ✅ PASS
+## Overall Status: ✅ PASS (Automated & Manually Validated)
 
 Release 20F backend access enforcement has been successfully deployed to production and validated.
 All tenant-scoped endpoints are now fully and consistently secured when a tenant's subscription is disabled, while maintaining proper visibility of basic subscription status for frontend routing.
+Both automated checks and manual verification checklists have passed. The disabled-tenant backend access enforcement work is closed.
+
