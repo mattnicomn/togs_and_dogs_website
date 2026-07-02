@@ -23,6 +23,12 @@ Release **21B** cleans up the frontend unconfigured-state calendar UI. It replac
 ### 3. Frontend Compile Verification
 - Ran the production Vite build (`npm run build` inside `web/`) and verified it compiled successfully into `dist/assets/index-Cws62sI4.js` with no deprecations or errors.
 
+### 4. Production Deployment & Smoke Verification
+- Synchronized built frontend files from `web/dist/` to the production S3 bucket `s3://togs-and-dogs-prod-toganddogs-hosting`.
+- Invalidated CloudFront cache distribution `E35L00QPA2IRCY` (invalidation ID: `I9V2NDXNL6K6M1JO9YCSY8I3Y2`) and verified it completed successfully.
+- Verified that the live production HTML at `https://toganddogs.usmissionhero.com` loads successfully and references the new JS bundle `index-Cws62sI4.js`.
+- Verified that `/admin` path loads correctly and serves the updated bundle.
+
 ---
 
 ## Manual Validation Checklist (Post-Deploy)
@@ -45,6 +51,7 @@ Release **21B** cleans up the frontend unconfigured-state calendar UI. It replac
 
 ---
 
-## Overall Status: ✅ PASS (Pre-Deploy Complete)
+## Overall Status: ✅ PASS (Deployment Completed)
 
-Vite build compiled successfully. All calendar unconfigured-state cleanup changes have been verified and documented. Ready for production deployment approval.
+Release 21B is successfully deployed to production. Automated smoke checks passed. Manual verification of the checklist is pending Matthew's review.
+
