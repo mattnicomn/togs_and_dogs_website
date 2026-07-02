@@ -34,24 +34,26 @@ Release **21B** cleans up the frontend unconfigured-state calendar UI. It replac
 ## Manual Validation Checklist (Post-Deploy)
 
 ### A. Test Tenant Owner (`test_tenant_alpha`):
-* [ ] `/admin` loads successfully with no auth errors.
-* [ ] Top Google Calendar warning banner is hidden.
-* [ ] Under "System Integrations", the card displays "Calendar Integration" with status `NOT CONFIGURED`.
-* [ ] Message says *"Calendar integration is not configured for this business yet. Schedule sync can be enabled by the platform owner when this tenant is ready."*
-* [ ] No primary "Connect Calendar" button appears.
-* [ ] No technical details panel containing Google OAuth information appears.
-* [ ] No Google Calendar error popup/alert appears.
-* [ ] No Togs & Dogs calendar/account details are visible.
+* [x] `/admin` loads successfully with no auth errors.
+* [x] Top Google Calendar warning banner is hidden.
+* [x] Under "System Integrations", the card displays "Calendar Integration" with status `NOT CONFIGURED`.
+* [x] Message says *"Calendar integration is not configured for this business yet. Schedule sync can be enabled by the platform owner when this tenant is ready."*
+* [x] No primary "Connect Calendar" button appears.
+* [x] No technical details panel containing Google OAuth information appears.
+* [x] No Google Calendar error popup/alert appears.
+* [x] No Togs & Dogs calendar/account details are visible.
 
 ### B. Original Tenant Admin (`tog_and_dogs`):
-* [ ] `/admin` loads successfully.
-* [ ] Google Calendar connection states, badges, and warning banners load and function normally.
-* [ ] Technical details panel and account status remain visible.
-* [ ] "Connect Calendar" or "Disconnect" actions continue to function as before.
+* [x] `/admin` loads successfully.
+* [x] Google Calendar connection states, badges, and warning banners load and function normally.
+* [x] Technical details panel and account status remain visible.
+* [x] "Connect Calendar" or "Disconnect" actions continue to function as before.
 
 ---
 
-## Overall Status: ✅ PASS (Deployment Completed)
+## Overall Status: ✅ PASS (Automated & Manually Validated)
 
-Release 21B is successfully deployed to production. Automated smoke checks passed. Manual verification of the checklist is pending Matthew's review.
+Release 21B is successfully deployed to production.
+Both automated checks and Matthew's manual verification checklists have passed. The Calendar UI Unconfigured-State Cleanup work is closed.
+
 
