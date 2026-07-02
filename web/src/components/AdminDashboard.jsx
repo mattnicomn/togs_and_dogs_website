@@ -2094,7 +2094,7 @@ const AdminDashboard = () => {
 
 
   const handleConnectGoogle = async () => {
-    if (tenantInfo && tenantInfo.company_id !== 'tog_and_dogs') {
+    if (tenantInfo && tenantInfo.calendar_provider !== 'google') {
       return;
     }
     try {
@@ -3297,7 +3297,7 @@ const AdminDashboard = () => {
       </header>
 
       {/* Render Google Calendar Health Banner if degraded/not connected */}
-      {(tenantInfo ? tenantInfo.company_id === 'tog_and_dogs' : true) && googleStatus && googleStatus !== 'CONNECTED' && (
+      {(tenantInfo ? tenantInfo.calendar_provider === 'google' : true) && googleStatus && googleStatus !== 'CONNECTED' && (
         <div className={`google-calendar-health-banner ${googleStatus}`} style={{
           padding: '12px 16px',
           borderRadius: '8px',
@@ -3485,7 +3485,7 @@ const AdminDashboard = () => {
           <div className="settings-section">
             <h4 style={{ marginBottom: '16px' }}>System Integrations</h4>
             {(() => {
-              const isGoogleCalendarSupported = tenantInfo ? tenantInfo.company_id === 'tog_and_dogs' : true;
+              const isGoogleCalendarSupported = tenantInfo ? tenantInfo.calendar_provider === 'google' : true;
               if (!isGoogleCalendarSupported) {
                 return (
                   <div className="google-integration-card">

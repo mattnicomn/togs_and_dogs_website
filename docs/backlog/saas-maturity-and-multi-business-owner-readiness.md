@@ -149,6 +149,9 @@ Start second-tenant creation only when:
 
 **Updated 2026-07-02 (21B):** Implemented and deployed frontend-only unconfigured-state calendar UI cleanup for non-default tenants. Modified `AdminDashboard.jsx` to gate the connection handler (early return if `company_id !== 'tog_and_dogs'`), hide the top Google Calendar warning banner, and render a provider-neutral unconfigured settings card (`Calendar Integration` with status `NOT CONFIGURED`) for non-default tenants (e.g. `test_tenant_alpha`), while preserving full Google Calendar integrations for the default tenant. Ran Vite production build and deployed to S3/CloudFront. Smoke validation complete; manual checklist pending.
 
+**Updated 2026-07-02 (21D):** Implemented tenant calendar provider metadata defaults in code. Added `get_tenant_calendar_config` in `calendar_metadata.py` to derive calendar providers, statuses, and capabilities with defaults for `tog_and_dogs` (Google) and other tenants (None). Integrated into `/admin/tenant-info` and Platform Admin detail responses. Updated `AdminDashboard.jsx` to use metadata `calendar_provider` checks rather than hardcoded company ID checks, and updated `PlatformTenantDetail.jsx` to display these metadata attributes. Created 7 new tests under `test_r21d_calendar_metadata_defaults.py` and verified 100% pass across all tests.
+
+
 
 
 

@@ -67,6 +67,21 @@ def _handle_get_tenant(event, company_id):
         ent = _build_entitlement(tenant)
         ent_summary = ent.to_dict()
         
+        # Resolve Google Calendar status for tog_and_dogs safely without raising errors
+        google_status = "NOT_CONNECTED"
+        from common.auth import DEFAULT_COMPANY_ID
+        if company_id == DEFAULT_COMPANY_ID:
+            try:
+                from handlers.google_auth_handler import get_status as _get_status
+                status_resp = _get_status(event)
+                body = json.loads(status_resp.get('body', '{}'))
+                google_status = body.get('status', 'NOT_CONNECTED')
+            except Exception as e:
+                print(f"Warning: Failed to resolve calendar status in platform handler: {e}")
+                
+        from common.calendar_metadata import get_tenant_calendar_config
+        calendar_config = get_tenant_calendar_config(tenant, company_id, google_status)
+        
         profile = {
             "company_id": tenant.get("company_id"),
             "display_name": tenant.get("display_name"),
@@ -78,8 +93,10 @@ def _handle_get_tenant(event, company_id):
             "created_at": tenant.get("created_at"),
             "updated_at": tenant.get("updated_at"),
             "notes": tenant.get("notes"),
-            "admin_override_until": tenant.get("admin_override_until")
+            "admin_override_until": tenant.get("admin_override_until"),
+            **calendar_config
         }
+
         
         subscription = {
             "tier": tenant.get("subscription_tier", "starter"),

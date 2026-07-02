@@ -370,8 +370,25 @@ const PlatformTenantDetail = () => {
                 <span className="metadata-label">Metadata Last Updated At</span>
                 <span className="metadata-value">{formatDate(tenant.profile?.updated_at)}</span>
               </div>
+              <div className="metadata-item">
+                <span className="metadata-label">Calendar Provider</span>
+                <span className="metadata-value monospace">{tenant.profile?.calendar_provider || 'none'}</span>
+              </div>
+              <div className="metadata-item">
+                <span className="metadata-label">Calendar Status</span>
+                <span className="metadata-value">{tenant.profile?.calendar_connection_status || 'not_configured'}</span>
+              </div>
+              <div className="metadata-item">
+                <span className="metadata-label">Calendar Connected Account</span>
+                <span className="metadata-value">{tenant.profile?.calendar_connected_account_label || '—'}</span>
+              </div>
+              <div className="metadata-item">
+                <span className="metadata-label">Calendar Secret Reference</span>
+                <span className="metadata-value monospace">{tenant.profile?.calendar_secret_ref || '—'}</span>
+              </div>
             </div>
           </section>
+
 
           {/* Entitlement Summary */}
           <section className="platform-card-section">

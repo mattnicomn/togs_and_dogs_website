@@ -238,6 +238,9 @@ def handler(event, context):
                 except Exception as e:
                     print(f"Warning: Failed to resolve calendar status: {e}")
                     
+            from common.calendar_metadata import get_tenant_calendar_config
+            calendar_config = get_tenant_calendar_config(tenant, company_id, calendar_status)
+                    
             return success({
                 "company_id": company_id,
                 "display_name": display_name,
@@ -245,8 +248,10 @@ def handler(event, context):
                 "subscription_status": subscription_status,
                 "google_calendar_status": calendar_status,
                 "is_access_allowed": True,
-                "is_blocked": False
+                "is_blocked": False,
+                **calendar_config
             }, event)
+
             
         # Enforce active tenant check for all other routes
         from common.entitlement import require_active_tenant
