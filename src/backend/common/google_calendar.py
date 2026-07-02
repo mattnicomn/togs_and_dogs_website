@@ -19,25 +19,68 @@ def _get_google_config():
         print(f"ERROR: Failed to retrieve Google client config: {e}")
         return None
 
+def get_tenant_secret_path(company_id):
+    """
+    Parses GOOGLE_USER_TOKENS_NAME to extract prefix and returns:
+    {prefix}/calendar/{company_id}/tokens
+    """
+    secret_name = os.environ.get('GOOGLE_USER_TOKENS_NAME', 'togs-and-dogs-prod/google/user-tokens')
+    path = secret_name
+    if ":secret:" in secret_name:
+        path = secret_name.split(":secret:")[-1]
+    
+    parts = path.split('/')
+    if not parts:
+        prefix = 'togs-and-dogs-prod'
+    else:
+        prefix = parts[0]
+        
+    return f"{prefix}/calendar/{company_id}/tokens"
+
+def resolve_google_token_secret_name(company_id=None):
+    """
+    Resolves the Secrets Manager secret name/path for the given tenant's Google Calendar tokens.
+    """
+    from common.auth import DEFAULT_COMPANY_ID
+    if company_id is None:
+        company_id = DEFAULT_COMPANY_ID
+        
+    # 1. Fetch tenant metadata
+    from common.db import get_item
+    tenant = get_item(f"TENANT#{company_id}", "METADATA")
+    
+    # 2. Check if explicit secret ref is configured in metadata
+    if tenant and tenant.get("calendar_secret_ref"):
+        return tenant.get("calendar_secret_ref")
+        
+    # 3. Legacy fallback for default tenant
+    if company_id == DEFAULT_COMPANY_ID:
+        return os.environ.get('GOOGLE_USER_TOKENS_NAME') or 'togs-and-dogs-prod/google/user-tokens'
+
+        
+    # 4. Construct path if Google provider is enabled for this tenant
+    if tenant and (tenant.get("calendar_provider") == "google" or tenant.get("calendar_enabled") is True):
+        return get_tenant_secret_path(company_id)
+        
+    return None
+
 def _get_stored_tokens(company_id=None):
     """Internal: Retrieves tokens from Secrets Manager."""
-    from common.auth import DEFAULT_COMPANY_ID
-    if company_id is not None and company_id != DEFAULT_COMPANY_ID:
+    secret_name = resolve_google_token_secret_name(company_id)
+    if not secret_name:
         return {}
-    secret_name = os.environ.get('GOOGLE_USER_TOKENS_NAME')
     try:
         response = secrets.get_secret_value(SecretId=secret_name)
         return json.loads(response['SecretString'])
     except Exception as e:
-        print(f"INFO: No existing tokens found: {e}")
+        print(f"INFO: No existing tokens found for tenant {company_id}: {e}")
         return {}
 
 def _save_tokens(new_tokens, company_id=None):
     """Internal: Saves/Updates tokens in Secrets Manager."""
-    from common.auth import DEFAULT_COMPANY_ID
-    if company_id is not None and company_id != DEFAULT_COMPANY_ID:
+    secret_name = resolve_google_token_secret_name(company_id)
+    if not secret_name:
         return False
-    secret_name = os.environ.get('GOOGLE_USER_TOKENS_NAME')
     existing = _get_stored_tokens(company_id)
     merged = {**existing, **new_tokens}
     
@@ -55,8 +98,9 @@ def _save_tokens(new_tokens, company_id=None):
         )
         return True
     except Exception as e:
-        print(f"ERROR: Failed to persist refreshed tokens: {e}")
+        print(f"ERROR: Failed to persist refreshed tokens for tenant {company_id}: {e}")
         return False
+
 
 def _refresh_access_token(tokens, request_id="UNKNOWN", company_id=None):
     """Internal: Refreshes the Google access token."""
@@ -98,8 +142,12 @@ def _refresh_access_token(tokens, request_id="UNKNOWN", company_id=None):
         if error_code == 'invalid_grant':
             print(f"CALENDAR_SYNC_TOKEN_REVOKED: [Req:{request_id}] Google refresh token is revoked or expired (invalid_grant). Admin must reconnect Google Calendar.")
             # Mark the stored tokens as revoked so status endpoint reflects reality
-            _mark_token_revoked(request_id)
+            if company_id is not None:
+                _mark_token_revoked(request_id, company_id)
+            else:
+                _mark_token_revoked(request_id)
             return None
+
         else:
             print(f"ERROR: [Req:{request_id}] Failed to refresh Google token: HTTP {http_err.code} - {error_body}")
             return None
@@ -115,15 +163,16 @@ def _mark_token_revoked(request_id="UNKNOWN", company_id=None):
     and the admin knows they need to reconnect.
     """
     from common.auth import DEFAULT_COMPANY_ID
-    if company_id is not None and company_id != DEFAULT_COMPANY_ID:
-        return
+    if company_id is None:
+        company_id = DEFAULT_COMPANY_ID
     try:
-        secret_name = os.environ.get('GOOGLE_USER_TOKENS_NAME')
+        secret_name = resolve_google_token_secret_name(company_id)
         if not secret_name:
             return
         existing = _get_stored_tokens(company_id)
         existing['token_status'] = 'revoked'
-        existing['revoked_at'] = datetime.utcnow().isoformat()
+        from datetime import timezone
+        existing['revoked_at'] = datetime.now(timezone.utc).isoformat()
         existing['revoked_reason'] = 'invalid_grant'
         # Clear the access_token so it's not reused
         existing.pop('access_token', None)
@@ -133,9 +182,10 @@ def _mark_token_revoked(request_id="UNKNOWN", company_id=None):
             SecretId=secret_name,
             SecretString=json.dumps(existing)
         )
-        print(f"INFO: [Req:{request_id}] Marked Google token as revoked in Secrets Manager.")
+        print(f"INFO: [Req:{request_id}] Marked Google token as revoked in Secrets Manager for tenant {company_id}.")
     except Exception as e:
-        print(f"WARNING: [Req:{request_id}] Failed to mark token as revoked: {e}")
+        print(f"WARNING: [Req:{request_id}] Failed to mark token as revoked for tenant {company_id}: {e}")
+
 
 def _get_valid_token(request_id="UNKNOWN", company_id=None):
     """Internal: Gets a valid access token, refreshing if necessary."""
@@ -360,10 +410,11 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
     company_id = item.get('company_id')
     
     try:
+        from common.google_calendar import resolve_google_token_secret_name
+        secret_name = resolve_google_token_secret_name(company_id)
         token = _get_valid_token(request_id, company_id)
         if not token:
-            from common.auth import DEFAULT_COMPANY_ID
-            if company_id is not None and company_id != DEFAULT_COMPANY_ID:
+            if not secret_name:
                 print(f"CALENDAR_SYNC_SKIPPED: [Req:{request_id}] Google Calendar not configured for this tenant.")
                 return {
                     "status": "calendar_skipped",
@@ -375,6 +426,7 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
                     "status": "calendar_failed",
                     "message": "Google Calendar disconnected or token expired."
                 }
+
     except Exception as e:
         print(f"CALENDAR_SYNC_FAILED: [Req:{request_id}] Auth error: {e}")
         return {

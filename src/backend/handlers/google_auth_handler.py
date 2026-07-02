@@ -23,25 +23,41 @@ def get_google_config():
         print(f"Error retrieving Google config: {e}")
         return None
 
-def get_stored_tokens():
+def get_stored_tokens(company_id=None):
     """Retrieves access and refresh tokens from Secrets Manager."""
-    secret_name = os.environ.get('GOOGLE_USER_TOKENS_NAME')
+    from common.google_calendar import resolve_google_token_secret_name
+    from common.auth import DEFAULT_COMPANY_ID
+    if company_id is None:
+        company_id = DEFAULT_COMPANY_ID
+        
+    secret_name = resolve_google_token_secret_name(company_id)
+    if not secret_name:
+        return {}
     try:
         response = secrets.get_secret_value(SecretId=secret_name)
         return json.loads(response['SecretString'])
     except Exception as e:
         # LOGGING BREADCRUMB: If the secret is empty/new, this is expected
-        print(f"INFO: No existing tokens to merge or secret uninitialized: {e}")
+        print(f"INFO: No existing tokens to merge or secret uninitialized for tenant {company_id}: {e}")
         return {}
 
-def save_tokens(new_tokens):
+def save_tokens(new_tokens, company_id=None):
     """
     Saves/Updates tokens in Secrets Manager.
     Decision: Preserves existing refresh_token if new one is not provided.
     Release 6G: Clears revoked status when new valid tokens are saved.
     """
-    secret_name = os.environ.get('GOOGLE_USER_TOKENS_NAME')
-    existing = get_stored_tokens()
+    from common.google_calendar import resolve_google_token_secret_name
+    from common.auth import DEFAULT_COMPANY_ID
+    if company_id is None:
+        company_id = DEFAULT_COMPANY_ID
+        
+    secret_name = resolve_google_token_secret_name(company_id)
+    if not secret_name:
+        print(f"ERROR: Cannot save tokens, Google integration not configured/supported for tenant {company_id}")
+        return False
+        
+    existing = get_stored_tokens(company_id)
     
     # Merge
     merged = {**existing, **new_tokens}
@@ -58,7 +74,7 @@ def save_tokens(new_tokens):
     merged['updated_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
     
     try:
-        print(f"INFO: Attempting to persist tokens to {secret_name}")
+        print(f"INFO: Attempting to persist tokens for tenant {company_id} to {secret_name}")
         secrets.put_secret_value(
             SecretId=secret_name,
             SecretString=json.dumps(merged)
@@ -66,8 +82,9 @@ def save_tokens(new_tokens):
         print("SUCCESS: Tokens persisted successfully.")
         return True
     except Exception as e:
-        print(f"ERROR: Failed to save tokens to Secrets Manager: {e}")
+        print(f"ERROR: Failed to save tokens to Secrets Manager for tenant {company_id}: {e}")
         return False
+
 
 def get_company_id_safe(event):
     if not isinstance(event, dict):
@@ -129,11 +146,15 @@ def disconnect_auth(event):
     Clears the stored tokens in Secrets Manager to disconnect Google Calendar.
     """
     company_id = get_company_id_safe(event)
-    from common.auth import DEFAULT_COMPANY_ID
-    if company_id != DEFAULT_COMPANY_ID:
+    from common.google_calendar import resolve_google_token_secret_name
+    secret_name = resolve_google_token_secret_name(company_id)
+    if not secret_name:
         return success({"message": "Google Calendar disconnected successfully."}, event)
         
-    secret_name = os.environ.get('GOOGLE_USER_TOKENS_NAME')
+    # Disconnect clears only tenant-specific secret path and never global fallback
+    if secret_name == os.environ.get('GOOGLE_USER_TOKENS_NAME'):
+        return success({"message": "Google Calendar disconnected successfully."}, event)
+        
     try:
         # Clear the tokens to effectively disconnect
         secrets.put_secret_value(
@@ -142,12 +163,13 @@ def disconnect_auth(event):
         )
         # Also mark it as explicitly disconnected/revoked for good measure
         from common.google_calendar import _mark_token_revoked
-        _mark_token_revoked("admin_disconnect")
+        _mark_token_revoked("admin_disconnect", company_id)
         
         return success({"message": "Google Calendar disconnected successfully."}, event)
     except Exception as e:
         print(f"ERROR: Failed to clear tokens in Secrets Manager: {e}")
         return internal_error("Failed to disconnect Google Calendar.", event)
+
 
 def initiate_auth(event):
     """
@@ -155,9 +177,12 @@ def initiate_auth(event):
     Generates auth URL and stores state in DynamoDB.
     """
     try:
-        from common.auth import get_current_company_id, DEFAULT_COMPANY_ID
+        from common.auth import get_current_company_id
         company_id = get_current_company_id(event)
-        if company_id != DEFAULT_COMPANY_ID:
+        
+        from common.google_calendar import resolve_google_token_secret_name
+        secret_name = resolve_google_token_secret_name(company_id)
+        if not secret_name:
             return error(403, "Google Calendar integration is not supported for this tenant in this release.", event)
         
         # Release 17D: Entitlement gate for google calendar enabled
@@ -238,9 +263,10 @@ def handle_callback(event):
             return bad_request("Invalid or expired OAuth state.", event)
         
         company_id = state_record.get('company_id')
-        from common.auth import DEFAULT_COMPANY_ID
-        if company_id != DEFAULT_COMPANY_ID:
-            return error(403, "Google Calendar integration callback is not supported for this tenant.", event)
+        from common.google_calendar import resolve_google_token_secret_name
+        secret_name = resolve_google_token_secret_name(company_id)
+        if not secret_name:
+            return error(403, "Google Calendar integration is not supported for this tenant in this release.", event)
             
         # Cleanup state immediately
         table.delete_item(Key={'PK': f"OAUTHSTATE#{state}", 'SK': 'META'})
@@ -277,7 +303,7 @@ def handle_callback(event):
         with urllib.request.urlopen(req) as res:
             token_response = json.loads(res.read().decode())
             
-            if save_tokens(token_response):
+            if save_tokens(token_response, company_id):
                 # Decision: redirect back to admin dashboard on success
                 frontend_base = "https://toganddogs.usmissionhero.com"
                 if "localhost" in origin:
@@ -297,14 +323,16 @@ def handle_callback(event):
         print(f"Token exchange failed: {e}")
         return internal_error(f"Failed to exchange Google authorization code: {str(e)}", event)
 
+
 def get_status(event):
     """
     GET /admin/auth/status
     Returns the current connection state.
     """
     company_id = get_company_id_safe(event)
-    from common.auth import DEFAULT_COMPANY_ID
-    if company_id != DEFAULT_COMPANY_ID:
+    from common.google_calendar import resolve_google_token_secret_name
+    secret_name = resolve_google_token_secret_name(company_id)
+    if not secret_name:
         return success({"status": "NOT_CONNECTED"}, event)
         
     config = get_google_config()
@@ -312,7 +340,7 @@ def get_status(event):
         return success({"status": "CREDENTIALS_MISSING"}, event)
     
     # Check if user tokens exist
-    tokens = get_stored_tokens()
+    tokens = get_stored_tokens(company_id)
     refresh_token = tokens.get('refresh_token')
     
     # Release 6G Phase 0C: Check if token is marked as revoked
@@ -356,7 +384,7 @@ def get_status(event):
         with urllib.request.urlopen(req) as res:
             # If we get a 200, it's usable. We can even save the new access token.
             token_data = json.loads(res.read().decode())
-            save_tokens(token_data)
+            save_tokens(token_data, company_id)
             return success({"status": "CONNECTED"}, event)
     except Exception as e:
         print(f"Connectivity check failed: {e}")
@@ -380,8 +408,9 @@ def calendar_health_check(event):
     print("CALENDAR_HEALTH_CHECK: Starting scheduled health check.")
     
     company_id = get_company_id_safe(event)
-    from common.auth import DEFAULT_COMPANY_ID
-    if company_id != DEFAULT_COMPANY_ID:
+    from common.google_calendar import resolve_google_token_secret_name
+    secret_name = resolve_google_token_secret_name(company_id)
+    if not secret_name:
         return _health_response("NOT_CONNECTED", "Google Calendar is not configured for this tenant.", event)
         
     # 1. Check Google client credentials exist
@@ -391,7 +420,7 @@ def calendar_health_check(event):
         return _health_response("CREDENTIALS_MISSING", "Google OAuth credentials not configured in Secrets Manager.", event)
     
     # 2. Check stored tokens
-    tokens = get_stored_tokens()
+    tokens = get_stored_tokens(company_id)
     
     if not tokens or not tokens.get('refresh_token'):
         print("CALENDAR_HEALTH_CHECK_FAILED: No refresh token stored. Google Calendar is not connected.")
@@ -415,7 +444,7 @@ def calendar_health_check(event):
         
         with urllib.request.urlopen(req, timeout=10) as res:
             token_data = json.loads(res.read().decode())
-            save_tokens(token_data)
+            save_tokens(token_data, company_id)
             print("CALENDAR_HEALTH_CHECK_SUCCESS: Google Calendar connection is healthy. Token refreshed.")
             return _health_response("CONNECTED", "Google Calendar connection is healthy.", event)
     
@@ -432,7 +461,7 @@ def calendar_health_check(event):
             print("CALENDAR_HEALTH_CHECK_TOKEN_REVOKED: Token refresh returned invalid_grant. Token is revoked.")
             # Mark as revoked so subsequent operations skip immediately
             from common.google_calendar import _mark_token_revoked
-            _mark_token_revoked("health_check")
+            _mark_token_revoked("health_check", company_id)
             return _health_response("TOKEN_REVOKED", "Google Calendar token is revoked (invalid_grant). Admin must reconnect.", event)
         else:
             print(f"CALENDAR_HEALTH_CHECK_FAILED: Token refresh failed: HTTP {http_err.code} - {error_body}")
@@ -441,6 +470,7 @@ def calendar_health_check(event):
     except Exception as e:
         print(f"CALENDAR_HEALTH_CHECK_FAILED: Unexpected error during health check: {e}")
         return _health_response("REFRESH_FAILED", f"Health check error: {str(e)}", event)
+
 
 
 def _health_response(status, message, event):

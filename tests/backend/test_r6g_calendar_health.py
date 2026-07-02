@@ -92,8 +92,9 @@ def test_health_check_invalid_grant():
         result = calendar_health_check(_make_event())
 
     assert result["status"] == "TOKEN_REVOKED"
-    mock_mark.assert_called_once_with("health_check")
+    mock_mark.assert_called_once_with("health_check", "tog_and_dogs")
     print("PASS: test_health_check_invalid_grant")
+
 
 
 def test_health_check_refresh_failed_other_error():
