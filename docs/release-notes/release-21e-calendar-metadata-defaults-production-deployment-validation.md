@@ -64,27 +64,26 @@ Release **21E** deploys and validates the Release 21D tenant calendar provider m
 
 ---
 
-## Manual Matthew Validation Request
-
-Please perform the manual verification checklists to confirm:
+## Manual Matthew Validation Results
 
 ### A. `test_tenant_alpha` owner:
-* [ ] `/admin` loads properly.
-* [ ] Calendar card says NOT CONFIGURED.
-* [ ] No Google Calendar popup or warning banner appears.
-* [ ] No Connect Calendar action appears.
-* [ ] Branding displays `Test Tenant Alpha: A Pet Business Platform`.
-* [ ] Google Calendar remains not connected.
-* [ ] No Togs & Dogs data is visible.
+* [x] `/admin` loads properly.
+* [x] Calendar card says NOT CONFIGURED.
+* [x] No Google Calendar popup or warning banner appears.
+* [x] No Connect Calendar action appears.
+* [x] Branding displays `Test Tenant Alpha: A Pet Business Platform`.
+* [x] Google Calendar remains not connected.
+* [x] No Togs & Dogs data is visible.
 
 ### B. `tog_and_dogs` admin/platform user:
-* [ ] `/admin` loads normally.
-* [ ] Google Calendar connected behavior remains intact.
-* [ ] Existing client, staff, and booking data views work normally.
-* [ ] `/platform-admin` tenant details show safe calendar metadata defaults.
+* [x] `/admin` loads normally.
+* [x] Google Calendar connected behavior remains intact.
+* [x] Existing client, staff, and booking data views work normally.
+* [x] `/platform-admin` tenant details show safe calendar metadata defaults.
 
 ---
 
-## Overall Status: ✅ PASS (Deployment Completed)
+## Overall Status: ✅ PASS (Manually Validated)
 
-Release 21E is successfully deployed to production. Automated smoke validation passed. Manual verification of the checklist is pending Matthew's review.
+Release 21E is successfully deployed to production. Both automated smoke validation and Matthew's manual validation checklists have successfully passed.
+
