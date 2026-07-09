@@ -1314,7 +1314,10 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.get_platform_tenants_lambda,
     aws_api_gateway_integration.get_platform_tenants_id_lambda,
     aws_api_gateway_integration.patch_platform_tenants_id_lambda,
-    aws_api_gateway_integration.get_platform_audit_lambda
+    aws_api_gateway_integration.get_platform_audit_lambda,
+    aws_api_gateway_integration.post_admin_staff_resend_lambda,
+    aws_api_gateway_integration.post_admin_staff_reset_lambda,
+    aws_api_gateway_integration.post_admin_staff_temp_pw_lambda
   ]
 
   rest_api_id = aws_api_gateway_rest_api.main.id
@@ -1345,6 +1348,9 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.admin_cancel_decision,
       aws_api_gateway_resource.admin_staff,
       aws_api_gateway_resource.admin_staff_id,
+      aws_api_gateway_resource.admin_staff_resend,
+      aws_api_gateway_resource.admin_staff_reset,
+      aws_api_gateway_resource.admin_staff_temp_pw,
       aws_api_gateway_resource.admin_clients_onboard,
       aws_api_gateway_resource.admin_clients_link,
       aws_api_gateway_resource.admin_export,

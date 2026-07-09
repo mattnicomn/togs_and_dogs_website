@@ -37,6 +37,12 @@ def mock_db():
     with patch('common.db.table') as mock_table:
         yield mock_table
 
+@pytest.fixture(autouse=True)
+def mock_entitlement():
+    with patch('common.entitlement._get_entitlement_safely') as mock_get:
+        mock_get.return_value = MagicMock(is_access_allowed=True, is_blocked=False)
+        yield mock_get
+
 def test_unlink_staff_sets_sentinel(mock_db, mock_cognito):
     """PATCH /admin/staff/{id} with unlink action sets 'unlinked' sentinels."""
     staff_id = "staff_test_123"

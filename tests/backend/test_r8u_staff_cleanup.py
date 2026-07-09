@@ -71,6 +71,13 @@ def mock_db():
         yield mock_table
 
 
+@pytest.fixture(autouse=True)
+def mock_entitlement():
+    with patch('common.entitlement._get_entitlement_safely') as mock_get:
+        mock_get.return_value = MagicMock(is_access_allowed=True, is_blocked=False)
+        yield mock_get
+
+
 # ─── GET /admin/staff Guardrail Tests ────────────────────────────────────────
 
 class TestGetStaffAssignmentEligibility:
