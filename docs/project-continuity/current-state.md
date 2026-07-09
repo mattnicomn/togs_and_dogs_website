@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-09
+**Last Updated:** 2026-07-09 (Release 22C)
 
 ---
 
@@ -10,7 +10,7 @@
 |-----------|--------|
 | Web app (React/Vite) | ✅ Live at `toganddogs.usmissionhero.com` |
 | Backend (Python/Lambda) | ✅ Deployed |
-| API Gateway | ✅ Active |
+| API Gateway | ✅ Active — staff reset-password and set-temp-password routes added (22C) |
 | DynamoDB | ✅ Single table, shared-tenant model |
 | Google Calendar | ✅ Connected (fixed in 18G, cancellation cascade fixed in 18P) |
 | Postmark email | ✅ Active (notifications, payment emails) |
@@ -63,7 +63,8 @@
 
 ## Latest Completed Releases
 
-- 22B: Immediate Identity Action and Care Request Validation Fixes (✅ PASS - Pre-Deploy 2026-07-09)
+- 22C: Immediate Identity Action and Care Request Validation Fixes Production Deployment (✅ DEPLOYED — Manually Validated Pending 2026-07-09)
+- 22B: Immediate Identity Action and Care Request Validation Fixes (✅ PASS - Pre-Deploy / Deployed via 22C 2026-07-09)
 - 22A: Identity/Profile Management and Care Request Validation Defect Triage (✅ PASS — 2026-07-09)
 - 21H: Google Per-Tenant Token Isolation Production Deployment and Validation (✅ PASS — Manually Validated 2026-07-09)
 - 21G: Google Per-Tenant Token Isolation Implementation (✅ PASS — 2026-07-02)
@@ -90,4 +91,4 @@
 
 ## Next Recommended Action
 
-**20-series: SaaS maturity next phase** — Tenant isolation is complete (19N validated). Next priorities: Stripe sandbox architecture decision (booking vs subscription tracks), tenant lifecycle disable/cleanup runbook, owner onboarding simplification, and external tester readiness gates. See `release-20a-saas-maturity-next-phase-plan.md`.
+**Next: Manual Matthew validation for 22C** — Validate staff card click bubbling fix and /book care request date/field validation UX in production. After validation, identify next backlog priorities from `docs/backlog/saas-maturity-and-multi-business-owner-readiness.md`.
