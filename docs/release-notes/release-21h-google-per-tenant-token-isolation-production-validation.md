@@ -1,7 +1,7 @@
 # Release 21H — Google Per-Tenant Token Isolation Production Deployment and Validation
 
 **Release Date:** 2026-07-09  
-**Status:** Deployed & Validated (PASS)  
+**Status:** Closed & Manually Validated (PASS)  
 **Author:** Antigravity  
 
 ---
@@ -85,21 +85,27 @@ Prior to deployment, the targeted test suite and regression tests were executed 
 
 ---
 
-## Matthew Manual Validation Checklist
+## Matthew Manual Validation Checklist Results — PASS
 
-### Checklist A — `test_tenant_alpha` owner
-* Log in as `test_tenant_alpha` owner in a fresh incognito session.
-* Verify `/admin` loads properly.
-* Verify Calendar card displays provider-neutral status: `NOT CONFIGURED` with calm unconfigured description text.
-* Verify no Google popup or connected calendar warning banner appears.
-* Verify no "Connect Calendar" primary action is visible or clickable.
-* Verify branding is correct for `Test Tenant Alpha`.
-* Log out.
+### Checklist A — `test_tenant_alpha` owner: PASS
+* Logged in using a fresh incognito/private browser session.
+* `/admin` loaded properly.
+* Calendar card displayed provider-neutral `NOT CONFIGURED`.
+* No Google Calendar popup or connected calendar warning banner appeared.
+* No `Connect Calendar` primary action was visible or clickable.
+* Branding displayed correctly for `Test Tenant Alpha`.
+* No Togs & Dogs staff, client, booking, pet, job, calendar, or operational data was visible.
+* No 401/403/auth/session errors observed.
+* Logged out.
 
-### Checklist B — `tog_and_dogs` admin / platform user
-* Log in as `tog_and_dogs` admin.
-* Verify `/admin` loads normally.
-* Verify Google Calendar connection status remains intact and healthy.
-* Navigate to `/platform-admin`.
-* Verify both tenants display correctly with safe provider/status fields only.
-* Log out.
+### Checklist B — existing `tog_and_dogs` admin / platform user: PASS
+* Logged in successfully.
+* `/admin` loaded normally.
+* Google Calendar connection status remained intact and healthy.
+* Existing staff, client, and booking views worked normally.
+* `/platform-admin` loaded.
+* Both tenants displayed correctly with safe provider/status fields only.
+* No raw token or secret values were visible.
+* No 401/403/auth/session errors observed.
+* Logged out.
+
