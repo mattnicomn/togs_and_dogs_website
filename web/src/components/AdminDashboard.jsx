@@ -3847,26 +3847,29 @@ const AdminDashboard = () => {
                           <div className="btn-group" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
                             <span style={{ fontSize: '11px', width: '100%', color: 'var(--text-muted)', marginBottom: '2px' }}>Account Security</span>
                             <button 
+                              type="button"
                               className="btn-small" 
                               style={{ fontSize: '11px', padding: '4px 8px' }}
-                              onClick={() => executeStaffAction(s.staff_id, 'resend-invite')}
+                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'resend-invite'); }}
                               disabled={!['FORCE_CHANGE_PASSWORD', 'UNCONFIRMED'].includes(s.cognito_status)}
                             >
                               Resend Invite
                             </button>
                             <button 
+                              type="button"
                               className="btn-small" 
                               style={{ fontSize: '11px', padding: '4px 8px' }}
-                              onClick={() => executeStaffAction(s.staff_id, 'reset-password')}
+                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'reset-password'); }}
                               disabled={isProtectedProfile(s) || isSelf(s)}
                               title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot modify your own account security settings' : undefined}
                             >
                               Send Password Reset Email
                             </button>
                             <button 
+                              type="button"
                               className="btn-small" 
                               style={{ fontSize: '11px', padding: '4px 8px' }}
-                              onClick={() => executeStaffAction(s.staff_id, 'set-temp-password')}
+                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'set-temp-password'); }}
                               disabled={isProtectedProfile(s) || isSelf(s)}
                               title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot modify your own account security settings' : undefined}
                             >
@@ -3876,9 +3879,11 @@ const AdminDashboard = () => {
                         </div>
                       ) : (
                         <button 
+                          type="button"
                           className="button-secondary" 
                           style={{ fontSize: '12px', padding: '6px' }} 
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setConfirmAction({
                               type: 'staff', id: s.staff_id, action: 'link-email', name: s.display_name || 'this staff member',
                               message: `Link a login account to ${s.display_name || 'this staff member'}`,
@@ -3896,37 +3901,54 @@ const AdminDashboard = () => {
                     <div className="btn-group" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
                       {s.is_virtual ? (
                         <>
-                          <button className="btn-small" style={{ backgroundColor: 'var(--accent-orange)', color: 'white' }} onClick={() => {
-                            setStaffForm({
-                              display_name: s.display_name,
-                              role: s.role || 'Staff',
-                              email: s.email,
-                              is_assignable: true,
-                              assignment_color: 'var(--staff-ryan)',
-                              creation_mode: 'onboard',
-                              send_invite: false,
-                              phone: '',
-                              notes: ''
-                            });
-                            showNotification("Form populated for " + s.email, "info");
-                          }}>Create Profile</button>
+                          <button 
+                            type="button"
+                            className="btn-small" 
+                            style={{ backgroundColor: 'var(--accent-orange)', color: 'white' }} 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setStaffForm({
+                                display_name: s.display_name,
+                                role: s.role || 'Staff',
+                                email: s.email,
+                                is_assignable: true,
+                                assignment_color: 'var(--staff-ryan)',
+                                creation_mode: 'onboard',
+                                send_invite: false,
+                                phone: '',
+                                notes: ''
+                              });
+                              showNotification("Form populated for " + s.email, "info");
+                            }}
+                          >
+                            Create Profile
+                          </button>
                           {s.is_active !== false ? (
                             <button 
+                              type="button"
                               className="btn-small error" 
                               disabled={isProtectedProfile(s) || isSelf(s)}
                               title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot disable your own account' : undefined}
-                              onClick={() => executeStaffAction(s.staff_id, 'disable')}
+                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'disable'); }}
                             >
                               Turn Off Login Access
                             </button>
                           ) : (
                             <>
-                              <button className="btn-small" style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} onClick={() => executeStaffAction(s.staff_id, 'enable')}>Restore Login Access</button>
                               <button 
+                                type="button"
+                                className="btn-small" 
+                                style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} 
+                                onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'enable'); }}
+                              >
+                                Restore Login Access
+                              </button>
+                              <button 
+                                type="button"
                                 className="btn-small error" 
                                 disabled={isProtectedProfile(s) || isSelf(s)}
                                 title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot delete your own account' : undefined}
-                                onClick={() => executeStaffAction(s.staff_id, 'delete_cognito')}
+                                onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'delete_cognito'); }}
                               >
                                 Delete Login Account
                               </button>
@@ -3935,36 +3957,52 @@ const AdminDashboard = () => {
                         </>
                       ) : (
                         <>
-                          <button className="btn-small" onClick={() => handleEditStaff(s)}>Edit</button>
+                          <button 
+                            type="button"
+                            className="btn-small" 
+                            onClick={(e) => { e.stopPropagation(); handleEditStaff(s); }}
+                          >
+                            Edit
+                          </button>
                           {s.is_active !== false ? (
                             <button 
+                              type="button"
                               className="btn-small error" 
                               disabled={isProtectedProfile(s) || isSelf(s)}
                               title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot disable your own account' : undefined}
-                              onClick={() => executeStaffAction(s.staff_id, 'disable')}
+                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'disable'); }}
                             >
                               Turn Off Login Access
                             </button>
                           ) : (
-                            <button className="btn-small" style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} onClick={() => executeStaffAction(s.staff_id, 'enable')}>Restore Login Access</button>
+                            <button 
+                              type="button"
+                              className="btn-small" 
+                              style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} 
+                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'enable'); }}
+                            >
+                              Restore Login Access
+                            </button>
                           )}
                           {s.cognito_sub && (
                             <button 
+                              type="button"
                               className="btn-small" 
                               style={{ backgroundColor: '#2196f3', color: 'white' }} 
                               disabled={isProtectedProfile(s) || isSelf(s)}
                               title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot modify your own account' : undefined}
-                              onClick={() => executeStaffAction(s.staff_id, 'unlink')}
+                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'unlink'); }}
                             >
                               Unlink Login
                             </button>
                           )}
                           {s.is_active === false && (
                             <button 
+                              type="button"
                               className="btn-small error" 
                               disabled={isProtectedProfile(s) || isSelf(s)}
                               title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot delete your own account' : undefined}
-                              onClick={() => executeStaffAction(s.staff_id, 'delete_profile')}
+                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'delete_profile'); }}
                             >
                               Delete Profile
                             </button>

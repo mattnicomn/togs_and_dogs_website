@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 22B: Immediate Identity Action and Care Request Validation Fixes**](release-22b-immediate-identity-action-and-care-request-validation-fixes.md) (2026-07-09) — ✅ **PASS (Pre-Deploy)** — Implement backend and frontend fixes for triaged defects: resolve resend-invite UnboundLocalError, add missing staff account security API Gateway resources to Terraform config, stop card bubbling on staff action buttons, and improve intake form date/required-field validation UX
 - [**Release 21H: Google Per-Tenant Token Isolation Production Deployment and Validation**](release-21h-google-per-tenant-token-isolation-production-validation.md) (2026-07-09) — ✅ **PASS (Manually Validated)** — Deployed and validated Release 21G Google per-tenant token isolation backend Lambdas in production; verify compatibility fallback for tog_and_dogs, isolated unconfigured status for test_tenant_alpha, and credential shielding
 - [**Release 21G: Google Per-Tenant Token Isolation Implementation**](release-21g-google-per-tenant-token-isolation-implementation.md) (2026-07-02) — ✅ **PASS** — Implement backend per-tenant Google token secret resolution and scoped token storage callback, protect legacy global fallback from disconnect deletions, gate non-configured tenants, and verify with 8 new unit tests
 

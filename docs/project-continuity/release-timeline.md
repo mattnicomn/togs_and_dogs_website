@@ -106,6 +106,7 @@
 | 21G | **Google per-tenant token isolation implementation — Pre-Deploy (tested & validated 2026-07-09)** |
 | 21H | **Google per-tenant token isolation production deployment and validation — PASS (manually validated 2026-07-09)** |
 | 22A | **Identity/Profile actions and Care Request validation triage — PASS (triage & planning 2026-07-09)** |
+| 22B | **Immediate identity actions and Care Request validation fixes — PASS (tested & pre-deploy validated 2026-07-09)** |
 
 
 

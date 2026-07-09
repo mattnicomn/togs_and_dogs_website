@@ -33,6 +33,7 @@ const IntakeForm = () => {
     accepted_terms: false
   });
   const [status, setStatus] = useState({ type: '', message: '', requestId: '' });
+  const [validationErrors, setValidationErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Release 2: Staff options for preferred sitter dropdown
   const [staffOptions, setStaffOptions] = useState([]);
@@ -63,39 +64,62 @@ const IntakeForm = () => {
       .finally(() => setStaffOptionsLoading(false));
   }, []);
 
-  const validateStep = () => {
-    if (step === 1) {
-      return formData.client_name && formData.client_email;
+  const validateStep = (currentStep = step) => {
+    const errors = {};
+    if (currentStep === 1) {
+      if (!formData.client_name || !formData.client_name.trim()) errors.client_name = "Full Name is required.";
+      if (!formData.client_email || !formData.client_email.trim()) errors.client_email = "Email Address is required.";
     }
-    if (step === 2) {
-      if (!formData.service_type) return false;
-      return formData.selected_dates && formData.selected_dates.length > 0;
+    if (currentStep === 2) {
+      if (!formData.service_type) errors.service_type = "Service Type is required.";
+      if (!formData.selected_dates || formData.selected_dates.length === 0) {
+        errors.selected_dates = "Please select at least one visit date on the calendar.";
+      }
     }
-    if (step === 3) {
-      // Release 4: Validate at least one pet has a name
+    if (currentStep === 3) {
       const pets = formData.pets || [];
-      return pets.some(p => p.name && p.name.trim());
+      if (!pets.some(p => p.name && p.name.trim())) {
+        errors.pets = "At least one pet name is required.";
+      }
     }
-    return true;
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const nextStep = () => {
-    if (validateStep()) {
+    if (validateStep(step)) {
+      setValidationErrors({});
       setStep(step + 1);
       window.scrollTo(0, 0);
     } else {
-      alert("Please fill in all required fields.");
+      setTimeout(() => {
+        const firstErrorEl = document.querySelector('.field-error, .error-highlight, .validation-error-alert, .validation-summary-error');
+        if (firstErrorEl) {
+          firstErrorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const input = firstErrorEl.querySelector('input, select, textarea');
+          if (input) input.focus();
+        }
+      }, 50);
     }
   };
 
   const prevStep = () => {
+    setValidationErrors({});
     setStep(step - 1);
     window.scrollTo(0, 0);
   };
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
-    if (!validateStep()) return;
+    if (!validateStep(step)) {
+      setTimeout(() => {
+        const firstErrorEl = document.querySelector('.field-error, .error-highlight, .validation-error-alert, .validation-summary-error');
+        if (firstErrorEl) {
+          firstErrorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 50);
+      return;
+    }
 
     setIsSubmitting(true);
     setStatus({ type: 'info', message: 'Submitting your request...' });
@@ -184,26 +208,39 @@ const IntakeForm = () => {
             {step === 1 && (
               <div className="form-step-content">
                 <h3 style={{ marginBottom: '24px' }}>How can we reach you?</h3>
+                {Object.keys(validationErrors).length > 0 && (
+                  <div className="validation-summary-error" style={{ color: 'var(--accent-red, #f44336)', backgroundColor: 'rgba(244, 67, 54, 0.1)', border: '1px solid var(--accent-red, #f44336)', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '0.9rem', fontWeight: '500' }}>
+                    ⚠️ Please fill in all required contact fields below.
+                  </div>
+                )}
                 <div className="grid">
-                  <div className="field">
+                  <div className={`field ${validationErrors.client_name ? 'field-error' : ''}`}>
                     <label>Full Name *</label>
                     <input 
                       type="text" 
                       value={formData.client_name} 
-                      onChange={(e) => setFormData({...formData, client_name: e.target.value})} 
+                      onChange={(e) => {
+                        setFormData({...formData, client_name: e.target.value});
+                        if (validationErrors.client_name) setValidationErrors(prev => ({ ...prev, client_name: null }));
+                      }} 
                       placeholder="Alex Barker"
                       required 
                     />
+                    {validationErrors.client_name && <span className="error-text" style={{ color: 'var(--accent-red, #f44336)', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>{validationErrors.client_name}</span>}
                   </div>
-                  <div className="field">
+                  <div className={`field ${validationErrors.client_email ? 'field-error' : ''}`}>
                     <label>Email Address *</label>
                     <input 
                       type="email" 
                       value={formData.client_email} 
-                      onChange={(e) => setFormData({...formData, client_email: e.target.value})} 
+                      onChange={(e) => {
+                        setFormData({...formData, client_email: e.target.value});
+                        if (validationErrors.client_email) setValidationErrors(prev => ({ ...prev, client_email: null }));
+                      }} 
                       placeholder="alex@example.com"
                       required 
                     />
+                    {validationErrors.client_email && <span className="error-text" style={{ color: 'var(--accent-red, #f44336)', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>{validationErrors.client_email}</span>}
                   </div>
                 </div>
                 {/* Release 4C: Client phone — optional, persisted on REQ and propagated to Client Management */}
@@ -226,21 +263,35 @@ const IntakeForm = () => {
             {step === 2 && (
               <div className="form-step-content">
                 <h3 style={{ marginBottom: '24px' }}>When do you need care?</h3>
-                <div className="field" style={{ marginBottom: '24px' }}>
+                {Object.keys(validationErrors).length > 0 && (
+                  <div className="validation-summary-error" style={{ color: 'var(--accent-red, #f44336)', backgroundColor: 'rgba(244, 67, 54, 0.1)', border: '1px solid var(--accent-red, #f44336)', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '0.9rem', fontWeight: '500' }}>
+                    ⚠️ Please select your dates and visit windows.
+                  </div>
+                )}
+                <div className={`field ${validationErrors.service_type ? 'field-error' : ''}`} style={{ marginBottom: '24px' }}>
                   <label>Service Type *</label>
                   <select 
                     value={formData.service_type}
-                    onChange={(e) => setFormData({...formData, service_type: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, service_type: e.target.value});
+                      if (validationErrors.service_type) setValidationErrors(prev => ({ ...prev, service_type: null }));
+                    }}
                   >
                     <option value="PET_SITTING">Pet Sitting (Check-ins)</option>
                     <option value="DOG_WALKING">Daily Dog Walking</option>
                     <option value="OVERNIGHT">Overnight Care</option>
                   </select>
+                  {validationErrors.service_type && <span className="error-text" style={{ color: 'var(--accent-red, #f44336)', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>{validationErrors.service_type}</span>}
                 </div>
 
-                <div className="field" style={{ marginBottom: '24px' }}>
+                <div className={`field ${validationErrors.selected_dates ? 'field-error' : ''}`} style={{ marginBottom: '24px' }}>
                   <label>Visit Dates *</label>
-                  <div className="intake-date-picker-card">
+                  {validationErrors.selected_dates && (
+                    <div className="validation-error-alert" style={{ color: 'var(--accent-red, #f44336)', fontSize: '0.9rem', marginBottom: '10px', fontWeight: '500' }}>
+                      ⚠️ {validationErrors.selected_dates}
+                    </div>
+                  )}
+                  <div className={`intake-date-picker-card ${validationErrors.selected_dates ? 'error-highlight' : ''}`} style={{ border: validationErrors.selected_dates ? '2px solid var(--accent-red, #f44336)' : undefined }}>
                     
                     {/* Client-friendly Range Helper */}
                     <div className="range-helper-container">
@@ -283,6 +334,7 @@ const IntakeForm = () => {
                               dates.push(`${y}-${m}-${d}`);
                               curr.setDate(curr.getDate() + 1);
                             }
+                            setValidationErrors(prev => ({ ...prev, selected_dates: null }));
                             setFormData(prev => {
                               const existing = new Set(prev.selected_dates || []);
                               dates.forEach(d => existing.add(d));
@@ -298,6 +350,7 @@ const IntakeForm = () => {
                     <DatePickerGrid
                       selectedDates={formData.selected_dates || []}
                       onDateToggle={(dateStr) => {
+                        setValidationErrors(prev => ({ ...prev, selected_dates: null }));
                         setFormData(prev => {
                           const current = prev.selected_dates || [];
                           if (current.includes(dateStr)) {
@@ -439,10 +492,20 @@ const IntakeForm = () => {
             {step === 3 && (
               <div className="form-step-content">
                 <h3 style={{ marginBottom: '24px' }}>Tell us about your pets</h3>
+                {Object.keys(validationErrors).length > 0 && (
+                  <div className="validation-summary-error" style={{ color: 'var(--accent-red, #f44336)', backgroundColor: 'rgba(244, 67, 54, 0.1)', border: '1px solid var(--accent-red, #f44336)', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '0.9rem', fontWeight: '500' }}>
+                    ⚠️ Please provide details for at least one pet.
+                  </div>
+                )}
+                {validationErrors.pets && (
+                  <div className="validation-error-alert" style={{ color: 'var(--accent-red, #f44336)', fontSize: '0.9rem', marginBottom: '16px', fontWeight: '500' }}>
+                    ⚠️ {validationErrors.pets}
+                  </div>
+                )}
                 
                 {/* Release 4: Multi-pet repeatable entry */}
                 {(formData.pets || [{name: '', species: 'DOG', breed: '', age: '', feeding_notes: '', medication_notes: '', behavior_notes: ''}]).map((pet, idx) => (
-                  <div key={idx} style={{ marginBottom: '24px', padding: '20px', border: '1px solid var(--border)', borderRadius: '12px', position: 'relative' }}>
+                  <div key={idx} style={{ marginBottom: '24px', padding: '20px', border: validationErrors.pets ? '1px solid var(--accent-red, #f44336)' : '1px solid var(--border)', borderRadius: '12px', position: 'relative' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                       <h4 style={{ margin: 0 }}>Pet {idx + 1}</h4>
                       {(formData.pets || []).length > 1 && (
@@ -450,16 +513,18 @@ const IntakeForm = () => {
                           const updated = [...(formData.pets || [])];
                           updated.splice(idx, 1);
                           setFormData({...formData, pets: updated});
+                          if (validationErrors.pets) setValidationErrors(prev => ({ ...prev, pets: null }));
                         }} style={{ background: 'none', border: 'none', color: 'var(--danger, #dc3545)', cursor: 'pointer', fontSize: '0.85rem' }}>Remove</button>
                       )}
                     </div>
                     <div className="grid" style={{ marginBottom: '12px' }}>
-                      <div className="field">
+                      <div className={`field ${validationErrors.pets ? 'field-error' : ''}`}>
                         <label>Pet Name *</label>
                         <input type="text" value={pet.name} onChange={(e) => {
                           const updated = [...(formData.pets || [])];
                           updated[idx] = {...updated[idx], name: e.target.value};
                           setFormData({...formData, pets: updated});
+                          if (validationErrors.pets) setValidationErrors(prev => ({ ...prev, pets: null }));
                         }} placeholder="e.g. Luna" required />
                       </div>
                       <div className="field">

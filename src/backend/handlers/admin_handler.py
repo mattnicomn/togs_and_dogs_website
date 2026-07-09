@@ -2324,7 +2324,6 @@ def handler(event, context):
                     print(f"WARNING: Failed to parse payment_email_sent_at '{last_sent_str}': {parse_err}")
 
             # 9. Trigger email send (mocked/stubbed if dry run / disabled)
-            from common.notifications.service import notify_event
             notify_res = notify_event('PAYMENT_LINK_EMAIL', request_item)
             if not notify_res.get('success'):
                 # Safe error handling if the send failed
