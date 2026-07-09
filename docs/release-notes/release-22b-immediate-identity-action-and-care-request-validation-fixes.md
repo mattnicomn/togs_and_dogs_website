@@ -37,26 +37,38 @@
 
 ## Verification Results
 
-### Backend Unit Tests
-Passed 9/9 backend unit tests:
+### 1. API Gateway Route & Integration Verification
+* **Path Matching:**
+  * `POST /admin/staff/{staff_id}/reset-password`
+  * `POST /admin/staff/{staff_id}/set-temp-password`
+* **Lambda Integration:** Confirmed both methods use `type = "AWS_PROXY"` and integrate directly with the admin Lambda handler (`var.admin_handler_invoke_arn`). Only `OPTIONS` routes use mock integrations for CORS.
+* **Redeployment Triggers:** Added all new resources and integrations to the `depends_on` and `triggers.redeployment` lists of `aws_api_gateway_deployment.main` inside `modules/api/main.tf` to guarantee that applying Terraform correctly updates the active stage.
+
+### 2. Backend Unit Tests
+Passed all 23 targeted and regression unit tests:
 ```powershell
 $env:PYTHONPATH="src/backend"
+# Verify 22B and 21G tests
 pytest tests/backend/test_r22b_resend_invite_fix.py tests/backend/test_r21g_google_token_isolation.py
+# Verify legacy login control and staff cleanup tests
+$env:TENANT_RESOLUTION_MODE="single"
+pytest tests/backend/test_r8s_login_controls.py tests/backend/test_r8u_staff_cleanup.py
 ```
-* **Output:** `9 passed in 1.67s`
+* **Output:** `9 passed` (22B/21G), `14 passed` (R8S/R8U)
+* **Legacy Test Fixes:** Resolved process-level environment variable pollution caused by `test_r21g_google_token_isolation.py` setting `TENANT_RESOLUTION_MODE` to `multi` at the module scope. Also added `mock_entitlement` fixtures to bypass active tenant database checks when running legacy tests against global mocks.
 
-### Frontend Compilation
+### 3. Frontend Compilation
 Compiled the static frontend assets successfully:
 ```powershell
 cd web
 npm run build
 ```
-* **Output:** `Vite build completed in 398ms with 0 errors.`
+* **Output:** `Vite build completed in 355ms with 0 errors.`
 * **Generated bundle:** `dist/assets/index-BVmvw1mJ.js` (not committed).
 
 ---
 
 ## Deployment Requirements for Future Releases
-* **Terraform Apply:** Required to create the `/admin/staff/...` API Gateway resources, methods, integrations, and CORS mapping.
+* **Terraform Apply:** Required to create the `/admin/staff/...` API Gateway resources, methods, integrations, and CORS mapping, and trigger an API Gateway stage deployment.
 * **Backend Lambda Deploy:** Required to update the `admin_handler` Lambda with the unbound local import fix.
 * **Frontend Static Deploy:** Required to update the single-page application with the click bubbling and validation UX improvements.
