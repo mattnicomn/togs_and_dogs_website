@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-09 (Release 22C)
+**Last Updated:** 2026-07-09 (Release 22D Planning)
 
 ---
 
@@ -63,8 +63,9 @@
 
 ## Latest Completed Releases
 
-- 22C: Immediate Identity Action and Care Request Validation Fixes Production Deployment (✅ DEPLOYED — Manually Validated Pending 2026-07-09)
-- 22B: Immediate Identity Action and Care Request Validation Fixes (✅ PASS - Pre-Deploy / Deployed via 22C 2026-07-09)
+- 22D: Care Request Date Validation Copy and Auto-Fill UX Polish (📋 PLANNING — 2026-07-09)
+- 22C: Immediate Identity Action and Care Request Validation Fixes Production Deployment (⚠️ PARTIALLY VALIDATED — 22D follow-up required — 2026-07-09)
+- 22B: Immediate Identity Action and Care Request Validation Fixes (✅ PASS — Pre-Deploy / Deployed via 22C 2026-07-09)
 - 22A: Identity/Profile Management and Care Request Validation Defect Triage (✅ PASS — 2026-07-09)
 - 21H: Google Per-Tenant Token Isolation Production Deployment and Validation (✅ PASS — Manually Validated 2026-07-09)
 - 21G: Google Per-Tenant Token Isolation Implementation (✅ PASS — 2026-07-02)
@@ -91,4 +92,4 @@
 
 ## Next Recommended Action
 
-**Next: Manual Matthew validation for 22C** — Validate staff card click bubbling fix and /book care request date/field validation UX in production. After validation, identify next backlog priorities from `docs/backlog/saas-maturity-and-multi-business-owner-readiness.md`.
+**Next: Release 22D implementation** — Refine /book care request date validation copy and Auto-fill button UX (frontend-only). Three open questions for Matthew: (1) Preferred Visit Windows required? (2) Button label preference. (3) Summary itemized list? See `docs/release-notes/release-22d-care-request-date-validation-ux-polish.md`.

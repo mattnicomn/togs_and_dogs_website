@@ -1,7 +1,7 @@
-﻿# Release 22C — Immediate Identity Action and Care Request Validation Fixes Production Deployment
+# Release 22C — Immediate Identity Action and Care Request Validation Fixes Production Deployment
 
 **Release Date:** 2026-07-09
-**Status:** DEPLOYED
+**Status:** PARTIALLY VALIDATED — 22D follow-up required (see below)
 **Deployed By:** Matthew (explicit approval) + Antigravity AI agent
 
 ---
@@ -152,19 +152,36 @@ Actions:
 | No tenant metadata modified | PASS |
 | No production data created | PASS |
 
-### Manual Matthew Validation — PENDING
+### Manual Matthew Validation — PARTIAL RESULTS (2026-07-09)
 
-A. Staff Management (/admin -> Staff Management):
-- Click disabled/protected profile buttons — confirm they do NOT scroll to top or open edit
-- Confirm normal editable staff cards still open edit when clicking card or edit button
-- Do not confirm actions that send emails or set passwords
+#### A. Staff Management — Partially Validated
 
-B. /book Care Request Form:
-- Advance without selecting a service — confirm inline field-level error appears
-- Advance without selecting a date — confirm calendar section is highlighted red
-- Confirm page scrolls/focuses to the invalid field
-- Confirm the form does NOT submit without completing required fields
-- Do not submit production test data
+| Check | Result |
+|---|---|
+| Resend Invite — Ryan York | PASS — invite sent successfully |
+| Resend Invite — USmissionhero | DEFERRED — "Cognito user not found" (known orphaned legacy Cognito linkage from 22A; separate cleanup/relink work item) |
+| Disabled/protected profile button bubbling | NOT CONFIRMED — no disabled/protected profile buttons were visible in the current view to validate |
+| No live password reset or temp password action triggered | CONFIRMED — Matthew did not trigger any password actions |
+
+#### B. /book Care Request Form — Improved, but UX refinement needed
+
+| Check | Result |
+|---|---|
+| Inline field-level error appears | PASS — validation appears inline |
+| Calendar/date section highlighted on error | PASS — calendar section is highlighted |
+| Scroll/focus to invalid field | PASS — page scrolls to invalid field |
+| Form does not submit without required fields | PASS |
+| Validation copy clarity | NEEDS REFINEMENT — user had Start Date and End Date populated but 0/14 days selected; message "Please select at least one visit date" does not explain that entering the date range is not enough until Auto-fill Calendar or manual selection is used |
+| Auto-fill Calendar button appearance | NEEDS REFINEMENT — button does not look sufficiently distinct from surrounding text/controls |
+| Preferred Visit Windows missing — separate inline error | NOT IMPLEMENTED — preferred windows error is not separated from the date error |
+
+#### Summary
+- Staff resend invite fix: **PASS** (Ryan York)
+- Staff route/button behavior: **Partially validated** (disabled button bubbling not confirmed in current view)
+- USmissionhero Cognito linkage: **DEFERRED** — orphaned profile, separate cleanup/relink item
+- /book validation UX: **Improved but not full PASS** — copy and Auto-fill UX need refinement (tracked as Release 22D)
+
+**22C is not closed as full PASS pending Release 22D validation. See Release 22D for the /book UX refinement follow-up.**
 
 ---
 
@@ -199,3 +216,15 @@ B. /book Care Request Form:
 All commits pushed to origin/main.
 
 Final git status: nothing to commit, working tree clean
+
+---
+
+## Follow-Up: Release 22D
+
+Release 22D (Care Request Date Validation Copy and Auto-Fill UX Polish) is recommended to address:
+- Clarify that entering Start Date and End Date does not count as selecting dates until Auto-fill or manual selection is used
+- Rename or visually distinguish the Auto-fill Calendar button
+- Separate Preferred Visit Windows inline error from the date error
+- Simplify top summary error copy
+
+See `docs/release-notes/release-22d-care-request-date-validation-ux-polish.md` for full plan.
