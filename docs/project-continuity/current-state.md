@@ -63,7 +63,7 @@
 
 ## Latest Completed Releases
 
-- 22D: Care Request Date Validation Copy and Auto-Fill UX Polish (📋 PLANNING — 2026-07-09)
+- 22D: Care Request Date Validation Copy and Auto-Fill UX Polish (✅ PASS — Pre-Deploy — 2026-07-09)
 - 22C: Immediate Identity Action and Care Request Validation Fixes Production Deployment (⚠️ PARTIALLY VALIDATED — 22D follow-up required — 2026-07-09)
 - 22B: Immediate Identity Action and Care Request Validation Fixes (✅ PASS — Pre-Deploy / Deployed via 22C 2026-07-09)
 - 22A: Identity/Profile Management and Care Request Validation Defect Triage (✅ PASS — 2026-07-09)
@@ -92,4 +92,4 @@
 
 ## Next Recommended Action
 
-**Next: Release 22D implementation** — Refine /book care request date validation copy and Auto-fill button UX (frontend-only). Three open questions for Matthew: (1) Preferred Visit Windows required? (2) Button label preference. (3) Summary itemized list? See `docs/release-notes/release-22d-care-request-date-validation-ux-polish.md`.
+**Next: Release 22D production deployment** — Deploy the refined /book care request form copy and Auto-fill UX updates to production. After deployment, perform manual validation.

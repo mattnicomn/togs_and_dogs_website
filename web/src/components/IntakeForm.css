@@ -146,13 +146,14 @@
 }
 
 .btn-range-autofill {
-  padding: 10px 16px;
+  padding: 10px 20px;
   white-space: nowrap;
-  border-radius: 8px;
+  border-radius: 999px;
   flex: 0 0 auto;
   font-size: 0.9rem !important;
   font-weight: 700;
   min-height: 44px;
+  border: none;
 }
 
 .date-picker-summary-container {

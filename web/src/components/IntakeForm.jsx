@@ -15,8 +15,8 @@ const IntakeForm = () => {
     range_start: '',
     range_end: '',
     // Release 2: Multi-select visit windows (array)
-    visit_windows: ['ANYTIME'],
-    visit_window: 'ANYTIME', // Legacy field for backward compat
+    visit_windows: [],
+    visit_window: '', // Legacy field for backward compat
     preferred_time: '',
     timing_notes: '',
     // Release 2: Preferred sitter (informational only, does NOT auto-assign)
@@ -73,7 +73,13 @@ const IntakeForm = () => {
     if (currentStep === 2) {
       if (!formData.service_type) errors.service_type = "Service Type is required.";
       if (!formData.selected_dates || formData.selected_dates.length === 0) {
-        errors.selected_dates = "Please select at least one visit date on the calendar.";
+        const hasRange = formData.range_start && formData.range_end;
+        errors.selected_dates = hasRange
+          ? "You entered a date range, but no visit dates are selected yet. Click 'Select Dates from Range' or select dates manually on the calendar below."
+          : "Please select at least one visit date on the calendar, or enter a Start Date and End Date and click 'Select Dates from Range'.";
+      }
+      if (!formData.visit_windows || formData.visit_windows.length === 0) {
+        errors.visit_windows = "Please select at least one preferred visit window.";
       }
     }
     if (currentStep === 3) {
@@ -265,7 +271,15 @@ const IntakeForm = () => {
                 <h3 style={{ marginBottom: '24px' }}>When do you need care?</h3>
                 {Object.keys(validationErrors).length > 0 && (
                   <div className="validation-summary-error" style={{ color: 'var(--accent-red, #f44336)', backgroundColor: 'rgba(244, 67, 54, 0.1)', border: '1px solid var(--accent-red, #f44336)', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '0.9rem', fontWeight: '500' }}>
-                    ⚠️ Please select your dates and visit windows.
+                    <div style={{ fontWeight: '600', marginBottom: validationErrors.selected_dates && validationErrors.visit_windows ? '8px' : '0' }}>
+                      ⚠️ Please complete the highlighted schedule fields below.
+                    </div>
+                    {validationErrors.selected_dates && validationErrors.visit_windows && (
+                      <ul style={{ margin: '0 0 0 20px', padding: '0', listStyleType: 'disc' }}>
+                        <li>Visit Dates</li>
+                        <li>Preferred Visit Windows</li>
+                      </ul>
+                    )}
                   </div>
                 )}
                 <div className={`field ${validationErrors.service_type ? 'field-error' : ''}`} style={{ marginBottom: '24px' }}>
@@ -318,7 +332,8 @@ const IntakeForm = () => {
                           />
                         </div>
                         <button 
-                          className="button-secondary btn-range-autofill" 
+                          type="button"
+                          className="button-primary btn-range-autofill" 
                           onClick={(e) => {
                             e.preventDefault();
                             if (!formData.range_start || !formData.range_end) return;
@@ -342,7 +357,7 @@ const IntakeForm = () => {
                             });
                           }}
                         >
-                          Auto-fill Calendar
+                          Select Dates from Range
                         </button>
                       </div>
                     </div>
@@ -391,12 +406,25 @@ const IntakeForm = () => {
                 </div>
 
                 {/* Release 2: Multi-select visit window checkboxes */}
-                <div className="field" style={{ marginBottom: '24px' }}>
-                  <label>Preferred Visit Windows</label>
+                <div className={`field ${validationErrors.visit_windows ? 'field-error error-highlight' : ''}`} style={{ marginBottom: '24px' }}>
+                  <label>Preferred Visit Windows *</label>
                   <p className="field-hint" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
                     Select one or more time windows that work for you.
                   </p>
-                  <div className="visit-window-checkboxes" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                  {validationErrors.visit_windows && (
+                    <div className="validation-error-alert" style={{ color: 'var(--accent-red, #f44336)', fontSize: '0.9rem', marginBottom: '10px', fontWeight: '500' }}>
+                      ⚠️ {validationErrors.visit_windows}
+                    </div>
+                  )}
+                  <div className="visit-window-checkboxes" style={{ 
+                    display: 'flex', 
+                    flexWrap: 'wrap', 
+                    gap: '10px',
+                    border: validationErrors.visit_windows ? '2px solid var(--accent-red, #f44336)' : '1px dashed transparent',
+                    padding: validationErrors.visit_windows ? '12px' : '0',
+                    borderRadius: validationErrors.visit_windows ? '8px' : '0',
+                    backgroundColor: validationErrors.visit_windows ? 'rgba(244, 67, 54, 0.03)' : 'transparent'
+                  }}>
                     {[
                       { value: 'MORNING', label: 'Morning (7–10 AM)' },
                       { value: 'MIDDAY', label: 'Midday (11 AM–2 PM)' },
@@ -416,10 +444,8 @@ const IntakeForm = () => {
                             onChange={() => {
                               let newWindows;
                               if (opt.value === 'ANYTIME') {
-                                // ANYTIME is mutually exclusive — selecting it clears others
                                 newWindows = isChecked ? [] : ['ANYTIME'];
                               } else {
-                                // Selecting a specific window clears ANYTIME
                                 const withoutAnytime = formData.visit_windows.filter(w => w !== 'ANYTIME');
                                 if (isChecked) {
                                   newWindows = withoutAnytime.filter(w => w !== opt.value);
@@ -427,12 +453,15 @@ const IntakeForm = () => {
                                   newWindows = [...withoutAnytime, opt.value];
                                 }
                               }
-                              // Default to ANYTIME if nothing selected
-                              if (newWindows.length === 0) newWindows = ['ANYTIME'];
+                              
+                              if (newWindows.length > 0) {
+                                setValidationErrors(prev => ({ ...prev, visit_windows: null }));
+                              }
+                              
                               setFormData({
                                 ...formData, 
                                 visit_windows: newWindows,
-                                visit_window: newWindows.includes('ANYTIME') ? 'ANYTIME' : newWindows[0]
+                                visit_window: newWindows.includes('ANYTIME') ? 'ANYTIME' : (newWindows[0] || '')
                               });
                             }}
                             style={{ display: 'none' }}
