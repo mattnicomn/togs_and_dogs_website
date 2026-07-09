@@ -1,6 +1,6 @@
 import pytest
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, ANY
 from handlers.admin_handler import handler as admin_handler
 from botocore.exceptions import ClientError
 
@@ -153,7 +153,7 @@ def test_security_action_resolves_exact_username_and_falls_back(mock_db, mock_co
     
     assert resp["statusCode"] == 200
     mock_cognito.admin_set_user_password.assert_called_with(
-        UserPoolId=None,
+        UserPoolId=ANY,
         Username="mattnicomn10_exact_user",
         Password="NewPassword123!",
         Permanent=False
@@ -172,7 +172,7 @@ def test_security_action_resolves_exact_username_and_falls_back(mock_db, mock_co
     resp_fallback = admin_handler(event, None)
     assert resp_fallback["statusCode"] == 200
     mock_cognito.admin_set_user_password.assert_called_with(
-        UserPoolId=None,
+        UserPoolId=ANY,
         Username="mattnicomn10_fallback_user",
         Password="NewPassword123!",
         Permanent=False

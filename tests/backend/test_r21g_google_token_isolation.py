@@ -4,13 +4,13 @@ import pytest
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timezone
 
-# Set required env vars
+# Set required env vars (safe module-level defaults — do NOT include TENANT_RESOLUTION_MODE here;
+# that is set per-test via the autouse fixture below to avoid polluting other test files)
 os.environ['DEFAULT_COMPANY_ID'] = 'tog_and_dogs'
 os.environ['DATA_TABLE_NAME'] = 'test-table'
 os.environ['ADMIN_USER_POOL_ID'] = 'us-east-1_xxxx'
 os.environ['GOOGLE_CLIENT_CREDS_NAME'] = 'google-creds'
 os.environ['GOOGLE_USER_TOKENS_NAME'] = 'togs-and-dogs-prod/google/user-tokens'
-os.environ['TENANT_RESOLUTION_MODE'] = 'multi'
 
 from common.google_calendar import (
     resolve_google_token_secret_name,
@@ -49,6 +49,16 @@ def make_event(path, http_method='GET', groups=None, custom_company_id=None, ema
     if body:
         event['body'] = json.dumps(body)
     return event
+
+@pytest.fixture(autouse=True)
+def _set_multi_tenant_mode():
+    """Scope TENANT_RESOLUTION_MODE=multi to this file only using patch.dict.
+    This prevents module-level os.environ mutation from polluting other test files
+    that expect single-tenant mode when collected in the same pytest session.
+    """
+    with patch.dict(os.environ, {'TENANT_RESOLUTION_MODE': 'multi'}):
+        yield
+
 
 class TestGoogleTokenIsolation:
 
