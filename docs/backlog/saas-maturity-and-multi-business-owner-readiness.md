@@ -148,7 +148,7 @@ Start second-tenant creation only when:
 5. ❌ Matthew explicitly approves second-tenant creation
 6. ⏳ EIN resolved + live payments working (for billing portal only — not required for dry run)
 7. ⏳ Ryan invitation deferred until 19A re-evaluation gate
-8. ✅ Google Calendar per-tenant token isolation implemented in code and tests (21G pre-deploy)
+8. ✅ Google Calendar per-tenant token isolation deployed and validated in production (21H — PASS)
 
 **Updated 2026-06-21 (17W):** Tenant provisioning script (`scripts/provision_tenant.py`) implemented. Dry-run mode is safe. Apply mode requires explicit gate approval. Company ID resolution audit completed — `custom:company_id` claim correctly takes precedence. Known risk documented: a Cognito user without `custom:company_id` set falls through to `DEFAULT_COMPANY_ID` ("tog_and_dogs"). Remediation required before any second-tenant Cognito user is created (post-auth Lambda trigger or strict Cognito user attribute enforcement).
 
@@ -199,6 +199,7 @@ Start second-tenant creation only when:
 **Updated 2026-06-26 (19F):** Completed Cognito owner user creation design planning, including group mapping rules and message suppression configuration.
 
 **Updated 2026-06-26 (19G):** Prepared the final checkpoint and runbook for creating the Cognito owner user for `test_tenant_alpha`. Confirmed the environment pre-flight status (active tenant, strict resolution mode, group names, zero existing users) and specified the exact CLI commands, placeholders, and approval gates.
+
 **Updated 2026-06-26 (19H):** Executed Cognito owner user creation for `test_tenant_alpha` using Cognito-generated temporary invitations. Manual validation of this user login failed due to tenant isolation defects. Remediation deployed and revalidated as PARTIAL PASS (Data Remediated, Display Pending) in Release 19M.
 
 **Updated 2026-06-27 (19I):** Conducted read-only triage and defect source analysis for the four isolation issues. Identified that Google Calendar credentials, Cognito staff lists, and client lists lack tenant scoping (`custom:company_id` check), and the dashboard branding remains hardcoded on the frontend. Remediation planned and deployed in 19K-19M; data/access remediation verified as PASS, display branding remediation pending.
@@ -226,3 +227,5 @@ Start second-tenant creation only when:
 **Updated 2026-07-02 (21E):** Deployed tenant calendar provider metadata defaults code and frontend assets to production. Ran Terraform apply to update all 13 backend Lambda function packages with the new metadata helper and endpoint updates. Synced the built Vite frontend assets to S3 and invalidated the CloudFront CDN cache distribution `E35L00QPA2IRCY`. Confirmed live index serves the new 21E bundle. All automated smoke validations passed. Matthew completed manual validation and confirmed checklists pass.
 
 **Updated 2026-07-09 (21G):** Implemented backend per-tenant Google token secret resolution and scoped token storage callback. Resolves token paths dynamically using metadata config or fallback legacy defaults. Restricts callback/initiation endpoints for tenants without Google enabled, and shields the legacy global secret fallback from deletions/mutations on disconnect. Created 8 new unit tests in `test_r21g_google_token_isolation.py` and verified all 110 backend tests pass. Matthew completed manual validation and confirmed checklists pass.
+
+**Updated 2026-07-09 (21H):** Deployed the Google Calendar per-tenant token isolation backend Lambda package updates to production. Ran Terraform plan/apply (13 Lambda resources updated in-place) and completed automated validation of the default tenant compatibility, second tenant token isolation, Google OAuth connection gating, and platform admin detail response mappings. Checked metric alarms (0 active alarms).

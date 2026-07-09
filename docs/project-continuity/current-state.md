@@ -52,7 +52,7 @@
 | Tenant provisioning script | ✅ Dry run validated (19B) |
 | Tenant display branding | ✅ Dynamic brand name, shell logo, and footer separated by route (19N pre-deploy) |
 | Tenant disable & restore | ✅ Gated & Validated in Production (20F — PASS) |
-| Google Calendar Per-Tenant Token Isolation | ⏳ Implemented (21G pre-deploy) |
+| Google Calendar Per-Tenant Token Isolation | ✅ Deployed & Validated (21H — PASS) |
 
 ## Current Blockers
 
@@ -63,8 +63,10 @@
 
 ## Latest Completed Releases
 
-- 21G: Google Per-Tenant Token Isolation Implementation (⏳ Implemented/Pre-Deploy — 2026-07-09)
+- 21H: Google Per-Tenant Token Isolation Production Deployment and Validation (✅ PASS — 2026-07-09)
+- 21G: Google Per-Tenant Token Isolation Implementation (✅ PASS — 2026-07-02)
 - 21E: Calendar Metadata Defaults Production Deployment and Validation (✅ PASS — Manually Validated 2026-07-02)
+
 
 - 21D: Tenant Calendar Provider Metadata Defaults Implementation (✅ PASS — 2026-07-02)
 - 21B: Calendar UI Unconfigured-State Cleanup (✅ PASS — Manually Validated 2026-07-02)

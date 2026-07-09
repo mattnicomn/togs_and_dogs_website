@@ -3,7 +3,9 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Release 21H: Google Per-Tenant Token Isolation Production Deployment and Validation**](release-21h-google-per-tenant-token-isolation-production-validation.md) (2026-07-09) — ✅ **PASS** — Deployed and validated Release 21G Google per-tenant token isolation backend Lambdas in production; verify compatibility fallback for tog_and_dogs, isolated unconfigured status for test_tenant_alpha, and credential shielding
 - [**Release 21G: Google Per-Tenant Token Isolation Implementation**](release-21g-google-per-tenant-token-isolation-implementation.md) (2026-07-02) — ✅ **PASS** — Implement backend per-tenant Google token secret resolution and scoped token storage callback, protect legacy global fallback from disconnect deletions, gate non-configured tenants, and verify with 8 new unit tests
+
 - [**Release 21E: Calendar Metadata Defaults Production Deployment and Validation**](release-21e-calendar-metadata-defaults-production-deployment-validation.md) (2026-07-02) — ✅ **PASS (Manually Validated)** — Deploy Release 21D calendar provider metadata defaults backend Lambdas and frontend assets in production; verify safe derived config defaults, unconfigured UI fallbacks, and Platform Admin details
 
 - [**Release 21D: Tenant Calendar Provider Metadata Defaults Implementation**](release-21d-tenant-calendar-provider-metadata-defaults-implementation.md) (2026-07-02) — ✅ **PASS** — Implement code-level tenant calendar provider metadata defaults, expose safe metadata fields in tenant-info and Platform Admin API responses, update frontend to check provider, and verify with 7 new tests
