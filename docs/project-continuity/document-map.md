@@ -32,6 +32,7 @@
 | Calendar cancellation fix | `docs/planning/release-18o-google-calendar-event-id-propagation-cancellation-race-remediation-plan.md` |
 | Strict-mode gate review | `docs/planning/release-18q-strict-mode-final-gate-review-preparation-plan.md` |
 | Web/mobile UI parity | `docs/planning/release-18ui-a-web-mobile-ui-parity-review-plan.md` |
+| Identity & Care Request triage | `docs/planning/release-22a-identity-profile-and-care-request-validation-defect-triage.md` |
 
 ## Backlog
 
