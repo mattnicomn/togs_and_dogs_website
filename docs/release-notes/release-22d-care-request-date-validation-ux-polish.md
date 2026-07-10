@@ -1,7 +1,7 @@
 # Release 22D — Care Request Date Validation Copy and Auto-Fill UX Polish
 
 **Release Date:** 2026-07-09
-**Status:** PASS (Pre-Deploy Checkpoint)
+**Status:** PASS (Manually Validated)
 **Type:** Frontend-only (no backend, Terraform, Cognito, or production data changes)
 **Scope:** /book IntakeForm Step 2 validation copy and Auto-fill UX refinement
 
@@ -180,13 +180,11 @@ A. /book Care Request Form — Step 2 (repeat validation):
 
 ---
 
-## Status
-
 - [x] Matthew confirms: Preferred Visit Windows required? (Required)
 - [x] Matthew confirms: Button label preference ("Select Dates from Range")
 - [x] Matthew confirms: Summary itemized list preference (Yes)
 - [x] Implementation (22D pre-deploy)
 - [x] Build verification
-- [ ] Matthew manual validation
-- [ ] Production deployment
-- [ ] 22C closed as PASS after 22D validation
+- [x] Matthew manual validation (validated via Release 22E browser smoke test)
+- [x] Production deployment (completed in Release 22E)
+- [x] 22C closed as PASS after 22D validation
