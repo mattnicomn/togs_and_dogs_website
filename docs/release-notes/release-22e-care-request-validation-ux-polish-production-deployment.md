@@ -1,7 +1,7 @@
-﻿# Release 22E — Care Request Validation UX Polish Production Deployment
+# Release 22E — Care Request Validation UX Polish Production Deployment
 
 **Release Date:** 2026-07-09
-**Status:** PASS (Manually Validated)
+**Status:** PASS (Manually Validated by Matthew)
 **Deployed By:** Matthew (explicit approval) + Antigravity AI agent
 **Type:** Frontend-only (no backend, Terraform, Cognito, or production data changes)
 
@@ -75,6 +75,18 @@ aws s3 sync web/dist/ s3://togs-and-dogs-prod-toganddogs-hosting --delete --prof
 | **Advance to Step 3** | PASS — After validating Step 2 fields, click Next successfully advances to Step 3. |
 | **Submit Request** | PASS — No request submitted, validation checked safely. |
 
+### Manual Matthew Validation — PASS (2026-07-09)
+
+Matthew manually validated the Step 2 Schedule validation on `/book` in production:
+* **Top Summary:** Checked that the top summary displays: “Please complete the highlighted schedule fields below.”
+* **Itemized List:** Checked that missing fields are listed when multiple sections are missing (Visit Dates and Preferred Visit Windows).
+* **Context-Aware Copy:** Confirmed that entering Start Date and End Date without selecting dates shows the clearer range-specific error explaining that the user must click “Select Dates from Range” or manually select dates.
+* **Button Label & Action:** Confirmed the button label is “Select Dates from Range”, is visually distinct, actionable, and clicking it selects the range and clears the error.
+* **Preferred Visit Windows:** Confirmed Preferred Visit Windows is required, has its own inline error, and selecting a preferred window clears the error.
+* **Scroll/Focus:** Confirmed the page correctly scrolls/focuses to invalid sections.
+* **Admin Portal:** Verified `/admin` loads normally.
+* **Safety:** Confirmed no final care request was submitted and no production test data was created.
+
 ---
 
 ## Guardrail Confirmation
@@ -98,14 +110,3 @@ aws s3 sync web/dist/ s3://togs-and-dogs-prod-toganddogs-hosting --delete --prof
 | Commit | Description |
 |---|---|
 | `4f496b5` | Release 22D: Implement Care Request Date Validation Copy and Auto-Fill UX Polish (Pre-Deploy) |
-
----
-
-## Next Steps / Manual Matthew Validation
-
-Matthew is requested to manually review the booking page:
-1. Open `/book` in browser.
-2. Advance through Step 1 to Step 2.
-3. Test validation flow by checking errors, date range selection, and preferred visit windows.
-4. Confirm smooth scrolling/focus behaviors.
-5. Do not submit a request.

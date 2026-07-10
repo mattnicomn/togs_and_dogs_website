@@ -163,7 +163,7 @@ Actions:
 | Disabled/protected profile button bubbling | NOT CONFIRMED — no disabled/protected profile buttons were visible in the current view to validate |
 | No live password reset or temp password action triggered | CONFIRMED — Matthew did not trigger any password actions |
 
-#### B. /book Care Request Form — Improved, but UX refinement needed
+#### B. /book Care Request Form — Improved, but UX refinement needed (Resolved by 22D/22E)
 
 | Check | Result |
 |---|---|
@@ -171,17 +171,17 @@ Actions:
 | Calendar/date section highlighted on error | PASS — calendar section is highlighted |
 | Scroll/focus to invalid field | PASS — page scrolls to invalid field |
 | Form does not submit without required fields | PASS |
-| Validation copy clarity | NEEDS REFINEMENT — user had Start Date and End Date populated but 0/14 days selected; message "Please select at least one visit date" does not explain that entering the date range is not enough until Auto-fill Calendar or manual selection is used |
-| Auto-fill Calendar button appearance | NEEDS REFINEMENT — button does not look sufficiently distinct from surrounding text/controls |
-| Preferred Visit Windows missing — separate inline error | NOT IMPLEMENTED — preferred windows error is not separated from the date error |
+| Validation copy clarity | RESOLVED (22D/22E) — Specific ranges/copy explain that clicking "Select Dates from Range" is required. |
+| Auto-fill Calendar button appearance | RESOLVED (22D/22E) — Renamed to "Select Dates from Range" and styled as a primary pill button. |
+| Preferred Visit Windows missing — separate inline error | RESOLVED (22D/22E) — Made required with separate error. |
 
 #### Summary
 - Staff resend invite fix: **PASS** (Ryan York)
 - Staff route/button behavior: **Partially validated** (disabled button bubbling not confirmed in current view)
 - USmissionhero Cognito linkage: **DEFERRED** — orphaned profile, separate cleanup/relink item
-- /book validation UX: **Improved but not full PASS** — copy and Auto-fill UX need refinement (tracked as Release 22D)
+- /book validation UX: **PASS** — Refined and manually validated in Releases 22D/22E
 
-**22C is not closed as full PASS pending Release 22D validation. See Release 22D for the /book UX refinement follow-up.**
+**Releases 22D and 22E resolved the /book validation UX concerns identified during Release 22C validation. The 22C deployment is considered healthy; only Cognito orphaned relinking and staff disabled button validation remain deferred/pending.**
 
 ---
 
