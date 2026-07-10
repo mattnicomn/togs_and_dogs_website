@@ -3,6 +3,9 @@
 ## Overview
 Release 22L addresses a visibility gap in the Admin Portal where clients' pending booking cancellation requests (`CANCELLATION_REQUESTED`) were completely invisible to administrators. This frontend-only fix ensures that cancellation requests are visible, countable, and actionable within the appropriate admin queues without modifying the backend or DynamoDB data.
 
+> [!NOTE]
+> These changes were deployed to production in **Release 22M** using a temporary hotfix branch to bypass the paused Release 22J Profile Editor changes.
+
 ## Scope of Changes
 
 ### 1. Frontend Status Refactoring (`web/src/components/AdminDashboard.jsx`)

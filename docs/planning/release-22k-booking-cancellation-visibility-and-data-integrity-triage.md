@@ -1,6 +1,6 @@
 # Triage and Planning — Release 22K: Booking/Cancellation Request Visibility and Data Integrity Triage
 
-**Status:** Resolved (Implemented via Release 22L)  
+**Status:** Resolved (Implemented via Release 22L, Deployed via Release 22M Hotfix)  
 **Type:** Read-Only Investigation & Proposal  
 **Date:** 2026-07-10  
 
