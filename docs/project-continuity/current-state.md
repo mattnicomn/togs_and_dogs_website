@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-10 (Release 22H)
+**Last Updated:** 2026-07-10 (Release 22I)
 
 ---
 
@@ -63,6 +63,7 @@
 
 ## Latest Completed Releases
 
+- 22I: Orphaned Identity Detection Production Deployment and Validation (✅ PASS — Deployed & Validated — 2026-07-10)
 - 22H: Orphaned Identity Detection Backend/Frontend Pre-Deploy (✅ PASS — Pre-Deploy — 2026-07-09)
 - 22E: Care Request Validation UX Polish Production Deployment (✅ PASS — Manually Validated — 2026-07-09)
 - 22D: Care Request Date Validation Copy and Auto-Fill UX Polish (✅ PASS — Manually Validated — 2026-07-09)
@@ -94,4 +95,4 @@
 
 ## Next Recommended Action
  
- **Next: Release 22I production deployment** — Deploy Release 22H orphaned identity detection and safe display backend Lambda changes and frontend Static Web App bundle updates to production, followed by manual smoke validation.
+ **Next: Release 22J — Profile Editor MVP Planning and Design** — Design the MVP for the centralized staff profile editor including Cognito re-linking/unlinking/cleanup and safe admin credentials management.
