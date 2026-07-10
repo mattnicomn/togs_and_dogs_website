@@ -3676,12 +3676,11 @@ const AdminDashboard = () => {
               </div>
 
               <h2>Active Staff List</h2>
-              <div className="staff-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+              <div className={`staff-grid${isStaffDrawerOpen ? ' drawer-open' : ''}`} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
                 {staffList.map(s => (
                   <div 
                     key={s.staff_id} 
                     className={`staff-profile-card ${s.staff_id === editingStaffId ? 'selected' : ''}`}
-                    onClick={() => handleEditStaff(s)}
                     style={{ 
                       border: s.staff_id === editingStaffId ? '2px solid var(--accent-color)' : s.is_virtual ? '1px dashed var(--accent-orange)' : '1px solid var(--border-color)', 
                       borderRadius: '12px', 
@@ -3690,7 +3689,7 @@ const AdminDashboard = () => {
                       flexDirection: 'column', 
                       gap: '10px', 
                       backgroundColor: s.staff_id === editingStaffId ? 'var(--bg-muted)' : 'var(--card-bg)',
-                      cursor: 'pointer'
+                      cursor: isStaffDrawerOpen ? 'default' : 'pointer'
                     }}
                   >
                     {s.staff_id === editingStaffId && <div className="selected-indicator">Selected</div>}
@@ -3750,8 +3749,8 @@ const AdminDashboard = () => {
 
               {/* Side Drawer Profile Editor Container */}
               {isStaffDrawerOpen && (
-                <div className="profile-editor-drawer-overlay" onClick={closeStaffDrawer}>
-                  <div className="profile-editor-drawer" onClick={(e) => e.stopPropagation()}>
+                <div className="profile-editor-drawer-overlay" onClick={(e) => e.stopPropagation()}>
+                  <div className="profile-editor-drawer" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                     <div className="drawer-header">
                       <h3>{editingStaffId ? `Manage Staff: ${staffForm.display_name}` : 'Add New Staff Profile'}</h3>
                       <button type="button" className="drawer-close-button" onClick={closeStaffDrawer}>&times;</button>

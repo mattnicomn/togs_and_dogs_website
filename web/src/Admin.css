@@ -2310,6 +2310,9 @@
 }
 
 /* Release 22J: Profile Editor Centralized Side Drawer Styles */
+/* Release 22Q: Drawer Stability Fix — overlay is visual-only (pointer-events: none);
+   drawer panel retains full pointer-events: auto. Click-to-close removed from overlay;
+   drawer only closes via explicit X button. */
 .profile-editor-drawer-overlay {
   position: fixed;
   top: 0;
@@ -2318,10 +2321,14 @@
   height: 100vh;
   background-color: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 1000;
   display: flex;
   justify-content: flex-end;
   animation: fadeInOverlay 0.25s ease-out;
+  /* Overlay is visual-only — do NOT capture pointer events on backdrop.
+     The drawer panel overrides this with pointer-events: auto. */
+  pointer-events: none;
 }
 
 .profile-editor-drawer {
@@ -2336,6 +2343,20 @@
   animation: slideInDrawer 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   color: var(--text-primary, #fff);
   position: relative;
+  /* Drawer panel is fully interactive — restore pointer events */
+  pointer-events: auto;
+  /* Ensure drawer sits above everything including overlay */
+  z-index: 1001;
+  will-change: transform;
+}
+
+/* When drawer is open, suppress staff-card hover transform to prevent
+   layout reflow under the overlay */
+.staff-grid.drawer-open .staff-profile-card:hover,
+.staff-grid.drawer-open .client-profile-card:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: inherit !important;
 }
 
 @keyframes fadeInOverlay {
