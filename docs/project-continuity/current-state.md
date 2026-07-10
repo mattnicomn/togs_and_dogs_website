@@ -96,4 +96,10 @@
 
 ## Next Recommended Action
  
- **Next: Release 22N — Centralized Profile Editor MVP Production Deployment and Validation** — Build and deploy the Release 22J centralized staff Profile Editor side drawer to production, execute S3 sync and CDN cache invalidations, and validate.
+**⚠️ Production/Main Divergence:** Production is running `hotfix/22m-cancellation-visibility-hotfix` (22M hotfix). `main` contains undeployed 22J Profile Editor code. Do NOT deploy from `main` without Matthew's explicit approval of 22J.
+
+Options:
+- Deploy 22J from `main` (if Matthew approves Profile Editor release)
+- Plan controlled cancellation test-record cleanup (if the 2 visible records are stale)
+- Continue with other priorities (calendar, Stripe, etc.) without frontend deployment
+- See `docs/operations/release-22m-production-state-reconciliation.md` for full context
