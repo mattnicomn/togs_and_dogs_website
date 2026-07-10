@@ -68,6 +68,18 @@ def derive_staff_identity_state(profile, cog_match=None):
     """
     is_protected = is_protected_profile(profile)
     
+    # Check if orphaned first: has a cognito_sub but no Cognito match was found
+    sub = profile.get('cognito_sub')
+    if cog_match is None and sub and sub != 'unlinked':
+        return {
+            "identity_state": "orphaned",
+            "identity_status_label": "Orphaned Login",
+            "is_orphaned_identity": True,
+            "is_protected": is_protected,
+            "can_manage_identity": not is_protected,
+            "identity_warning": "This profile references a login that no longer exists."
+        }
+
     if is_protected:
         return {
             "identity_state": "protected",
@@ -111,7 +123,6 @@ def derive_staff_identity_state(profile, cog_match=None):
             }
             
     # No Cognito match found
-    sub = profile.get('cognito_sub')
     if not sub or sub == 'unlinked':
         return {
             "identity_state": "profile_only",
@@ -120,16 +131,6 @@ def derive_staff_identity_state(profile, cog_match=None):
             "is_protected": False,
             "can_manage_identity": True,
             "identity_warning": None
-        }
-    else:
-        # Has a cognito_sub reference but user doesn't exist in Cognito
-        return {
-            "identity_state": "orphaned",
-            "identity_status_label": "Orphaned Login",
-            "is_orphaned_identity": True,
-            "is_protected": False,
-            "can_manage_identity": True,
-            "identity_warning": "This profile references a login that no longer exists."
         }
 
 

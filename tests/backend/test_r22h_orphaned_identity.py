@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 import json
 from unittest.mock import patch, MagicMock
 from handlers.admin_handler import handler as admin_handler
@@ -9,7 +9,7 @@ def test_derive_staff_identity_state_protected():
     # Profile that is protected (admin@toganddogs.com is in the fallback list)
     profile = {
         "email": "admin@toganddogs.com",
-        "cognito_sub": "sub-1"
+        "cognito_sub": "unlinked"
     }
     res = derive_staff_identity_state(profile, None)
     assert res["identity_state"] == "protected"
@@ -18,6 +18,21 @@ def test_derive_staff_identity_state_protected():
     assert res["is_orphaned_identity"] is False
     assert res["can_manage_identity"] is False
     assert res["identity_warning"] is None
+
+
+def test_derive_staff_identity_state_protected_orphaned():
+    # Protected profile that has a cognito_sub but no Cognito match exists
+    profile = {
+        "email": "admin@toganddogs.com",
+        "cognito_sub": "sub-1"
+    }
+    res = derive_staff_identity_state(profile, None)
+    assert res["identity_state"] == "orphaned"
+    assert res["identity_status_label"] == "Orphaned Login"
+    assert res["is_protected"] is True
+    assert res["is_orphaned_identity"] is True
+    assert res["can_manage_identity"] is False
+    assert res["identity_warning"] == "This profile references a login that no longer exists."
 
 
 def test_derive_staff_identity_state_profile_only():
