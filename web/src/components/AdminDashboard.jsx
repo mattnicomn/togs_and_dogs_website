@@ -214,6 +214,7 @@ const AdminDashboard = () => {
   
   const getStatusClass = (status = "") => {
     const s = (status || "").toUpperCase();
+    if (s === "CANCELLATION_REQUESTED") return "status-chip status-chip--urgent";
     if (s.includes("NEW") || s.includes("INTAKE") || s.includes("PENDING") || s.includes("REVIEW")) return "status-chip status-chip--new";
     if (s.includes("PROFILE_CREATED")) return "status-chip status-chip--profile";
     if (s.includes("READY") || s.includes("REQUEST")) return "status-chip status-chip--ready";
@@ -258,7 +259,7 @@ const AdminDashboard = () => {
     if (s === 'ASSIGNED' || s === 'JOB_CREATED' || s === 'SCHEDULED') return "Scheduled with Staff";
     if (s === 'IN_PROGRESS') return "In Progress";
     if (s === 'COMPLETED') return "Visit Completed";
-    if (s === 'CANCELLATION_REQUESTED') return "Cancel Requested";
+    if (s === 'CANCELLATION_REQUESTED') return "Cancellation Requested";
     if (s === 'CANCELLATION_DENIED') return "Cancel Denied";
     if (s === 'CANCELLED') return "Cancelled";
     if (s === 'ARCHIVED' || s === 'ARCHIVE') return "Saved for Records";
@@ -626,9 +627,13 @@ const AdminDashboard = () => {
     // from appearing in Trash. Such records are treated as data integrity issues instead.
     return s === 'DELETED' || s === 'TRASH' || s === 'DELETE';
   };
+  const isCancellationPendingRecord = (item) => {
+    const s = (item.status || "").toUpperCase();
+    return s === 'CANCELLATION_REQUESTED';
+  };
   const isCancelledRecord = (item) => {
     const s = (item.status || "").toUpperCase();
-    return s === 'CANCELLED' || s === 'DECLINED' || s === 'REJECTED' || s === 'CANCELLATION_REQUESTED' || s === 'CANCELLATION_DENIED';
+    return s === 'CANCELLED' || s === 'DECLINED' || s === 'REJECTED' || s === 'CANCELLATION_DENIED';
   };
   const isCompletedRecord = (item) => (item.status || "").toUpperCase() === 'COMPLETED';
   const isRequestLikeRecord = (item) => {
@@ -847,6 +852,9 @@ const AdminDashboard = () => {
           // Release 1: Add RESTORE_APPROVED for controlled recovery.
           state.actions = ["RESTORE_APPROVED", "ARCHIVE", "DELETE"];
           break;
+        case 'CANCELLATION_REQUESTED':
+          state.actions = ["PROCESS_CANCELLATION", "ARCHIVE", "DELETE"];
+          break;
         default:
           state.actions = ["ARCHIVE", "DELETE"];
       }
@@ -884,6 +892,9 @@ const AdminDashboard = () => {
         case 'DECLINED':
           // Release 1: Add RESTORE_APPROVED for controlled recovery from accidental cancellation.
           state.actions = ["RESTORE_APPROVED", "ARCHIVE", "DELETE"];
+          break;
+        case 'CANCELLATION_REQUESTED':
+          state.actions = ["PROCESS_CANCELLATION", "ARCHIVE", "DELETE"];
           break;
         default:
           state.actions = ["CANCEL", "ARCHIVE"];
@@ -4587,7 +4598,8 @@ const AdminDashboard = () => {
                                      'RESTORE_APPROVED': 'Restore to Approved',
                                      'ARCHIVE': 'Archive', 'CREATE_PROFILE': 'Create Profile',
                                      'MOVE_TO_NEW_REQUEST': 'To New Request', 'DELETE': 'Move to Trash',
-                                     'UNARCHIVE': 'Unarchive', 'MARK_TEST': 'Mark as Test', 'UNMARK_TEST': 'Unmark Test'
+                                     'UNARCHIVE': 'Unarchive', 'MARK_TEST': 'Mark as Test', 'UNMARK_TEST': 'Unmark Test',
+                                     'PROCESS_CANCELLATION': 'Review Cancellation'
                                    };
                                    
                                    const isDangerous = ['DELETE', 'CANCEL'].includes(action);
@@ -4600,6 +4612,8 @@ const AdminDashboard = () => {
                                          setOpenMenuId(null);
                                          if (action === 'ARCHIVE') {
                                            setArchiveConfirmModal({ item });
+                                         } else if (action === 'PROCESS_CANCELLATION') {
+                                           handleProcessCancellation(item);
                                          } else {
                                            onReviewAction(item, action); 
                                          }

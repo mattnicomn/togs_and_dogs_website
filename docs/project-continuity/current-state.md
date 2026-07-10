@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-10 (Release 22J)
+**Last Updated:** 2026-07-10 (Release 22L)
 
 ---
 
@@ -63,6 +63,7 @@
 
 ## Latest Completed Releases
 
+- 22L: Pending Cancellation Request Admin Visibility Fix Pre-Deploy (✅ PASS — Pre-Deploy — 2026-07-10)
 - 22J: Centralized Profile Editor MVP Pre-Deploy (✅ PASS — Pre-Deploy — 2026-07-10)
 - 22I: Orphaned Identity Detection Production Deployment and Validation (✅ PASS — Deployed & Validated — 2026-07-10)
 - 22H: Orphaned Identity Detection Backend/Frontend Pre-Deploy (✅ PASS — Pre-Deploy — 2026-07-09)
@@ -74,8 +75,6 @@
 - 21H: Google Per-Tenant Token Isolation Production Deployment and Validation (✅ PASS — Manually Validated 2026-07-09)
 - 21G: Google Per-Tenant Token Isolation Implementation (✅ PASS — 2026-07-02)
 - 21E: Calendar Metadata Defaults Production Deployment and Validation (✅ PASS — Manually Validated 2026-07-02)
-
-
 - 21D: Tenant Calendar Provider Metadata Defaults Implementation (✅ PASS — 2026-07-02)
 - 21B: Calendar UI Unconfigured-State Cleanup (✅ PASS — Manually Validated 2026-07-02)
 - 20F: Disabled Tenant Backend Access Enforcement Production Deployment and Validation (✅ PASS — Manually Validated 2026-07-02)
@@ -96,4 +95,4 @@
 
 ## Next Recommended Action
  
- **Next: Release 22K — Centralized Profile Editor MVP Production Deployment and Validation** — Build and deploy the Release 22J centralized staff Profile Editor side drawer to production, execute S3 sync and CDN cache invalidations, and validate layout responsiveness, unsaved-changes guards, and action restrictions.
+ **Next: Release 22M — Centralized Profile Editor MVP and Cancellation Visibility Production Deployment and Validation** — Build and deploy the Release 22J centralized staff Profile Editor and Release 22L pending cancellation visibility fix to production, execute S3 sync and CDN cache invalidations, and validate.

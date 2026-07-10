@@ -113,11 +113,5 @@
 | 22H | **Orphaned identity detection backend/frontend pre-deploy — PASS (tested & pre-deploy validated 2026-07-09)** |
 | 22I | **Orphaned identity detection production deployment and validation — PASS (manually validated 2026-07-10)** |
 | 22J | **Centralized Profile Editor MVP Pre-Deploy — PASS (tested & pre-deploy validated 2026-07-10)** |
-
-
-
-
-
-
-
-
+| 22K | **Booking/Cancellation Request Visibility and Data Integrity Triage — PASS (triage & planning 2026-07-10)** |
+| 22L | **Pending Cancellation Request Admin Visibility Fix Pre-Deploy — PASS (tested & pre-deploy validated 2026-07-10)** |
