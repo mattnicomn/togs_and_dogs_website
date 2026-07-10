@@ -63,6 +63,8 @@
 
 ## Latest Completed Releases
 
+- 22O: Pending Cancellation Records Review and Cleanup/Processing Plan (✅ Planning Complete — 2026-07-10)
+- 22N: Production Release State Reconciliation After 22M Hotfix (✅ Documentation — 2026-07-10)
 - 22M: Pending Cancellation Visibility Hotfix Production Deployment (✅ PASS — Deployed & Validated — 2026-07-10)
 - 22L: Pending Cancellation Request Admin Visibility Fix Pre-Deploy (✅ PASS — Pre-Deploy — 2026-07-10)
 - 22J: Centralized Profile Editor MVP Pre-Deploy (✅ PASS — Pre-Deploy — 2026-07-10)
@@ -95,11 +97,13 @@
 - 18U: Post-enable strict-mode monitoring checkpoint (PASS)
 
 ## Next Recommended Action
- 
+
 **⚠️ Production/Main Divergence:** Production is running `hotfix/22m-cancellation-visibility-hotfix` (22M hotfix). `main` contains undeployed 22J Profile Editor code. Do NOT deploy from `main` without Matthew's explicit approval of 22J.
 
+**Pending Cancellation Records (2):** Admin → Needs Action shows 2 CANCELLATION_REQUESTED records (Joey Rockwell / Overnight, TestPet_ScenarioB / Pet Sitting). Matthew must classify each as REAL / TEST/STALE / HOLD before any action. See `docs/planning/release-22o-pending-cancellation-records-review-and-cleanup-plan.md`.
+
 Options:
+- Classify and process the 2 pending cancellation records (Matthew decision required — see 22O plan)
 - Deploy 22J from `main` (if Matthew approves Profile Editor release)
-- Plan controlled cancellation test-record cleanup (if the 2 visible records are stale)
 - Continue with other priorities (calendar, Stripe, etc.) without frontend deployment
-- See `docs/operations/release-22m-production-state-reconciliation.md` for full context
+- See `docs/operations/release-22m-production-state-reconciliation.md` for full production divergence context

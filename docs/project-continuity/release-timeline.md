@@ -116,3 +116,5 @@
 | 22K | **Booking/Cancellation Request Visibility and Data Integrity Triage — PASS (triage & planning 2026-07-10)** |
 | 22L | **Pending Cancellation Request Admin Visibility Fix Pre-Deploy — PASS (tested & pre-deploy validated 2026-07-10)** |
 | 22M | **Pending Cancellation Visibility Hotfix Production Deployment — PASS (manually validated 2026-07-10)** |
+| 22N | **Production Release State Reconciliation After 22M Hotfix — Documentation (2026-07-10)** |
+| 22O | **Pending Cancellation Records Review and Cleanup/Processing Plan — Planning (2026-07-10)** |
