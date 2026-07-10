@@ -71,6 +71,11 @@ const AdminDashboard = () => {
   const [isSavingStaff, setIsSavingStaff] = useState(false);
   const [clientLinkPrompt, setClientLinkPrompt] = useState(null);
 
+  // Release 22J: Profile Editor side drawer states
+  const [isStaffDrawerOpen, setIsStaffDrawerOpen] = useState(false);
+  const [selectedStaffForDrawer, setSelectedStaffForDrawer] = useState(null);
+  const [initialFormValues, setInitialFormValues] = useState(null);
+
 
   const [view, setView] = useState('SCHEDULER'); // SCHEDULER or LIST
   const [statusFilter, setStatusFilter] = useState('PENDING_REVIEW');
@@ -1266,6 +1271,9 @@ const AdminDashboard = () => {
         notes: ''
       });
       setEditingStaffId(null);
+      setSelectedStaffForDrawer(null);
+      setStaffLinkPrompt(null);
+      setIsStaffDrawerOpen(false);
       await fetchStaffData();
     } catch (err) {
       if (err.message && err.message.includes("Cognito user already exists")) {
@@ -1562,9 +1570,8 @@ const AdminDashboard = () => {
 
 
   const handleEditStaff = (staff) => {
-    setEditingStaffId(staff.staff_id);
-    setStaffForm({
-      display_name: staff.display_name,
+    const formVals = {
+      display_name: staff.display_name || '',
       role: staff.role || 'Staff',
       email: staff.email || '',
       is_assignable: staff.is_assignable !== false,
@@ -1573,9 +1580,54 @@ const AdminDashboard = () => {
       send_invite: true,
       phone: staff.phone || '',
       notes: staff.notes || ''
-    });
-    setView('STAFF_MGMT');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    setEditingStaffId(staff.staff_id);
+    setStaffForm(formVals);
+    setSelectedStaffForDrawer(staff);
+    setInitialFormValues(formVals);
+    setIsStaffDrawerOpen(true);
+  };
+
+  const handleNewStaff = () => {
+    const defaultVals = {
+      display_name: '',
+      role: 'Staff',
+      email: '',
+      is_assignable: true,
+      assignment_color: 'var(--staff-ryan)',
+      creation_mode: 'onboard',
+      send_invite: true,
+      phone: '',
+      notes: ''
+    };
+    setEditingStaffId(null);
+    setStaffForm(defaultVals);
+    setSelectedStaffForDrawer(null);
+    setInitialFormValues(defaultVals);
+    setIsStaffDrawerOpen(true);
+  };
+
+  const closeStaffDrawer = () => {
+    const hasUnsavedChanges = initialFormValues && (
+      staffForm.display_name !== initialFormValues.display_name ||
+      staffForm.role !== initialFormValues.role ||
+      staffForm.email !== initialFormValues.email ||
+      staffForm.is_assignable !== initialFormValues.is_assignable ||
+      staffForm.assignment_color !== initialFormValues.assignment_color ||
+      staffForm.phone !== initialFormValues.phone ||
+      staffForm.notes !== initialFormValues.notes ||
+      staffForm.creation_mode !== initialFormValues.creation_mode ||
+      staffForm.send_invite !== initialFormValues.send_invite
+    );
+
+    if (hasUnsavedChanges) {
+      if (!window.confirm("You have unsaved changes. Are you sure you want to close?")) {
+        return;
+      }
+    }
+    setEditingStaffId(null);
+    setSelectedStaffForDrawer(null);
+    setIsStaffDrawerOpen(false);
   };
 
 
@@ -3604,236 +3656,13 @@ const AdminDashboard = () => {
               onSelectPet={handleSelectPet}
             />
           ) : view === 'STAFF_MGMT' && ['owner', 'admin'].includes(role) ? (
-
-
             <div className="staff-management-container card" style={{ padding: '24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                <h2>{editingStaffId ? 'Edit Staff Profile' : 'Add New Staff Profile'}</h2>
-                {editingStaffId && (
-                  <button className="button-secondary" onClick={() => {
-                    setEditingStaffId(null);
-                    setStaffForm({
-                      display_name: '',
-                      role: 'Staff',
-                      email: '',
-                      is_assignable: true,
-                      assignment_color: 'var(--staff-ryan)',
-                      creation_mode: 'onboard',
-                      send_invite: true,
-                      phone: '',
-                      notes: ''
-                    });
-
-                  }}>Cancel Edit</button>
-                )}
-              </div>
-              
-              <form onSubmit={handleSaveStaff} style={{ marginBottom: '32px', borderBottom: '1px solid var(--border)', paddingBottom: '32px' }}>
-                {!editingStaffId && (
-                  <div className="field" style={{ display: 'flex', gap: '20px', marginBottom: '24px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                      <input 
-                        type="radio" 
-                        name="creation_mode" 
-                        value="onboard" 
-                        checked={staffForm.creation_mode === 'onboard'} 
-                        onChange={(e) => setStaffForm({ ...staffForm, creation_mode: e.target.value })}
-                      />
-                      Create Login & Profile
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                      <input 
-                        type="radio" 
-                        name="creation_mode" 
-                        value="profile_only" 
-                        checked={staffForm.creation_mode === 'profile_only'} 
-                        onChange={(e) => setStaffForm({ ...staffForm, creation_mode: e.target.value })}
-                      />
-                      Create Profile Only (No Login)
-                    </label>
-                  </div>
-                )}
-
-                <div className="field-groups-container">
-                  {/* Group 1: Login Identity */}
-                  <div className="field-group">
-                    <h4 className="field-group-heading">Login Identity</h4>
-                    <p className="field-group-helper">Primary authentication details. The login identity cannot be modified after creation.</p>
-                    <div className="field">
-                      <label>Email Address {editingStaffId && '(Read-only)'} {staffForm.creation_mode === 'onboard' ? '*' : '(Optional)'}</label>
-                      <input 
-                        type="email" 
-                        className={editingStaffId ? 'read-only-identity' : ''}
-                        value={staffForm.email} 
-                        onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })} 
-                        placeholder="e.g. ryan@example.com"
-                        disabled={!!editingStaffId}
-                        style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                      />
-                    </div>
-                    {editingStaffId && (
-                      <div className="field">
-                        <label>Cognito Username (Read-only)</label>
-                        <input 
-                          type="text" 
-                          className="read-only-identity"
-                          value={staffList.find(s => s.staff_id === editingStaffId)?.cognito_username || staffList.find(s => s.staff_id === editingStaffId)?.email || 'N/A'} 
-                          disabled 
-                          style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                        />
-                      </div>
-                    )}
-                    {staffForm.creation_mode === 'onboard' && !editingStaffId && (
-                      <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
-                        <input 
-                          type="checkbox" 
-                          id="send_invite_cb"
-                          checked={staffForm.send_invite} 
-                          onChange={(e) => setStaffForm({ ...staffForm, send_invite: e.target.checked })} 
-                        />
-                        <label htmlFor="send_invite_cb" style={{ margin: 0 }}>Send setup email with login instructions</label>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Group 2: Profile Details */}
-                  <div className="field-group">
-                    <h4 className="field-group-heading">Profile Details</h4>
-                    <p className="field-group-helper">Public-facing information and internal metadata.</p>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                      <div className="field">
-                        <label>Display Name *</label>
-                        <input 
-                          type="text" 
-                          value={staffForm.display_name} 
-                          onChange={(e) => setStaffForm({ ...staffForm, display_name: e.target.value })} 
-                          placeholder="e.g. Ryan"
-                          required 
-                          style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                        />
-                      </div>
-
-                      <div className="field">
-                        <label>Phone (Optional)</label>
-                        <input 
-                          type="text" 
-                          value={staffForm.phone} 
-                          onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })} 
-                          placeholder="555-123-4567"
-                          style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                        />
-                      </div>
-
-                      <div className="field">
-                        <label>Access Level</label>
-                        <select 
-                          value={staffForm.role} 
-                          onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
-                          disabled={editingStaffId && isProtectedProfile(staffList.find(s => s.staff_id === editingStaffId))}
-                          style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                        >
-                          <option value="Staff">Staff</option>
-                          <option value="Admin">Admin</option>
-                          <option value="owner">Owner</option>
-                        </select>
-                      </div>
-                      
-                      <div className="field">
-                        <label>Assignment Color</label>
-                        <select 
-                          value={staffForm.assignment_color} 
-                          onChange={(e) => setStaffForm({ ...staffForm, assignment_color: e.target.value })}
-                          style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                        >
-                          <option value="var(--staff-ryan)">Orange (Default)</option>
-                          <option value="var(--staff-wife)">Green</option>
-                          <option value="var(--staff-nephew1)">Yellow</option>
-                          <option value="var(--staff-nephew2)">Red</option>
-                          <option value="#9c27b0">Purple</option>
-                          <option value="#2196f3">Blue</option>
-                          <option value="#00bcd4">Cyan</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
-                      <input 
-                        type="checkbox" 
-                        id="is_assignable_cb"
-                        checked={staffForm.is_assignable} 
-                        onChange={(e) => setStaffForm({ ...staffForm, is_assignable: e.target.checked })} 
-                      />
-                      <label htmlFor="is_assignable_cb" style={{ margin: 0 }}>Can be assigned to jobs / bookings</label>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="field" style={{ marginBottom: '24px' }}>
-                  <label>Staff Notes (Internal)</label>
-                  <textarea 
-                    rows="3" 
-                    value={staffForm.notes} 
-                    onChange={(e) => setStaffForm({ ...staffForm, notes: e.target.value })} 
-                    placeholder="Internal scheduling notes"
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                  />
-                </div>
-
-                {staffLinkPrompt && (
-                  <div className="existing-user-warning" style={{ marginBottom: '24px' }}>
-                    <p className="existing-user-warning-title">
-                      <strong>A login account already exists with this email ({staffLinkPrompt.email}).</strong>
-                    </p>
-                    <p className="existing-user-warning-body">
-                      A login account already exists for this email. You can link it to this staff profile instead.
-                    </p>
-                    <div className="existing-user-actions">
-                      <button 
-                        type="button" 
-                        className="link-existing-user-button" 
-                        disabled={isSavingStaff}
-                        onClick={async () => {
-                          try {
-                            setIsSavingStaff(true);
-                            await onboardStaff({ ...staffLinkPrompt, mode: 'create_or_link' });
-                            showNotification("Staff profile linked successfully", "success");
-                            setStaffLinkPrompt(null);
-                            setEditingStaffId(null);
-                            setStaffForm({
-                              display_name: '',
-                              role: 'Staff',
-                              email: '',
-                              is_assignable: true,
-                              assignment_color: 'var(--staff-ryan)',
-                              creation_mode: 'onboard',
-                              send_invite: true,
-                              phone: '',
-                              notes: ''
-                            });
-                            await fetchStaffData();
-                          } catch (err) {
-                            showNotification(err.message || "Failed to link existing user", "error");
-                          } finally {
-                            setIsSavingStaff(false);
-                          }
-                        }}
-                      >
-                        Link Existing User
-                      </button>
-                      <button 
-                        type="button" 
-                        className="existing-user-cancel-button" 
-                        onClick={() => setStaffLinkPrompt(null)}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <button type="submit" className="button-primary" disabled={isSavingStaff} style={{ width: '100%', padding: '12px' }}>
-                  {isSavingStaff ? 'Saving...' : editingStaffId ? 'Update Staff Profile' : 'Create Staff Profile'}
+                <h2>Staff & Profile Management</h2>
+                <button type="button" className="button-primary" onClick={handleNewStaff}>
+                  + Add New Staff
                 </button>
-              </form>
+              </div>
 
               <h2>Active Staff List</h2>
               <div className="staff-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
@@ -3842,7 +3671,16 @@ const AdminDashboard = () => {
                     key={s.staff_id} 
                     className={`staff-profile-card ${s.staff_id === editingStaffId ? 'selected' : ''}`}
                     onClick={() => handleEditStaff(s)}
-                    style={{ border: s.staff_id === editingStaffId ? '2px solid var(--accent-color)' : s.is_virtual ? '1px dashed var(--accent-orange)' : '1px solid var(--border)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: s.staff_id === editingStaffId ? 'var(--bg-muted)' : 'var(--card-bg)' }}
+                    style={{ 
+                      border: s.staff_id === editingStaffId ? '2px solid var(--accent-color)' : s.is_virtual ? '1px dashed var(--accent-orange)' : '1px solid var(--border-color)', 
+                      borderRadius: '12px', 
+                      padding: '16px', 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '10px', 
+                      backgroundColor: s.staff_id === editingStaffId ? 'var(--bg-muted)' : 'var(--card-bg)',
+                      cursor: 'pointer'
+                    }}
                   >
                     {s.staff_id === editingStaffId && <div className="selected-indicator">Selected</div>}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -3855,6 +3693,7 @@ const AdminDashboard = () => {
                       <p style={{ margin: '2px 0' }}><strong>Access Level:</strong> {s.role}</p>
                       {s.email && <p style={{ margin: '2px 0' }}><strong>Email:</strong> {s.email}</p>}
                       <p style={{ margin: '2px 0' }}><strong>Assignable:</strong> {s.is_assignable !== false ? 'Yes' : 'No'}</p>
+                      
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '6px 0' }}>
                         <strong>Access:</strong>
                         {(() => {
@@ -3862,14 +3701,15 @@ const AdminDashboard = () => {
                           return <span className={`access-badge ${status.class}`}>{status.label}</span>
                         })()}
                       </div>
+                      
                       {s.is_orphaned_identity && (
                         <div style={{ 
                           marginTop: '8px', 
                           padding: '8px 12px', 
                           backgroundColor: 'rgba(244, 67, 54, 0.08)', 
-                          border: '1px solid var(--accent-red, #f44336)', 
+                          border: '1px solid var(--danger, #f44336)', 
                           borderRadius: '6px',
-                          color: 'var(--accent-red, #f44336)',
+                          color: 'var(--danger, #f44336)',
                           fontSize: '12px',
                           fontWeight: '500',
                           display: 'flex',
@@ -3881,176 +3721,14 @@ const AdminDashboard = () => {
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
-                      {s.cognito_sub ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <div className="btn-group" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
-                            <span style={{ fontSize: '11px', width: '100%', color: 'var(--text-muted)', marginBottom: '2px' }}>Account Security</span>
-                            <button 
-                              type="button"
-                              className="btn-small" 
-                              style={{ fontSize: '11px', padding: '4px 8px' }}
-                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'resend-invite'); }}
-                              disabled={!['FORCE_CHANGE_PASSWORD', 'UNCONFIRMED'].includes(s.cognito_status) || s.is_orphaned_identity}
-                              title={s.is_orphaned_identity ? 'This login is orphaned' : undefined}
-                            >
-                              Resend Invite
-                            </button>
-                            <button 
-                              type="button"
-                              className="btn-small" 
-                              style={{ fontSize: '11px', padding: '4px 8px' }}
-                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'reset-password'); }}
-                              disabled={isProtectedProfile(s) || isSelf(s) || s.is_orphaned_identity}
-                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot modify your own account security settings' : s.is_orphaned_identity ? 'This login is orphaned' : undefined}
-                            >
-                              Send Password Reset Email
-                            </button>
-                            <button 
-                              type="button"
-                              className="btn-small" 
-                              style={{ fontSize: '11px', padding: '4px 8px' }}
-                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'set-temp-password'); }}
-                              disabled={isProtectedProfile(s) || isSelf(s) || s.is_orphaned_identity}
-                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot modify your own account security settings' : s.is_orphaned_identity ? 'This login is orphaned' : undefined}
-                            >
-                              Set Temporary Password
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button 
-                          type="button"
-                          className="button-secondary" 
-                          style={{ fontSize: '12px', padding: '6px' }} 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setConfirmAction({
-                              type: 'staff', id: s.staff_id, action: 'link-email', name: s.display_name || 'this staff member',
-                              message: `Link a login account to ${s.display_name || 'this staff member'}`,
-                              consequence: "Enter the existing email address to link as their login account.",
-                              variant: 'link-email'
-                            });
-                            setConfirmTypedInput('');
-                          }}
-                        >
-                          Link Login Account
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="btn-group" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
-                      {s.is_virtual ? (
-                        <>
-                          <button 
-                            type="button"
-                            className="btn-small" 
-                            style={{ backgroundColor: 'var(--accent-orange)', color: 'white' }} 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setStaffForm({
-                                display_name: s.display_name,
-                                role: s.role || 'Staff',
-                                email: s.email,
-                                is_assignable: true,
-                                assignment_color: 'var(--staff-ryan)',
-                                creation_mode: 'onboard',
-                                send_invite: false,
-                                phone: '',
-                                notes: ''
-                              });
-                              showNotification("Form populated for " + s.email, "info");
-                            }}
-                          >
-                            Create Profile
-                          </button>
-                          {s.is_active !== false ? (
-                            <button 
-                              type="button"
-                              className="btn-small error" 
-                              disabled={isProtectedProfile(s) || isSelf(s)}
-                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot disable your own account' : undefined}
-                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'disable'); }}
-                            >
-                              Turn Off Login Access
-                            </button>
-                          ) : (
-                            <>
-                              <button 
-                                type="button"
-                                className="btn-small" 
-                                style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} 
-                                onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'enable'); }}
-                              >
-                                Restore Login Access
-                              </button>
-                              <button 
-                                type="button"
-                                className="btn-small error" 
-                                disabled={isProtectedProfile(s) || isSelf(s)}
-                                title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot delete your own account' : undefined}
-                                onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'delete_cognito'); }}
-                              >
-                                Delete Login Account
-                              </button>
-                            </>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <button 
-                            type="button"
-                            className="btn-small" 
-                            onClick={(e) => { e.stopPropagation(); handleEditStaff(s); }}
-                          >
-                            Edit
-                          </button>
-                          {s.is_active !== false ? (
-                            <button 
-                              type="button"
-                              className="btn-small error" 
-                              disabled={isProtectedProfile(s) || isSelf(s)}
-                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot disable your own account' : undefined}
-                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'disable'); }}
-                            >
-                              Turn Off Login Access
-                            </button>
-                          ) : (
-                            <button 
-                              type="button"
-                              className="btn-small" 
-                              style={{ backgroundColor: 'var(--accent-teal)', color: 'white' }} 
-                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'enable'); }}
-                            >
-                              Restore Login Access
-                            </button>
-                          )}
-                          {s.cognito_sub && (
-                            <button 
-                              type="button"
-                              className="btn-small" 
-                              style={{ backgroundColor: '#2196f3', color: 'white' }} 
-                              disabled={isProtectedProfile(s) || isSelf(s) || s.is_orphaned_identity}
-                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot modify your own account' : s.is_orphaned_identity ? 'This login is orphaned' : undefined}
-                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'unlink'); }}
-                            >
-                              Unlink Login
-                            </button>
-                          )}
-                          {s.is_active === false && (
-                            <button 
-                              type="button"
-                              className="btn-small error" 
-                              disabled={isProtectedProfile(s) || isSelf(s)}
-                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot delete your own account' : undefined}
-                              onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'delete_profile'); }}
-                            >
-                              Delete Profile
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
+                    <button 
+                      type="button" 
+                      className="button-secondary" 
+                      style={{ width: '100%', marginTop: 'auto', padding: '8px 12px' }}
+                      onClick={(e) => { e.stopPropagation(); handleEditStaff(s); }}
+                    >
+                      Manage
+                    </button>
                   </div>
                 ))}
 
@@ -4058,6 +3736,414 @@ const AdminDashboard = () => {
                   <p style={{ gridColumn: 'span 3', color: 'var(--text-secondary)', textAlign: 'center', padding: '24px' }}>No active staff profiles found.</p>
                 )}
               </div>
+
+              {/* Side Drawer Profile Editor Container */}
+              {isStaffDrawerOpen && (
+                <div className="profile-editor-drawer-overlay" onClick={closeStaffDrawer}>
+                  <div className="profile-editor-drawer" onClick={(e) => e.stopPropagation()}>
+                    <div className="drawer-header">
+                      <h3>{editingStaffId ? `Manage Staff: ${staffForm.display_name}` : 'Add New Staff Profile'}</h3>
+                      <button type="button" className="drawer-close-button" onClick={closeStaffDrawer}>&times;</button>
+                    </div>
+                    
+                    <div className="drawer-content">
+                      {/* Section 5: Protected Account Guardrails Banner */}
+                      {editingStaffId && selectedStaffForDrawer?.is_protected && (
+                        <div className="drawer-guardrail-banner">
+                          🛡️ <strong>Protected Platform Account</strong><br />
+                          This account is protected to prevent accidental lockout or loss of platform support access.
+                        </div>
+                      )}
+
+                      {/* Section 1: Profile Details Form */}
+                      <div className="drawer-section">
+                        <h4 className="drawer-section-title">Profile Details</h4>
+                        <p className="drawer-section-helper">Public-facing information and internal metadata.</p>
+                        
+                        <form onSubmit={handleSaveStaff}>
+                          {!editingStaffId && (
+                            <div className="field" style={{ display: 'flex', gap: '20px', marginBottom: '16px' }}>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                <input 
+                                  type="radio" 
+                                  name="creation_mode" 
+                                  value="onboard" 
+                                  checked={staffForm.creation_mode === 'onboard'} 
+                                  onChange={(e) => setStaffForm({ ...staffForm, creation_mode: e.target.value })}
+                                />
+                                Create Login & Profile
+                              </label>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                <input 
+                                  type="radio" 
+                                  name="creation_mode" 
+                                  value="profile_only" 
+                                  checked={staffForm.creation_mode === 'profile_only'} 
+                                  onChange={(e) => setStaffForm({ ...staffForm, creation_mode: e.target.value })}
+                                />
+                                Create Profile Only
+                              </label>
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div className="field">
+                              <label>Display Name *</label>
+                              <input 
+                                type="text" 
+                                value={staffForm.display_name} 
+                                onChange={(e) => setStaffForm({ ...staffForm, display_name: e.target.value })} 
+                                placeholder="e.g. Ryan"
+                                required 
+                                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                              />
+                            </div>
+
+                            <div className="field">
+                              <label>Phone (Optional)</label>
+                              <input 
+                                type="text" 
+                                value={staffForm.phone} 
+                                onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })} 
+                                placeholder="555-123-4567"
+                                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                              />
+                            </div>
+
+                            <div className="field">
+                              <label>Access Level</label>
+                              <select 
+                                value={staffForm.role} 
+                                onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
+                                disabled={!!(editingStaffId && selectedStaffForDrawer?.is_protected)}
+                                className={editingStaffId && selectedStaffForDrawer?.is_protected ? 'read-only-field' : ''}
+                                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                              >
+                                <option value="Staff">Staff</option>
+                                <option value="Admin">Admin</option>
+                                <option value="owner">Owner</option>
+                              </select>
+                            </div>
+                            
+                            <div className="field">
+                              <label>Assignment Color</label>
+                              <select 
+                                value={staffForm.assignment_color} 
+                                onChange={(e) => setStaffForm({ ...staffForm, assignment_color: e.target.value })}
+                                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                              >
+                                <option value="var(--staff-ryan)">Orange (Default)</option>
+                                <option value="var(--staff-wife)">Green</option>
+                                <option value="var(--staff-nephew1)">Yellow</option>
+                                <option value="var(--staff-nephew2)">Red</option>
+                                <option value="#9c27b0">Purple</option>
+                                <option value="#2196f3">Blue</option>
+                                <option value="#00bcd4">Cyan</option>
+                              </select>
+                            </div>
+
+                            <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '4px 0' }}>
+                              <input 
+                                type="checkbox" 
+                                id="is_assignable_cb"
+                                checked={staffForm.is_assignable} 
+                                onChange={(e) => setStaffForm({ ...staffForm, is_assignable: e.target.checked })} 
+                              />
+                              <label htmlFor="is_assignable_cb" style={{ margin: 0 }}>Can be assigned to jobs / bookings</label>
+                            </div>
+
+                            <div className="field">
+                              <label>Staff Notes (Internal)</label>
+                              <textarea 
+                                rows="2" 
+                                value={staffForm.notes} 
+                                onChange={(e) => setStaffForm({ ...staffForm, notes: e.target.value })} 
+                                placeholder="Internal scheduling notes"
+                                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                              />
+                            </div>
+                          </div>
+
+                          {staffLinkPrompt && (
+                            <div className="existing-user-warning" style={{ margin: '16px 0' }}>
+                              <p className="existing-user-warning-title">
+                                <strong>A login account already exists with this email ({staffLinkPrompt.email}).</strong>
+                              </p>
+                              <div className="existing-user-actions" style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                                <button 
+                                  type="button" 
+                                  className="button-primary" 
+                                  disabled={isSavingStaff}
+                                  onClick={async () => {
+                                    try {
+                                      setIsSavingStaff(true);
+                                      await onboardStaff({ ...staffLinkPrompt, mode: 'create_or_link' });
+                                      showNotification("Staff profile linked successfully", "success");
+                                      setStaffLinkPrompt(null);
+                                      closeStaffDrawer();
+                                      await fetchStaffData();
+                                    } catch (err) {
+                                      showNotification(err.message || "Failed to link existing user", "error");
+                                    } finally {
+                                      setIsSavingStaff(false);
+                                    }
+                                  }}
+                                >
+                                  Link Existing User
+                                </button>
+                                <button 
+                                  type="button" 
+                                  className="button-secondary" 
+                                  onClick={() => setStaffLinkPrompt(null)}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          <button type="submit" className="button-primary" disabled={isSavingStaff} style={{ width: '100%', padding: '12px', marginTop: '16px' }}>
+                            {isSavingStaff ? 'Saving...' : editingStaffId ? 'Update Staff Profile' : 'Create Staff Profile'}
+                          </button>
+                        </form>
+                      </div>
+
+                      {/* Section 2: Login Identity */}
+                      {editingStaffId && (
+                        <div className="drawer-section">
+                          <h4 className="drawer-section-title">Login Identity</h4>
+                          
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+                            <div className="field">
+                              <label>Email Address {editingStaffId && '(Read-only)'} {staffForm.creation_mode === 'onboard' ? '*' : '(Optional)'}</label>
+                              <input 
+                                type="email" 
+                                className="read-only-field"
+                                value={staffForm.email} 
+                                disabled
+                                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                              />
+                            </div>
+                            <div className="field">
+                              <label>Cognito Username (Read-only)</label>
+                              <input 
+                                type="text" 
+                                className="read-only-field"
+                                value={selectedStaffForDrawer?.cognito_username || selectedStaffForDrawer?.email || 'N/A'} 
+                                disabled 
+                                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                              />
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <strong>Access Status:</strong>
+                              {(() => {
+                                const status = getAccessStatus(selectedStaffForDrawer);
+                                return <span className={`access-badge ${status.class}`}>{status.label}</span>
+                              })()}
+                            </div>
+
+                            {selectedStaffForDrawer?.is_orphaned_identity && (
+                              <div style={{ 
+                                padding: '10px 12px', 
+                                backgroundColor: 'rgba(244, 67, 54, 0.08)', 
+                                border: '1px solid var(--danger, #f44336)', 
+                                borderRadius: '6px',
+                                color: 'var(--danger, #f44336)',
+                                fontSize: '13px',
+                                fontWeight: '600',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                marginTop: '4px'
+                              }}>
+                                ⚠️ This profile references a login that no longer exists.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Section 3: Tenant & Role */}
+                      {editingStaffId && (
+                        <div className="drawer-section">
+                          <h4 className="drawer-section-title">Tenant & Role</h4>
+                          <div style={{ fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <p style={{ margin: 0 }}><strong>Company ID:</strong> {selectedStaffForDrawer?.company_id || 'N/A'}</p>
+                            <p style={{ margin: 0 }}><strong>Access Level Role:</strong> {selectedStaffForDrawer?.role || 'Staff'}</p>
+                            <p style={{ margin: 0 }}><strong>Assignable to Jobs:</strong> {selectedStaffForDrawer?.is_assignable !== false ? 'Yes' : 'No'}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Section 4: Account Security */}
+                      {editingStaffId && (
+                        <div className="drawer-section">
+                          <h4 className="drawer-section-title">Account Security</h4>
+                          <p className="drawer-section-helper">Manage login setup and security credentials.</p>
+                          
+                          {selectedStaffForDrawer?.cognito_sub ? (
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                              <button 
+                                type="button"
+                                className="button-secondary" 
+                                style={{ fontSize: '12px', padding: '8px 12px' }}
+                                onClick={() => executeStaffAction(selectedStaffForDrawer.staff_id, 'resend-invite')}
+                                disabled={!['FORCE_CHANGE_PASSWORD', 'UNCONFIRMED'].includes(selectedStaffForDrawer.cognito_status) || selectedStaffForDrawer.is_orphaned_identity || selectedStaffForDrawer.is_protected}
+                                title={selectedStaffForDrawer.is_protected ? 'Protected accounts cannot be modified' : selectedStaffForDrawer.is_orphaned_identity ? 'This login is orphaned' : undefined}
+                              >
+                                Resend Invite
+                              </button>
+                              <button 
+                                type="button"
+                                className="button-secondary" 
+                                style={{ fontSize: '12px', padding: '8px 12px' }}
+                                onClick={() => executeStaffAction(selectedStaffForDrawer.staff_id, 'reset-password')}
+                                disabled={selectedStaffForDrawer.is_protected || isSelf(selectedStaffForDrawer) || selectedStaffForDrawer.is_orphaned_identity}
+                                title={selectedStaffForDrawer.is_protected ? 'This account is protected and cannot be modified' : isSelf(selectedStaffForDrawer) ? 'You cannot modify your own account security settings' : selectedStaffForDrawer.is_orphaned_identity ? 'This login is orphaned' : undefined}
+                              >
+                                Send Password Reset Email
+                              </button>
+                              <button 
+                                type="button"
+                                className="button-secondary" 
+                                style={{ fontSize: '12px', padding: '8px 12px' }}
+                                onClick={() => executeStaffAction(selectedStaffForDrawer.staff_id, 'set-temp-password')}
+                                disabled={selectedStaffForDrawer.is_protected || isSelf(selectedStaffForDrawer) || selectedStaffForDrawer.is_orphaned_identity}
+                                title={selectedStaffForDrawer.is_protected ? 'This account is protected and cannot be modified' : isSelf(selectedStaffForDrawer) ? 'You cannot modify your own account security settings' : selectedStaffForDrawer.is_orphaned_identity ? 'This login is orphaned' : undefined}
+                              >
+                                Set Temporary Password
+                              </button>
+                            </div>
+                          ) : (
+                            <button 
+                              type="button"
+                              className="button-secondary" 
+                              style={{ width: '100%' }} 
+                              onClick={() => {
+                                setConfirmAction({
+                                  type: 'staff', id: selectedStaffForDrawer.staff_id, action: 'link-email', name: selectedStaffForDrawer.display_name || 'this staff member',
+                                  message: `Link a login account to ${selectedStaffForDrawer.display_name || 'this staff member'}`,
+                                  consequence: "Enter the existing email address to link as their login account.",
+                                  variant: 'link-email'
+                                });
+                                setConfirmTypedInput('');
+                              }}
+                            >
+                              Link Login Account
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Section 6: Danger Zone */}
+                      {editingStaffId && (
+                        <div className="drawer-section">
+                          <div className="danger-zone-box">
+                            <h4>Danger Zone</h4>
+                            <p style={{ fontSize: '12px', margin: '0 0 8px 0', color: 'var(--text-secondary)' }}>These actions are destructive and cannot be undone.</p>
+                            
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {selectedStaffForDrawer?.is_virtual ? (
+                                <>
+                                  {selectedStaffForDrawer?.is_active !== false ? (
+                                    <button 
+                                      type="button"
+                                      className="button-danger" 
+                                      style={{ width: '100%' }}
+                                      disabled={selectedStaffForDrawer.is_protected || isSelf(selectedStaffForDrawer)}
+                                      title={selectedStaffForDrawer.is_protected ? 'This account is protected and cannot be modified' : isSelf(selectedStaffForDrawer) ? 'You cannot disable your own account' : undefined}
+                                      onClick={() => executeStaffAction(selectedStaffForDrawer.staff_id, 'disable')}
+                                    >
+                                      Turn Off Login Access
+                                    </button>
+                                  ) : (
+                                    <>
+                                      <button 
+                                        type="button"
+                                        className="button-primary" 
+                                        style={{ backgroundColor: 'var(--accent-teal)', color: 'white', width: '100%' }} 
+                                        onClick={() => executeStaffAction(selectedStaffForDrawer.staff_id, 'enable')}
+                                      >
+                                        Restore Login Access
+                                      </button>
+                                      <button 
+                                        type="button"
+                                        className="button-danger" 
+                                        style={{ width: '100%' }}
+                                        disabled={selectedStaffForDrawer.is_protected || isSelf(selectedStaffForDrawer)}
+                                        title={selectedStaffForDrawer.is_protected ? 'This account is protected and cannot be modified' : isSelf(selectedStaffForDrawer) ? 'You cannot delete your own account' : undefined}
+                                        onClick={() => executeStaffAction(selectedStaffForDrawer.staff_id, 'delete_cognito')}
+                                      >
+                                        Delete Login Account
+                                      </button>
+                                    </>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  {selectedStaffForDrawer?.is_active !== false ? (
+                                    <button 
+                                      type="button"
+                                      className="button-danger" 
+                                      style={{ width: '100%' }}
+                                      disabled={selectedStaffForDrawer.is_protected || isSelf(selectedStaffForDrawer)}
+                                      title={selectedStaffForDrawer.is_protected ? 'This account is protected and cannot be modified' : isSelf(selectedStaffForDrawer) ? 'You cannot disable your own account' : undefined}
+                                      onClick={() => executeStaffAction(selectedStaffForDrawer.staff_id, 'disable')}
+                                    >
+                                      Turn Off Login Access
+                                    </button>
+                                  ) : (
+                                    <button 
+                                      type="button"
+                                      className="button-primary" 
+                                      style={{ backgroundColor: 'var(--accent-teal)', color: 'white', width: '100%' }} 
+                                      onClick={() => executeStaffAction(selectedStaffForDrawer.staff_id, 'enable')}
+                                    >
+                                      Restore Login Access
+                                    </button>
+                                  )}
+                                  {selectedStaffForDrawer?.cognito_sub && (
+                                    <button 
+                                      type="button"
+                                      className="button-danger" 
+                                      style={{ width: '100%' }}
+                                      disabled={selectedStaffForDrawer.is_protected || isSelf(selectedStaffForDrawer) || selectedStaffForDrawer.is_orphaned_identity}
+                                      title={selectedStaffForDrawer.is_protected ? 'This account is protected and cannot be modified' : isSelf(selectedStaffForDrawer) ? 'You cannot modify your own account' : selectedStaffForDrawer.is_orphaned_identity ? 'This login is orphaned' : undefined}
+                                      onClick={() => executeStaffAction(selectedStaffForDrawer.staff_id, 'unlink')}
+                                    >
+                                      Unlink Login
+                                    </button>
+                                  )}
+                                  {selectedStaffForDrawer?.is_active === false && (
+                                    <button 
+                                      type="button"
+                                      className="button-danger" 
+                                      style={{ width: '100%' }}
+                                      disabled={selectedStaffForDrawer.is_protected || isSelf(selectedStaffForDrawer)}
+                                      title={selectedStaffForDrawer.is_protected ? 'This account is protected and cannot be modified' : isSelf(selectedStaffForDrawer) ? 'You cannot delete your own account' : undefined}
+                                      onClick={() => executeStaffAction(selectedStaffForDrawer.staff_id, 'delete_profile')}
+                                    >
+                                      Delete Profile
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Section 7: Audit History Placeholder */}
+                      <div className="drawer-section">
+                        <h4 className="drawer-section-title">Audit History</h4>
+                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic', margin: '8px 0 0 0' }}>
+                          Audit history will appear here in a future release.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : view === 'CLIENT_MGMT' && ['owner', 'admin'].includes(role) ? (
             renderClientManagement()

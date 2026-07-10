@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-10 (Release 22I)
+**Last Updated:** 2026-07-10 (Release 22J)
 
 ---
 
@@ -63,6 +63,7 @@
 
 ## Latest Completed Releases
 
+- 22J: Centralized Profile Editor MVP Pre-Deploy (✅ PASS — Pre-Deploy — 2026-07-10)
 - 22I: Orphaned Identity Detection Production Deployment and Validation (✅ PASS — Deployed & Validated — 2026-07-10)
 - 22H: Orphaned Identity Detection Backend/Frontend Pre-Deploy (✅ PASS — Pre-Deploy — 2026-07-09)
 - 22E: Care Request Validation UX Polish Production Deployment (✅ PASS — Manually Validated — 2026-07-09)
@@ -95,4 +96,4 @@
 
 ## Next Recommended Action
  
- **Next: Release 22J — Profile Editor MVP Planning and Design** — Design the MVP for the centralized staff profile editor including Cognito re-linking/unlinking/cleanup and safe admin credentials management.
+ **Next: Release 22K — Centralized Profile Editor MVP Production Deployment and Validation** — Build and deploy the Release 22J centralized staff Profile Editor side drawer to production, execute S3 sync and CDN cache invalidations, and validate layout responsiveness, unsaved-changes guards, and action restrictions.
