@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-10 (Release 22Q)
+**Last Updated:** 2026-07-10 (Release 22R)
 
 ---
 
@@ -63,8 +63,9 @@
 
 ## Latest Completed Releases
 
-- 22Q: Profile Editor Drawer Stability and Overlay Interaction Fix Pre-Deploy (✅ PASS — Pre-Deploy — 2026-07-10)
-- 22P: Centralized Profile Editor MVP Production Deployment and Validation (⚠️ Deployed, Manual Validation PENDING — 2026-07-10)
+- 22R: Profile Editor Drawer Stability Fix Production Deployment (✅ PASS — Deployed & Validated — 2026-07-10)
+- 22Q: Profile Editor Drawer Stability and Overlay Interaction Fix Pre-Deploy (✅ PASS — Pre-Deploy, deployed via 22R — 2026-07-10)
+- 22P: Centralized Profile Editor MVP Production Deployment and Validation (✅ PASS — Deployed & Validated — 2026-07-10)
 - 22O: Pending Cancellation Records Review and Cleanup/Processing Plan (✅ Planning Complete — 2026-07-10)
 - 22N: Production Release State Reconciliation After 22M Hotfix (✅ Documentation — 2026-07-10)
 - 22M: Pending Cancellation Visibility Hotfix Production Deployment (✅ PASS — Deployed & Validated — 2026-07-10)
@@ -100,8 +101,7 @@
 
 ## Next Recommended Action
 
-**Production/main divergence resolved by Release 22P.** `main` and production are aligned. The Profile Editor MVP (22J) is now live.
+**Production/main divergence resolved by Release 22P. Drawer stability fixed by Release 22R.** `main` and production are aligned. The Profile Editor MVP (22J) is now live and stable.
 
 **Next options:**
-- Complete manual validation of 22P (Profile Editor drawer, protected/orphaned guardrails, cancellation visibility) and close out the release
-- Continue with next priority feature (calendar, Stripe live mode, second-tenant expansion, etc.)
+- Continue with next priority feature (calendar, Stripe live mode, second-tenant expansion, booking/scheduling improvements, etc.)
