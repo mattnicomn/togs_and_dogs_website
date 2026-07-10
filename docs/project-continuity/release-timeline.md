@@ -110,6 +110,7 @@
 | 22C | **Immediate identity action and care request validation fixes production deployment — PARTIALLY VALIDATED (22D follow-up required 2026-07-09)** |
 | 22D | **Care request date validation copy and auto-fill UX polish — PASS (manually validated 2026-07-09)** |
 | 22E | **Care request validation UX polish production deployment — PASS (manually validated 2026-07-09)** |
+| 22H | **Orphaned identity detection backend/frontend pre-deploy — PASS (tested & pre-deploy validated 2026-07-09)** |
 
 
 

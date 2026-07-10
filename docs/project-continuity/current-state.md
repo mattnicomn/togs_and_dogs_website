@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-10 (Release 22E)
+**Last Updated:** 2026-07-10 (Release 22H)
 
 ---
 
@@ -63,6 +63,7 @@
 
 ## Latest Completed Releases
 
+- 22H: Orphaned Identity Detection Backend/Frontend Pre-Deploy (✅ PASS — Pre-Deploy — 2026-07-09)
 - 22E: Care Request Validation UX Polish Production Deployment (✅ PASS — Manually Validated — 2026-07-09)
 - 22D: Care Request Date Validation Copy and Auto-Fill UX Polish (✅ PASS — Manually Validated — 2026-07-09)
 - 22C: Immediate Identity Action and Care Request Validation Fixes Production Deployment (⚠️ PARTIALLY VALIDATED — 2026-07-09)
@@ -92,5 +93,5 @@
 - 18U: Post-enable strict-mode monitoring checkpoint (PASS)
 
 ## Next Recommended Action
-
-**Next: Manual validation & triage check** — Matthew is requested to manually validate `/book` Step 2 validation UX on the live production site. Once validated, identify next project priorities from `docs/backlog/saas-maturity-and-multi-business-owner-readiness.md`.
+ 
+ **Next: Release 22I production deployment** — Deploy Release 22H orphaned identity detection and safe display backend Lambda changes and frontend Static Web App bundle updates to production, followed by manual smoke validation.

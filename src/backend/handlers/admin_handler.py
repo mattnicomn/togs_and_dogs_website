@@ -55,6 +55,84 @@ def is_cognito_user_in_company(user, company_id, mode):
         return user_company == company_id
 
 
+def derive_staff_identity_state(profile, cog_match=None):
+    """
+    Release 22H: Derives the identity state for a staff profile.
+    Returns a dict containing:
+      - identity_state
+      - identity_status_label
+      - is_orphaned_identity
+      - is_protected
+      - can_manage_identity
+      - identity_warning
+    """
+    is_protected = is_protected_profile(profile)
+    
+    if is_protected:
+        return {
+            "identity_state": "protected",
+            "identity_status_label": "Protected",
+            "is_orphaned_identity": False,
+            "is_protected": True,
+            "can_manage_identity": False,
+            "identity_warning": None
+        }
+        
+    if cog_match:
+        enabled = cog_match.get('Enabled', True)
+        if not enabled:
+            return {
+                "identity_state": "linked_disabled",
+                "identity_status_label": "Login Disabled",
+                "is_orphaned_identity": False,
+                "is_protected": False,
+                "can_manage_identity": True,
+                "identity_warning": None
+            }
+        
+        status = cog_match.get('UserStatus')
+        if status == 'CONFIRMED':
+            return {
+                "identity_state": "linked_active",
+                "identity_status_label": "Login Active",
+                "is_orphaned_identity": False,
+                "is_protected": False,
+                "can_manage_identity": True,
+                "identity_warning": None
+            }
+        else:
+            return {
+                "identity_state": "linked_invited",
+                "identity_status_label": "Invited",
+                "is_orphaned_identity": False,
+                "is_protected": False,
+                "can_manage_identity": True,
+                "identity_warning": None
+            }
+            
+    # No Cognito match found
+    sub = profile.get('cognito_sub')
+    if not sub or sub == 'unlinked':
+        return {
+            "identity_state": "profile_only",
+            "identity_status_label": "No Login",
+            "is_orphaned_identity": False,
+            "is_protected": False,
+            "can_manage_identity": True,
+            "identity_warning": None
+        }
+    else:
+        # Has a cognito_sub reference but user doesn't exist in Cognito
+        return {
+            "identity_state": "orphaned",
+            "identity_status_label": "Orphaned Login",
+            "is_orphaned_identity": True,
+            "is_protected": False,
+            "can_manage_identity": True,
+            "identity_warning": "This profile references a login that no longer exists."
+        }
+
+
 
 def normalize_phone_e164(phone):
     """
@@ -415,6 +493,11 @@ def handler(event, context):
                     s['is_protected'] = is_protected_profile(s)
                     # Release 8U: Unlinked profiles are never assignable
                     s['is_assignable'] = False
+                    
+                    # Derive and apply identity state
+                    identity_info = derive_staff_identity_state(s, None)
+                    s.update(identity_info)
+                    
                     merged_staff.append(s)
                     # Find and mark Cognito user as matched by email to prevent virtual user duplication
                     for cu in cognito_staff:
@@ -441,6 +524,11 @@ def handler(event, context):
                     s['cognito_username'] = cog_match.get('Username')
                     if not s.get('cognito_sub'):
                         s['cognito_sub'] = next((a['Value'] for a in cog_match['Attributes'] if a['Name'] == 'sub'), None)
+                        
+                # Derive and apply identity state
+                identity_info = derive_staff_identity_state(s, cog_match)
+                s.update(identity_info)
+                
                 # Release 6H Phase 2: Include is_protected flag for frontend consumption
                 s['is_protected'] = is_protected_profile(s)
                 # Release 8U: Enforce assignment eligibility — profiles with invalid email or no
@@ -477,6 +565,11 @@ def handler(event, context):
                     "cognito_status": cu.get('UserStatus'),
                     "is_virtual": True
                 }
+                
+                # Derive and apply identity state
+                identity_info = derive_staff_identity_state(v_profile, cu)
+                v_profile.update(identity_info)
+                
                 # Release 6H Phase 2: Include is_protected flag for frontend
                 v_profile['is_protected'] = is_protected_profile(v_profile)
                 # Release 8U: Virtual profiles already have a real cognito_sub; no override needed.

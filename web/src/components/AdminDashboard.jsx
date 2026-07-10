@@ -432,7 +432,29 @@ const AdminDashboard = () => {
   const getAccessStatus = (user) => {
     if (!user) return { label: 'No Data', class: 'status-no-login' };
     
-    // 1. Disabled (Explicitly set to inactive)
+    // Check if backend identity fields exist (Release 22H)
+    if (user.identity_state) {
+      if (user.identity_state === 'protected') {
+        return { label: 'Protected', class: 'status-active' };
+      }
+      if (user.identity_state === 'orphaned') {
+        return { label: 'Orphaned Login', class: 'status-disabled' };
+      }
+      if (user.identity_state === 'profile_only') {
+        return { label: 'No Login', class: 'status-no-login' };
+      }
+      if (user.identity_state === 'linked_active') {
+        return { label: 'Login Active', class: 'status-active' };
+      }
+      if (user.identity_state === 'linked_invited') {
+        return { label: 'Invited', class: 'status-invited' };
+      }
+      if (user.identity_state === 'linked_disabled') {
+        return { label: 'Login Disabled', class: 'status-disabled' };
+      }
+    }
+    
+    // Fallback to legacy UI-derived logic
     if (user.is_active === false) return { label: 'Disabled', class: 'status-disabled' };
     
     // 2. No Login (No Cognito link)
@@ -460,7 +482,7 @@ const AdminDashboard = () => {
     if (cogStat === 'CONFIRMED' && user.is_active !== false) {
       return { label: 'Active', class: 'status-active' };
     }
-
+ 
     // 6. Linked but state unknown
     if (user.cognito_sub) {
         return { label: 'Login Linked', class: 'status-linked' };
@@ -468,6 +490,7 @@ const AdminDashboard = () => {
     
     return { label: 'Unknown', class: 'status-no-login' };
   };
+
 
   const getGoogleStatusConfig = (status) => {
     switch (status) {
@@ -3839,6 +3862,23 @@ const AdminDashboard = () => {
                           return <span className={`access-badge ${status.class}`}>{status.label}</span>
                         })()}
                       </div>
+                      {s.is_orphaned_identity && (
+                        <div style={{ 
+                          marginTop: '8px', 
+                          padding: '8px 12px', 
+                          backgroundColor: 'rgba(244, 67, 54, 0.08)', 
+                          border: '1px solid var(--accent-red, #f44336)', 
+                          borderRadius: '6px',
+                          color: 'var(--accent-red, #f44336)',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}>
+                          ⚠️ This profile references a login that no longer exists.
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
@@ -3851,7 +3891,8 @@ const AdminDashboard = () => {
                               className="btn-small" 
                               style={{ fontSize: '11px', padding: '4px 8px' }}
                               onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'resend-invite'); }}
-                              disabled={!['FORCE_CHANGE_PASSWORD', 'UNCONFIRMED'].includes(s.cognito_status)}
+                              disabled={!['FORCE_CHANGE_PASSWORD', 'UNCONFIRMED'].includes(s.cognito_status) || s.is_orphaned_identity}
+                              title={s.is_orphaned_identity ? 'This login is orphaned' : undefined}
                             >
                               Resend Invite
                             </button>
@@ -3860,8 +3901,8 @@ const AdminDashboard = () => {
                               className="btn-small" 
                               style={{ fontSize: '11px', padding: '4px 8px' }}
                               onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'reset-password'); }}
-                              disabled={isProtectedProfile(s) || isSelf(s)}
-                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot modify your own account security settings' : undefined}
+                              disabled={isProtectedProfile(s) || isSelf(s) || s.is_orphaned_identity}
+                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot modify your own account security settings' : s.is_orphaned_identity ? 'This login is orphaned' : undefined}
                             >
                               Send Password Reset Email
                             </button>
@@ -3870,8 +3911,8 @@ const AdminDashboard = () => {
                               className="btn-small" 
                               style={{ fontSize: '11px', padding: '4px 8px' }}
                               onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'set-temp-password'); }}
-                              disabled={isProtectedProfile(s) || isSelf(s)}
-                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot modify your own account security settings' : undefined}
+                              disabled={isProtectedProfile(s) || isSelf(s) || s.is_orphaned_identity}
+                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot modify your own account security settings' : s.is_orphaned_identity ? 'This login is orphaned' : undefined}
                             >
                               Set Temporary Password
                             </button>
@@ -3989,8 +4030,8 @@ const AdminDashboard = () => {
                               type="button"
                               className="btn-small" 
                               style={{ backgroundColor: '#2196f3', color: 'white' }} 
-                              disabled={isProtectedProfile(s) || isSelf(s)}
-                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot modify your own account' : undefined}
+                              disabled={isProtectedProfile(s) || isSelf(s) || s.is_orphaned_identity}
+                              title={isProtectedProfile(s) ? 'This account is protected and cannot be modified' : isSelf(s) ? 'You cannot modify your own account' : s.is_orphaned_identity ? 'This login is orphaned' : undefined}
                               onClick={(e) => { e.stopPropagation(); executeStaffAction(s.staff_id, 'unlink'); }}
                             >
                               Unlink Login
