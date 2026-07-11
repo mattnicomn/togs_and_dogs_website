@@ -2,7 +2,7 @@
 
 **Release Date:** 2026-07-10
 **Type:** Frontend Production Deployment
-**Status:** ✅ **PASS** — Deployed & Validated in Production (drawer stability fixed via Release 22R)
+**Status:** ❌ **FAILED** — Manual Validation FAILED (superseded by Release 22S/22T stability fixes)
 
 ---
 

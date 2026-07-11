@@ -2,7 +2,7 @@
 
 **Release Date:** 2026-07-10
 **Type:** Frontend Production Deployment
-**Status:** ✅ **PASS** — Deployed & Validated in Production
+**Status:** ❌ **FAILED** — Manual Validation FAILED (superseded by Release 22S/22T)
 
 ---
 
@@ -95,9 +95,9 @@ Release 22R deploys the Release 22Q Profile Editor drawer stability fix to produ
 
 ## 🔄 Release 22P Status
 
-**Release 22P manual validation is now PASS.**
+**Release 22P manual validation is FAILED/PENDING.**
 
-The Profile Editor MVP (22J) is now live and stable in production as of this deployment.
+The Profile Editor MVP (22J) still has flicker and layout/scrollbar issues in production. Deployed fix in Release 22R was insufficient; Release 22S/22T will apply a React Portal and view overflow fixes.
 
 ---
 

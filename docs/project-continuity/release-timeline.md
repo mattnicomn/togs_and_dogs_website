@@ -118,6 +118,7 @@
 | 22M | **Pending Cancellation Visibility Hotfix Production Deployment — PASS (manually validated 2026-07-10)** |
 | 22N | **Production Release State Reconciliation After 22M Hotfix — Documentation (2026-07-10)** |
 | 22O | **Pending Cancellation Records Review and Cleanup/Processing Plan — Planning (2026-07-10)** |
-| 22P | **Centralized Profile Editor MVP Production Deployment and Validation — PASS (deployed & validated 2026-07-10, drawer stability fixed via 22R)** |
+| 22P | **Centralized Profile Editor MVP Production Deployment and Validation — ❌ FAILED (flicker & view overflow scrollbars; superseded by 22S fixes, 2026-07-10)** |
 | 22Q | **Profile Editor Drawer Stability and Overlay Interaction Fix Pre-Deploy — PASS (Pre-Deploy, deployed via 22R, 2026-07-10)** |
-| 22R | **Profile Editor Drawer Stability Fix Production Deployment — PASS (deployed & validated 2026-07-10)** |
+| 22R | **Profile Editor Drawer Stability Fix Production Deployment — ❌ FAILED (persistent scrollbars and flicker; superseded by 22S fixes, 2026-07-10)** |
+| 22S | **Profile Editor Drawer Portal and Viewport Overflow Fix Pre-Deploy — PASS (Pre-Deploy, 2026-07-11)** |

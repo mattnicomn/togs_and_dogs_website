@@ -2310,31 +2310,32 @@
 }
 
 /* Release 22J: Profile Editor Centralized Side Drawer Styles */
-/* Release 22Q: Drawer Stability Fix — overlay is visual-only (pointer-events: none);
-   drawer panel retains full pointer-events: auto. Click-to-close removed from overlay;
-   drawer only closes via explicit X button. */
+/* Release 22Q/22S: Drawer Stability & Portaling Fixes.
+   Overlay blocks background interactions with pointer-events: auto, z-index: 9999.
+   Backdrop-filter blur is removed to avoid GPU flickering.
+   Drawer has stable positioning with 100dvh height and z-index: 10000. */
 .profile-editor-drawer-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
   background-color: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  z-index: 1000;
+  z-index: 9999;
   display: flex;
   justify-content: flex-end;
   animation: fadeInOverlay 0.25s ease-out;
-  /* Overlay is visual-only — do NOT capture pointer events on backdrop.
-     The drawer panel overrides this with pointer-events: auto. */
-  pointer-events: none;
+  overflow: hidden;
+  pointer-events: auto;
 }
 
 .profile-editor-drawer {
-  width: 520px;
-  max-width: 100%;
-  height: 100vh;
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(560px, 100vw);
+  max-width: 100vw;
+  height: 100dvh;
+  box-sizing: border-box;
   background-color: var(--card-bg, #1e1e1e);
   border-left: 1px solid var(--border-color, #333);
   box-shadow: -6px 0 24px rgba(0, 0, 0, 0.5);
@@ -2342,12 +2343,19 @@
   flex-direction: column;
   animation: slideInDrawer 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   color: var(--text-primary, #fff);
-  position: relative;
-  /* Drawer panel is fully interactive — restore pointer events */
   pointer-events: auto;
-  /* Ensure drawer sits above everything including overlay */
-  z-index: 1001;
+  z-index: 10000;
   will-change: transform;
+}
+
+/* Fallbacks for browsers not supporting dynamic viewport units */
+@supports not (height: 100dvh) {
+  .profile-editor-drawer-overlay {
+    height: 100vh;
+  }
+  .profile-editor-drawer {
+    height: 100vh;
+  }
 }
 
 /* When drawer is open, suppress staff-card hover transform to prevent

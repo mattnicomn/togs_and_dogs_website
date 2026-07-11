@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { signIn, getSession, getEffectiveRole } from '../api/auth';
 
 import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData, createAdminBooking, listAdminClientPets, getTenantInfo } from '../api/client';
@@ -1640,6 +1641,19 @@ const AdminDashboard = () => {
     setSelectedStaffForDrawer(null);
     setIsStaffDrawerOpen(false);
   };
+
+  useEffect(() => {
+    if (isStaffDrawerOpen) {
+      const originalOverflow = document.body.style.overflow;
+      const originalOverflowX = document.body.style.overflowX;
+      document.body.style.overflow = 'hidden';
+      document.body.style.overflowX = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        document.body.style.overflowX = originalOverflowX;
+      };
+    }
+  }, [isStaffDrawerOpen]);
 
 
 
@@ -3748,8 +3762,8 @@ const AdminDashboard = () => {
               </div>
 
               {/* Side Drawer Profile Editor Container */}
-              {isStaffDrawerOpen && (
-                <div className="profile-editor-drawer-overlay" onClick={(e) => e.stopPropagation()}>
+              {isStaffDrawerOpen && createPortal(
+                <div className="profile-editor-drawer-overlay" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                   <div className="profile-editor-drawer" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                     <div className="drawer-header">
                       <h3>{editingStaffId ? `Manage Staff: ${staffForm.display_name}` : 'Add New Staff Profile'}</h3>
@@ -4152,7 +4166,8 @@ const AdminDashboard = () => {
                       </div>
                     </div>
                   </div>
-                </div>
+                </div>,
+                document.body
               )}
             </div>
           ) : view === 'CLIENT_MGMT' && ['owner', 'admin'].includes(role) ? (

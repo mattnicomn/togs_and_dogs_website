@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-10 (Release 22R)
+**Last Updated:** 2026-07-11 (Release 22S)
 
 ---
 
@@ -63,9 +63,10 @@
 
 ## Latest Completed Releases
 
-- 22R: Profile Editor Drawer Stability Fix Production Deployment (✅ PASS — Deployed & Validated — 2026-07-10)
+- 22S: Profile Editor Drawer Portal and Viewport Overflow Fix Pre-Deploy (✅ PASS — Pre-Deploy — 2026-07-11)
+- 22R: Profile Editor Drawer Stability Fix Production Deployment (❌ FAILED — Manual Validation FAILED — 2026-07-10)
 - 22Q: Profile Editor Drawer Stability and Overlay Interaction Fix Pre-Deploy (✅ PASS — Pre-Deploy, deployed via 22R — 2026-07-10)
-- 22P: Centralized Profile Editor MVP Production Deployment and Validation (✅ PASS — Deployed & Validated — 2026-07-10)
+- 22P: Centralized Profile Editor MVP Production Deployment and Validation (❌ FAILED — Manual Validation FAILED — 2026-07-10)
 - 22O: Pending Cancellation Records Review and Cleanup/Processing Plan (✅ Planning Complete — 2026-07-10)
 - 22N: Production Release State Reconciliation After 22M Hotfix (✅ Documentation — 2026-07-10)
 - 22M: Pending Cancellation Visibility Hotfix Production Deployment (✅ PASS — Deployed & Validated — 2026-07-10)
@@ -99,9 +100,8 @@
 - 19B: Tenant provisioning script dry run
 - 18U: Post-enable strict-mode monitoring checkpoint (PASS)
 
-## Next Recommended Action
-
-**Production/main divergence resolved by Release 22P. Drawer stability fixed by Release 22R.** `main` and production are aligned. The Profile Editor MVP (22J) is now live and stable.
+**Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22S implements a React Portal and body scroll locking to fix it.**
 
 **Next options:**
+- Deploy Release 22S (to become Release 22T) to production and run final validation.
 - Continue with next priority feature (calendar, Stripe live mode, second-tenant expansion, booking/scheduling improvements, etc.)
