@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-11 (Release 22S)
+**Last Updated:** 2026-07-11 (Release 22T)
 
 ---
 
@@ -63,6 +63,7 @@
 
 ## Latest Completed Releases
 
+- 22T: Client Portal My Bookings Date and Visit Window Display Integrity Triage (✅ Planning Complete — 2026-07-11)
 - 22S: Profile Editor Drawer Portal and Viewport Overflow Fix Pre-Deploy (✅ PASS — Pre-Deploy — 2026-07-11)
 - 22R: Profile Editor Drawer Stability Fix Production Deployment (❌ FAILED — Manual Validation FAILED — 2026-07-10)
 - 22Q: Profile Editor Drawer Stability and Overlay Interaction Fix Pre-Deploy (✅ PASS — Pre-Deploy, deployed via 22R — 2026-07-10)
@@ -100,8 +101,9 @@
 - 19B: Tenant provisioning script dry run
 - 18U: Post-enable strict-mode monitoring checkpoint (PASS)
 
-**Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22S implements a React Portal and body scroll locking to fix it.**
+**Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22S implements a React Portal and body scroll locking to fix it. Release 22T completes client portal display triage.**
 
 **Next options:**
-- Deploy Release 22S (to become Release 22T) to production and run final validation.
+- Implement Release 22U/22V client portal date/window display fixes (based on 22T planning).
+- Deploy Release 22S drawer fixes to production and run final validation.
 - Continue with next priority feature (calendar, Stripe live mode, second-tenant expansion, booking/scheduling improvements, etc.)
