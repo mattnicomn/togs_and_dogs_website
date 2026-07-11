@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-11 (Release 22X)
+**Last Updated:** 2026-07-11 (Release 22Y)
 
 ---
 
@@ -63,6 +63,7 @@
 
 ## Latest Completed Releases
 
+- 22Y: Smoke Test Findings: Identity Action State and Google Calendar Disconnect Triage (✅ Planning Complete — 2026-07-11)
 - 22X: Controlled Core Workflow Smoke Test Plan (✅ Planning Complete — 2026-07-11)
 - 22W: Post-22V Operational Readiness and Core Workflow Validation Plan (✅ Planning Complete — 2026-07-11)
 - 22V: Profile Editor Drawer and Client Bookings Display Fix Production Deployment (✅ PASS — Deployed & Validated — 2026-07-11)
@@ -105,12 +106,10 @@
 - 19B: Tenant provisioning script dry run
 - 18U: Post-enable strict-mode monitoring checkpoint (PASS)
 
-**Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`.**
+**Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes.**
 
 **Next options:**
-- Matthew runs 22X smoke test checklist (safe display-only — no mutations required)
-- After smoke PASS: proceed to next product feature planning
-- After smoke FAIL: create targeted triage release
+- Proceed to Release 22Z to deploy frontend/Terraform security action guardrails and Google Calendar disconnect fixes
 - Process any new pending cancellation records if they appear (22O plan available)
 - Start next feature work (Profile Editor polish, client portal improvements, calendar readiness)
 - Continue SaaS maturity priorities (blocked on EIN for Stripe live)

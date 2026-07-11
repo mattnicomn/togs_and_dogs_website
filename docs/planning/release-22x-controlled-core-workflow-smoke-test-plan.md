@@ -210,3 +210,16 @@ These target the exact issues fixed in 22S/22U/22V:
 - ❌ Committing screenshots or test logs
 
 This is a read-only validation plan. All mutation actions require separate explicit approval.
+
+---
+
+## 10. Smoke Test Execution Results (2026-07-11)
+
+Matthew executed the smoke test in production on 2026-07-11. 
+
+### Result Summary: ✅ PARTIAL PASS
+- **Core Layout and Display Workflows:** **PASS** (Profile Editor drawer stable and scroll-locked, Client Portal date ranges and visit windows show accurate timezone-adjusted data).
+- **Integrations & Actions:** **FAIL / Triaged** (Identified 3 minor findings related to protected account deletion expectations, password reset Cognito state constraints, and Google Calendar disconnect api deployment).
+
+Refer to [Release 22Y Triage & Planning Notes](../planning/release-22y-smoke-test-identity-actions-and-google-calendar-disconnect-triage.md) for full root cause analysis and the remediation plan.
+

@@ -33,6 +33,8 @@
 | Strict-mode gate review | `docs/planning/release-18q-strict-mode-final-gate-review-preparation-plan.md` |
 | Web/mobile UI parity | `docs/planning/release-18ui-a-web-mobile-ui-parity-review-plan.md` |
 | Identity & Care Request triage | `docs/planning/release-22a-identity-profile-and-care-request-validation-defect-triage.md` |
+| Smoke test plan & triage | `docs/planning/release-22x-controlled-core-workflow-smoke-test-plan.md`, `docs/planning/release-22y-smoke-test-identity-actions-and-google-calendar-disconnect-triage.md` |
+
 
 ## Backlog
 

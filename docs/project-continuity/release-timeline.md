@@ -127,3 +127,5 @@
 | 22V | **Profile Editor Drawer and Client Bookings Display Fix Production Deployment — PASS (manually validated 2026-07-11)** |
 | 22W | **Post-22V Operational Readiness and Core Workflow Validation Plan — Planning (2026-07-11)** |
 | 22X | **Controlled Core Workflow Smoke Test Plan — Planning (2026-07-11)** |
+| 22Y | **Smoke Test Findings: Identity Action State and Google Calendar Disconnect Triage — Planning (2026-07-11)** |
+
