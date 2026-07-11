@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-11 (Release 22W)
+**Last Updated:** 2026-07-11 (Release 22X)
 
 ---
 
@@ -63,6 +63,7 @@
 
 ## Latest Completed Releases
 
+- 22X: Controlled Core Workflow Smoke Test Plan (✅ Planning Complete — 2026-07-11)
 - 22W: Post-22V Operational Readiness and Core Workflow Validation Plan (✅ Planning Complete — 2026-07-11)
 - 22V: Profile Editor Drawer and Client Bookings Display Fix Production Deployment (✅ PASS — Deployed & Validated — 2026-07-11)
 - 22U: Client Portal My Bookings Date and Visit Window Display Fix Pre-Deploy (✅ PASS — Pre-Deploy, deployed via 22V — 2026-07-11)
@@ -107,7 +108,9 @@
 **Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`.**
 
 **Next options:**
-- Run 22W validation checklist (safe display-only checks — no mutations)
+- Matthew runs 22X smoke test checklist (safe display-only — no mutations required)
+- After smoke PASS: proceed to next product feature planning
+- After smoke FAIL: create targeted triage release
 - Process any new pending cancellation records if they appear (22O plan available)
 - Start next feature work (Profile Editor polish, client portal improvements, calendar readiness)
 - Continue SaaS maturity priorities (blocked on EIN for Stripe live)
