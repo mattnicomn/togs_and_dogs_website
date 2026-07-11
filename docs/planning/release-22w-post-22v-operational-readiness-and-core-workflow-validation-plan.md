@@ -66,8 +66,8 @@ Release 22V deployed to production on 2026-07-11. It combined two pre-deploy fix
 |---|-------|:---:|--------|
 | 20 | `/book` (public intake form) loads | ✅ Safe | ⬜ |
 | 21 | Admin Request List shows correct status queues | ✅ Safe | ⬜ |
-| 22 | Needs Action shows pending cancellations (2 records from 22O) | ✅ Safe | ⬜ |
-| 23 | Google Calendar status shows "Connected" (not degraded) | ✅ Safe | ⬜ |
+| 22 | Needs Action count matches current production state (if Matthew cleared both cancellation records, Needs Action should be empty; if new pending cancellations appear later, they should show as "Cancellation Requested" with "Review Cancellation" action) | ✅ Safe | ⬜ |
+| 23 | Google Calendar status/banner accurately reflects current production state: Connected or Reconnect Required (do not reconnect unless Matthew explicitly approves) | ✅ Safe | ⬜ |
 | 24 | Platform Admin `/platform-admin` loads | ✅ Safe | ⬜ |
 
 ---
@@ -134,7 +134,7 @@ Release 22V deployed to production on 2026-07-11. It combined two pre-deploy fix
 | **C** | 23B | Client Portal booking detail improvements (view details, pet info) | Medium | Medium |
 | **D** | 23C | Google Calendar reconnect readiness review | Low | Low (planning) |
 | **E** | 23D | Production test/stale data policy and admin labeling | Low-Medium | Low (planning) |
-| **F** | — | Process pending cancellation records (22O plan) | Medium | Low (Matthew decision only) |
+| **F** | — | Process pending cancellation records (22O plan) if any remain | Low | Low (Matthew decision only) |
 | **G** | — | Continue SaaS maturity (Stripe live, second-tenant expansion) | Blocked (EIN) | — |
 
 ### Recommendation
@@ -145,7 +145,7 @@ Release 22V deployed to production on 2026-07-11. It combined two pre-deploy fix
 - Builds confidence before starting new features
 - After smoke validation passes, proceed to **Option B or C** for next feature work
 
-**Option F** (cancellation record processing) can happen in parallel — it only requires Matthew's classification decision per the 22O plan.
+**Option F** (cancellation record processing) — Matthew has already cleared the 2 original records. The 22O plan remains available if new pending cancellations appear.
 
 ---
 
@@ -153,7 +153,7 @@ Release 22V deployed to production on 2026-07-11. It combined two pre-deploy fix
 
 | Item | Status | Reference |
 |------|--------|-----------|
-| 2 pending cancellation records | Awaiting Matthew classification | 22O plan |
+| Pending cancellation records | Matthew cleared both before 22V; 22O plan available if new records appear | 22O plan |
 | USmissionhero orphaned Cognito cleanup | Deferred (requires explicit approval) | 22F/22K plan |
 | Ryan external testing | Paused | 19-series |
 | EIN / Stripe live | Blocked (IRS) | Backlog |

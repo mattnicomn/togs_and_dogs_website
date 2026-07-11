@@ -12,7 +12,7 @@
 | Backend (Python/Lambda) | ✅ Deployed |
 | API Gateway | ✅ Active — staff reset-password and set-temp-password routes added (22C) |
 | DynamoDB | ✅ Single table, shared-tenant model |
-| Google Calendar | ✅ Connected (fixed in 18G, cancellation cascade fixed in 18P) |
+| Google Calendar | ⚠️ Status may be Connected or Reconnect Required — verify in production (last confirmed 18G; cascade fixed 18P) |
 | Postmark email | ✅ Active (notifications, payment emails) |
 
 ## Mobile / TestFlight
@@ -108,6 +108,6 @@
 
 **Next options:**
 - Run 22W validation checklist (safe display-only checks — no mutations)
-- Classify and process the 2 pending cancellation records (22O plan — Matthew decision)
+- Process any new pending cancellation records if they appear (22O plan available)
 - Start next feature work (Profile Editor polish, client portal improvements, calendar readiness)
 - Continue SaaS maturity priorities (blocked on EIN for Stripe live)
