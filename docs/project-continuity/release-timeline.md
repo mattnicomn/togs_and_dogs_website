@@ -123,3 +123,4 @@
 | 22R | **Profile Editor Drawer Stability Fix Production Deployment — ❌ FAILED (persistent scrollbars and flicker; superseded by 22S fixes, 2026-07-10)** |
 | 22S | **Profile Editor Drawer Portal and Viewport Overflow Fix Pre-Deploy — PASS (Pre-Deploy, 2026-07-11)** |
 | 22T | **Client Portal My Bookings Date and Visit Window Display Integrity Triage — Planning (2026-07-11)** |
+| 22U | **Client Portal My Bookings Date and Visit Window Display Fix Pre-Deploy — PASS (Pre-Deploy, 2026-07-11)** |

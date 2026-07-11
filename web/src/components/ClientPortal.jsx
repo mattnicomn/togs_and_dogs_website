@@ -4,6 +4,127 @@ import { getClientRequests, requestCancellation } from '../api/client';
 import UserProfile from './UserProfile';
 import '../Portal.css';
 
+// Date and Visit Window display helper utilities
+const parseDate = (d) => {
+  if (!d) return new Date();
+  const [year, month, day] = d.split('-');
+  return new Date(year, month - 1, day);
+};
+
+const formatDate = (dateObj, includeYear = false) => {
+  const options = { month: 'short', day: 'numeric' };
+  if (includeYear) options.year = 'numeric';
+  return dateObj.toLocaleDateString('en-US', options);
+};
+
+const getVisitWindowLabel = (windowVal) => {
+  if (!windowVal) return 'Anytime';
+  const friendly = {
+    'MORNING': 'Morning (7–10 AM)',
+    'MIDDAY': 'Midday (10 AM–2 PM)',
+    'AFTERNOON': 'Afternoon (2–5 PM)',
+    'EVENING': 'Evening (5–8 PM)',
+    'ANYTIME': 'Anytime'
+  };
+  return friendly[windowVal] || windowVal;
+};
+
+const formatVisitDates = (item) => {
+  if (!item) return '';
+
+  if (item.selected_dates && item.selected_dates.length > 0) {
+    const sorted = [...item.selected_dates].sort();
+    
+    if (sorted.length === 1) {
+      return formatDate(parseDate(sorted[0]), true);
+    }
+
+    let consecutive = true;
+    for (let i = 1; i < sorted.length; i++) {
+      const d1 = parseDate(sorted[i - 1]);
+      const d2 = parseDate(sorted[i]);
+      const diffTime = Math.abs(d2 - d1);
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays !== 1) {
+        consecutive = false;
+        break;
+      }
+    }
+
+    if (consecutive) {
+      const d1 = parseDate(sorted[0]);
+      const d2 = parseDate(sorted[sorted.length - 1]);
+      const m1 = formatDate(d1, false);
+      const m2 = formatDate(d2, false);
+      const y1 = d1.getFullYear();
+      const y2 = d2.getFullYear();
+
+      if (y1 !== y2) {
+        return `${formatDate(d1, true)}–${formatDate(d2, true)}`;
+      } else if (d1.getMonth() !== d2.getMonth()) {
+        return `${m1}–${m2}, ${y1}`;
+      } else {
+        return `${m1.split(' ')[0]} ${d1.getDate()}–${d2.getDate()}, ${y1}`;
+      }
+    } else {
+      const parsed = sorted.map(d => parseDate(d));
+      const firstYear = parsed[0].getFullYear();
+      const allSameYear = parsed.every(d => d.getFullYear() === firstYear);
+      const firstMonth = parsed[0].getMonth();
+      const allSameMonth = parsed.every(d => d.getMonth() === firstMonth);
+
+      if (allSameMonth && allSameYear) {
+        const monthStr = parsed[0].toLocaleDateString('en-US', { month: 'short' });
+        if (sorted.length <= 3) {
+          const days = parsed.map(d => d.getDate()).join(', ');
+          return `${monthStr} ${days}, ${firstYear}`;
+        } else {
+          const days = parsed.slice(0, 3).map(d => d.getDate()).join(', ');
+          const extra = sorted.length - 3;
+          return `${monthStr} ${days} +${extra} more`;
+        }
+      } else {
+        const formatSingle = (dObj) => {
+          return dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        };
+        if (sorted.length <= 3) {
+          const list = parsed.map(d => formatSingle(d)).join(', ');
+          const lastYear = parsed[parsed.length - 1].getFullYear();
+          return `${list}, ${lastYear}`;
+        } else {
+          const list = parsed.slice(0, 3).map(d => formatSingle(d)).join(', ');
+          const extra = sorted.length - 3;
+          return `${list} +${extra} more`;
+        }
+      }
+    }
+  }
+
+  if (item.start_date && item.end_date) {
+      const d1 = parseDate(item.start_date);
+      const d2 = parseDate(item.end_date);
+      if (d1.getTime() === d2.getTime()) {
+         return formatDate(d1, true);
+      }
+      const m1 = formatDate(d1, false);
+      const m2 = formatDate(d2, false);
+      const y1 = d1.getFullYear();
+      const y2 = d2.getFullYear();
+
+      if (y1 !== y2) {
+        return `${formatDate(d1, true)}–${formatDate(d2, true)}`;
+      } else if (d1.getMonth() !== d2.getMonth()) {
+        return `${m1}–${m2}, ${y1}`;
+      } else {
+        return `${m1.split(' ')[0]} ${d1.getDate()}–${d2.getDate()}, ${y1}`;
+      }
+  } else if (item.start_date) {
+      return formatDate(parseDate(item.start_date), true);
+  }
+  
+  return '';
+};
+
 const ClientPortal = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -61,7 +182,7 @@ const ClientPortal = () => {
 
   const handleCancelRequest = async (req) => {
     const { reqId, clientId } = resolveIds(req);
-    const serviceDate = new Date(req.start_date);
+    const serviceDate = parseDate(req.start_date);
     const now = new Date();
     const hoursDiff = (serviceDate - now) / (1000 * 60 * 60);
 
@@ -226,16 +347,34 @@ const ClientPortal = () => {
                 <div key={req.PK || req.request_id} className="booking-card card">
                   <div className="booking-info">
                     <div className="booking-date-box">
-                      <div className="booking-date-weekday">{new Date(req.start_date).toLocaleDateString(undefined, { weekday: 'short' })}</div>
-                      <div className="booking-date-day">{new Date(req.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
+                      <div className="booking-date-weekday">{parseDate(req.start_date).toLocaleDateString(undefined, { weekday: 'short' })}</div>
+                      <div className="booking-date-day">{parseDate(req.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
                     </div>
                     
                     <div className="booking-main-details">
-                      <h4>{req.service_type?.replace(/_/g, ' ') || 'Pet Care Visit'}</h4>
-                      <div className="booking-meta-row">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <h4 style={{ margin: 0 }}>{req.service_type?.replace(/_/g, ' ') || 'Pet Care Visit'}</h4>
+                        {(req.is_multi_day || (req.selected_dates && req.selected_dates.length > 1) || (req.end_date && req.start_date && req.end_date !== req.start_date)) && (
+                          <span className="multi-day-badge" style={{
+                            fontSize: '0.65rem', fontWeight: 700,
+                            background: 'var(--bg-muted, rgba(255,255,255,0.05))', color: 'var(--text-muted, #8a8a86)',
+                            padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-soft, #333)'
+                          }}>
+                            Multi-Day
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary, #ccc)', marginTop: '4px' }}>
+                        📅 {formatVisitDates(req)}
+                      </div>
+
+                      <div className="booking-meta-row" style={{ marginTop: '8px' }}>
                         <span>🐕 <strong>{petNames}</strong></span>
-                        {req.visit_window && <span>⏰ {req.visit_window}</span>}
-                        {req.preferred_time && !req.visit_window && <span>⏰ {req.preferred_time}</span>}
+                        <span className="booking-time-windows">
+                          ⏰ {(req.visit_windows || [req.visit_window || 'ANYTIME'])
+                               .map(w => getVisitWindowLabel(w)).join(', ')}
+                        </span>
                         {isScheduled && req.worker_name && (
                           <span className="booking-worker-label">👤 {req.worker_name}</span>
                         )}
@@ -243,8 +382,27 @@ const ClientPortal = () => {
                           <span className="booking-worker-label">👤 Tog & Dogs Team</span>
                         )}
                       </div>
+
+                      {(req.is_multi_day || (req.selected_dates && req.selected_dates.length > 1) || (req.total_occurrences && req.total_occurrences > 1)) && (
+                        <div style={{ marginTop: '8px' }}>
+                          <span style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            background: (req.completed_count || 0) >= (req.selected_dates?.length || req.total_occurrences || 1) ? 'rgba(74, 124, 89, 0.15)' : 'rgba(43, 108, 176, 0.15)',
+                            color: (req.completed_count || 0) >= (req.selected_dates?.length || req.total_occurrences || 1) ? '#4a7c59' : '#2b6cb0',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            display: 'inline-block',
+                            width: 'fit-content',
+                            border: (req.completed_count || 0) >= (req.selected_dates?.length || req.total_occurrences || 1) ? '1px solid rgba(74, 124, 89, 0.3)' : '1px solid rgba(43, 108, 176, 0.3)'
+                          }}>
+                            {req.completed_count || 0}/{(req.selected_dates?.length || req.total_occurrences || 1)} visits done
+                          </span>
+                        </div>
+                      )}
+
                       {status.msg && (
-                        <p className="booking-status-msg">
+                        <p className="booking-status-msg" style={{ marginTop: '8px' }}>
                           {status.msg}
                         </p>
                       )}

@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-11
 **Type:** Planning / Triage (Read-Only)
-**Status:** ✅ **Triage Complete** — Root causes identified, fix planned.
+**Status:** ✅ **Triage Complete** — Root causes identified, fix implemented pre-deploy via Release 22U.
 
 ---
 
