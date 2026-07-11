@@ -124,3 +124,4 @@
 | 22S | **Profile Editor Drawer Portal and Viewport Overflow Fix Pre-Deploy — PASS (Pre-Deploy, 2026-07-11)** |
 | 22T | **Client Portal My Bookings Date and Visit Window Display Integrity Triage — Planning (2026-07-11)** |
 | 22U | **Client Portal My Bookings Date and Visit Window Display Fix Pre-Deploy — PASS (Pre-Deploy, 2026-07-11)** |
+| 22V | **Profile Editor Drawer and Client Bookings Display Fix Production Deployment — PASS (manually validated 2026-07-11)** |
