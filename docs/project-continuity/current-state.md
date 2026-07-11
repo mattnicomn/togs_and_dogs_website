@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-11 (Release 22V)
+**Last Updated:** 2026-07-11 (Release 22W)
 
 ---
 
@@ -63,6 +63,7 @@
 
 ## Latest Completed Releases
 
+- 22W: Post-22V Operational Readiness and Core Workflow Validation Plan (✅ Planning Complete — 2026-07-11)
 - 22V: Profile Editor Drawer and Client Bookings Display Fix Production Deployment (✅ PASS — Deployed & Validated — 2026-07-11)
 - 22U: Client Portal My Bookings Date and Visit Window Display Fix Pre-Deploy (✅ PASS — Pre-Deploy, deployed via 22V — 2026-07-11)
 - 22T: Client Portal My Bookings Date and Visit Window Display Integrity Triage (✅ Planning Complete (resolved via 22U/22V) — 2026-07-11)
@@ -103,7 +104,10 @@
 - 19B: Tenant provisioning script dry run
 - 18U: Post-enable strict-mode monitoring checkpoint (PASS)
 
-**Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully.**
+**Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`.**
 
 **Next options:**
-- Continue with next priority feature (calendar, Stripe live mode, second-tenant expansion, booking/scheduling improvements, etc.)
+- Run 22W validation checklist (safe display-only checks — no mutations)
+- Classify and process the 2 pending cancellation records (22O plan — Matthew decision)
+- Start next feature work (Profile Editor polish, client portal improvements, calendar readiness)
+- Continue SaaS maturity priorities (blocked on EIN for Stripe live)
