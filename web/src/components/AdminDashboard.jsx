@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { signIn, getSession, getEffectiveRole } from '../api/auth';
 
-import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, disconnectGoogle, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData, createAdminBooking, listAdminClientPets, getTenantInfo } from '../api/client';
+import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData, createAdminBooking, listAdminClientPets, getTenantInfo } from '../api/client';
 import * as XLSX from 'xlsx';
 
 
@@ -2263,19 +2263,9 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDisconnectGoogle = async () => {
-    if (!window.confirm("Disconnect Google Calendar? Future syncs will stop.")) return;
-    try {
-      setLoading(true);
-      await disconnectGoogle();
-      fetchGoogleStatus();
-    } catch (err) {
-      const msg = err.message === "Failed to fetch" ? "Network or CORS error." : err.message;
-      alert("Disconnect failed: " + msg);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Google Calendar Disconnect is intentionally disabled.
+  // The connection is tenant/business-scoped; disconnecting would affect all users.
+  // Per-user calendar connections are deferred work.
 
 
   const handleConnectGoogle = async () => {
@@ -3779,7 +3769,9 @@ const AdminDashboard = () => {
 
                   <div className="integration-actions">
                     {googleStatus === 'CONNECTED' ? (
-                      <button onClick={handleDisconnectGoogle} className="btn-small secondary" style={{ flex: 1 }}>Disconnect</button>
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted, #6b7280)', lineHeight: '1.4', fontStyle: 'italic', textAlign: 'center', padding: '8px 0' }}>
+                        Shared business calendar — individual calendar connections are not available yet.
+                      </p>
                     ) : (
                       <button onClick={handleConnectGoogle} className="btn-small primary" style={{ flex: 1 }}>Connect Calendar</button>
                     )}
