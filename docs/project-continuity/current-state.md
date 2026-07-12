@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-12 (Release 22ZC)
+**Last Updated:** 2026-07-12 (Hotfix: Google Calendar Disconnect Safeguard)
 
 ---
 
@@ -12,7 +12,7 @@
 | Backend (Python/Lambda) | ✅ Deployed |
 | API Gateway | ✅ Active — staff reset-password and set-temp-password routes added (22C) |
 | DynamoDB | ✅ Single table, shared-tenant model |
-| Google Calendar | ⚠️ Status may be Connected or Reconnect Required — verify in production (last confirmed 18G; cascade fixed 18P) |
+| Google Calendar | ⚠️ Shared business connection — Disconnect button removed from UI (hotfix 2026-07-12); verify status in production (cascade fixed 18P; per-tenant isolation 21H) |
 | Postmark email | ✅ Active (notifications, payment emails) |
 
 ## Mobile / TestFlight
@@ -63,6 +63,7 @@
 
 ## Latest Completed Releases
 
+- Hotfix: Google Calendar Disconnect Safeguard (✅ PASS — Deployed to Production — 2026-07-12)
 - 22ZC: Dashboard Cards and Request List Mobile Layout (✅ PASS — Pre-Deploy — 2026-07-12)
 - 22ZB: Profile Editor Mobile Layout (✅ PASS — Pre-Deploy — 2026-07-12)
 - 22ZA: Responsive Foundation and Navigation (✅ PASS — Pre-Deploy — 2026-07-12)
