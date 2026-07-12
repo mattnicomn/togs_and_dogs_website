@@ -81,3 +81,88 @@ All Phase 4–5 work specified under Release 22Z is deferred:
 * **Release 22ZD:** Scheduler, Client Management, Platform Admin mobile polish
 * **Release 22ZE:** Cross-device validation and production readiness
 * **AWS Deployments / Cognito changes / Stripe modifications:** Not performed.
+
+
+---
+
+## 6. Post-Commit Verification (2026-07-12)
+
+### Browser-Agent Rate Limit Note
+
+The original visual browser validation was blocked by an Antigravity browser-agent rate limit. This post-commit verification was completed without authenticated browser testing but with full static code analysis and build/lint verification.
+
+### Mobile Table Accessibility Correction
+
+**Finding:** CSS `::before` pseudo-elements using `content: attr(data-label)` are **visual-only**. They are NOT reliably announced by screen readers across all platforms and user agent combinations. CSS-generated content does not meet WCAG requirements for programmatic label association.
+
+**Root cause:** When `<table>`, `<tbody>`, `<tr>`, and `<td>` elements are styled with `display: block` / `display: flex`, browsers strip their implicit table ARIA roles. The `<thead>` is hidden with `display: none`, removing column headers from both visual and accessibility trees. The `::before` pseudo-elements provide visual labels only.
+
+**Correction applied:** Added real text labels inside each `<td>` cell using a shared `<span className="sr-only">` pattern:
+- CSS: Added `.sr-only` utility class (position: absolute, clip, 1px × 1px) — visually hidden but announced by screen readers
+- JSX: Added `<span className="sr-only">Column Name: </span>` inside each data cell (Customer / Service, Dates / Window, Status, Staff, Actions)
+- The Select column does not need a label — it already has `aria-label` on the checkbox and expand button
+
+**Outcome:**
+- `::before` pseudo-elements remain for **visual** mobile labels (sighted users)
+- `.sr-only` spans provide **programmatic** labels for screen readers
+- Desktop table semantics remain unchanged (thead/th visible, table display properties intact)
+- No duplicate accessible names (sr-only spans are additive context, not conflicting with existing aria-labels on interactive elements)
+
+### Viewport Validation (Static/Code Analysis)
+
+Without authenticated browser access, viewport behavior is verified through CSS rule analysis:
+
+| Width | Expected Behavior | Verification |
+|-------|-------------------|-------------|
+| 320px | Single-column cards, stacked controls, no h-scroll | ✅ `max-width: 100%`, `overflow-x: hidden`, `flex-direction: column` rules apply |
+| 375px | Same mobile layout, data-label prefixes visible | ✅ `@media (max-width: 480px)` block covers this range |
+| 390px | Same mobile layout | ✅ Same rules |
+| 430px | Same mobile layout | ✅ Same rules (breakpoint at 480px) |
+| 768px | Tablet — filter controls wrap horizontally | ✅ `@media (min-width: 481px) and (max-width: 767px)` applies |
+| 1024px+ | Desktop table with thead visible, no mobile labels | ✅ No mobile overrides apply; `::before` only inside `@media (max-width: 480px)` |
+
+### Dashboard Keyboard Accessibility
+
+| Check | Status |
+|-------|--------|
+| `role="button"` on all 4 stat cards | ✅ Present |
+| `tabIndex={0}` on all 4 stat cards | ✅ Present |
+| `aria-label` with dynamic count on all 4 cards | ✅ Present |
+| `onKeyDown` handles Enter key | ✅ Calls `e.preventDefault()` + action |
+| `onKeyDown` handles Space key | ✅ Calls `e.preventDefault()` + action |
+| Space `preventDefault` prevents page scroll | ✅ Present |
+| Focus ring CSS (`:focus-visible`) | ✅ Present in CSS |
+| No duplicate activation (Enter/Space fire once) | ✅ Single handler, no onClick overlap on keyboard |
+
+### Request List Architecture Verification
+
+| Check | Status |
+|-------|--------|
+| Single data source (`visibleRecords`) | ✅ Unchanged |
+| Existing handlers reused (onReviewAction, handleAssignAction, etc.) | ✅ Unchanged |
+| Desktop table markup (thead, th, tbody, tr, td) valid | ✅ Structure preserved |
+| Sorting/filtering unchanged | ✅ No logic changes |
+| Pagination unchanged (`lastKey`, `fetchAllData(lastKey)`) | ✅ Unchanged |
+| Expansion (`expandedRequestIds`, `toggleRequestExpanded`) unchanged | ✅ Unchanged |
+| Selection (`selectedIds`, `toggleSelectOne`, `toggleSelectAll`) unchanged | ✅ Unchanged |
+| Status actions unchanged | ✅ All action labels and handlers preserved |
+| Cancellation behavior unchanged | ✅ `handleProcessCancellation` unchanged |
+| Protected-admin policies unchanged | ✅ No policy/role logic touched |
+| Google Calendar disconnect messaging unchanged | ✅ No changes |
+| `expanded-details-grid` CSS class matches JSX class | ✅ Exact match |
+
+### Lint and Build Results
+
+| Check | Result |
+|-------|--------|
+| `npm run lint` | 47 problems (38 errors, 9 warnings) — baseline match |
+| New lint findings introduced | 0 |
+| `npm run build` | ✅ Success (101 modules, built in 413ms) |
+
+### Remaining Limitations
+
+- Authenticated visual browser validation was not performed due to rate limits
+- Real-device testing (iPhone) was not performed
+- Screen reader testing (VoiceOver, NVDA) was not performed — the `.sr-only` pattern is a well-established accessibility technique but runtime verification is deferred to production smoke test
+- Release 22ZC remains **undeployed**
+- Release 22ZD and 22ZE remain **unstarted**
