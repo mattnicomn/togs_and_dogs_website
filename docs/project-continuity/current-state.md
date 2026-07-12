@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-11 (Release 22Y)
+**Last Updated:** 2026-07-12 (Release 22Z)
 
 ---
 
@@ -63,6 +63,7 @@
 
 ## Latest Completed Releases
 
+- 22Z: Mobile Responsive UX Polish Detailed Plan (✅ Planning Complete — 2026-07-12)
 - 22Y: Smoke Test Findings: Identity Action State and Google Calendar Disconnect Triage (✅ Planning Complete — 2026-07-11)
 - 22X: Controlled Core Workflow Smoke Test Plan (✅ Planning Complete — 2026-07-11)
 - 22W: Post-22V Operational Readiness and Core Workflow Validation Plan (✅ Planning Complete — 2026-07-11)
@@ -109,7 +110,7 @@
 **Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes.**
 
 **Next options:**
-- Proceed to Release 22Z to deploy frontend/Terraform security action guardrails and Google Calendar disconnect fixes
+- Begin AG implementation of 22ZA (responsive foundation + mobile navigation) — first mobile polish phase
+- Address 22Y remediation items (Cognito password-reset state handling, Google Calendar disconnect API Gateway fix) in a separate release
 - Process any new pending cancellation records if they appear (22O plan available)
-- Start next feature work (Profile Editor polish, client portal improvements, calendar readiness)
 - Continue SaaS maturity priorities (blocked on EIN for Stripe live)
