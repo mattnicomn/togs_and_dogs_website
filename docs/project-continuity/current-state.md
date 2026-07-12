@@ -63,10 +63,10 @@
 
 ## Latest Completed Releases
 
-- Hotfix: Google Calendar Disconnect Safeguard (✅ PASS — Deployed to Production — 2026-07-12)
-- 22ZC: Dashboard Cards and Request List Mobile Layout (✅ PASS — Pre-Deploy — 2026-07-12)
-- 22ZB: Profile Editor Mobile Layout (✅ PASS — Pre-Deploy — 2026-07-12)
-- 22ZA: Responsive Foundation and Navigation (✅ PASS — Pre-Deploy — 2026-07-12)
+- Hotfix: Google Calendar Disconnect Safeguard (✅ PASS — Deployed to Production (cumulative: includes 22ZA/22ZB/22ZC) — 2026-07-12)
+- 22ZC: Dashboard Cards and Request List Mobile Layout (✅ PASS — Pre-Deploy, deployed via Hotfix — 2026-07-12)
+- 22ZB: Profile Editor Mobile Layout (✅ PASS — Pre-Deploy, deployed via Hotfix — 2026-07-12)
+- 22ZA: Responsive Foundation and Navigation (✅ PASS — Pre-Deploy, deployed via Hotfix — 2026-07-12)
 - 22Z: Mobile Responsive UX Polish Detailed Plan (✅ Planning Complete — 2026-07-12)
 - 22Y: Smoke Test Findings: Identity Action State and Google Calendar Disconnect Triage (✅ Planning Complete — 2026-07-11)
 - 22X: Controlled Core Workflow Smoke Test Plan (✅ Planning Complete — 2026-07-11)

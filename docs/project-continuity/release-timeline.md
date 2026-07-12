@@ -129,7 +129,7 @@
 | 22X | **Controlled Core Workflow Smoke Test Plan — Planning (2026-07-11)** |
 | 22Y | **Smoke Test Findings: Identity Action State and Google Calendar Disconnect Triage — Planning (2026-07-11)** |
 | 22Z | **Mobile Responsive UX Polish Detailed Plan — Planning (2026-07-12)** |
-| 22ZA | **Responsive Foundation and Navigation — PASS (tested & pre-deploy validated 2026-07-12)** |
-| 22ZB | **Profile Editor Mobile Layout — PASS (tested & pre-deploy validated 2026-07-12)** |
-| 22ZC | **Dashboard Cards and Request List Mobile Layout — PASS (tested & pre-deploy validated 2026-07-12)** |
-| Hotfix | **Google Calendar Disconnect Safeguard — PASS (deployed to production 2026-07-12)** |
+| 22ZA | **Responsive Foundation and Navigation — PASS (pre-deploy validated 2026-07-12; deployed via Hotfix)** |
+| 22ZB | **Profile Editor Mobile Layout — PASS (pre-deploy validated 2026-07-12; deployed via Hotfix)** |
+| 22ZC | **Dashboard Cards and Request List Mobile Layout — PASS (pre-deploy validated 2026-07-12; deployed via Hotfix)** |
+| Hotfix | **Google Calendar Disconnect Safeguard — PASS (deployed to production 2026-07-12; cumulative build includes 22ZA–22ZC)** |
