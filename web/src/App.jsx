@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getSession } from './api/auth';
 import { getTenantInfo } from './api/client';
 import PortalGateway from './components/PortalGateway';
@@ -68,8 +68,69 @@ function AppContent() {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [tenantInfo, setTenantInfo] = useState(null);
   const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const toggleRef = useRef(null);
+  const closeBtnRef = useRef(null);
   
   const isAdminRoute = location.pathname.startsWith('/admin') || location.pathname.startsWith('/platform-admin');
+
+  // Close mobile drawer on navigation
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  // Lock body scroll when mobile drawer is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobileMenuOpen]);
+
+  // Escape key support to close drawer
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    if (isMobileMenuOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isMobileMenuOpen]);
+
+  // Auto-close mobile drawer when window is resized above mobile breakpoint (767px)
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 768px)');
+    const handleMediaChange = (e) => {
+      if (e.matches) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    mediaQuery.addEventListener('change', handleMediaChange);
+    return () => {
+      mediaQuery.removeEventListener('change', handleMediaChange);
+    };
+  }, []);
+
+  // Manage focus transitions when mobile drawer opens and closes
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      closeBtnRef.current?.focus();
+    } else {
+      // Return focus to toggle, but avoid focusing on initial page render
+      if (toggleRef.current && document.activeElement !== document.body) {
+        toggleRef.current.focus();
+      }
+    }
+  }, [isMobileMenuOpen]);
 
   useEffect(() => {
     const checkPlatformAdmin = async () => {
@@ -130,7 +191,8 @@ function AppContent() {
                 : "Tog&Dogs"}
             </div>
           </Link>
-          <nav className="main-nav">
+          {/* Desktop Navigation */}
+          <nav className="main-nav desktop-only">
             <Link to="/" className="nav-link">Portal</Link>
             <Link to="/my-bookings" className="nav-link">My Bookings</Link>
             {isPlatformAdmin && (
@@ -140,6 +202,55 @@ function AppContent() {
             )}
             <Link to="/book" className="nav-link nav-cta">Request Care</Link>
             <ThemeToggle />
+          </nav>
+
+          {/* Mobile Navigation Controls */}
+          <div className="mobile-controls">
+            <ThemeToggle />
+            <button 
+              ref={toggleRef}
+              className={`hamburger-toggle ${isMobileMenuOpen ? 'open' : ''}`}
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Toggle menu"
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="mobile-nav-drawer"
+            >
+              <span className="hamburger-bar"></span>
+              <span className="hamburger-bar"></span>
+              <span className="hamburger-bar"></span>
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Navigation Drawer */}
+        <div 
+          id="mobile-nav-drawer"
+          className={`mobile-drawer ${isMobileMenuOpen ? 'open' : ''}`}
+          aria-hidden={!isMobileMenuOpen}
+        >
+          <div className="mobile-drawer-backdrop" onClick={() => setIsMobileMenuOpen(false)}></div>
+          <nav className="mobile-drawer-content">
+            <div className="mobile-drawer-header">
+              <span className="drawer-title">Navigation</span>
+              <button 
+                ref={closeBtnRef}
+                className="close-drawer-button" 
+                onClick={() => setIsMobileMenuOpen(false)}
+                aria-label="Close menu"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="mobile-drawer-links">
+              <Link to="/" className="drawer-link" onClick={() => setIsMobileMenuOpen(false)}>Portal</Link>
+              <Link to="/my-bookings" className="drawer-link" onClick={() => setIsMobileMenuOpen(false)}>My Bookings</Link>
+              {isPlatformAdmin && (
+                <Link to="/platform-admin" className="drawer-link platform-admin-link" onClick={() => setIsMobileMenuOpen(false)}>
+                  Platform Admin
+                </Link>
+              )}
+              <Link to="/book" className="drawer-link drawer-cta" onClick={() => setIsMobileMenuOpen(false)}>Request Care</Link>
+            </div>
           </nav>
         </div>
       </header>

@@ -79,6 +79,14 @@ const AdminDashboard = () => {
 
 
   const [view, setView] = useState('SCHEDULER'); // SCHEDULER or LIST
+  const activeTabRef = useRef(null);
+  
+  useEffect(() => {
+    if (activeTabRef.current) {
+      activeTabRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [view]);
+
   const [statusFilter, setStatusFilter] = useState('PENDING_REVIEW');
   const [timeframeFilter, setTimeframeFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -3365,16 +3373,40 @@ const AdminDashboard = () => {
           </div>
           <nav className="view-selector">
             {capabilities.canViewScheduler && (
-              <button className={view === 'SCHEDULER' ? 'active' : ''} onClick={() => { setView('SCHEDULER'); setStatusFilter('ALL'); }}>Scheduler</button>
+              <button 
+                ref={view === 'SCHEDULER' ? activeTabRef : null}
+                className={view === 'SCHEDULER' ? 'active' : ''} 
+                onClick={() => { setView('SCHEDULER'); setStatusFilter('ALL'); }}
+              >
+                Scheduler
+              </button>
             )}
             {capabilities.canViewRequestList && (
-              <button className={view === 'LIST' ? 'active' : ''} onClick={() => setView('LIST')}>Request List</button>
+              <button 
+                ref={view === 'LIST' ? activeTabRef : null}
+                className={view === 'LIST' ? 'active' : ''} 
+                onClick={() => setView('LIST')}
+              >
+                Request List
+              </button>
             )}
             {capabilities.canManageStaff && (
-              <button className={view === 'STAFF_MGMT' ? 'active' : ''} onClick={() => setView('STAFF_MGMT')}>Staff Management</button>
+              <button 
+                ref={view === 'STAFF_MGMT' ? activeTabRef : null}
+                className={view === 'STAFF_MGMT' ? 'active' : ''} 
+                onClick={() => setView('STAFF_MGMT')}
+              >
+                Staff Management
+              </button>
             )}
             {capabilities.canManageClients && (
-              <button className={view === 'CLIENT_MGMT' ? 'active' : ''} onClick={() => setView('CLIENT_MGMT')}>Client Management</button>
+              <button 
+                ref={view === 'CLIENT_MGMT' ? activeTabRef : null}
+                className={view === 'CLIENT_MGMT' ? 'active' : ''} 
+                onClick={() => setView('CLIENT_MGMT')}
+              >
+                Client Management
+              </button>
             )}
           </nav>
         </div>
