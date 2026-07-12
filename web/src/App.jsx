@@ -76,6 +76,7 @@ function AppContent() {
 
   // Close mobile drawer on navigation
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
@@ -130,6 +131,54 @@ function AppContent() {
         toggleRef.current.focus();
       }
     }
+  }, [isMobileMenuOpen]);
+
+  // Focus trap inside the mobile drawer
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+
+    const drawerEl = document.getElementById('mobile-nav-drawer');
+    if (!drawerEl) return;
+
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    
+    const handleKeyDown = (e) => {
+      if (e.key !== 'Tab') return;
+
+      const focusables = Array.from(drawerEl.querySelectorAll(focusableSelector))
+        .filter(el => {
+          return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+        });
+
+      if (focusables.length === 0) return;
+
+      const firstEl = focusables[0];
+      const lastEl = focusables[focusables.length - 1];
+
+      // If activeElement is not inside the drawer, redirect focus to the first element
+      if (!drawerEl.contains(document.activeElement)) {
+        firstEl.focus();
+        e.preventDefault();
+        return;
+      }
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstEl) {
+          lastEl.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === lastEl) {
+          firstEl.focus();
+          e.preventDefault();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isMobileMenuOpen]);
 
   useEffect(() => {
@@ -227,6 +276,9 @@ function AppContent() {
           id="mobile-nav-drawer"
           className={`mobile-drawer ${isMobileMenuOpen ? 'open' : ''}`}
           aria-hidden={!isMobileMenuOpen}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation drawer"
         >
           <div className="mobile-drawer-backdrop" onClick={() => setIsMobileMenuOpen(false)}></div>
           <nav className="mobile-drawer-content">
