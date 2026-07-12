@@ -13,7 +13,7 @@ This release improves three areas for mobile viewports:
 
 1. **Dashboard stat cards** — Cards now expose keyboard accessibility (`role="button"`, `tabIndex`, `onKeyDown`, `aria-label`) and have explicit focus rings in CSS. On mobile (≤480px), the hover transform is suppressed (no hover state on touch) and an active scale is provided for touch feedback.
 2. **Request List filter controls bar** — The inline-styled filter bar is replaced with CSS-class-based wrappers (`search-wrapper`, `payment-filter-wrapper`) and a `.list-controls-bar` CSS class. On mobile (≤480px) the controls stack vertically: search input full-width, Payment Status label + select stacked vertically, Reset Filters button full-width with 44px tap target. On tablet (481–767px), controls wrap horizontally.
-3. **Request List mobile card accessibility** — Each `<td>` in the request table now carries a `data-label` attribute (`"Customer / Service"`, `"Dates / Window"`, `"Status"`, `"Staff"`, `"Actions"`, `"Select"`). On mobile (≤480px), a CSS `::before` pseudo-element renders the column label above each cell value, providing accessible column context when the table is converted to stacked cards and the `<thead>` is hidden.
+3. **Request List mobile card accessibility** — Real DOM label elements (`mobile-only-label`) are rendered inside each table cell, hidden on desktop (`display: none`) and displayed block-level on mobile (≤480px). This provides full WCAG-compliant accessible column context on mobile where table semantics are lost, while preventing duplicate/redundant announcements on desktop viewports.
 4. **Expanded row details** — The inline `gridTemplateColumns: '1fr 1fr'` is replaced by a CSS class `expanded-details-grid` which collapses to single-column on mobile (≤480px).
 5. **List view container structure** — Added base CSS for `.list-view-container`, `.list-header-bar`, and `.list-controls-bar` to establish proper `overflow: hidden`, `min-width: 0`, and `box-sizing: border-box` for all widths.
 6. **Checkbox and expand toggle accessibility** — The checkbox in each row now has `aria-label`; the expand toggle button now has `aria-label` and `aria-expanded`.
@@ -93,20 +93,18 @@ The original visual browser validation was blocked by an Antigravity browser-age
 
 ### Mobile Table Accessibility Correction
 
-**Finding:** CSS `::before` pseudo-elements using `content: attr(data-label)` are **visual-only**. They are NOT reliably announced by screen readers across all platforms and user agent combinations. CSS-generated content does not meet WCAG requirements for programmatic label association.
+**Finding:** CSS `::before` pseudo-elements using `content: attr(data-label)` are **visual-only** and NOT reliably announced by all screen readers. Additionally, having separate `.sr-only` spans always active in the DOM causes redundant announcements on desktop viewports where native table headers are already visible and active in the accessibility tree.
 
-**Root cause:** When `<table>`, `<tbody>`, `<tr>`, and `<td>` elements are styled with `display: block` / `display: flex`, browsers strip their implicit table ARIA roles. The `<thead>` is hidden with `display: none`, removing column headers from both visual and accessibility trees. The `::before` pseudo-elements provide visual labels only.
+**Root cause:** When table tags are styled with `display: block` or `display: flex` on mobile, browsers strip native table ARIA semantics, rendering the table header (`thead` / `th`) associations inactive.
 
-**Correction applied:** Added real text labels inside each `<td>` cell using a shared `<span className="sr-only">` pattern:
-- CSS: Added `.sr-only` utility class (position: absolute, clip, 1px × 1px) — visually hidden but announced by screen readers
-- JSX: Added `<span className="sr-only">Column Name: </span>` inside each data cell (Customer / Service, Dates / Window, Status, Staff, Actions)
-- The Select column does not need a label — it already has `aria-label` on the checkbox and expand button
+**Correction applied:** Replaced both the visual-only CSS pseudo-elements and the always-active `sr-only` spans with a unified, clean DOM element approach:
+- JSX: Added `<span className="mobile-only-label">Column Label: </span>` inside the cell `<td>` tags.
+- CSS: Configured `.mobile-only-label` to be `display: none` by default. Under `@media (max-width: 480px)`, styled it as `display: block` with visual label typography matching the design system (0.7rem bold, uppercase, muted).
+- Removed the `::before` CSS selectors and the duplicate/redundant screen reader labels.
 
 **Outcome:**
-- `::before` pseudo-elements remain for **visual** mobile labels (sighted users)
-- `.sr-only` spans provide **programmatic** labels for screen readers
-- Desktop table semantics remain unchanged (thead/th visible, table display properties intact)
-- No duplicate accessible names (sr-only spans are additive context, not conflicting with existing aria-labels on interactive elements)
+- **Desktop viewports (≥481px):** Sighted and screen-reader users see/hear the columns through native `<thead>` and `<th>` elements. The `.mobile-only-label` elements are completely removed from both visual display and the accessibility tree (`display: none`).
+- **Mobile viewports (≤480px):** Sighted and screen-reader users both see and hear the real text labels inline, avoiding unreliable CSS-generated screen reader content and preventing duplicate announcements on desktop.
 
 ### Viewport Validation (Static/Code Analysis)
 

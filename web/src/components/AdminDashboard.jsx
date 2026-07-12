@@ -4558,7 +4558,7 @@ const AdminDashboard = () => {
                             </div>
                           </td>
                       <td data-label="Customer / Service" onClick={() => handleSelectPet(item)} className="clickable-cell">
-                        <span className="sr-only">Customer / Service: </span>
+                        <span className="mobile-only-label">Customer / Service: </span>
                         <div className="info-stack">
                           <span className="bold" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             {item.is_test_booking && (
@@ -4583,7 +4583,7 @@ const AdminDashboard = () => {
                         </div>
                       </td>
                       <td data-label="Dates / Window">
-                        <span className="sr-only">Dates / Window: </span>
+                        <span className="mobile-only-label">Dates / Window: </span>
                         <div className="info-stack">
                           <span className="small" title={getFullVisitDatesList(item)}>
                             {formatVisitDates(item)}
@@ -4630,7 +4630,7 @@ const AdminDashboard = () => {
                         </div>
                       </td>
                       <td data-label="Status" style={{ width: '180px' }}>
-                        <span className="sr-only">Status: </span>
+                        <span className="mobile-only-label">Status: </span>
                         {(() => {
                           const state = getWorkflowState(item);
                           return (
@@ -4654,7 +4654,7 @@ const AdminDashboard = () => {
                         })()}
                       </td>
                       <td data-label="Staff">
-                        <span className="sr-only">Staff: </span>
+                        <span className="mobile-only-label">Staff: </span>
                         {(() => {
                           const state = getWorkflowState(item);
                           if (state.actions.includes("ASSIGN") || state.actions.includes("CHANGE_WORKER")) {
@@ -4710,7 +4710,6 @@ const AdminDashboard = () => {
                         })()}
                       </td>
                       <td data-label="Actions">
-                        <span className="sr-only">Actions: </span>
                         <div className="action-menu-container">
                           <button 
                             className="button-secondary btn-small dropdown-trigger" 

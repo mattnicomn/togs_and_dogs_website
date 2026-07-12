@@ -2628,6 +2628,11 @@
   cursor: pointer;
 }
 
+/* Hide mobile-only labels on desktop/tablet */
+.mobile-only-label {
+  display: none;
+}
+
 /* --- Expanded row details: desktop two-column grid --- */
 .expanded-details-grid {
   display: grid;
@@ -2762,10 +2767,8 @@
     padding: 12px 12px !important;
   }
 
-  /* Data-label accessibility: show column labels as ::before pseudo-elements
-     on mobile cards (when thead is hidden and tr is display:flex column) */
-  .request-table tbody tr td[data-label]::before {
-    content: attr(data-label) ": ";
+  /* Real element labels for mobile cards (instead of CSS ::before content) */
+  .mobile-only-label {
     display: block;
     font-size: 0.7rem;
     font-weight: 800;
@@ -2773,16 +2776,6 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-bottom: 4px;
-  }
-
-  /* Do not show label for Select/checkbox column — it's hidden anyway */
-  .request-table tbody tr td[data-label="Select"]::before {
-    display: none;
-  }
-
-  /* Do not show label for Actions column — it has its own button label */
-  .request-table tbody tr td[data-label="Actions"]::before {
-    content: none;
   }
 
   /* Stat cards — ensure no hover transform on mobile (no hover state on touch) */
