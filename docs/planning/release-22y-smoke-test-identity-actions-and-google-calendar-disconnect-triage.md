@@ -34,10 +34,17 @@ This document analyzes the root causes and recommends the implementation path.
   ```
 
 #### Decision & Recommendation
-- **Product/Security Decision:** Normal admins (even those with owner roles like `mattnicomn10@gmail.com`) should **never** be able to delete or disable protected platform/admin accounts through the standard UI. Self-deletion must always remain blocked to prevent lockouts. Any removal of protected admin accounts must be an offline, break-glass maintenance procedure requiring explicit Matthew approval.
+- **Product/Security Decision:**
+  - **No UI Deletion/Disable/Unlinking:** Protected admins must not be deletable, disableable, or unlinkable through the normal administrative interface.
+  - **Self-Delete/Disable Blocked:** Self-deletion and self-disabling must remain aggressively blocked for all administrative users to prevent accidental lockout.
+  - **Safe Profile Edits Allowed:** Non-destructive profile edits (such as updating staff display names, assignment colors, and notes) may be permitted for protected admin accounts, provided they do not affect critical login identity bindings (such as `role`, `email`, or `cognito_sub`).
+  - **Break-Glass Maintenance Procedure:** Any removal, role demotion, or unlinking of a protected admin account requires an offline, documented break-glass maintenance procedure with explicit, written approval from Matthew.
+- **Future Recommendation:**
+  - **Break-Glass Runbook:** Create a dedicated runbook in `docs/operations/break-glass-protected-admin-removal.md` detailing the manual AWS CLI / Terraform steps to securely modify or remove a protected account in emergencies.
 - **UI Improvements:**
   - The UI currently disables the buttons and shows a hover tooltip. To prevent any user confusion, we will add a small inline text banner inside the "Account Security" drawer section when a protected account is selected (e.g., `🔒 Platform Protected: Security actions are write-locked.`).
-  - No confusing "Delete" or "Disable" buttons are visible/clickable for protected accounts. The current disabled button + tooltip pattern is verified and correct.
+  - No destructive "Delete", "Disable", or "Unlink" buttons are visible/clickable for protected accounts. The current disabled button + tooltip pattern is verified and correct.
+
 
 ---
 
