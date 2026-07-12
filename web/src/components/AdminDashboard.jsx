@@ -2817,25 +2817,54 @@ const AdminDashboard = () => {
 
     return (
       <div className="admin-stats-grid">
-        <div className="stat-card" onClick={() => { setView('LIST'); setStatusFilter('NEEDS_ACTION'); }}>
+        <div
+          className="stat-card"
+          role="button"
+          tabIndex={0}
+          aria-label={`Intake Queue: ${stats.intake} new registrations. Click to view.`}
+          onClick={() => { setView('LIST'); setStatusFilter('NEEDS_ACTION'); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setView('LIST'); setStatusFilter('NEEDS_ACTION'); } }}
+        >
           <span className="label">Intake Queue</span>
           <span className="value">{stats.intake}</span>
           <span className="trend neutral">New registrations</span>
         </div>
-        <div className="stat-card" onClick={() => { setView('LIST'); setStatusFilter('UNASSIGNED'); }}>
+        <div
+          className="stat-card"
+          role="button"
+          tabIndex={0}
+          aria-label={`Needs Assignment: ${stats.unassigned} approved with no staff. Click to view.`}
+          onClick={() => { setView('LIST'); setStatusFilter('UNASSIGNED'); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setView('LIST'); setStatusFilter('UNASSIGNED'); } }}
+        >
           <span className="label">Needs Assignment</span>
           <span className="value" style={{ color: stats.unassigned > 0 ? 'var(--warning-color)' : 'inherit' }}>
             {stats.unassigned}
           </span>
           <span className="trend">Approved, no staff</span>
         </div>
-        <div className="stat-card" onClick={() => { setView('SCHEDULER'); setStatusFilter('ALL'); }}>
+        <div
+          className="stat-card"
+          role="button"
+          tabIndex={0}
+          aria-label={`Scheduled Visits: ${stats.scheduled} total upcoming. Click to view scheduler.`}
+          onClick={() => { setView('SCHEDULER'); setStatusFilter('ALL'); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setView('SCHEDULER'); setStatusFilter('ALL'); } }}
+        >
           <span className="label">Scheduled Visits</span>
           <span className="value">{stats.scheduled}</span>
           <span className="trend neutral">Total upcoming</span>
         </div>
         {stats.alerts > 0 && (
-          <div className="stat-card" style={{ borderColor: 'var(--warning-color)' }} onClick={() => { setView('LIST'); setStatusFilter('ALL'); }}>
+          <div
+            className="stat-card"
+            style={{ borderColor: 'var(--warning-color)' }}
+            role="button"
+            tabIndex={0}
+            aria-label={`Alerts: ${stats.alerts} cancellation requests. Click to view.`}
+            onClick={() => { setView('LIST'); setStatusFilter('ALL'); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setView('LIST'); setStatusFilter('ALL'); } }}
+          >
             <span className="label" style={{ color: 'var(--warning-color)' }}>Alerts</span>
             <span className="value" style={{ color: 'var(--warning-color)' }}>{stats.alerts}</span>
             <span className="trend up">Cancellation requests</span>
@@ -4316,15 +4345,14 @@ const AdminDashboard = () => {
                 })()}</h2>
                 <span className="micro-text">Showing records requiring action in the {statusFilter.replace(/_/g, ' ')} phase</span>
               </div>
-              <div className="list-controls-bar" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', padding: '16px 24px', borderBottom: '1px solid var(--border)', alignItems: 'center', backgroundColor: 'var(--bg-card-header, rgba(255, 255, 255, 0.02))' }}>
-                <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
+              <div className="list-controls-bar">
+                <div className="search-wrapper">
                   <input
                     type="text"
                     placeholder="Search client, pet, email, ID..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     style={{
-                      width: '100%',
                       padding: '10px 14px 10px 36px',
                       borderRadius: '8px',
                       border: '1px solid var(--border)',
@@ -4350,12 +4378,13 @@ const AdminDashboard = () => {
                         padding: '4px'
                       }}
                       title="Clear search"
+                      aria-label="Clear search"
                     >
                       ✕
                     </button>
                   )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="payment-filter-wrapper">
                   <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>Payment Status:</label>
                   <select
                     value={paymentStatusFilter}
@@ -4504,12 +4533,13 @@ const AdminDashboard = () => {
                     return (
                       <React.Fragment key={recordKey}>
                         <tr className={`${selectedIds.includes(recordKey) ? 'selected-row' : ''} ${item.is_test_booking ? 'test-row' : ''}`} style={item.is_test_booking ? { borderLeft: '4px solid var(--info, #0284c7)', backgroundColor: 'var(--bg-test, #f0f9ff)' } : {}}>
-                          <td>
+                          <td data-label="Select">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <input 
                                 type="checkbox" 
                                 checked={selectedIds.includes(recordKey)}
                                 onChange={() => toggleSelectOne(recordKey)}
+                                aria-label={`Select ${item.pet_names || item.client_name || 'this record'}`}
                               />
                               <button
                                 type="button"
@@ -4528,12 +4558,14 @@ const AdminDashboard = () => {
                                 }}
                                 onClick={() => toggleRequestExpanded(recordKey)}
                                 title={isExpanded ? "Collapse Details" : "Expand Details"}
+                                aria-label={isExpanded ? `Collapse details for ${item.pet_names || item.client_name || 'this record'}` : `Expand details for ${item.pet_names || item.client_name || 'this record'}`}
+                                aria-expanded={isExpanded}
                               >
                                 ▶
                               </button>
                             </div>
                           </td>
-                      <td onClick={() => handleSelectPet(item)} className="clickable-cell">
+                      <td data-label="Customer / Service" onClick={() => handleSelectPet(item)} className="clickable-cell">
                         <div className="info-stack">
                           <span className="bold" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             {item.is_test_booking && (
@@ -4557,7 +4589,7 @@ const AdminDashboard = () => {
                           <span className="micro-text">{getServiceLabel(item.service_type)}</span>
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Dates / Window">
                         <div className="info-stack">
                           <span className="small" title={getFullVisitDatesList(item)}>
                             {formatVisitDates(item)}
@@ -4603,7 +4635,7 @@ const AdminDashboard = () => {
                           )}
                         </div>
                       </td>
-                      <td style={{ width: '180px' }}>
+                      <td data-label="Status" style={{ width: '180px' }}>
                         {(() => {
                           const state = getWorkflowState(item);
                           return (
@@ -4626,7 +4658,7 @@ const AdminDashboard = () => {
                           );
                         })()}
                       </td>
-                      <td>
+                      <td data-label="Staff">
                         {(() => {
                           const state = getWorkflowState(item);
                           if (state.actions.includes("ASSIGN") || state.actions.includes("CHANGE_WORKER")) {
@@ -4681,7 +4713,7 @@ const AdminDashboard = () => {
                           return resolvedName || '---';
                         })()}
                       </td>
-                      <td>
+                      <td data-label="Actions">
                         <div className="action-menu-container">
                           <button 
                             className="button-secondary btn-small dropdown-trigger" 
@@ -4765,7 +4797,7 @@ const AdminDashboard = () => {
                       <tr className="expanded-row-details" style={{ backgroundColor: 'var(--bg-muted, #f8f9fa)' }}>
                         <td colSpan={6} style={{ padding: '16px 24px', borderTop: 'none' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                            <div className="expanded-details-grid">
                               <div>
                                 <strong style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Service Details:</strong>
                                 <p style={{ margin: '4px 0 0 0' }}>{getServiceLabel(item.service_type)} for {item.pet_names || item.pet_name || 'Pet'}</p>
