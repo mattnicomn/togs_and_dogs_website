@@ -297,3 +297,67 @@ def validate_tenant_ownership(item, event):
         raise PermissionError("Forbidden: Cross-tenant data access detected")
 
 
+def build_tenant_user_attribute(company_id):
+    """
+    Build the Cognito custom:company_id attribute for a trusted tenant assignment.
+    
+    This helper MUST be used for all Cognito admin_create_user and admin_update_user_attributes
+    calls that need to assign a user to a tenant. The company_id value MUST come exclusively
+    from the server-side trusted context (get_current_company_id), never from browser input.
+    
+    Raises ValueError if company_id is empty or invalid.
+    Returns a single Cognito UserAttribute dict.
+    """
+    if not company_id or not isinstance(company_id, str) or not company_id.strip():
+        raise ValueError("Cannot assign tenant: company_id is empty or invalid")
+    return {'Name': 'custom:company_id', 'Value': company_id.strip()}
+
+
+def ensure_cognito_tenant_attribute(cognito_client, user_pool_id, username, company_id):
+    """
+    Ensure a Cognito user has the correct custom:company_id attribute set.
+    
+    Used during link-cognito flows to repair missing tenant assignment or verify
+    existing assignment matches the expected tenant.
+    
+    Args:
+        cognito_client: boto3 cognito-idp client
+        user_pool_id: Cognito User Pool ID
+        username: Cognito username (email)
+        company_id: trusted company_id from server-side context
+    
+    Raises:
+        ValueError: if company_id is empty
+        PermissionError: if user already has a different non-empty company_id (cross-tenant conflict)
+    """
+    if not company_id or not company_id.strip():
+        raise ValueError("Cannot assign tenant: company_id is empty or invalid")
+    
+    # Read the user's current custom:company_id
+    try:
+        user_resp = cognito_client.admin_get_user(UserPoolId=user_pool_id, Username=username)
+        current_company = None
+        for attr in user_resp.get('UserAttributes', []):
+            if attr.get('Name') == 'custom:company_id':
+                current_company = attr.get('Value', '').strip()
+                break
+    except Exception as e:
+        raise RuntimeError(f"Failed to read Cognito user attributes: {e}")
+    
+    # If already set to a different non-empty tenant, deny the operation
+    if current_company and current_company != company_id.strip():
+        raise PermissionError(
+            "Cross-tenant identity conflict: user is already assigned to a different tenant. "
+            "Cannot reassign between tenants without explicit platform admin action."
+        )
+    
+    # If already correctly set, no update needed
+    if current_company == company_id.strip():
+        return
+    
+    # Set the attribute
+    cognito_client.admin_update_user_attributes(
+        UserPoolId=user_pool_id,
+        Username=username,
+        UserAttributes=[build_tenant_user_attribute(company_id)]
+    )

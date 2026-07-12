@@ -712,7 +712,8 @@ def handler(event, context):
                 # Generate a secure temporary password and suppress Cognito's default email
                 temp_password = generate_temp_password()
                 
-                # Create user in FORCE_CHANGE_PASSWORD
+                # Create user in FORCE_CHANGE_PASSWORD with trusted tenant assignment
+                from common.auth import build_tenant_user_attribute
                 cog_resp = cognito.admin_create_user(
                     UserPoolId=user_pool_id,
                     Username=email,
@@ -720,6 +721,7 @@ def handler(event, context):
                     UserAttributes=[
                         {'Name': 'email', 'Value': email},
                         {'Name': 'email_verified', 'Value': 'true'},
+                        build_tenant_user_attribute(company_id),
                     ],
                     MessageAction='SUPPRESS', # Suppress Cognito's default invite
                     DesiredDeliveryMediums=['EMAIL']
@@ -928,7 +930,8 @@ def handler(event, context):
                 # Generate a secure temporary password and suppress Cognito's default email
                 temp_password = generate_temp_password()
                 
-                # Create user in FORCE_CHANGE_PASSWORD
+                # Create user in FORCE_CHANGE_PASSWORD with trusted tenant assignment
+                from common.auth import build_tenant_user_attribute
                 cog_resp = cognito.admin_create_user(
                     UserPoolId=user_pool_id,
                     Username=email,
@@ -936,6 +939,7 @@ def handler(event, context):
                     UserAttributes=[
                         {'Name': 'email', 'Value': email},
                         {'Name': 'email_verified', 'Value': 'true'},
+                        build_tenant_user_attribute(company_id),
                     ],
                     MessageAction='SUPPRESS', # Suppress Cognito's default invite
                     DesiredDeliveryMediums=['EMAIL']
@@ -1102,6 +1106,13 @@ def handler(event, context):
                 try:
                     cognito.admin_add_user_to_group(UserPoolId=user_pool_id, Username=username, GroupName=target_group)
                 except: pass
+                
+                # Ensure trusted tenant assignment on the Cognito identity
+                from common.auth import ensure_cognito_tenant_attribute
+                try:
+                    ensure_cognito_tenant_attribute(cognito, user_pool_id, username, company_id)
+                except PermissionError as tenant_err:
+                    return error(403, str(tenant_err), event)
                 
                 user_profile['cognito_sub'] = cognito_sub
                 user_profile['cognito_status'] = cog_user.get('UserStatus')
