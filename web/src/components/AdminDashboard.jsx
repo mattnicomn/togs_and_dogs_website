@@ -80,6 +80,8 @@ const AdminDashboard = () => {
 
   const [view, setView] = useState('SCHEDULER'); // SCHEDULER or LIST
   const activeTabRef = useRef(null);
+  const staffDrawerTriggerRef = useRef(null);
+  const staffDrawerCloseBtnRef = useRef(null);
   
   useEffect(() => {
     if (activeTabRef.current) {
@@ -1605,6 +1607,7 @@ const AdminDashboard = () => {
     setStaffForm(formVals);
     setSelectedStaffForDrawer(staff);
     setInitialFormValues(formVals);
+    staffDrawerTriggerRef.current = document.activeElement;
     setIsStaffDrawerOpen(true);
   };
 
@@ -1624,6 +1627,7 @@ const AdminDashboard = () => {
     setStaffForm(defaultVals);
     setSelectedStaffForDrawer(null);
     setInitialFormValues(defaultVals);
+    staffDrawerTriggerRef.current = document.activeElement;
     setIsStaffDrawerOpen(true);
   };
 
@@ -1661,6 +1665,79 @@ const AdminDashboard = () => {
         document.body.style.overflowX = originalOverflowX;
       };
     }
+  }, [isStaffDrawerOpen]);
+
+  const closeStaffDrawerRef = useRef(null);
+  useEffect(() => {
+    closeStaffDrawerRef.current = closeStaffDrawer;
+  });
+
+  // Focus management when staff drawer opens/closes
+  useEffect(() => {
+    if (isStaffDrawerOpen) {
+      setTimeout(() => {
+        const firstInput = document.querySelector('.profile-editor-drawer input[type="text"]:not([disabled])');
+        if (firstInput) {
+          firstInput.focus();
+        } else {
+          staffDrawerCloseBtnRef.current?.focus();
+        }
+      }, 50);
+    } else {
+      staffDrawerTriggerRef.current?.focus();
+    }
+  }, [isStaffDrawerOpen]);
+
+  // Focus trap when staff drawer is open
+  useEffect(() => {
+    if (!isStaffDrawerOpen) return;
+
+    const drawerEl = document.querySelector('.profile-editor-drawer');
+    if (!drawerEl) return;
+
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (closeStaffDrawerRef.current) {
+          closeStaffDrawerRef.current();
+        }
+        return;
+      }
+      
+      if (e.key !== 'Tab') return;
+
+      const focusables = Array.from(drawerEl.querySelectorAll(focusableSelector))
+        .filter(el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+
+      if (focusables.length === 0) return;
+
+      const firstEl = focusables[0];
+      const lastEl = focusables[focusables.length - 1];
+
+      if (!drawerEl.contains(document.activeElement)) {
+        firstEl.focus();
+        e.preventDefault();
+        return;
+      }
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstEl) {
+          lastEl.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === lastEl) {
+          firstEl.focus();
+          e.preventDefault();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isStaffDrawerOpen]);
 
 
@@ -3799,7 +3876,7 @@ const AdminDashboard = () => {
                   <div className="profile-editor-drawer" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                     <div className="drawer-header">
                       <h3>{editingStaffId ? `Manage Staff: ${staffForm.display_name}` : 'Add New Staff Profile'}</h3>
-                      <button type="button" className="drawer-close-button" onClick={closeStaffDrawer}>&times;</button>
+                      <button type="button" ref={staffDrawerCloseBtnRef} className="drawer-close-button" onClick={closeStaffDrawer}>&times;</button>
                     </div>
                     
                     <div className="drawer-content">
@@ -3816,7 +3893,7 @@ const AdminDashboard = () => {
                         <h4 className="drawer-section-title">Profile Details</h4>
                         <p className="drawer-section-helper">Public-facing information and internal metadata.</p>
                         
-                        <form onSubmit={handleSaveStaff}>
+                        <form id="staff-profile-form" onSubmit={handleSaveStaff}>
                           {!editingStaffId && (
                             <div className="field" style={{ display: 'flex', gap: '20px', marginBottom: '16px' }}>
                               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
@@ -4189,13 +4266,21 @@ const AdminDashboard = () => {
                         </div>
                       )}
 
-                      {/* Section 7: Audit History Placeholder */}
                       <div className="drawer-section">
                         <h4 className="drawer-section-title">Audit History</h4>
                         <p style={{ fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic', margin: '8px 0 0 0' }}>
                           Audit history will appear here in a future release.
                         </p>
                       </div>
+                    </div>
+                    {/* Sticky Mobile Footer */}
+                    <div className="drawer-footer">
+                      <button type="button" className="button-secondary" onClick={closeStaffDrawer}>
+                        Cancel
+                      </button>
+                      <button type="submit" form="staff-profile-form" className="button-primary" disabled={isSavingStaff}>
+                        {isSavingStaff ? 'Saving...' : editingStaffId ? 'Save Changes' : 'Create Profile'}
+                      </button>
                     </div>
                   </div>
                 </div>,

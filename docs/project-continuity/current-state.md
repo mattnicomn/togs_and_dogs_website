@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-12 (Release 22ZA)
+**Last Updated:** 2026-07-12 (Release 22ZB)
 
 ---
 
@@ -63,6 +63,7 @@
 
 ## Latest Completed Releases
 
+- 22ZB: Profile Editor Mobile Layout (✅ PASS — Pre-Deploy — 2026-07-12)
 - 22ZA: Responsive Foundation and Navigation (✅ PASS — Pre-Deploy — 2026-07-12)
 - 22Z: Mobile Responsive UX Polish Detailed Plan (✅ Planning Complete — 2026-07-12)
 - 22Y: Smoke Test Findings: Identity Action State and Google Calendar Disconnect Triage (✅ Planning Complete — 2026-07-11)
@@ -108,10 +109,10 @@
 - 19B: Tenant provisioning script dry run
 - 18U: Post-enable strict-mode monitoring checkpoint (PASS)
 
-**Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes. Release 22ZA implemented the mobile responsive foundation and accessible slide-out navigation drawer (pre-deploy validated).**
+**Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes. Release 22ZA implemented the mobile responsive foundation and accessible slide-out navigation drawer (pre-deploy validated). Release 22ZB implemented the full-screen Profile Editor mobile sheet layout (pre-deploy validated).**
 
 **Next options:**
-- Begin Release 22ZB Mobile Intake Form UX Polish (Phase 2 of 22Z plan)
+- Begin Release 22ZC Mobile Client Portal UX Polish (Phase 3 of 22Z plan)
 - Address 22Y remediation items (Cognito password-reset state handling, Google Calendar disconnect API Gateway fix) in a separate release
 - Process any new pending cancellation records if they appear (22O plan available)
 - Continue SaaS maturity priorities (blocked on EIN for Stripe live)
