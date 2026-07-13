@@ -84,6 +84,14 @@ resource "aws_lambda_function" "intake" {
         GOOGLE_CLIENT_CREDS_NAME = module.secrets.google_client_creds_arn
         GOOGLE_USER_TOKENS_NAME  = module.secrets.google_user_tokens_arn
         JOB_FUNCTION_NAME        = aws_lambda_function.job.function_name
+        # Trusted domain-to-tenant mapping for public intake routing (temporary single-tenant bridge)
+        PUBLIC_INTAKE_DOMAIN_MAP = jsonencode({
+          "a022yxuiue.execute-api.us-east-1.amazonaws.com" = {
+            tenant_id             = "tog_and_dogs"
+            active                = true
+            public_intake_enabled = true
+          }
+        })
       },
       local.notification_env_vars
     )

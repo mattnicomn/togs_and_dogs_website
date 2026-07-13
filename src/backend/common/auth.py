@@ -301,25 +301,36 @@ def resolve_public_intake_tenant(event):
     """
     Resolve the tenant for a public (potentially unauthenticated) intake request.
     
-    Resolution order:
-    1. If the request has valid authenticated claims with custom:company_id,
-       use the authenticated tenant claim.
-    2. For unauthenticated requests, resolve the tenant from a trusted server-side
-       domain-to-tenant mapping configured in PUBLIC_INTAKE_DOMAIN_MAP.
-    3. Validate the resolved tenant is active using entitlement checks.
-    4. If authenticated and domain-mapped tenant differ, deny the request.
-    5. Fail closed if no mapping exists, domain is unknown, or tenant is inactive.
+    This resolver is used ONLY on public routes (/requests and staff-options).
+    Portal routes use the strict get_current_company_id resolver.
+    
+    Resolution rules:
+    1. The domain mapping (PUBLIC_INTAKE_DOMAIN_MAP) is ALWAYS required on public routes.
+       An unmapped or unknown domain fails closed regardless of authentication state.
+    2. If the request is also authenticated (custom:company_id present), the authenticated
+       claim must MATCH the domain-mapped tenant. Mismatch is denied.
+    3. After resolution, the authoritative tenant record must be active.
+    4. No fallback to DEFAULT_COMPANY_ID.
     
     SECURITY:
     - Never reads company_id from request body, query string, or browser headers.
     - Domain mapping comes from server-side environment configuration only.
     - The domain is read from requestContext.domainName (set by API Gateway infrastructure).
-    - Unknown domains, inactive tenants, and mismatches all fail closed.
-    - No DEFAULT_COMPANY_ID fallback in multi mode.
+    - Unknown domains, missing mappings, inactive tenants, and mismatches all fail closed.
+    - Authenticated claims cannot bypass a missing domain mapping on public routes.
     """
     import json as _json
     
-    # 1. Read authenticated claims
+    # 1. Resolve domain-to-tenant mapping (REQUIRED on public routes)
+    domain_tenant = _resolve_domain_tenant(event)
+    
+    if not domain_tenant:
+        # No valid domain mapping — fail closed even if authenticated
+        raise PermissionError(
+            "PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED: no trusted tenant mapping for this request"
+        )
+    
+    # 2. If authenticated, claim must match domain tenant
     claims = get_claims(event) if isinstance(event, dict) else {}
     custom_company = claims.get('custom:company_id')
     if isinstance(custom_company, str):
@@ -327,30 +338,64 @@ def resolve_public_intake_tenant(event):
     if not custom_company:
         custom_company = None
     
-    # 2. Resolve domain-to-tenant mapping
-    domain_tenant = _resolve_domain_tenant(event)
+    if custom_company and custom_company != domain_tenant:
+        raise PermissionError(
+            "PUBLIC_INTAKE_TENANT_MISMATCH: authenticated identity does not match this service domain"
+        )
     
-    # 3. Determine final tenant
-    if custom_company and domain_tenant:
-        # Both present: must match
-        if custom_company != domain_tenant:
-            raise PermissionError(
-                "PUBLIC_INTAKE_TENANT_MISMATCH: authenticated identity does not match this service domain"
-            )
-        return custom_company
+    # 3. Validate the authoritative tenant record is active
+    _validate_tenant_active(domain_tenant)
     
-    if custom_company:
-        # Authenticated but no domain mapping (e.g., portal path) — use claim
-        return custom_company
+    return domain_tenant
+
+
+def _validate_tenant_active(company_id):
+    """
+    Validate that the resolved tenant is active using an authoritative DynamoDB lookup.
     
-    if domain_tenant:
-        # Unauthenticated with valid domain mapping
-        return domain_tenant
+    STRICT behavior (unlike _get_entitlement_safely which fails open):
+    - Missing tenant record: DENY
+    - Lookup failure/exception: DENY
+    - Disabled/suspended/inactive tenant: DENY
+    - Active tenant: ALLOW
     
-    # No authenticated claim and no domain mapping — fail closed
-    raise PermissionError(
-        "PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED: no trusted tenant mapping for this request"
-    )
+    This must not use _get_entitlement_safely because that helper fails open
+    for missing tenants (returns active starter). Public intake routing must
+    fail closed when the authoritative tenant record is absent or invalid.
+    """
+    from common.db import get_item
+    
+    try:
+        tenant = get_item(f"TENANT#{company_id}", "METADATA")
+    except Exception:
+        # Lookup failure — fail closed
+        raise PermissionError(
+            "PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED: service is not currently available"
+        )
+    
+    if not tenant or not isinstance(tenant, dict):
+        # Missing or malformed tenant record — fail closed
+        raise PermissionError(
+            "PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED: service is not currently available"
+        )
+    
+    # Check subscription/access status using the same fields as require_active_tenant
+    subscription_status = (tenant.get('subscription_status') or '').lower().strip()
+    is_active = tenant.get('is_active', False)
+    
+    # Deny: disabled, suspended, canceled, or explicitly inactive
+    if subscription_status in ('disabled', 'suspended', 'canceled', 'cancelled', 'paused'):
+        raise PermissionError(
+            "PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED: service is not currently available"
+        )
+    
+    if not is_active and subscription_status != 'active':
+        raise PermissionError(
+            "PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED: service is not currently available"
+        )
+    
+    # Active tenant — allow
+    return
 
 
 def _resolve_domain_tenant(event):

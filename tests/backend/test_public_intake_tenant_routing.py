@@ -59,6 +59,10 @@ def _public_intake_event(body, path='/requests', claims=None, domain_name=PROD_A
     return event
 
 
+# Active tenant record for tests that expect successful resolution
+ACTIVE_TENANT_RECORD = {'subscription_status': 'active', 'is_active': True, 'company_id': 'tog_and_dogs'}
+
+
 # ==============================================================================
 # 1. resolve_public_intake_tenant Helper Tests
 # ==============================================================================
@@ -66,7 +70,7 @@ def _public_intake_event(body, path='/requests', claims=None, domain_name=PROD_A
 class TestResolvePublicIntakeTenant:
 
     def test_authenticated_claim_takes_precedence(self):
-        """If authenticated claims have custom:company_id, use it."""
+        """If authenticated claims have custom:company_id matching domain, it resolves."""
         from common.auth import resolve_public_intake_tenant
         event = _public_intake_event({}, claims={
             'custom:company_id': 'tog_and_dogs',
@@ -74,7 +78,8 @@ class TestResolvePublicIntakeTenant:
             'sub': 'test-sub',
         })
         with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
-            result = resolve_public_intake_tenant(event)
+            with patch('common.db.get_item', return_value=ACTIVE_TENANT_RECORD):
+                result = resolve_public_intake_tenant(event)
         assert result == 'tog_and_dogs'
 
     def test_unauthenticated_uses_domain_mapping(self):
@@ -82,7 +87,8 @@ class TestResolvePublicIntakeTenant:
         from common.auth import resolve_public_intake_tenant
         event = _public_intake_event({})
         with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
-            result = resolve_public_intake_tenant(event)
+            with patch('common.db.get_item', return_value=ACTIVE_TENANT_RECORD):
+                result = resolve_public_intake_tenant(event)
         assert result == 'tog_and_dogs'
 
     def test_unknown_domain_fails_closed(self):
@@ -136,7 +142,8 @@ class TestResolvePublicIntakeTenant:
         from common.auth import resolve_public_intake_tenant
         event = _public_intake_event({'company_id': 'test_tenant_alpha'})
         with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
-            result = resolve_public_intake_tenant(event)
+            with patch('common.db.get_item', return_value=ACTIVE_TENANT_RECORD):
+                result = resolve_public_intake_tenant(event)
         assert result == 'tog_and_dogs'
         assert result != 'test_tenant_alpha'
 
@@ -149,7 +156,8 @@ class TestResolvePublicIntakeTenant:
             'sub': 'match-sub',
         })
         with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
-            result = resolve_public_intake_tenant(event)
+            with patch('common.db.get_item', return_value=ACTIVE_TENANT_RECORD):
+                result = resolve_public_intake_tenant(event)
         assert result == 'tog_and_dogs'
 
     def test_authenticated_domain_mismatch_denied(self):
@@ -169,7 +177,8 @@ class TestResolvePublicIntakeTenant:
         from common.auth import resolve_public_intake_tenant
         event = _public_intake_event({}, domain_name=PROD_API_DOMAIN)
         with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
-            result = resolve_public_intake_tenant(event)
+            with patch('common.db.get_item', return_value=ACTIVE_TENANT_RECORD):
+                result = resolve_public_intake_tenant(event)
         assert result == 'tog_and_dogs'
 
     def test_no_default_company_id_fallback_in_multi_mode(self):
@@ -204,9 +213,10 @@ class TestResolvePublicIntakeTenant:
 class TestPublicIntakeHandlerRouting:
 
     @patch('common.entitlement.require_active_tenant', return_value=None)
+    @patch('common.db.get_item', return_value=ACTIVE_TENANT_RECORD)
     @patch('handlers.intake_handler.put_item', return_value=True)
     @patch('handlers.intake_handler.table')
-    def test_anonymous_public_intake_succeeds(self, mock_table, mock_put, mock_rat):
+    def test_anonymous_public_intake_succeeds(self, mock_table, mock_put, mock_get, mock_rat):
         """Anonymous POST /requests succeeds through mapped domain."""
         mock_table.query.return_value = {'Items': [], 'Count': 0}
 
@@ -252,9 +262,10 @@ class TestPublicIntakeHandlerRouting:
         assert resp['statusCode'] == 500
 
     @patch('common.entitlement.require_active_tenant', return_value=None)
+    @patch('common.db.get_item', return_value=ACTIVE_TENANT_RECORD)
     @patch('handlers.intake_handler.put_item', return_value=True)
     @patch('handlers.intake_handler.table')
-    def test_body_company_id_cannot_override_tenant(self, mock_table, mock_put, mock_rat):
+    def test_body_company_id_cannot_override_tenant(self, mock_table, mock_put, mock_get, mock_rat):
         """A body-supplied company_id does not determine tenant assignment."""
         mock_table.query.return_value = {'Items': [], 'Count': 0}
 
@@ -282,9 +293,10 @@ class TestPublicIntakeHandlerRouting:
             assert saved_item.get('company_id') == 'tog_and_dogs'
 
     @patch('common.entitlement.require_active_tenant', return_value=None)
+    @patch('common.db.get_item', return_value=ACTIVE_TENANT_RECORD)
     @patch('handlers.intake_handler.put_item', return_value=True)
     @patch('handlers.intake_handler.table')
-    def test_no_cognito_user_created(self, mock_table, mock_put, mock_rat):
+    def test_no_cognito_user_created(self, mock_table, mock_put, mock_get, mock_rat):
         """Anonymous intake must NOT create a Cognito user."""
         mock_table.query.return_value = {'Items': [], 'Count': 0}
 
@@ -309,9 +321,10 @@ class TestPublicIntakeHandlerRouting:
                 assert len(cognito_calls) == 0
 
     @patch('common.entitlement.require_active_tenant', return_value=None)
+    @patch('common.db.get_item', return_value=ACTIVE_TENANT_RECORD)
     @patch('handlers.intake_handler.put_item', return_value=True)
     @patch('handlers.intake_handler.table')
-    def test_staff_options_works_with_domain_map(self, mock_table, mock_put, mock_rat):
+    def test_staff_options_works_with_domain_map(self, mock_table, mock_put, mock_get, mock_rat):
         """Staff-options endpoint resolves tenant from domain map."""
         mock_table.query.return_value = {'Items': [
             {'staff_id': 's1', 'display_name': 'Staff One', 'is_active': True, 'is_assignable': True}
@@ -341,7 +354,8 @@ class TestBrowserInputRejection:
         event = _public_intake_event({})
         event['queryStringParameters'] = {'company_id': 'test_tenant_alpha'}
         with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
-            result = resolve_public_intake_tenant(event)
+            with patch('common.db.get_item', return_value=ACTIVE_TENANT_RECORD):
+                result = resolve_public_intake_tenant(event)
         assert result == 'tog_and_dogs'
 
     def test_origin_header_cannot_select_tenant(self):
@@ -350,7 +364,8 @@ class TestBrowserInputRejection:
         event = _public_intake_event({})
         event['headers'] = {'Origin': 'https://test-tenant-alpha.example.com'}
         with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
-            result = resolve_public_intake_tenant(event)
+            with patch('common.db.get_item', return_value=ACTIVE_TENANT_RECORD):
+                result = resolve_public_intake_tenant(event)
         assert result == 'tog_and_dogs'
 
     def test_referer_header_cannot_select_tenant(self):
@@ -359,7 +374,8 @@ class TestBrowserInputRejection:
         event = _public_intake_event({})
         event['headers'] = {'Referer': 'https://malicious.com/test_tenant_alpha'}
         with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
-            result = resolve_public_intake_tenant(event)
+            with patch('common.db.get_item', return_value=ACTIVE_TENANT_RECORD):
+                result = resolve_public_intake_tenant(event)
         assert result == 'tog_and_dogs'
 
     def test_custom_tenant_header_cannot_select_tenant(self):
@@ -368,7 +384,8 @@ class TestBrowserInputRejection:
         event = _public_intake_event({})
         event['headers'] = {'X-Tenant-ID': 'test_tenant_alpha', 'X-Company-ID': 'test_tenant_alpha'}
         with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
-            result = resolve_public_intake_tenant(event)
+            with patch('common.db.get_item', return_value=ACTIVE_TENANT_RECORD):
+                result = resolve_public_intake_tenant(event)
         assert result == 'tog_and_dogs'
 
 
@@ -428,7 +445,118 @@ class TestTransitionalGuardrail:
         from common.auth import resolve_public_intake_tenant
         event = _public_intake_event({})
         with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
-            result = resolve_public_intake_tenant(event)
-        # Must be the explicitly configured tenant only
+            with patch('common.db.get_item', return_value=ACTIVE_TENANT_RECORD):
+                result = resolve_public_intake_tenant(event)
         assert result == 'tog_and_dogs'
         assert result != 'test_tenant_alpha'
+
+
+# ==============================================================================
+# 4. Authoritative Tenant Validation Tests
+# ==============================================================================
+
+class TestTenantStatusValidation:
+    """Prove that domain-mapped tenants must also be active in authoritative metadata."""
+
+    def test_mapped_tenant_disabled_fails(self):
+        """A domain-mapped tenant that is disabled in metadata is denied."""
+        from common.auth import resolve_public_intake_tenant
+        
+        disabled_tenant = {'subscription_status': 'disabled', 'is_active': False}
+        event = _public_intake_event({})
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
+            with patch('common.db.get_item', return_value=disabled_tenant):
+                with pytest.raises(PermissionError, match="not currently available"):
+                    resolve_public_intake_tenant(event)
+
+    def test_mapped_tenant_active_succeeds(self):
+        """A domain-mapped tenant that is active in metadata succeeds."""
+        from common.auth import resolve_public_intake_tenant
+        
+        active_tenant = {'subscription_status': 'active', 'is_active': True}
+        event = _public_intake_event({})
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
+            with patch('common.db.get_item', return_value=active_tenant):
+                result = resolve_public_intake_tenant(event)
+        assert result == 'tog_and_dogs'
+
+    def test_active_mapping_cannot_override_inactive_tenant(self):
+        """An active domain mapping does not bypass an inactive authoritative tenant."""
+        from common.auth import resolve_public_intake_tenant
+        
+        suspended_tenant = {'subscription_status': 'suspended', 'is_active': False}
+        event = _public_intake_event({})
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
+            with patch('common.db.get_item', return_value=suspended_tenant):
+                with pytest.raises(PermissionError, match="not currently available"):
+                    resolve_public_intake_tenant(event)
+
+    def test_missing_tenant_record_fails_closed(self):
+        """A domain-mapped tenant with no DynamoDB record fails closed."""
+        from common.auth import resolve_public_intake_tenant
+        
+        event = _public_intake_event({})
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
+            with patch('common.db.get_item', return_value=None):
+                with pytest.raises(PermissionError, match="not currently available"):
+                    resolve_public_intake_tenant(event)
+
+    def test_tenant_lookup_exception_fails_closed(self):
+        """A DynamoDB lookup failure fails closed."""
+        from common.auth import resolve_public_intake_tenant
+        
+        event = _public_intake_event({})
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
+            with patch('common.db.get_item', side_effect=Exception("DynamoDB error")):
+                with pytest.raises(PermissionError, match="not currently available"):
+                    resolve_public_intake_tenant(event)
+
+    def test_malformed_tenant_record_fails_closed(self):
+        """A non-dict tenant record fails closed."""
+        from common.auth import resolve_public_intake_tenant
+        
+        event = _public_intake_event({})
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
+            with patch('common.db.get_item', return_value="not a dict"):
+                with pytest.raises(PermissionError, match="not currently available"):
+                    resolve_public_intake_tenant(event)
+
+
+class TestAuthenticatedCannotBypassDomainMapping:
+    """Prove that authenticated claims cannot bypass a missing or invalid domain mapping."""
+
+    def test_authenticated_claim_with_unmapped_domain_fails(self):
+        """Authenticated user on an unmapped domain fails closed."""
+        from common.auth import resolve_public_intake_tenant
+        event = _public_intake_event({}, claims={
+            'custom:company_id': 'tog_and_dogs',
+            'email': 'user@example.com',
+            'sub': 'sub-1',
+        }, domain_name='unknown.example.com')
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
+            with pytest.raises(PermissionError):
+                resolve_public_intake_tenant(event)
+
+    def test_authenticated_claim_with_no_domain_map_fails(self):
+        """Authenticated user with no domain map configured fails closed."""
+        from common.auth import resolve_public_intake_tenant
+        event = _public_intake_event({}, claims={
+            'custom:company_id': 'tog_and_dogs',
+            'email': 'user@example.com',
+            'sub': 'sub-2',
+        })
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': ''}):
+            with pytest.raises(PermissionError, match="no trusted tenant mapping"):
+                resolve_public_intake_tenant(event)
+
+    def test_authenticated_claim_with_empty_domain_fails(self):
+        """Authenticated user with empty requestContext.domainName fails closed."""
+        from common.auth import resolve_public_intake_tenant
+        event = _public_intake_event({}, claims={
+            'custom:company_id': 'tog_and_dogs',
+            'email': 'user@example.com',
+            'sub': 'sub-3',
+        }, domain_name='')
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
+            with pytest.raises(PermissionError, match="no trusted tenant mapping"):
+                resolve_public_intake_tenant(event)
