@@ -26,11 +26,11 @@ def _handle_staff_options(event):
     This endpoint is accessible without authentication so that public intake
     form users (existing clients not logged in) can express a sitter preference.
     """
-    from common.auth import get_current_company_id
+    from common.auth import resolve_public_intake_tenant
     from boto3.dynamodb.conditions import Key
 
     try:
-        company_id = get_current_company_id(event)
+        company_id = resolve_public_intake_tenant(event)
 
         response = table.query(
             KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("STAFF#")
@@ -346,12 +346,20 @@ def handler(event, context):
                 end_date = valid_dates[-1]
                 selected_dates = valid_dates
         
-        from common.auth import get_effective_role, resolve_client_identity, get_claims, get_current_company_id
+        from common.auth import get_effective_role, resolve_client_identity, get_claims, get_current_company_id, resolve_public_intake_tenant
         role = get_effective_role(event)
         client_id = body.get('client_id')
-        company_id = get_current_company_id(event)
         
         is_portal_path = event.get('path', '') == '/client/requests'
+        
+        # Use the appropriate tenant resolver based on the request path:
+        # - Portal/authenticated paths use the strict authenticated resolver
+        # - Public /requests path uses the trusted public-intake resolver
+        if is_portal_path:
+            company_id = get_current_company_id(event)
+        else:
+            company_id = resolve_public_intake_tenant(event)
+        
         workflow_type = WorkflowType.CUSTOMER_INTAKE
         
         if is_portal_path and role == 'client':

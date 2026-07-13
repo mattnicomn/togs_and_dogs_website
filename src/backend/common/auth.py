@@ -297,6 +297,50 @@ def validate_tenant_ownership(item, event):
         raise PermissionError("Forbidden: Cross-tenant data access detected")
 
 
+def resolve_public_intake_tenant(event):
+    """
+    Resolve the tenant for a public (potentially unauthenticated) intake request.
+    
+    Resolution order:
+    1. If the request has valid authenticated claims with custom:company_id,
+       use the authenticated tenant (same as get_current_company_id).
+    2. If unauthenticated or claims lack custom:company_id, use the trusted
+       server-configured PUBLIC_INTAKE_TENANT_ID environment variable.
+    3. If PUBLIC_INTAKE_TENANT_ID is not configured, fall back to DEFAULT_COMPANY_ID
+       (which is 'tog_and_dogs' for the current branded deployment).
+    4. Fail closed if neither is available.
+    
+    SECURITY:
+    - Never reads company_id from request body, query string, or browser headers.
+    - The trusted value comes exclusively from server-side environment configuration.
+    - For authenticated requests, the Cognito claim takes precedence.
+    - If an authenticated claim conflicts with the public tenant, the claim wins
+      (this prevents a mismatch where a second-tenant user hits the public endpoint).
+    """
+    # Try authenticated resolution first
+    claims = get_claims(event) if isinstance(event, dict) else {}
+    custom_company = claims.get('custom:company_id')
+    if isinstance(custom_company, str):
+        custom_company = custom_company.strip()
+    
+    if custom_company:
+        # Authenticated request — use the trusted claim
+        return custom_company
+    
+    # Unauthenticated: use server-configured public intake tenant
+    public_tenant = os.environ.get("PUBLIC_INTAKE_TENANT_ID", "").strip()
+    if public_tenant:
+        return public_tenant
+    
+    # Final fallback: DEFAULT_COMPANY_ID for the branded deployment
+    default = os.environ.get("DEFAULT_COMPANY_ID", "tog_and_dogs")
+    if default and default.strip():
+        return default.strip()
+    
+    # Fail closed
+    raise PermissionError("PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED: no trusted tenant configuration available")
+
+
 def build_tenant_user_attribute(company_id):
     """
     Build the Cognito custom:company_id attribute for a trusted tenant assignment.
