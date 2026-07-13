@@ -15,15 +15,24 @@ In strict multi-tenant mode (`TENANT_RESOLUTION_MODE=multi`), `get_current_compa
 
 Added `resolve_public_intake_tenant(event)` in `common/auth.py`:
 
-**Resolution order:**
-1. If authenticated claims contain `custom:company_id` → use it (trusted Cognito claim)
-2. If unauthenticated → use `PUBLIC_INTAKE_TENANT_ID` env var (server-configured)
-3. If that's empty → fall back to `DEFAULT_COMPANY_ID` env var (`tog_and_dogs`)
-4. If nothing available → raise `PermissionError` (fail closed)
+**Resolution rules (corrected in d2913a4/6841da1):**
+1. Domain mapping (`PUBLIC_INTAKE_DOMAIN_MAP`) is ALWAYS required on public routes
+2. An unmapped or unknown `requestContext.domainName` fails closed — even if authenticated
+3. If authenticated `custom:company_id` is present, it must MATCH the domain-mapped tenant
+4. After domain resolution, the authoritative tenant record is validated (must exist and be active)
+5. Missing, disabled, suspended, or malformed tenant records fail closed
+6. No `DEFAULT_COMPANY_ID` fallback exists
 
-**Never reads from:** request body, query string, browser headers, or client-controlled values.
+**Never reads from:** request body, query string, Origin, Referer, browser headers, or client-controlled values.
 
-The global `get_current_company_id()` strict resolver is NOT weakened. The public-intake resolver is a separate, route-scoped function used only by the intake handler for the `/requests` path.
+**Configuration:** `PUBLIC_INTAKE_DOMAIN_MAP` is a JSON env var scoped to the intake Lambda only:
+```json
+{"a022yxuiue.execute-api.us-east-1.amazonaws.com": {"tenant_id": "tog_and_dogs", "active": true, "public_intake_enabled": true}}
+```
+
+**Transitional limitation:** The raw execute-api hostname mapping is a temporary single-tenant bridge for Togs & Dogs. It does NOT provide true multi-tenant hostname routing. A second tenant cannot be enabled until tenant-specific CloudFront/API routing exists.
+
+The global `get_current_company_id()` strict resolver is NOT weakened. The public-intake resolver is a separate, route-scoped function used only by the intake handler for the public `/requests` and staff-options paths. Portal requests continue using the strict authenticated resolver.
 
 ## 3. Hybrid Client-Account Model
 
@@ -48,53 +57,44 @@ Anonymous intake does NOT:
 | Cross-tenant authenticated request | Authenticated claim takes precedence |
 | Missing configuration | Fails closed with PermissionError |
 
-## 5. Production Configuration Required (Later)
+## 5. Production Configuration Required
 
-No Terraform or Lambda env-var change is required for the current branded deployment. The code falls back to `DEFAULT_COMPANY_ID = "tog_and_dogs"` which is already available in the environment.
+Deployment requires adding `PUBLIC_INTAKE_DOMAIN_MAP` to the intake Lambda environment only (scoped in `infra/prod/main.tf`, not the shared `notification_env_vars`). No other Lambda receives this variable.
 
-For future multi-brand deployments, the `PUBLIC_INTAKE_TENANT_ID` env var can be set per-Lambda or per-API-route to direct different branded intake forms to different tenants.
+## 6. Tests (35 public-intake + 4 corrected booking-limit)
 
-## 6. Tests (11 new)
+**Public-intake routing tests:** 35 passed (domain mapping, fail-closed, body/query/header rejection, authenticated mismatch, tenant validation, no-persistence-on-failure, transitional guardrails)
 
-| Test | Validates |
-|------|-----------|
-| authenticated_claim_takes_precedence | Cognito claim wins over server config |
-| unauthenticated_uses_public_intake_tenant_id | PUBLIC_INTAKE_TENANT_ID env var used |
-| unauthenticated_falls_back_to_default_company_id | DEFAULT_COMPANY_ID fallback works |
-| fails_closed_without_any_config | PermissionError when no config |
-| request_body_company_id_ignored | Body value never used |
-| authenticated_second_tenant_user_uses_own_claim | Second tenant user keeps own claim |
-| anonymous_public_intake_succeeds | Full handler integration passes |
-| anonymous_intake_fails_without_trusted_config | Handler returns 500 when unconfigured |
-| body_company_id_cannot_select_tenant | Saved record uses server tenant |
-| no_cognito_user_created_by_anonymous_intake | No Cognito calls made |
-| staff_options_works_anonymously | Staff-options endpoint works unauthenticated |
+**Corrected booking-limit tests:** 4 previously candidate-introduced failures now pass with proper domain context and active tenant records.
 
-All 11 pass. Combined with tenant-assignment and isolation tests: 104 passed, 0 failed.
+**Relevant suite:** 128 passed (combined intake, tenant, identity, isolation)
+
+**Full-suite baseline comparison:**
+- Baseline (9b0c5cc): 588 passed, 71 failed
+- Candidate (6841da1): 597 passed, 71 failed
+- **Zero new failing test names introduced**
 
 ## 7. Separate Deployment Approval Gate
 
-This fix requires a backend Lambda deployment (Terraform apply) that will update all 13 Lambdas with the new `common/auth.py` and `handlers/intake_handler.py`. A new Lambda environment variable `PUBLIC_INTAKE_DOMAIN_MAP` must be added:
-
-```json
-{"a022yxuiue.execute-api.us-east-1.amazonaws.com": {"tenant_id": "tog_and_dogs", "active": true, "public_intake_enabled": true}}
-```
-
-This is a Terraform `locals.tf` change to the `notification_env_vars` block (which applies to all Lambdas).
+Deployment requires a Terraform plan review and apply approval:
+- `PUBLIC_INTAKE_DOMAIN_MAP` added to intake Lambda environment (intake-only, not shared)
+- All 13 Lambdas receive updated code package (shared archive)
+- Expected plan: 0 add, 13 change (code hash), 0 destroy + 1 env var on intake
+- No IAM, API Gateway, Cognito, or other infrastructure changes
 
 ## 8. Transitional Architecture Limitations
 
 **This implementation is a temporary single-tenant compatibility bridge:**
 
 - The browser currently calls the raw API Gateway `execute-api` URL directly
-- `requestContext.domainName` is the same for ALL requests regardless of which tenant's website initiated them
+- `requestContext.domainName` is identical for all requests under the current architecture
 - The current mapping explicitly allows the single known execute-api hostname to resolve to `tog_and_dogs`
 - This does NOT provide true multi-tenant hostname routing
 - A second tenant CANNOT be enabled until tenant-specific CloudFront/API custom-domain routing exists
 - The target architecture requires direct execute-api access to fail closed (unmapped)
-- Future tenants will require per-tenant API custom domains or per-tenant CloudFront distributions proxying to API Gateway with server-injected origin context
+- Future tenants will require per-tenant API custom domains or CloudFront distributions
 
-**Commit 00338f2 (original implementation) remains superseded by the domain-mapping approach. It was never deployed.**
+**Commit 00338f2 (original DEFAULT_COMPANY_ID fallback) was superseded and never deployed.****Commit 00338f2 (original implementation) remains superseded by the domain-mapping approach. It was never deployed.**
 
 ## 9. What Was NOT Changed
 
