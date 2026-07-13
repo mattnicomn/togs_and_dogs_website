@@ -4069,12 +4069,16 @@ const AdminDashboard = () => {
                           
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
                             <div className="field">
-                              <label>Email Address {editingStaffId && '(Read-only)'} {staffForm.creation_mode === 'onboard' ? '*' : '(Optional)'}</label>
+                              <label>Email Address {editingStaffId && '(Read-only)'} {staffForm.creation_mode === 'onboard' && !editingStaffId ? '*' : '(Optional)'}</label>
                               <input 
                                 type="email" 
-                                className="read-only-field"
+                                className={editingStaffId ? "read-only-field" : ""}
                                 value={staffForm.email} 
-                                disabled
+                                onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
+                                disabled={!!editingStaffId}
+                                required={staffForm.creation_mode === 'onboard' && !editingStaffId}
+                                placeholder={staffForm.creation_mode === 'onboard' ? "Required for login account" : "Optional"}
+                                aria-label="Staff email address"
                                 style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
                               />
                             </div>
