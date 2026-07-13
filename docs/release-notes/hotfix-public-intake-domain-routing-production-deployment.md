@@ -1,7 +1,7 @@
 # Hotfix: Public Intake Domain Routing — Production Deployment
 
 **Date:** 2026-07-13
-**Status:** ✅ PASS — Deployed to Production
+**Status:** ✅ PASS — Deployed & Manually Validated in Production
 **Type:** Backend Lambda code + intake-only environment configuration
 **Deployed Commit:** `40da715`
 **Saved Plan:** `infra/prod/public-intake-domain-routing.tfplan`
@@ -72,7 +72,20 @@ If issues are discovered:
 4. Public intake will return to TENANT_RESOLUTION_FAILED (same as before this deployment)
 5. Authenticated portal/admin operations are unaffected by this rollback
 
-## 7. Next Manual Verification Gate
+## 7. Manual Production Validation (Matthew — 2026-07-13)
+
+| Check | Result |
+|-------|--------|
+| Public `/book` page loads | ✅ PASS |
+| Staff-options/availability loaded | ✅ PASS |
+| Anonymous request submission succeeded | ✅ PASS |
+| No TENANT_RESOLUTION_FAILED error | ✅ PASS |
+| No other issues observed | ✅ PASS |
+| Authenticated intake remains functional | ✅ PASS (previously confirmed) |
+
+**Status: ✅ PASS — Manually Validated in Production**
+
+## 8. Next Manual Verification Gate
 
 Matthew should verify:
 1. Load `https://toganddogs.usmissionhero.com/book`
