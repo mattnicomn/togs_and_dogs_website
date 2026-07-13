@@ -74,9 +74,29 @@ All 11 pass. Combined with tenant-assignment and isolation tests: 104 passed, 0 
 
 ## 7. Separate Deployment Approval Gate
 
-This fix requires a backend Lambda deployment (Terraform apply) that will update all 13 Lambdas with the new `common/auth.py` and `handlers/intake_handler.py`. No env-var, IAM, API Gateway, or configuration changes are needed.
+This fix requires a backend Lambda deployment (Terraform apply) that will update all 13 Lambdas with the new `common/auth.py` and `handlers/intake_handler.py`. A new Lambda environment variable `PUBLIC_INTAKE_DOMAIN_MAP` must be added:
 
-## 8. What Was NOT Changed
+```json
+{"a022yxuiue.execute-api.us-east-1.amazonaws.com": {"tenant_id": "tog_and_dogs", "active": true, "public_intake_enabled": true}}
+```
+
+This is a Terraform `locals.tf` change to the `notification_env_vars` block (which applies to all Lambdas).
+
+## 8. Transitional Architecture Limitations
+
+**This implementation is a temporary single-tenant compatibility bridge:**
+
+- The browser currently calls the raw API Gateway `execute-api` URL directly
+- `requestContext.domainName` is the same for ALL requests regardless of which tenant's website initiated them
+- The current mapping explicitly allows the single known execute-api hostname to resolve to `tog_and_dogs`
+- This does NOT provide true multi-tenant hostname routing
+- A second tenant CANNOT be enabled until tenant-specific CloudFront/API custom-domain routing exists
+- The target architecture requires direct execute-api access to fail closed (unmapped)
+- Future tenants will require per-tenant API custom domains or per-tenant CloudFront distributions proxying to API Gateway with server-injected origin context
+
+**Commit 00338f2 (original implementation) remains superseded by the domain-mapping approach. It was never deployed.**
+
+## 9. What Was NOT Changed
 
 - ❌ No deployment
 - ❌ No Terraform apply

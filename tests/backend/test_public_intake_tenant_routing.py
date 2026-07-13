@@ -326,3 +326,109 @@ class TestPublicIntakeHandlerRouting:
         assert resp['statusCode'] == 200
         body = json.loads(resp['body'])
         assert 'staff_options' in body
+
+
+# ==============================================================================
+# 3. Additional Security and Guardrail Tests
+# ==============================================================================
+
+class TestBrowserInputRejection:
+    """Prove that no browser-controlled value can influence tenant resolution."""
+
+    def test_query_string_company_id_ignored(self):
+        """Query-string company_id cannot select a tenant."""
+        from common.auth import resolve_public_intake_tenant
+        event = _public_intake_event({})
+        event['queryStringParameters'] = {'company_id': 'test_tenant_alpha'}
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
+            result = resolve_public_intake_tenant(event)
+        assert result == 'tog_and_dogs'
+
+    def test_origin_header_cannot_select_tenant(self):
+        """Origin header cannot influence tenant resolution."""
+        from common.auth import resolve_public_intake_tenant
+        event = _public_intake_event({})
+        event['headers'] = {'Origin': 'https://test-tenant-alpha.example.com'}
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
+            result = resolve_public_intake_tenant(event)
+        assert result == 'tog_and_dogs'
+
+    def test_referer_header_cannot_select_tenant(self):
+        """Referer header cannot influence tenant resolution."""
+        from common.auth import resolve_public_intake_tenant
+        event = _public_intake_event({})
+        event['headers'] = {'Referer': 'https://malicious.com/test_tenant_alpha'}
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
+            result = resolve_public_intake_tenant(event)
+        assert result == 'tog_and_dogs'
+
+    def test_custom_tenant_header_cannot_select_tenant(self):
+        """Arbitrary X-Tenant-ID header cannot influence tenant resolution."""
+        from common.auth import resolve_public_intake_tenant
+        event = _public_intake_event({})
+        event['headers'] = {'X-Tenant-ID': 'test_tenant_alpha', 'X-Company-ID': 'test_tenant_alpha'}
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
+            result = resolve_public_intake_tenant(event)
+        assert result == 'tog_and_dogs'
+
+
+class TestNoPersistenceOnFailure:
+    """Prove no request is written when tenant resolution fails."""
+
+    @patch('common.entitlement.require_active_tenant', return_value=None)
+    @patch('handlers.intake_handler.put_item', return_value=True)
+    @patch('handlers.intake_handler.table')
+    def test_no_persistence_when_domain_unknown(self, mock_table, mock_put, mock_rat):
+        """No DynamoDB write when domain mapping fails."""
+        from handlers.intake_handler import handler
+        body = {
+            'client_name': 'Test', 'client_email': 'test@x.com',
+            'start_date': '2026-08-01', 'pet_names': 'Pet',
+            'accepted_terms': True, 'accepted_privacy': True,
+            'terms_version': '1.0', 'privacy_version': '1.0',
+        }
+        event = _public_intake_event(body, domain_name='unknown.example.com')
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP, 'TENANT_RESOLUTION_MODE': 'multi'}):
+            resp = handler(event, None)
+        assert resp['statusCode'] == 500
+        mock_put.assert_not_called()
+
+    @patch('common.entitlement.require_active_tenant', return_value=None)
+    @patch('handlers.intake_handler.put_item', return_value=True)
+    @patch('handlers.intake_handler.table')
+    def test_no_persistence_when_mapping_empty(self, mock_table, mock_put, mock_rat):
+        """No DynamoDB write when no domain map configured."""
+        from handlers.intake_handler import handler
+        body = {
+            'client_name': 'Test', 'client_email': 'test@x.com',
+            'start_date': '2026-08-01', 'pet_names': 'Pet',
+            'accepted_terms': True, 'accepted_privacy': True,
+            'terms_version': '1.0', 'privacy_version': '1.0',
+        }
+        event = _public_intake_event(body)
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': '', 'TENANT_RESOLUTION_MODE': 'multi'}):
+            resp = handler(event, None)
+        assert resp['statusCode'] == 500
+        mock_put.assert_not_called()
+
+
+class TestTransitionalGuardrail:
+    """Document that the execute-api mapping is transitional and single-tenant."""
+
+    def test_only_explicitly_mapped_domain_works(self):
+        """A second execute-api domain would not resolve without explicit mapping."""
+        from common.auth import resolve_public_intake_tenant
+        event = _public_intake_event({}, domain_name='b999zzz.execute-api.us-east-1.amazonaws.com')
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
+            with pytest.raises(PermissionError, match="unrecognized"):
+                resolve_public_intake_tenant(event)
+
+    def test_mapping_is_tenant_specific_not_global(self):
+        """The mapping resolves to a specific tenant, not a wildcard."""
+        from common.auth import resolve_public_intake_tenant
+        event = _public_intake_event({})
+        with patch.dict(os.environ, {'PUBLIC_INTAKE_DOMAIN_MAP': TOGS_DOMAIN_MAP}):
+            result = resolve_public_intake_tenant(event)
+        # Must be the explicitly configured tenant only
+        assert result == 'tog_and_dogs'
+        assert result != 'test_tenant_alpha'
