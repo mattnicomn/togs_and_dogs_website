@@ -218,7 +218,7 @@ class TestLinkCognitoHandler:
     @patch('common.entitlement.require_active_tenant', return_value=None)
     @patch('boto3.client')
     def test_link_cognito_denies_cross_tenant_no_linkage(self, mock_boto3_client, mock_rat):
-        """Cross-tenant conflict must return 403 and NOT update the profile."""
+        """Cross-tenant conflict must return 403, NOT add to group, and NOT update the profile."""
         mock_cognito = MagicMock()
         mock_boto3_client.return_value = mock_cognito
         # User belongs to a different tenant
@@ -253,7 +253,13 @@ class TestLinkCognitoHandler:
 
         assert resp['statusCode'] == 403
         body = json.loads(resp['body'])
-        assert 'Cross-tenant' in body.get('message', '') or 'Cross-tenant' in body.get('error', '')
+        # Error must not expose the conflicting tenant identifier
+        assert 'test_tenant_alpha' not in body.get('message', '')
+        assert 'test_tenant_alpha' not in body.get('error', '')
+        assert 'tenant' in body.get('message', '').lower() or 'tenant' in body.get('error', '').lower()
+
+        # admin_add_user_to_group must NOT have been called (tenant check is first)
+        mock_cognito.admin_add_user_to_group.assert_not_called()
 
         # Profile must NOT have been updated
         mock_table.put_item.assert_not_called()
@@ -306,7 +312,7 @@ class TestLinkCognitoHandler:
     @patch('common.entitlement.require_active_tenant', return_value=None)
     @patch('boto3.client')
     def test_cognito_failure_does_not_link_profile(self, mock_boto3_client, mock_rat):
-        """If ensure_cognito_tenant_attribute raises RuntimeError, profile is not linked."""
+        """If ensure_cognito_tenant_attribute raises RuntimeError, no group or profile linkage."""
         mock_cognito = MagicMock()
         mock_boto3_client.return_value = mock_cognito
         # First admin_get_user (for link flow): succeeds
@@ -349,6 +355,10 @@ class TestLinkCognitoHandler:
 
         # Should return 500 (internal error from the ensure helper)
         assert resp['statusCode'] == 500
+
+        # admin_add_user_to_group must NOT have been called (tenant check failed first)
+        mock_cognito.admin_add_user_to_group.assert_not_called()
+
         # Profile must NOT have been linked
         mock_table.put_item.assert_not_called()
 

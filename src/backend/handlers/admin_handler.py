@@ -1097,7 +1097,18 @@ def handler(event, context):
                     if not is_protected_profile(user_profile):
                         return error(403, "Cannot link a protected admin account to a non-protected profile.", event)
                 
-                # Ensure correct group
+                # Ensure trusted tenant assignment BEFORE any group or profile mutation
+                from common.auth import ensure_cognito_tenant_attribute
+                try:
+                    ensure_cognito_tenant_attribute(cognito, user_pool_id, username, company_id)
+                except PermissionError as tenant_err:
+                    # Cross-tenant conflict: do not add to group, do not link profile
+                    return error(403, "Identity tenant conflict. Cannot complete link operation.", event)
+                except RuntimeError as tenant_err:
+                    # Cognito read/update failure: do not proceed with partial linkage
+                    return internal_error("Unable to verify tenant assignment. Link aborted.", event)
+                
+                # Tenant validated — now safe to assign group
                 target_group = 'client' if is_client_path else (user_profile.get('role') or 'Staff')
                 if target_group.lower() == 'owner': target_group = 'owner'
                 elif target_group.lower() == 'admin': target_group = 'Admin'
@@ -1106,13 +1117,6 @@ def handler(event, context):
                 try:
                     cognito.admin_add_user_to_group(UserPoolId=user_pool_id, Username=username, GroupName=target_group)
                 except: pass
-                
-                # Ensure trusted tenant assignment on the Cognito identity
-                from common.auth import ensure_cognito_tenant_attribute
-                try:
-                    ensure_cognito_tenant_attribute(cognito, user_pool_id, username, company_id)
-                except PermissionError as tenant_err:
-                    return error(403, str(tenant_err), event)
                 
                 user_profile['cognito_sub'] = cognito_sub
                 user_profile['cognito_status'] = cog_user.get('UserStatus')

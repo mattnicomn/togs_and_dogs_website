@@ -67,23 +67,30 @@ Both `admin_create_user` calls now include `build_tenant_user_attribute(company_
 
 ### C. Link-Cognito Flows
 
-After verifying the Cognito user exists and before completing the profile link, the handler calls `ensure_cognito_tenant_attribute()` to repair missing or verify existing tenant assignment. If the target user belongs to a different tenant, the link is denied with 403.
+Tenant validation now occurs **before** any group assignment or profile mutation. The corrected order is:
+
+1. Resolve trusted `company_id` from the authenticated event
+2. Locate the target Cognito user (`admin_get_user`)
+3. Protected-account guardrails check
+4. **`ensure_cognito_tenant_attribute`** — validate/repair tenant
+5. If conflicting: return 403 immediately (no group, no profile link)
+6. If Cognito failure: return 500 immediately (no group, no profile link)
+7. Only after tenant validation succeeds: `admin_add_user_to_group`
+8. Only after group assignment: persist profile linkage to DynamoDB
+
+Cross-tenant denial leaves **no partial state** — no group membership added, no `cognito_sub` written to the profile, no DynamoDB update. Error messages do not expose the conflicting tenant identifier.
 
 ---
 
 ## 5. Cross-Tenant Mismatch Protection
 
-If a Cognito user already has `custom:company_id = test_tenant_alpha` and an admin on `tog_and_dogs` attempts to link them, the operation is denied:
-
-```
-PermissionError: Cross-tenant identity conflict: user is already assigned to a different tenant.
-Cannot reassign between tenants without explicit platform admin action.
-```
+If a Cognito user already has a different `custom:company_id` and an admin attempts to link them, the operation is denied with a generic tenant-conflict message. The response does NOT reveal the existing tenant value.
 
 This prevents:
 - Silent tenant reassignment through link flows
 - Identity theft between tenants
 - Accidental cross-tenant profile binding
+- Partial linkage state (group added but profile not linked)
 
 ---
 
@@ -132,7 +139,7 @@ aws cognito-idp admin-update-user-attributes \
 
 ## 9. Tests
 
-21 new tests in `tests/backend/test_tenant_assignment_hotfix.py`:
+21 new helper/unit tests in `tests/backend/test_tenant_assignment_hotfix.py`:
 - 5 tests: `build_tenant_user_attribute` helper (valid, strips, empty, none, whitespace)
 - 4 tests: `ensure_cognito_tenant_attribute` helper (sets missing, no-op correct, denies cross-tenant, empty raises)
 - 2 tests: Staff onboarding code verification (helper present, correct value)
@@ -141,7 +148,13 @@ aws cognito-idp admin-update-user-attributes \
 - 4 tests: Tenant resolution (valid, missing denied, empty denied, unknown resolves)
 - 1 test: Public intake (unauthenticated denied in multi mode)
 
-All 21 pass. Existing 64 tenant/isolation tests pass without regression.
+8 handler-level integration tests in `tests/backend/test_tenant_assignment_handler_integration.py`:
+- 2 tests: Staff onboard (tenant attribute sent, body cannot override)
+- 1 test: Client onboard (tenant attribute sent)
+- 4 tests: Link-cognito (repairs missing, denies cross-tenant without group/profile, succeeds with matching, Cognito failure aborts without group/profile)
+- 1 test: Token refresh behavior documentation
+
+All 29 new tests pass. Existing 65 tenant/isolation/identity tests pass without regression (94 total combined).
 
 ---
 
