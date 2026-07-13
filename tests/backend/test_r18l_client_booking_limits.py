@@ -14,9 +14,18 @@ def clean_env():
     """Ensure environment is reset between tests."""
     old_enforcement = os.environ.get('ENTITLEMENT_ENFORCEMENT_ENABLED')
     old_stripe_env = os.environ.get('STRIPE_ENV')
+    old_domain_map = os.environ.get('PUBLIC_INTAKE_DOMAIN_MAP')
     
     os.environ['ENTITLEMENT_ENFORCEMENT_ENABLED'] = 'true'
     os.environ['STRIPE_ENV'] = 'production'
+    # Provide a trusted domain map for public intake routing in tests
+    os.environ['PUBLIC_INTAKE_DOMAIN_MAP'] = json.dumps({
+        "test-api.execute-api.us-east-1.amazonaws.com": {
+            "tenant_id": "test_company",
+            "active": True,
+            "public_intake_enabled": True
+        }
+    })
     
     yield
     
@@ -29,6 +38,11 @@ def clean_env():
         os.environ['STRIPE_ENV'] = old_stripe_env
     else:
         os.environ.pop('STRIPE_ENV', None)
+    
+    if old_domain_map is not None:
+        os.environ['PUBLIC_INTAKE_DOMAIN_MAP'] = old_domain_map
+    else:
+        os.environ.pop('PUBLIC_INTAKE_DOMAIN_MAP', None)
 
 
 @pytest.fixture
@@ -48,7 +62,8 @@ def mock_db():
             "SK": "METADATA",
             "company_id": "test_company",
             "subscription_tier": "professional",
-            "subscription_status": "active"
+            "subscription_status": "active",
+            "is_active": True
         }
         
         yield {"table": mock_table, "get_item": mock_get}
@@ -73,7 +88,8 @@ def create_event(role, path, method="GET", body_dict=None, company_id="test_comp
         "requestContext": {
             "authorizer": {
                 "claims": claims
-            }
+            },
+            "domainName": "test-api.execute-api.us-east-1.amazonaws.com"
         },
         "httpMethod": method,
         "path": path,
