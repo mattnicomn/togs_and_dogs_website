@@ -303,42 +303,109 @@ def resolve_public_intake_tenant(event):
     
     Resolution order:
     1. If the request has valid authenticated claims with custom:company_id,
-       use the authenticated tenant (same as get_current_company_id).
-    2. If unauthenticated or claims lack custom:company_id, use the trusted
-       server-configured PUBLIC_INTAKE_TENANT_ID environment variable.
-    3. If PUBLIC_INTAKE_TENANT_ID is not configured, fall back to DEFAULT_COMPANY_ID
-       (which is 'tog_and_dogs' for the current branded deployment).
-    4. Fail closed if neither is available.
+       use the authenticated tenant claim.
+    2. For unauthenticated requests, resolve the tenant from a trusted server-side
+       domain-to-tenant mapping configured in PUBLIC_INTAKE_DOMAIN_MAP.
+    3. Validate the resolved tenant is active using entitlement checks.
+    4. If authenticated and domain-mapped tenant differ, deny the request.
+    5. Fail closed if no mapping exists, domain is unknown, or tenant is inactive.
     
     SECURITY:
     - Never reads company_id from request body, query string, or browser headers.
-    - The trusted value comes exclusively from server-side environment configuration.
-    - For authenticated requests, the Cognito claim takes precedence.
-    - If an authenticated claim conflicts with the public tenant, the claim wins
-      (this prevents a mismatch where a second-tenant user hits the public endpoint).
+    - Domain mapping comes from server-side environment configuration only.
+    - The domain is read from requestContext.domainName (set by API Gateway infrastructure).
+    - Unknown domains, inactive tenants, and mismatches all fail closed.
+    - No DEFAULT_COMPANY_ID fallback in multi mode.
     """
-    # Try authenticated resolution first
+    import json as _json
+    
+    # 1. Read authenticated claims
     claims = get_claims(event) if isinstance(event, dict) else {}
     custom_company = claims.get('custom:company_id')
     if isinstance(custom_company, str):
         custom_company = custom_company.strip()
+    if not custom_company:
+        custom_company = None
     
-    if custom_company:
-        # Authenticated request — use the trusted claim
+    # 2. Resolve domain-to-tenant mapping
+    domain_tenant = _resolve_domain_tenant(event)
+    
+    # 3. Determine final tenant
+    if custom_company and domain_tenant:
+        # Both present: must match
+        if custom_company != domain_tenant:
+            raise PermissionError(
+                "PUBLIC_INTAKE_TENANT_MISMATCH: authenticated identity does not match this service domain"
+            )
         return custom_company
     
-    # Unauthenticated: use server-configured public intake tenant
-    public_tenant = os.environ.get("PUBLIC_INTAKE_TENANT_ID", "").strip()
-    if public_tenant:
-        return public_tenant
+    if custom_company:
+        # Authenticated but no domain mapping (e.g., portal path) — use claim
+        return custom_company
     
-    # Final fallback: DEFAULT_COMPANY_ID for the branded deployment
-    default = os.environ.get("DEFAULT_COMPANY_ID", "tog_and_dogs")
-    if default and default.strip():
-        return default.strip()
+    if domain_tenant:
+        # Unauthenticated with valid domain mapping
+        return domain_tenant
     
-    # Fail closed
-    raise PermissionError("PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED: no trusted tenant configuration available")
+    # No authenticated claim and no domain mapping — fail closed
+    raise PermissionError(
+        "PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED: no trusted tenant mapping for this request"
+    )
+
+
+def _resolve_domain_tenant(event):
+    """
+    Look up the tenant from the request's API Gateway domain using the
+    server-configured PUBLIC_INTAKE_DOMAIN_MAP.
+    
+    The map is a JSON object: {"domain": {"tenant_id": "...", "active": true, "public_intake_enabled": true}}
+    
+    Returns the tenant_id if the domain is mapped, verified, active, and intake-enabled.
+    Returns None if no mapping is configured or the domain doesn't match.
+    Raises PermissionError if the domain maps to an inactive or disabled entry.
+    """
+    import json as _json
+    
+    # Get the domain from API Gateway request context (server-controlled)
+    request_context = event.get('requestContext', {}) if isinstance(event, dict) else {}
+    domain_name = request_context.get('domainName', '').strip().lower()
+    
+    if not domain_name:
+        return None
+    
+    # Load the domain map from environment
+    domain_map_raw = os.environ.get("PUBLIC_INTAKE_DOMAIN_MAP", "").strip()
+    if not domain_map_raw:
+        return None
+    
+    try:
+        domain_map = _json.loads(domain_map_raw)
+    except (ValueError, TypeError):
+        # Invalid JSON — fail closed
+        logger.error("PUBLIC_INTAKE_DOMAIN_MAP contains invalid JSON")
+        raise PermissionError("PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED: invalid domain configuration")
+    
+    if not isinstance(domain_map, dict):
+        raise PermissionError("PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED: invalid domain configuration")
+    
+    # Look up this domain
+    entry = domain_map.get(domain_name)
+    if not entry or not isinstance(entry, dict):
+        # Domain not in the allowlist — fail closed
+        raise PermissionError("PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED: unrecognized service domain")
+    
+    # Validate entry fields
+    tenant_id = entry.get('tenant_id', '').strip()
+    if not tenant_id:
+        raise PermissionError("PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED: domain mapping has no tenant")
+    
+    if not entry.get('active', False):
+        raise PermissionError("PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED: domain mapping is not active")
+    
+    if not entry.get('public_intake_enabled', False):
+        raise PermissionError("PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED: public intake is not enabled for this domain")
+    
+    return tenant_id
 
 
 def build_tenant_user_attribute(company_id):
