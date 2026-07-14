@@ -44,14 +44,46 @@ Changed the staff email `<input>`:
 |-------|--------|
 | Frontend build (Vite) | ✅ 101 modules, 430ms |
 | Frontend lint | 47 problems (38 errors, 9 warnings) — baseline match, 0 new |
-| Email editable when creating new staff | ✅ (disabled removed) |
+| Email editable when creating new staff | ✅ (disabled removed for new) |
 | Email read-only when editing existing | ✅ (disabled={!!editingStaffId}) |
 | Required indicator matches onboard mode | ✅ |
 | onChange handler wired | ✅ |
 | aria-label present | ✅ |
 | Placeholder guidance | ✅ |
+| creation_mode contract consistent | ✅ ('onboard' / 'profile_only' throughout) |
+| Frontend component tests | ⚠️ No frontend test framework exists in this repository |
 
-## 6. Deployment
+### creation_mode Contract
+
+| Value | Meaning | Email Required | API Route | Creates Cognito |
+|-------|---------|:-:|:-:|:-:|
+| `'onboard'` | Create & invite | ✅ Yes | POST /admin/staff/onboard | ✅ Yes |
+| `'profile_only'` | Profile only, no login | ❌ No | POST /admin/staff | ❌ No |
+
+### Email Editing Rules
+
+| State | Email Editable | Reason |
+|-------|:-:|--------|
+| New + onboard | ✅ Yes | Required for Cognito user creation |
+| New + profile_only | ✅ Yes (optional) | May be provided for contact purposes |
+| Editing existing (any) | ❌ No (read-only) | Cannot change login identity without explicit workflow |
+
+The editing rule applies identically to both linked and unlinked staff. The label shows "(Read-only)" when editing. This prevents accidental identity changes without a dedicated identity-change workflow.
+
+## 6. Manual Production Smoke-Test Checklist
+
+After deployment, Matthew should verify:
+1. Open Staff Management → click "+ Add New Staff"
+2. Select "Create & Invite" mode (default)
+3. Confirm email field is editable and shows "*"
+4. Type a valid email address
+5. Switch to "Create Profile Only" mode
+6. Confirm email field becomes "(Optional)" — still editable
+7. Submit with display name only (profile-only) — confirm success
+8. Submit with display name + email (onboard) — confirm invite sent
+9. Edit an existing staff member — confirm email shows as read-only
+
+## 7. Deployment
 
 Requires frontend-only production deployment:
 - `npm run build`
@@ -59,7 +91,11 @@ Requires frontend-only production deployment:
 - CloudFront invalidation
 - No backend/Terraform/Lambda changes needed
 
-## 7. What Was NOT Changed
+## 8. Rollback
+
+Revert `web/src/components/AdminDashboard.jsx` to the previous commit and redeploy frontend. No backend rollback needed.
+
+## 9. What Was NOT Changed
 
 - ❌ No backend API changes
 - ❌ No Terraform changes
