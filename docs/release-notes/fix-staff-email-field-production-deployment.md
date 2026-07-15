@@ -1,7 +1,7 @@
 # Fix: Staff Management Email Field — Production Frontend Deployment
 
 **Date:** 2026-07-15
-**Status:** ✅ Deployed — Awaiting Matthew Manual UI Validation
+**Status:** ❌ FAILED — Email field absent in production (corrected in follow-up commit)
 **Type:** Frontend-only production deployment
 **Deployed HEAD:** `a1a38bb`
 **Runtime Fix Commit:** `afc0a83`

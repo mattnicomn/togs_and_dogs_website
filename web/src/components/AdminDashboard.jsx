@@ -3953,6 +3953,21 @@ const AdminDashboard = () => {
                               />
                             </div>
 
+                            {!editingStaffId && (
+                              <div className="field">
+                                <label>Email Address {staffForm.creation_mode === 'onboard' ? '*' : '(Optional)'}</label>
+                                <input 
+                                  type="email" 
+                                  value={staffForm.email} 
+                                  onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
+                                  required={staffForm.creation_mode === 'onboard'}
+                                  placeholder={staffForm.creation_mode === 'onboard' ? "Required for login account" : "Optional for profile-only"}
+                                  aria-label="Staff email address"
+                                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                                />
+                              </div>
+                            )}
+
                             <div className="field">
                               <label>Phone (Optional)</label>
                               <input 
