@@ -1,7 +1,7 @@
 # Fix: Staff Management Email Field — Production Frontend Deployment
 
 **Date:** 2026-07-15
-**Status:** ✅ Corrective Deployment Complete — Awaiting Matthew Manual UI Validation
+**Status:** ✅ PASS — Deployed & Manually Validated in Production
 **Type:** Frontend-only production deployment (corrective)
 **Deployed HEAD:** `9b196d1`
 **Runtime Fix Commit:** `afc0a83` (first attempt, wrong section) → `9b196d1` (corrected)
@@ -54,16 +54,20 @@ The following checks require Matthew to log in and verify without submitting:
 
 | # | Check | Status |
 |---|-------|--------|
-| 1 | Admin page loads | ⬜ |
-| 2 | Open "Add New Staff" | ⬜ |
-| 3 | "Create & Invite" mode selected by default | ⬜ |
-| 4 | Email field is enabled and editable | ⬜ |
-| 5 | Email shows as required (*) in onboard mode | ⬜ |
-| 6 | Switch to "Create Profile Only" — email becomes "(Optional)" | ⬜ |
-| 7 | Switch back — requirement returns | ⬜ |
-| 8 | Cancel closes form without saving | ⬜ |
-| 9 | Edit existing staff — email remains read-only | ⬜ |
-| 10 | No staff profile or Cognito user was created | ⬜ |
+| 1 | Admin page loads | ✅ PASS |
+| 2 | Open "Add New Staff" | ✅ PASS |
+| 3 | "Create Login & Profile" mode selected by default | ✅ PASS |
+| 4 | Email field appeared and is enabled/editable | ✅ PASS |
+| 5 | Email required in onboard mode | ✅ PASS |
+| 6 | Invalid-email validation worked | ✅ PASS |
+| 7 | "Create Profile Only" keeps email visible but optional | ✅ PASS |
+| 8 | Switch back to onboard restores requirement | ✅ PASS |
+| 9 | Cancel closed drawer without creating a profile | ✅ PASS |
+| 10 | Edit existing staff — email remains read-only | ✅ PASS |
+| 11 | No staff profile created | ✅ PASS |
+| 12 | No Cognito invitation sent | ✅ PASS |
+
+**Manual validation: ✅ ALL CHECKS PASSED (Matthew, 2026-07-15)**
 
 ## 6. What Was NOT Done
 
