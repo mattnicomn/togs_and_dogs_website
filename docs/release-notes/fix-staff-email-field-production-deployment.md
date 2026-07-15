@@ -1,48 +1,51 @@
 # Fix: Staff Management Email Field — Production Frontend Deployment
 
 **Date:** 2026-07-15
-**Status:** ❌ FAILED — Email field absent in production (corrected in follow-up commit)
-**Type:** Frontend-only production deployment
-**Deployed HEAD:** `a1a38bb`
-**Runtime Fix Commit:** `afc0a83`
+**Status:** ✅ Corrective Deployment Complete — Awaiting Matthew Manual UI Validation
+**Type:** Frontend-only production deployment (corrective)
+**Deployed HEAD:** `9b196d1`
+**Runtime Fix Commit:** `afc0a83` (first attempt, wrong section) → `9b196d1` (corrected)
 
 ---
 
-## 1. Deployment Summary
+## 1. Deployment History
+
+| Attempt | Commit | Bundle | Result |
+|---------|--------|--------|--------|
+| First | `a1a38bb` | `index-CppE6ptc.js` | ❌ FAILED — email field absent (wrong JSX section) |
+| Corrective | `9b196d1` | `index-Dvcmt57E.js` | ✅ Deployed — awaiting Matthew UI validation |
+
+**Root cause of first failure:** Commit `afc0a83` modified the email field inside the "Login Identity" section, which is guarded by `{editingStaffId && ...}` and only renders when editing existing staff. The actual "Add New Staff" creation form is a separate earlier JSX section that had no email field.
+
+**Corrective fix:** Commit `9b196d1` adds the email field to the actual creation form section, between Display Name and Phone, inside a `{!editingStaffId && ...}` guard so it appears only for new staff.
+
+## 2. Corrective Deployment Summary
 
 | Item | Value |
 |------|-------|
-| Previous frontend baseline | `11e2876` (bundle `index-DAx_msXw.js`) |
-| Deployed repository HEAD | `a1a38bb` |
-| Staff email fix commit | `afc0a83` |
-| Included accessibility correction | `98fe16d` (22ZC sr-only labels) |
-| Production JS bundle | `index-CppE6ptc.js` |
+| Deployed repository HEAD | `9b196d1` |
+| Production JS bundle | `index-Dvcmt57E.js` |
 | Production CSS bundle | `index-b59akteP.css` |
 | S3 bucket | `togs-and-dogs-prod-toganddogs-hosting` |
 | CloudFront distribution | `E35L00QPA2IRCY` |
-| CloudFront invalidation ID | `IEI9QHEOQNQIG21PB0HGZWO5UG` |
+| CloudFront invalidation ID | `I5Q7K3AWFKMW7GE89WOCDDX6J1` |
 | Invalidation status | ✅ Completed |
 
-## 2. Build and Lint
+## 3. Build and Lint
 
 | Check | Result |
 |-------|--------|
-| `npm run build` | ✅ 101 modules, 586ms |
+| `npm run build` | ✅ 101 modules, 532ms |
 | `npm run lint` | 47 problems (38 errors, 9 warnings) — baseline match, 0 new |
-
-## 3. S3 Deployment Scope
-
-Dry-run confirmed, then applied:
-- Upload: `index-CppE6ptc.js`, `index-b59akteP.css`, `usmh-logo-CrRnxp7-.png`, `index.html`
-- Delete: `index-DAx_msXw.js`, `index-DdHmXCqb.css` (previous build)
+| Bundle contains email-field strings | ✅ Verified ("login account" present) |
 
 ## 4. Read-Only Verification
 
 | Check | Result |
 |-------|--------|
-| Production homepage HTTP 200 | ✅ Confirmed |
-| New bundle referenced | ✅ (assets load correctly) |
-| Old bundle removed | ✅ (deleted from S3) |
+| Production homepage HTTP 200 | ✅ |
+| New bundle `index-Dvcmt57E.js` served | ✅ |
+| Previous bundle `index-CppE6ptc.js` removed | ✅ |
 | Site renders correctly | ✅ |
 
 ## 5. Authenticated UI Verification (Manual — Matthew)
