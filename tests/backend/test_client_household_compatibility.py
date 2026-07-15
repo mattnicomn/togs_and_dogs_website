@@ -85,18 +85,20 @@ class TestNormalizeClientResponse:
         assert result['household_id'] == 'c123'
         assert result['household_id'] == result['client_id']
 
-    def test_cognito_sub_removed(self):
+    def test_cognito_sub_preserved(self):
         from common.client_view import normalize_client_response
         client = {'client_id': 'c1', 'cognito_sub': 'sub-secret', 'is_active': True}
         result = normalize_client_response(client)
-        assert 'cognito_sub' not in result
+        # Preserved for frontend backward compatibility
+        assert result['cognito_sub'] == 'sub-secret'
 
-    def test_pk_sk_removed(self):
+    def test_pk_sk_preserved(self):
         from common.client_view import normalize_client_response
         client = {'client_id': 'c1', 'PK': 'COMPANY#x', 'SK': 'CLIENT#c1', 'is_active': True}
         result = normalize_client_response(client)
-        assert 'PK' not in result
-        assert 'SK' not in result
+        # Preserved for frontend record operations
+        assert result['PK'] == 'COMPANY#x'
+        assert result['SK'] == 'CLIENT#c1'
 
     def test_account_status_added(self):
         from common.client_view import normalize_client_response

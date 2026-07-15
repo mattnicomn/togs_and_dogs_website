@@ -73,11 +73,12 @@ def normalize_client_response(client):
     - household_id (= client_id)
     - account_status (derived)
     
-    Removes:
-    - cognito_sub (internal identity detail)
-    - PK/SK (internal DynamoDB keys)
+    Preserves ALL existing fields for backward compatibility, including:
+    - PK, SK (used by frontend for record operations)
+    - cognito_sub (used by frontend for account-status display)
+    - cognito_status, portal_enabled, is_active
     
-    Preserves all other fields for backward compatibility.
+    This is an additive normalization — no fields are removed.
     """
     if not client or not isinstance(client, dict):
         return client
@@ -87,10 +88,5 @@ def normalize_client_response(client):
     # Add household compatibility fields
     result['household_id'] = result.get('client_id')
     result['account_status'] = derive_account_status(client)
-    
-    # Remove internal fields that should not be exposed to the UI
-    result.pop('PK', None)
-    result.pop('SK', None)
-    result.pop('cognito_sub', None)
     
     return result

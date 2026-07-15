@@ -1748,7 +1748,11 @@ def handler(event, context):
                     }
                     merged_clients.append(v_client)
                     
-                return success({"clients": merged_clients}, event)
+                # Phase 1A: Normalize all client records with household-compatible fields
+                from common.client_view import normalize_client_response
+                normalized_clients = [normalize_client_response(c) for c in merged_clients]
+                
+                return success({"clients": normalized_clients}, event)
 
             # POST /admin/clients
             if http_method == 'POST':
