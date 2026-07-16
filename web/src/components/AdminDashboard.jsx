@@ -15,6 +15,7 @@ import MasterScheduler from './MasterScheduler';
 import CareCard from './CareCard';
 import UserProfile from './UserProfile';
 import DatePickerGrid from './DatePickerGrid';
+import ClientDetailDrawer from './ClientDetailDrawer';
 import '../Admin.css';
 
 // Release 6H Phase 2: Removed hardcoded PROTECTED_SUBS/PROTECTED_EMAILS.
@@ -60,6 +61,9 @@ const AdminDashboard = () => {
   const [clientSearch, setClientSearch] = useState('');
   // Phase 1B.1A: Client Management filters
   const [clientFilter, setClientFilter] = useState('all');
+  // Phase 1B.1B: Client detail drawer
+  const [clientDetailTarget, setClientDetailTarget] = useState(null);
+  const clientDetailBtnRef = useRef(null);
   // Release 5D Hotfix 1: Pets loaded for the selected/editing client
   const [clientPets, setClientPets] = useState([]);
   const [clientForm, setClientForm] = useState({
@@ -3440,6 +3444,7 @@ const AdminDashboard = () => {
                   </>
                 ) : (
                   <>
+                    <button className="btn-small" onClick={(e) => { e.stopPropagation(); setClientDetailTarget(c); }}>View Details</button>
                     <button className="btn-small" onClick={() => handleEditClient(c)}>Edit</button>
                     {c.is_active !== false ? (
                       <button className="btn-small error" disabled={isProtectedProfile(c)} title={isProtectedProfile(c) ? 'This account is protected and cannot be modified' : undefined} onClick={() => executeClientAction(c.client_id, 'disable')}>Turn Off Login Access</button>
@@ -3455,6 +3460,16 @@ const AdminDashboard = () => {
           ))}
         </div>
       </div>
+      {/* Phase 1B.1B: Client detail drawer */}
+      {clientDetailTarget && (
+        <ClientDetailDrawer
+          client={clientDetailTarget}
+          onClose={() => {
+            setClientDetailTarget(null);
+            if (clientDetailBtnRef.current) clientDetailBtnRef.current.focus();
+          }}
+        />
+      )}
     </div>
   );
 

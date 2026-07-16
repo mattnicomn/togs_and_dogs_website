@@ -168,3 +168,55 @@ export function getVisibleClients(clients, searchTerm, filterValue) {
   if (!searchTerm || !searchTerm.trim()) return filtered;
   return filtered.filter(c => clientMatchesSearch(c, searchTerm));
 }
+
+// ---------------------------------------------------------------------------
+// Detail view model (Phase 1B.1B)
+// ---------------------------------------------------------------------------
+
+const COGNITO_LIFECYCLE_LABELS = {
+  CONFIRMED: 'Confirmed',
+  FORCE_CHANGE_PASSWORD: 'Awaiting First Login',
+  RESET_REQUIRED: 'Password Reset Required',
+  EXTERNAL_PROVIDER: 'External Provider',
+  UNCONFIRMED: 'Awaiting Confirmation',
+  DELETED: 'Deleted',
+  COMPROMISED: 'Compromised',
+  UNKNOWN: 'Unknown',
+};
+
+/**
+ * Builds a safe view model for the read-only client detail drawer.
+ * Excludes internal identifiers (PK, SK, cognito_sub, company_id, tenant IDs).
+ * Does not mutate the input client object.
+ */
+export function buildClientDetailViewModel(client) {
+  if (!client) return null;
+
+  const status = normalizeAccountStatus(client);
+
+  return {
+    displayName: client.display_name || 'Unnamed Client',
+    profileStatus: profileStatusLabel(client),
+    profileStatusClass: profileStatusClass(client),
+    accountStatus: status,
+    accountStatusLabel: ACCOUNT_STATUS_LABELS[status] || status || 'Unknown',
+    accountStatusClass: ACCOUNT_STATUS_CLASSES[status] || 'status-offline',
+    email: client.email || null,
+    phone: client.phone || null,
+    address: client.address || null,
+    emergencyContact: client.emergency_contact || null,
+    notes: client.notes || null,
+    petNames: client.pet_names_summary || null,
+    petBreeds: client.pet_breeds_summary || null,
+    petSummary: client.pet_names_summary
+      ? `${client.pet_names_summary}${client.pet_breeds_summary ? ` (${client.pet_breeds_summary})` : ''}`
+      : null,
+    requestCount: typeof client.request_count === 'number' ? client.request_count : null,
+    portalAvailable: Boolean(client.portal_enabled),
+    cognitoLifecycleLabel: client.cognito_status
+      ? (COGNITO_LIFECYCLE_LABELS[(client.cognito_status || '').toUpperCase()] || null)
+      : null,
+    isVirtual: Boolean(client.is_virtual),
+    isAutoCreated: Boolean(client.auto_created),
+  };
+}

@@ -352,3 +352,162 @@ describe('CLIENT_FILTERS', () => {
     assert.ok(values.includes('unlinked'));
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// buildClientDetailViewModel (Phase 1B.1B)
+// ---------------------------------------------------------------------------
+
+import { buildClientDetailViewModel } from '../src/utils/clientManagement.js';
+
+describe('buildClientDetailViewModel', () => {
+  it('linked active client', () => {
+    const vm = buildClientDetailViewModel({
+      display_name: 'Alice', email: 'a@b.com', phone: '555-1234',
+      account_status: 'linked_active', is_active: true, portal_enabled: true,
+      cognito_status: 'CONFIRMED',
+    });
+    assert.equal(vm.displayName, 'Alice');
+    assert.equal(vm.accountStatusLabel, 'Login Active');
+    assert.equal(vm.profileStatus, 'Active Profile');
+    assert.equal(vm.portalAvailable, true);
+    assert.equal(vm.cognitoLifecycleLabel, 'Confirmed');
+  });
+
+  it('linked disabled client', () => {
+    const vm = buildClientDetailViewModel({
+      display_name: 'Bob', account_status: 'linked_disabled', is_active: true,
+      cognito_status: 'CONFIRMED',
+    });
+    assert.equal(vm.accountStatusLabel, 'Login Disabled');
+    assert.equal(vm.profileStatus, 'Active Profile');
+  });
+
+  it('invitation pending', () => {
+    const vm = buildClientDetailViewModel({
+      display_name: 'Carol', account_status: 'invitation_sent', is_active: true,
+      cognito_status: 'FORCE_CHANGE_PASSWORD',
+    });
+    assert.equal(vm.accountStatusLabel, 'Invitation Pending');
+    assert.equal(vm.cognitoLifecycleLabel, 'Awaiting First Login');
+  });
+
+  it('ready to invite', () => {
+    const vm = buildClientDetailViewModel({
+      display_name: 'Dan', email: 'dan@x.com', account_status: 'invite_available', is_active: true,
+    });
+    assert.equal(vm.accountStatusLabel, 'Ready to Invite');
+    assert.equal(vm.email, 'dan@x.com');
+  });
+
+  it('profile only', () => {
+    const vm = buildClientDetailViewModel({
+      display_name: 'Eve', account_status: 'profile_only', is_active: true,
+    });
+    assert.equal(vm.accountStatusLabel, 'Profile Only');
+    assert.equal(vm.email, null);
+  });
+
+  it('orphaned identity', () => {
+    const vm = buildClientDetailViewModel({
+      display_name: 'Frank', account_status: 'orphaned_identity', is_active: true,
+      cognito_status: 'DELETED',
+    });
+    assert.equal(vm.accountStatusLabel, 'Login Needs Repair');
+    assert.equal(vm.cognitoLifecycleLabel, 'Deleted');
+  });
+
+  it('archived profile with linked_active account', () => {
+    const vm = buildClientDetailViewModel({
+      display_name: 'Grace', account_status: 'linked_active', is_active: false,
+    });
+    assert.equal(vm.profileStatus, 'Archived Profile');
+    assert.equal(vm.accountStatusLabel, 'Login Active');
+  });
+
+  it('missing optional fields', () => {
+    const vm = buildClientDetailViewModel({ display_name: 'Minimal' });
+    assert.equal(vm.displayName, 'Minimal');
+    assert.equal(vm.email, null);
+    assert.equal(vm.phone, null);
+    assert.equal(vm.address, null);
+    assert.equal(vm.emergencyContact, null);
+    assert.equal(vm.notes, null);
+    assert.equal(vm.petNames, null);
+    assert.equal(vm.petBreeds, null);
+    assert.equal(vm.petSummary, null);
+    assert.equal(vm.requestCount, null);
+    assert.equal(vm.cognitoLifecycleLabel, null);
+  });
+
+  it('emergency contact', () => {
+    const vm = buildClientDetailViewModel({ display_name: 'H', emergency_contact: 'Jane 555-9876' });
+    assert.equal(vm.emergencyContact, 'Jane 555-9876');
+  });
+
+  it('service address', () => {
+    const vm = buildClientDetailViewModel({ display_name: 'I', address: '123 Oak Dr' });
+    assert.equal(vm.address, '123 Oak Dr');
+  });
+
+  it('pet summaries', () => {
+    const vm = buildClientDetailViewModel({
+      display_name: 'J', pet_names_summary: 'Buddy, Max', pet_breeds_summary: 'Lab, Poodle',
+    });
+    assert.equal(vm.petNames, 'Buddy, Max');
+    assert.equal(vm.petBreeds, 'Lab, Poodle');
+    assert.equal(vm.petSummary, 'Buddy, Max (Lab, Poodle)');
+  });
+
+  it('request_count when available', () => {
+    const vm = buildClientDetailViewModel({ display_name: 'K', request_count: 3 });
+    assert.equal(vm.requestCount, 3);
+  });
+
+  it('request_count absent', () => {
+    const vm = buildClientDetailViewModel({ display_name: 'L' });
+    assert.equal(vm.requestCount, null);
+  });
+
+  it('household_id does not replace client_id in view model', () => {
+    const vm = buildClientDetailViewModel({ display_name: 'M', client_id: 'c1', household_id: 'c1' });
+    assert.ok(!('client_id' in vm));
+    assert.ok(!('household_id' in vm));
+  });
+
+  it('PK is absent from view model', () => {
+    const vm = buildClientDetailViewModel({ display_name: 'N', PK: 'COMPANY#x' });
+    assert.ok(!('PK' in vm));
+  });
+
+  it('SK is absent from view model', () => {
+    const vm = buildClientDetailViewModel({ display_name: 'O', SK: 'CLIENT#c1' });
+    assert.ok(!('SK' in vm));
+  });
+
+  it('cognito_sub is absent from view model', () => {
+    const vm = buildClientDetailViewModel({ display_name: 'P', cognito_sub: 'sub-123' });
+    assert.ok(!('cognito_sub' in vm));
+  });
+
+  it('company_id and tenant identifiers absent', () => {
+    const vm = buildClientDetailViewModel({ display_name: 'Q', company_id: 'tog_and_dogs' });
+    assert.ok(!('company_id' in vm));
+  });
+
+  it('raw Cognito username absent', () => {
+    const vm = buildClientDetailViewModel({ display_name: 'R', cognito_username: 'user@example.com' });
+    assert.ok(!('cognito_username' in vm));
+  });
+
+  it('input client object is not mutated', () => {
+    const original = { display_name: 'S', email: 'x@y.com', is_active: true, account_status: 'linked_active' };
+    const frozen = { ...original };
+    buildClientDetailViewModel(original);
+    assert.deepEqual(original, frozen);
+  });
+
+  it('null client returns null', () => {
+    assert.equal(buildClientDetailViewModel(null), null);
+  });
+});
