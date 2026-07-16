@@ -5,6 +5,8 @@ import { signIn, getSession, getEffectiveRole } from '../api/auth';
 import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData, createAdminBooking, listAdminClientPets, getTenantInfo } from '../api/client';
 import * as XLSX from 'xlsx';
 
+import { accountStatusLabel, accountStatusClass, profileStatusLabel, profileStatusClass, getVisibleClients, CLIENT_FILTERS } from '../utils/clientManagement';
+
 
 
 
@@ -56,6 +58,8 @@ const AdminDashboard = () => {
   const [editingClientId, setEditingClientId] = useState(null);
   // Release 3: Client Management search
   const [clientSearch, setClientSearch] = useState('');
+  // Phase 1B.1A: Client Management filters
+  const [clientFilter, setClientFilter] = useState('all');
   // Release 5D Hotfix 1: Pets loaded for the selected/editing client
   const [clientPets, setClientPets] = useState([]);
   const [clientForm, setClientForm] = useState({
@@ -3285,43 +3289,46 @@ const AdminDashboard = () => {
 
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
         <h3>Client Access Management</h3>
-        {/* Release 3: Client search — filters by name, email, phone, notes */}
-        <div style={{ marginTop: '12px', marginBottom: '16px' }}>
-          <input
-            type="text"
-            placeholder="Search by name, email, phone, or notes..."
-            value={clientSearch}
-            onChange={(e) => setClientSearch(e.target.value)}
-            style={{ width: '100%', maxWidth: '400px', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.9rem' }}
-          />
-          {clientSearch && (
-            <span style={{ marginLeft: '12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              {clientList.filter(c => {
-            if (!clientSearch) return true;
-            const term = clientSearch.toLowerCase();
-            return (c.display_name || '').toLowerCase().includes(term) ||
-              (c.email || '').toLowerCase().includes(term) ||
-              (c.phone || '').toLowerCase().includes(term) ||
-              (c.notes || '').toLowerCase().includes(term) ||
-              // Release 4: Search by pet name and breed via denormalized summary fields
-              (c.pet_names_summary || '').toLowerCase().includes(term) ||
-              (c.pet_breeds_summary || '').toLowerCase().includes(term);
-          }).length} of {clientList.length} clients
-            </span>
-          )}
+        {/* Phase 1B.1A: Client search and filter controls */}
+        <div style={{ marginTop: '12px', marginBottom: '16px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
+          <div style={{ position: 'relative', flex: '1 1 300px', maxWidth: '400px' }}>
+            <label htmlFor="client-search-input" className="sr-only" style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>Search clients</label>
+            <input
+              id="client-search-input"
+              type="text"
+              placeholder="Search by name, email, phone, notes, pets..."
+              value={clientSearch}
+              onChange={(e) => setClientSearch(e.target.value)}
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.9rem' }}
+            />
+            {clientSearch && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => setClientSearch('')}
+                style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: 'var(--text-muted)', padding: '4px' }}
+              >&times;</button>
+            )}
+          </div>
+          <div>
+            <label htmlFor="client-filter-select" className="sr-only" style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>Filter clients</label>
+            <select
+              id="client-filter-select"
+              value={clientFilter}
+              onChange={(e) => setClientFilter(e.target.value)}
+              style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.9rem', backgroundColor: 'var(--card-bg)' }}
+            >
+              {CLIENT_FILTERS.map(f => (
+                <option key={f.value} value={f.value}>{f.label}</option>
+              ))}
+            </select>
+          </div>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }} aria-live="polite">
+            Showing {getVisibleClients(clientList, clientSearch, clientFilter).length} of {clientList.length} clients
+          </span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px', marginTop: '20px' }}>
-          {clientList.filter(c => {
-            if (!clientSearch) return true;
-            const term = clientSearch.toLowerCase();
-            return (c.display_name || '').toLowerCase().includes(term) ||
-              (c.email || '').toLowerCase().includes(term) ||
-              (c.phone || '').toLowerCase().includes(term) ||
-              (c.notes || '').toLowerCase().includes(term) ||
-              // Release 4: Search by pet name and breed
-              (c.pet_names_summary || '').toLowerCase().includes(term) ||
-              (c.pet_breeds_summary || '').toLowerCase().includes(term);
-          }).map(c => (
+          {getVisibleClients(clientList, clientSearch, clientFilter).map(c => (
             <div 
               key={c.client_id} 
               className={`client-profile-card ${c.client_id === editingClientId ? 'selected' : ''}`} 
@@ -3341,10 +3348,11 @@ const AdminDashboard = () => {
                   </h4>
                   <p style={{ margin: '4px 0', fontSize: '13px', color: 'var(--text-muted)' }}>{c.email || <span style={{ fontStyle: 'italic', opacity: 0.6 }}>No email on file</span>}</p>
                 </div>
-                {(() => {
-                  const status = getAccessStatus(c);
-                  return <span className={`access-badge ${status.class}`} style={{ fontSize: '10px' }}>{status.label}</span>
-                })()}
+                {/* Phase 1B.1A: Separate profile status and account status badges */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
+                  <span className={`access-badge ${profileStatusClass(c)}`} style={{ fontSize: '10px' }}>{profileStatusLabel(c)}</span>
+                  <span className={`access-badge ${accountStatusClass(c)}`} style={{ fontSize: '10px' }}>{accountStatusLabel(c)}</span>
+                </div>
               </div>
 
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
