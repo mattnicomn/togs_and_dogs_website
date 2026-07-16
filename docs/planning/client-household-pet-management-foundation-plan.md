@@ -232,14 +232,21 @@ The first phase introduces the Household model alongside the existing CLIENT mod
 
 ## Recommended First Implementation Release
 
-**Phase 1: Client/Household Management Parity and Stable Foundation**
+**Phase 1A: Client/Household Backend Compatibility Layer** ✅ (Validation Complete)
 
-This is the smallest bounded step that:
-- Introduces the HOUSEHOLD entity
-- Does not break existing client/pet/request behavior
-- Provides a foundation for all subsequent phases
-- Can be deployed independently
-- Has a clear rollback path
+Phase 1A was implemented as a smaller predecessor to the full Phase 1 plan. It introduces a backend compatibility layer that normalizes existing CLIENT records into household-compatible responses without creating HOUSEHOLD records or requiring migration.
+
+**Status:** Pre-deploy validation complete (commits `77a273a`, `3c2efb9`, `ed0ca34`). Awaiting deployment approval.
+
+**What was delivered:**
+- `household_id = client_id` on every GET /admin/clients response
+- Derived `account_status` field (profile_only, invite_available, invitation_sent, linked_active, linked_disabled, orphaned_identity, unlinked)
+- Profile state (`is_active`) and Cognito identity state (`cognito_enabled`) kept separate
+- All existing response fields preserved for frontend backward compatibility
+- No HOUSEHOLD records, migrations, dual writes, or new endpoints
+- 44 focused tests + full-suite comparison with zero candidate-only failures
+
+**Next after deployment:** Phase 1B (Frontend Client Management parity using normalized response)
 
 ---
 

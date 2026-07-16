@@ -16,6 +16,7 @@
 | Topic | Key Files |
 |-------|-----------|
 | SaaS architecture roadmap | `docs/planning/release-11a-multi-business-saas-architecture-and-product-roadmap.md` |
+| Client/Household foundation plan | `docs/planning/client-household-pet-management-foundation-plan.md` |
 | Billing & entitlement architecture | `docs/planning/release-12a-billing-and-entitlement-architecture-plan.md` |
 | Stripe webhook/data model | `docs/planning/release-12c-stripe-webhook-and-billing-data-model-implementation-plan.md` |
 | Booking payment architecture | `docs/planning/release-12f-stripe-checkout-booking-payment-architecture-plan.md` |
