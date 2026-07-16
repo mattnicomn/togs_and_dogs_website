@@ -511,3 +511,44 @@ describe('buildClientDetailViewModel', () => {
     assert.equal(buildClientDetailViewModel(null), null);
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// Edge cases and formatting (Phase 1B.1C)
+// ---------------------------------------------------------------------------
+
+describe('buildClientDetailViewModel edge cases', () => {
+  it('request_count of zero shows as 0', () => {
+    const vm = buildClientDetailViewModel({ display_name: 'Z', request_count: 0 });
+    assert.equal(vm.requestCount, 0);
+  });
+
+  it('unknown account_status uses value as label', () => {
+    const vm = buildClientDetailViewModel({ display_name: 'U', account_status: 'something_new' });
+    assert.equal(vm.accountStatusLabel, 'something_new');
+  });
+
+  it('pet summary with names but no breeds', () => {
+    const vm = buildClientDetailViewModel({ display_name: 'V', pet_names_summary: 'Buddy' });
+    assert.equal(vm.petSummary, 'Buddy');
+    assert.equal(vm.petBreeds, null);
+  });
+
+  it('very long display name is preserved', () => {
+    const longName = 'A'.repeat(200);
+    const vm = buildClientDetailViewModel({ display_name: longName });
+    assert.equal(vm.displayName, longName);
+  });
+
+  it('missing display_name falls back to Unnamed Client', () => {
+    const vm = buildClientDetailViewModel({});
+    assert.equal(vm.displayName, 'Unnamed Client');
+  });
+
+  it('empty string fields treated as absent', () => {
+    const vm = buildClientDetailViewModel({ display_name: 'W', email: '', phone: '', address: '' });
+    assert.equal(vm.email, null);
+    assert.equal(vm.phone, null);
+    assert.equal(vm.address, null);
+  });
+});

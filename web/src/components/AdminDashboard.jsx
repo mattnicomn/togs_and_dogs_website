@@ -3389,7 +3389,8 @@ const AdminDashboard = () => {
                   <p style={{ margin: '4px 0', fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>Legacy summary only — no individual PET# records found</p>
                 )}
                 <p style={{ margin: '4px 0 0 0', fontSize: '10px', color: 'var(--text-muted)', opacity: 0.7 }}>ID: {c.client_id}</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
+                {/* Phase 1B.1C: stopPropagation prevents account-security clicks from triggering card edit */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px', borderTop: '1px solid var(--border)', paddingTop: '10px' }} onClick={(e) => e.stopPropagation()}>
                   {c.cognito_sub ? (
                     <>
                       <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Account Security</span>
@@ -3418,7 +3419,8 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              <div className="btn-group" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
+              {/* Phase 1B.1C: stopPropagation on action container prevents card-edit bubbling */}
+              <div className="btn-group" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border)' }} onClick={(e) => e.stopPropagation()}>
                 {c.is_virtual ? (
                   <>
                     <button className="btn-small" onClick={() => {
