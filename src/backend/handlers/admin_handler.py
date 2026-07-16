@@ -1719,6 +1719,7 @@ def handler(event, context):
                     if cog_match:
                         c['cognito_status'] = cog_match.get('UserStatus')
                         c['cognito_username'] = cog_match.get('Username')
+                        c['cognito_enabled'] = cog_match.get('Enabled', True)
                         c['portal_enabled'] = True
                         if not c.get('cognito_sub'):
                             c['cognito_sub'] = next((a['Value'] for a in cog_match['Attributes'] if a['Name'] == 'sub'), None)

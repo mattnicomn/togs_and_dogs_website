@@ -22,9 +22,17 @@ def derive_account_status(client):
     - invite_available: Profile exists with email, no Cognito link yet
     - invitation_sent: Cognito user exists in FORCE_CHANGE_PASSWORD state
     - linked_active: Cognito user is linked and active (CONFIRMED)
-    - linked_disabled: Cognito user exists but client is disabled
+    - linked_disabled: Cognito user is linked but Cognito account is disabled
     - orphaned_identity: Cognito sub is set but user may not exist (stale link)
     - unlinked: Previously linked, now explicitly unlinked
+
+    Important semantic distinction:
+    - is_active: profile active/archived state (admin action)
+    - cognito_enabled: Cognito user Enabled/Disabled state (identity state)
+    - For virtual users (no DynamoDB profile), is_active carries Cognito Enabled
+    - linked_disabled means the Cognito identity is disabled, NOT that the
+      profile is archived. An archived profile with enabled Cognito remains
+      linked_active from an identity perspective.
     """
     cognito_sub = client.get('cognito_sub')
     cognito_status = (client.get('cognito_status') or '').upper()
@@ -32,12 +40,17 @@ def derive_account_status(client):
     portal_enabled = client.get('portal_enabled', False)
     email = (client.get('email') or '').strip()
     is_virtual = client.get('is_virtual', False)
+    # cognito_enabled is merged from the Cognito user's Enabled field during
+    # the GET /admin/clients merge. For virtual users, is_active carries
+    # the Cognito Enabled value instead.
+    cognito_enabled = client.get('cognito_enabled', True)
     
     # Explicitly unlinked
     if cognito_status == 'UNLINKED' or cognito_sub == 'unlinked':
         return 'unlinked'
     
     # Virtual Cognito-only user (no DynamoDB profile)
+    # For virtual users, is_active is set from Cognito Enabled during merge
     if is_virtual:
         return 'linked_active' if is_active else 'linked_disabled'
     
@@ -46,17 +59,17 @@ def derive_account_status(client):
         if cognito_status in ('FORCE_CHANGE_PASSWORD',):
             return 'invitation_sent'
         if cognito_status in ('CONFIRMED', 'RESET_REQUIRED', 'EXTERNAL_PROVIDER'):
-            if is_active and portal_enabled:
-                return 'linked_active'
-            elif not is_active:
+            # linked_disabled means the Cognito identity is disabled
+            if not cognito_enabled:
                 return 'linked_disabled'
-            else:
-                return 'linked_active'
+            return 'linked_active'
         # Cognito sub exists but status is unknown/deleted — orphaned
         if cognito_status in ('DELETED', 'COMPROMISED', 'UNKNOWN', ''):
             return 'orphaned_identity'
-        # Default linked state
-        return 'linked_active' if is_active else 'linked_disabled'
+        # Default linked state — check Cognito enabled
+        if not cognito_enabled:
+            return 'linked_disabled'
+        return 'linked_active'
     
     # No Cognito link
     if email:

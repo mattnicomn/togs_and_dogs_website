@@ -47,8 +47,10 @@ class TestDeriveAccountStatus:
 
     def test_linked_disabled(self):
         from common.client_view import derive_account_status
+        # linked_disabled means the Cognito identity is disabled, NOT profile archived
         client = {'client_id': 'c5', 'email': 'test@example.com', 'cognito_sub': 'sub-789',
-                  'cognito_status': 'CONFIRMED', 'is_active': False, 'portal_enabled': False}
+                  'cognito_status': 'CONFIRMED', 'is_active': True, 'portal_enabled': True,
+                  'cognito_enabled': False}
         assert derive_account_status(client) == 'linked_disabled'
 
     def test_unlinked(self):
