@@ -12,6 +12,7 @@ import { buildClientDetailViewModel } from '../utils/clientManagement';
 
 const ClientDetailDrawer = ({ client, onClose }) => {
   const closeBtnRef = useRef(null);
+  const drawerRef = useRef(null);
   const vm = buildClientDetailViewModel(client);
 
   // Focus management: move focus into drawer on open
@@ -19,10 +20,11 @@ const ClientDetailDrawer = ({ client, onClose }) => {
     if (closeBtnRef.current) {
       closeBtnRef.current.focus();
     }
-    // Lock body scroll
+    // Lock body scroll, preserving prior value
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = '';
+      document.body.style.overflow = prevOverflow;
     };
   }, []);
 
@@ -34,6 +36,36 @@ const ClientDetailDrawer = ({ client, onClose }) => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
+
+  // Focus containment: Tab/Shift+Tab stay within the drawer
+  useEffect(() => {
+    const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])';
+
+    const handleTab = (e) => {
+      if (e.key !== 'Tab' || !drawerRef.current) return;
+      const focusable = Array.from(drawerRef.current.querySelectorAll(FOCUSABLE_SELECTOR))
+        .filter(el => el.offsetParent !== null); // exclude hidden
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleTab);
+    return () => document.removeEventListener('keydown', handleTab);
+  }, []);
 
   if (!vm) return null;
 
@@ -48,6 +80,7 @@ const ClientDetailDrawer = ({ client, onClose }) => {
     >
       <div
         className="client-detail-drawer"
+        ref={drawerRef}
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
       >
