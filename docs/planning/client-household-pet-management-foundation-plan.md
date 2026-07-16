@@ -236,7 +236,7 @@ The first phase introduces the Household model alongside the existing CLIENT mod
 
 Phase 1A was implemented as a smaller predecessor to the full Phase 1 plan. It introduces a backend compatibility layer that normalizes existing CLIENT records into household-compatible responses without creating HOUSEHOLD records or requiring migration.
 
-**Status:** Pre-deploy validation complete (commits `77a273a`, `3c2efb9`, `ed0ca34`). Awaiting deployment approval.
+**Status:** Pre-deploy validation complete (commits `77a273a`, `3c2efb9`, `ed0ca34`). Deployed and manually validated in production (2026-07-16). Apply totals: 0 added, 13 Lambda in-place code-package updates, 0 destroyed.
 
 **What was delivered:**
 - `household_id = client_id` on every GET /admin/clients response
