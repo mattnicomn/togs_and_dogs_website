@@ -155,26 +155,65 @@ GET /admin/clients (in `admin_handler.py`):
 - Pagination structure intact
 - cognito_enabled merged correctly (true and false)
 
+### Test-Isolation Defect (Corrected)
+
+The original handler-integration test file used module-level `os.environ.setdefault('TENANT_RESOLUTION_MODE', 'multi')`. This leaked process-wide during pytest collection, causing 69 otherwise-passing tests to fail with `TenantDisabled` errors in the same pytest session.
+
+**Root cause:** Module-level `os.environ.setdefault` persists for the lifetime of the Python process. Tests collected after the handler-integration module inherited `TENANT_RESOLUTION_MODE=multi` without mocking `require_active_tenant`.
+
+**Correction:** Replaced module-level environment assignment with a function-scoped `autouse` fixture using `monkeypatch.setenv()`, which automatically restores the original environment after each test completes.
+
+**Minimal reproduction:**
+- Handler-integration tests alone: 27 passed
+- Handler-integration tests followed by previously affected tests: 32 passed (no pollution)
+
+### Full Backend Suite Comparison
+
+| Metric | Baseline (5c296e7) | Corrected Candidate (3c2efb9 + isolation fix) |
+|--------|--------------------|--------------------------------------------|
+| Collected | 685 | 712 |
+| Passed | 614 | 641 |
+| Failed | 71 | 71 |
+| Warnings | 94 | 94 |
+
+- Candidate adds 27 tests (handler-integration) and 27 additional passes
+- Exact failing node-ID sets match between baseline and candidate
+- **Candidate-only failures: 0**
+- No production application behavior was changed by the test-isolation correction
+
 ### Bounded Validation Totals
-- Phase 1A tests: **44 passed, 0 failed**
+- Phase 1A focused tests: **44 passed, 0 failed**
 - Broader relevant suite (identity, orphaned, tenant isolation, client limits): **63 passed, 5 failed**
-- All 5 failures are **pre-existing** (unrelated to Phase 1A changes):
+- All 5 failures are baseline-confirmed (same node IDs fail at 5c296e7):
   - 3 in test_r11e: missing require_active_tenant mock (from Release 20E)
   - 2 in test_r18l: booking counter mock assertion mismatch
-- Python compile: both changed files compile cleanly
+- Python compile: both changed backend files compile cleanly
 
 ## 9. Rollback
 
 Remove `common/client_view.py` and the `cognito_enabled` merge line in admin_handler. Existing behavior is unchanged since this is an additive normalization layer.
 
-## 10. Next Steps
+## 10. Deployment Scope (Read-Only Audit)
 
-- Phase 1A deployment approval (separate gate)
-- Full backend baseline comparison (deferred to next task)
-- Broader continuity-document updates (deferred)
+Expected deployment when approved:
+- Backend code-package update only (shared Lambda archive)
+- All 13 Lambda functions share one deployment archive — a future Terraform apply will refresh all 13 Lambda resources in-place even though only GET /admin/clients behavior changed
+- No API Gateway route changes
+- No environment-variable changes
+- No IAM policy changes
+- No Cognito configuration changes
+- No DynamoDB schema or migration changes
+- No frontend deployment required
+
+## 11. Next Steps
+
+- Deployment-readiness documentation update (broader continuity documents)
+- Terraform plan (requires separate explicit Matthew approval)
+- Production deployment (requires separate explicit Matthew approval)
+- Production smoke validation
 - Phase 1B: Frontend Client Management parity using this normalized response
 
-## 11. What Was NOT Changed
+## 12. What Was NOT Changed
 
 - ❌ No DynamoDB schema change
 - ❌ No migration

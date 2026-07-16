@@ -36,9 +36,21 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src', 'b
 os.environ.setdefault('DEFAULT_COMPANY_ID', 'tog_and_dogs')
 os.environ.setdefault('DATA_TABLE_NAME', 'test-table')
 os.environ.setdefault('ADMIN_USER_POOL_ID', 'us-east-1_TestPool')
-os.environ.setdefault('TENANT_RESOLUTION_MODE', 'multi')
-os.environ.setdefault('ENTITLEMENT_ENFORCEMENT_ENABLED', 'true')
-os.environ.setdefault('STRIPE_ENV', 'production')
+
+
+@pytest.fixture(autouse=True)
+def _isolate_env(monkeypatch):
+    """Set test-specific environment variables without leaking into other modules.
+
+    TENANT_RESOLUTION_MODE=multi, ENTITLEMENT_ENFORCEMENT_ENABLED=true, and
+    STRIPE_ENV=production are required by these handler tests but must not
+    persist into subsequent test files collected in the same process.
+    """
+    monkeypatch.setenv('TENANT_RESOLUTION_MODE', 'multi')
+    monkeypatch.setenv('ENTITLEMENT_ENFORCEMENT_ENABLED', 'true')
+    monkeypatch.setenv('STRIPE_ENV', 'production')
+    yield
+
 
 from handlers.admin_handler import handler as admin_handler
 
