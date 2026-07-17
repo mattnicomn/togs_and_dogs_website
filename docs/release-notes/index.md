@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Phase 1B.1: Client Management — Manual Validation Closeout**](phase-1b1-client-management-manual-validation-closeout.md) (2026-07-16) — ✅ **PASSED** — Local browser validation of search, filters, detail drawer, focus containment, and responsive layout; awaiting frontend deployment approval.
 - [**Phase 1A: Client/Household Backend — Production Deployment Closeout**](phase-1a-client-household-backend-production-deployment-closeout.md) (2026-07-16) — ✅ **PASSED** — Deployed 13 Lambda code-package updates; GET /admin/clients returns household_id and account_status; manually validated by Matthew.
 - [**Phase 1A: Terraform Plan Review**](phase-1a-terraform-plan-review.md) (2026-07-16) — ✅ **Plan Reviewed** — Saved plan: 0 add, 13 change, 0 destroy; all Lambda in-place code-package updates only.
 - [**Phase 1A: Client/Household Backend Compatibility — Validation Closeout**](phase-1a-client-household-backend-validation-closeout.md) (2026-07-16) — ✅ **PASS (Pre-Deploy Validation Complete)** — Backend compatibility layer adding household_id and account_status to GET /admin/clients; full-suite comparison shows zero candidate-only failures; awaiting deployment approval.
