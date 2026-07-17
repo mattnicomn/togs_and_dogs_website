@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Phase 1B.2A: ClientPetIndex Terraform Plan**](phase-1b2a-client-pet-index-terraform-plan.md) (2026-07-17) — ✅ **Plan Saved** — Add ClientPetIndex GSI configuration to DynamoDB and generate saved production Terraform plan.
 - [**Phase 1B.2A.2: Remediation Classifier Correction (Pre-Deploy)**](phase-1b2a2-remediation-classifier-correction-predeploy.md) (2026-07-16) — ✅ **PASS** — Implement parser helper and mutually exclusive disposition categories to fix classification issues on valid underscored and Cognito client IDs.
 - [**Phase 1B.2A.2: Pet Creation Hardening and Legacy Remediation Tool Pre-Deploy**](phase-1b2a2-pet-creation-hardening-and-remediation-tool-predeploy.md) (2026-07-16) — ✅ **PASS** — Implement pet creation is_active attribute default hardening on POST/PUT and introduce safety-gated dry-run remediation tool for legacy pet records.
 - [**Phase 1B.1: Client Management Frontend — Production Deployment Closeout**](phase-1b1-client-management-frontend-production-deployment-closeout.md) (2026-07-16) — ✅ **PASSED** — Deployed search, filters, status badges, read-only detail drawer, and focus containment to production; manually validated by Matthew.

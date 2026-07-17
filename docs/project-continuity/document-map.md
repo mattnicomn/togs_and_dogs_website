@@ -22,6 +22,7 @@
 | Phase 1B.1 production deployment closeout | `docs/release-notes/phase-1b1-client-management-frontend-production-deployment-closeout.md` |
 | Phase 1B.2 planning audit | `docs/planning/phase-1b2-client-write-workflows-and-pet-lifecycle-audit.md` |
 | Phase 1B.2A pet read-path audit | `docs/release-notes/phase-1b2a-pet-read-path-and-client-inventory-predeploy.md` |
+| Phase 1B.2A ClientPetIndex Terraform plan notes | `docs/release-notes/phase-1b2a-client-pet-index-terraform-plan.md` |
 | Phase 1B.2A AG execution handoff | `docs/project-continuity/phase-1b2a-pet-read-path-ag-execution-handoff.md` |
 | Phase 1B.2A.2 legacy normalization plan | `docs/planning/phase-1b2a2-pet-legacy-normalization-and-creation-hardening.md` |
 | Phase 1B.2A.2 legacy remediation release notes | `docs/release-notes/phase-1b2a2-pet-creation-hardening-and-remediation-tool-predeploy.md` |
