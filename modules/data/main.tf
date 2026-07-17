@@ -50,6 +50,24 @@ resource "aws_dynamodb_table" "main" {
     projection_type = "ALL"
   }
 
+  # GSI for Client-to-Pet relationships
+  attribute {
+    name = "client_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "pet_id"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "ClientPetIndex"
+    hash_key        = "client_id"
+    range_key       = "pet_id"
+    projection_type = "ALL"
+  }
+
   ttl {
     attribute_name = "expires_at"
     enabled        = true
