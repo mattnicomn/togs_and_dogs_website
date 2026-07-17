@@ -20,6 +20,7 @@
 | Phase 1A production closeout | `docs/release-notes/phase-1a-client-household-backend-production-deployment-closeout.md` |
 | Phase 1B.1 manual validation closeout | `docs/release-notes/phase-1b1-client-management-manual-validation-closeout.md` |
 | Phase 1B.1 production deployment closeout | `docs/release-notes/phase-1b1-client-management-frontend-production-deployment-closeout.md` |
+| Phase 1B.2 planning audit | `docs/planning/phase-1b2-client-write-workflows-and-pet-lifecycle-audit.md` |
 | Billing & entitlement architecture | `docs/planning/release-12a-billing-and-entitlement-architecture-plan.md` |
 | Stripe webhook/data model | `docs/planning/release-12c-stripe-webhook-and-billing-data-model-implementation-plan.md` |
 | Booking payment architecture | `docs/planning/release-12f-stripe-checkout-booking-payment-architecture-plan.md` |
