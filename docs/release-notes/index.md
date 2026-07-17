@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Phase 1B.2A.2: Pet Creation Hardening and Legacy Remediation Tool Pre-Deploy**](phase-1b2a2-pet-creation-hardening-and-remediation-tool-predeploy.md) (2026-07-16) — ✅ **PASS** — Implement pet creation is_active attribute default hardening on POST/PUT and introduce safety-gated dry-run remediation tool for legacy pet records.
 - [**Phase 1B.1: Client Management Frontend — Production Deployment Closeout**](phase-1b1-client-management-frontend-production-deployment-closeout.md) (2026-07-16) — ✅ **PASSED** — Deployed search, filters, status badges, read-only detail drawer, and focus containment to production; manually validated by Matthew.
 - [**Phase 1B.1: Client Management — Manual Validation Closeout**](phase-1b1-client-management-manual-validation-closeout.md) (2026-07-16) — ✅ **PASSED** — Local browser validation of search, filters, detail drawer, focus containment, and responsive layout; awaiting frontend deployment approval.
 - [**Phase 1A: Client/Household Backend — Production Deployment Closeout**](phase-1a-client-household-backend-production-deployment-closeout.md) (2026-07-16) — ✅ **PASSED** — Deployed 13 Lambda code-package updates; GET /admin/clients returns household_id and account_status; manually validated by Matthew.

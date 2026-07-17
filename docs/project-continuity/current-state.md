@@ -116,8 +116,8 @@
 **Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes. Release 22ZA implemented the mobile responsive foundation and accessible slide-out navigation drawer (pre-deploy validated). Release 22ZB implemented the full-screen Profile Editor mobile sheet layout (pre-deploy validated). Release 22ZC added keyboard-accessible stat cards, responsive filter controls stacking, and accessible data-label column labels on mobile request cards (pre-deploy validated).**
 
 **Next options:**
-- Matthew approves AG local implementation of Phase 1B.2A.2 (is_active default + remediation tool + tests — no deployment)
-- Begin Release 22ZD — Scheduler, Client Management, Platform Admin mobile polish (Phase 4 of 22Z plan)
-- Address 22Y remediation items (Cognito password-reset state handling, Google Calendar disconnect API Gateway fix) in a separate release
-- Process any new pending cancellation records if they appear (22O plan available)
-- Continue SaaS maturity priorities (blocked on EIN for Stripe live)
+- Kiro reviews AG local implementation of Phase 1B.2A.2.
+- Matthew approves executing the remediation utility in dry-run mode against production.
+- Begin Release 22ZD — Scheduler, Client Management, Platform Admin mobile polish (Phase 4 of 22Z plan).
+- Address 22Y remediation items (Cognito password-reset state handling, Google Calendar disconnect API Gateway fix) in a separate release.
+- Continue SaaS maturity priorities (blocked on EIN for Stripe live).
