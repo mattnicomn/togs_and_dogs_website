@@ -238,7 +238,7 @@ Phase 1A was implemented as a smaller predecessor to the full Phase 1 plan. It i
 
 **Status:** Pre-deploy validation complete (commits `77a273a`, `3c2efb9`, `ed0ca34`). Deployed and manually validated in production (2026-07-16). Apply totals: 0 added, 13 Lambda in-place code-package updates, 0 destroyed.
 
-**Phase 1B.1 Frontend Status:** Implementation complete, local manual validation PASSED (2026-07-16). Awaiting frontend deployment approval (S3 sync + CloudFront invalidation only).
+**Phase 1B.1 Frontend Status:** Implementation complete, deployed to production, and manually validated (2026-07-16). Bundle: `index-CliHUGPG.js`. Phase 1B.2 (write workflows) remains deferred.
 
 **What was delivered:**
 - `household_id = client_id` on every GET /admin/clients response
