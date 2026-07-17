@@ -23,6 +23,7 @@
 | Phase 1B.2 planning audit | `docs/planning/phase-1b2-client-write-workflows-and-pet-lifecycle-audit.md` |
 | Phase 1B.2A pet read-path audit | `docs/release-notes/phase-1b2a-pet-read-path-and-client-inventory-predeploy.md` |
 | Phase 1B.2A AG execution handoff | `docs/project-continuity/phase-1b2a-pet-read-path-ag-execution-handoff.md` |
+| Phase 1B.2A.2 legacy normalization plan | `docs/planning/phase-1b2a2-pet-legacy-normalization-and-creation-hardening.md` |
 | Billing & entitlement architecture | `docs/planning/release-12a-billing-and-entitlement-architecture-plan.md` |
 | Stripe webhook/data model | `docs/planning/release-12c-stripe-webhook-and-billing-data-model-implementation-plan.md` |
 | Booking payment architecture | `docs/planning/release-12f-stripe-checkout-booking-payment-architecture-plan.md` |
