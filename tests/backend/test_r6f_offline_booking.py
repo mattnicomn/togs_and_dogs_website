@@ -353,3 +353,214 @@ def test_staff_cannot_list_client_pets():
     # Rejects because path parameters (petId) is missing/None for GET and it is not a client role
     assert resp["statusCode"] == 400
     assert "Missing petId" in resp["body"]
+
+
+def test_new_pet_is_active_behavior():
+    from handlers.pet_handler import handler as pet_handler
+    import json
+    from unittest.mock import MagicMock, patch
+
+    # 1. New PET without is_active: persisted as True
+    event_1 = {
+        "requestContext": {"authorizer": {"claims": {"cognito:groups": "Admin"}}},
+        "httpMethod": "POST",
+        "path": "/admin/pets",
+        "body": json.dumps({
+            "client_id": "client_abc123",
+            "name": "Buddy"
+        })
+    }
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {"Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_abc123"}}
+
+    with patch('common.db.table', mock_table), \
+         patch('handlers.pet_handler.table', mock_table), \
+         patch('handlers.pet_handler.put_item', return_value=True) as mock_put, \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event_1, None)
+        assert resp["statusCode"] == 200
+        mock_put.assert_called_once()
+        written_item = mock_put.call_args[0][0]
+        assert written_item["is_active"] is True
+        assert written_item["name"] == "Buddy"
+
+    # 2. New PET with is_active=True: persisted as True
+    event_2 = {
+        "requestContext": {"authorizer": {"claims": {"cognito:groups": "Admin"}}},
+        "httpMethod": "POST",
+        "path": "/admin/pets",
+        "body": json.dumps({
+            "client_id": "client_abc123",
+            "name": "Buddy",
+            "is_active": True
+        })
+    }
+    with patch('common.db.table', mock_table), \
+         patch('handlers.pet_handler.table', mock_table), \
+         patch('handlers.pet_handler.put_item', return_value=True) as mock_put, \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event_2, None)
+        assert resp["statusCode"] == 200
+        mock_put.assert_called_once()
+        written_item = mock_put.call_args[0][0]
+        assert written_item["is_active"] is True
+
+    # 3. New PET with is_active=False: persisted as False
+    event_3 = {
+        "requestContext": {"authorizer": {"claims": {"cognito:groups": "Admin"}}},
+        "httpMethod": "POST",
+        "path": "/admin/pets",
+        "body": json.dumps({
+            "client_id": "client_abc123",
+            "name": "Buddy",
+            "is_active": False
+        })
+    }
+    with patch('common.db.table', mock_table), \
+         patch('handlers.pet_handler.table', mock_table), \
+         patch('handlers.pet_handler.put_item', return_value=True) as mock_put, \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event_3, None)
+        assert resp["statusCode"] == 200
+        mock_put.assert_called_once()
+        written_item = mock_put.call_args[0][0]
+        assert written_item["is_active"] is False
+
+    # 9. Tenant validation rejects cross-tenant writes
+    with patch('common.db.table', mock_table), \
+         patch('handlers.pet_handler.table', mock_table), \
+         patch('handlers.pet_handler.put_item', return_value=True) as mock_put, \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        mock_table.get_item.return_value = {"Item": None}
+        resp = pet_handler(event_1, None)
+        assert resp["statusCode"] == 403
+        mock_put.assert_not_called()
+
+
+def test_existing_pet_is_active_behavior():
+    from handlers.pet_handler import handler as pet_handler
+    import json
+    from unittest.mock import MagicMock, patch
+
+    # 4. Existing active PET update without is_active: existing True preserved
+    event_4 = {
+        "requestContext": {"authorizer": {"claims": {"cognito:groups": "Admin"}}},
+        "httpMethod": "PUT",
+        "path": "/admin/pets/pet-123",
+        "pathParameters": {"petId": "pet-123"},
+        "body": json.dumps({
+            "client_id": "client_abc123",
+            "name": "Buddy Updated"
+        })
+    }
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {"Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_abc123"}}
+
+    mock_existing_item = {
+        "PK": "PET#pet-123",
+        "SK": "CLIENT#client_abc123",
+        "pet_id": "pet-123",
+        "client_id": "client_abc123",
+        "name": "Buddy",
+        "is_active": True,
+        "company_id": "tog_and_dogs"
+    }
+
+    with patch('common.db.table', mock_table), \
+         patch('handlers.pet_handler.table', mock_table), \
+         patch('handlers.pet_handler.get_item', return_value=mock_existing_item), \
+         patch('handlers.pet_handler.put_item', return_value=True) as mock_put, \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event_4, None)
+        assert resp["statusCode"] == 200
+        mock_put.assert_called_once()
+        written_item = mock_put.call_args[0][0]
+        assert written_item["is_active"] is True
+        assert written_item["name"] == "Buddy Updated"
+
+    # 5. Existing archived PET update without is_active: existing False preserved
+    mock_existing_item_inactive = {
+        "PK": "PET#pet-123",
+        "SK": "CLIENT#client_abc123",
+        "pet_id": "pet-123",
+        "client_id": "client_abc123",
+        "name": "Buddy",
+        "is_active": False,
+        "company_id": "tog_and_dogs"
+    }
+    with patch('common.db.table', mock_table), \
+         patch('handlers.pet_handler.table', mock_table), \
+         patch('handlers.pet_handler.get_item', return_value=mock_existing_item_inactive), \
+         patch('handlers.pet_handler.put_item', return_value=True) as mock_put, \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event_4, None)
+        assert resp["statusCode"] == 200
+        mock_put.assert_called_once()
+        written_item = mock_put.call_args[0][0]
+        assert written_item["is_active"] is False
+
+    # 6. Existing legacy PET missing is_active, updated without is_active: remains absent
+    mock_existing_legacy = {
+        "PK": "PET#pet-123",
+        "SK": "CLIENT#client_abc123",
+        "pet_id": "pet-123",
+        "client_id": "client_abc123",
+        "name": "Buddy",
+        "company_id": "tog_and_dogs"
+    }
+    with patch('common.db.table', mock_table), \
+         patch('handlers.pet_handler.table', mock_table), \
+         patch('handlers.pet_handler.get_item', return_value=mock_existing_legacy), \
+         patch('handlers.pet_handler.put_item', return_value=True) as mock_put, \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event_4, None)
+        assert resp["statusCode"] == 200
+        mock_put.assert_called_once()
+        written_item = mock_put.call_args[0][0]
+        assert "is_active" not in written_item
+
+    # 7. Existing legacy PET missing is_active, updated with is_active=True: becomes True
+    event_5 = {
+        "requestContext": {"authorizer": {"claims": {"cognito:groups": "Admin"}}},
+        "httpMethod": "PUT",
+        "path": "/admin/pets/pet-123",
+        "pathParameters": {"petId": "pet-123"},
+        "body": json.dumps({
+            "client_id": "client_abc123",
+            "name": "Buddy Updated",
+            "is_active": True
+        })
+    }
+    with patch('common.db.table', mock_table), \
+         patch('handlers.pet_handler.table', mock_table), \
+         patch('handlers.pet_handler.get_item', return_value=mock_existing_legacy), \
+         patch('handlers.pet_handler.put_item', return_value=True) as mock_put, \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event_5, None)
+        assert resp["statusCode"] == 200
+        mock_put.assert_called_once()
+        written_item = mock_put.call_args[0][0]
+        assert written_item["is_active"] is True
+
+    # 8. Existing legacy PET missing is_active, updated with is_active=False: becomes False
+    event_6 = {
+        "requestContext": {"authorizer": {"claims": {"cognito:groups": "Admin"}}},
+        "httpMethod": "PUT",
+        "path": "/admin/pets/pet-123",
+        "pathParameters": {"petId": "pet-123"},
+        "body": json.dumps({
+            "client_id": "client_abc123",
+            "name": "Buddy Updated",
+            "is_active": False
+        })
+    }
+    with patch('common.db.table', mock_table), \
+         patch('handlers.pet_handler.table', mock_table), \
+         patch('handlers.pet_handler.get_item', return_value=mock_existing_legacy), \
+         patch('handlers.pet_handler.put_item', return_value=True) as mock_put, \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event_6, None)
+        assert resp["statusCode"] == 200
+        mock_put.assert_called_once()
+        written_item = mock_put.call_args[0][0]
+        assert written_item["is_active"] is False

@@ -145,6 +145,7 @@ def handler(event, context):
                 from common.response import error as _error
                 return _error(403, "Forbidden", event)
             
+            is_new_record = not existing_item
             item = existing_item.copy()
             item.update({
                 'PK': f"PET#{pet_id}",
@@ -155,6 +156,10 @@ def handler(event, context):
                 'entity_type': 'PET',
                 'updated_at': datetime.datetime.utcnow().isoformat()
             })
+
+            # Hardening new PET creation: default is_active to True on new records when omitted
+            if is_new_record and 'is_active' not in body:
+                item['is_active'] = True
 
             
             editable_fields = [
