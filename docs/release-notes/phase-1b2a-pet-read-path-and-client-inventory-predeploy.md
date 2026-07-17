@@ -3,146 +3,215 @@
 **Date:** 2026-07-16
 **Status:** ⚠️ BLOCKED — GSI Required Before Frontend Implementation
 **Type:** Architecture audit and design recommendation
+**Updated:** 2026-07-16 (Phase 1B.2A.1 — refined index design and tenant-isolation review)
 
 ---
 
-## Finding: Unbounded Table Scan
+## Production Table Details
 
-The current GET /admin/pets endpoint uses a **full DynamoDB table Scan** with a client-side FilterExpression. This reads every item in the entire single-table database to find pets matching a specific client_id.
+| Item | Value |
+|------|-------|
+| Terraform resource | `module.data.aws_dynamodb_table.main` |
+| Table name | `togs-and-dogs-prod-data` |
+| Billing mode | PAY_PER_REQUEST (on-demand) |
+| Primary key | PK (String) + SK (String) |
+| Existing GSIs | StatusIndex (status + created_at), WorkerIndex (worker_id + assigned_at) |
 
-### Current PET Key Schema
+## PET Item Key Schema
 
 ```
-PK: PET#{pet_id}       (globally unique)
-SK: CLIENT#{client_id}  (owner association)
+PK: PET#{pet_id}        (globally unique UUID)
+SK: CLIENT#{client_id}   (owner association)
 ```
 
-### Current Query Behavior
+## PET Attribute Coverage (All Creation Paths)
 
+| Field | pet_profile._create_new_pet | pet_profile._create_legacy | pet_handler POST/PUT | Always Present? |
+|-------|---------------------------|---------------------------|---------------------|-----------------|
+| pet_id | ✅ | ✅ | ✅ | Yes (also in PK) |
+| client_id | ✅ | ✅ | ✅ | Yes (also in SK) |
+| company_id | ✅ | ✅ | ✅ | Yes |
+| entity_type = 'PET' | ✅ | ✅ | ✅ | Yes |
+| is_active | ✅ (True) | ✅ (True) | Set from body or existing | Yes on new creates |
+
+**Assessment:** All identified PET creation paths write `client_id`, `pet_id`, `company_id`, and `entity_type`. Historical pre-Release-4 pets cannot be verified without production inspection, but the code audit shows no path that omits these fields.
+
+---
+
+## Current GET /admin/pets Endpoint
+
+### Parameters
+- `clientId` (camelCase query parameter) — frontend: `listAdminClientPets(clientId)`
+- Response: `{ "pets": [...] }`
+- Active/archive filter: excludes `is_active === false` from list results
+- Pagination: None (returns all matching items in one response)
+
+### Current Implementation (Scan)
 ```python
-# pet_handler.py — GET /admin/pets?clientId={id}
 scan_kwargs = {
     "FilterExpression": Attr("client_id").eq(client_id) & Attr("entity_type").eq("PET")
 }
 resp = items_table.scan(**scan_kwargs)
+items = resp.get('Items', [])
+items = [p for p in items if not p.get('company_id') or p.get('company_id') == company_id]
+items = [p for p in items if p.get('is_active') is not False]
 ```
 
-This Scan:
-- Reads every item in the table (all tenants, all entity types)
-- Applies FilterExpression after reading (consumes full read capacity)
-- Returns only matching items but charges for all items evaluated
-- Has no natural pagination boundary per client
-- Performance degrades linearly with total table size
-- Is not safe to trigger on every Client Detail drawer open
-
-### Why a Bounded Query Is Not Possible Without Changes
-
-- PET items use `PK = PET#{pet_id}` — no partition groups pets by client or tenant
-- No GSI exists on `client_id` or `entity_type`
-- The existing StatusIndex and WorkerIndex GSIs do not help
-- DynamoDB requires a partition key for bounded Query operations
+**Problems:**
+- Full table Scan reads every item across all entity types and tenants
+- FilterExpression is applied AFTER reading (consumes full capacity)
+- Post-scan tenant filter is defense-in-depth but data is already read
+- No pagination token exposed to callers
+- Performance degrades with total table size
 
 ---
 
-## Proposed Solution: Client-Entity GSI
+## Index Options Comparison
 
-### Option 1 — GSI on client_id (Recommended)
-
-Add a GSI that enables direct Query by client_id:
+### Option 1 — Minimal Compatibility GSI (RECOMMENDED)
 
 ```
-GSI Name: ClientEntityIndex
+GSI Name: ClientPetIndex
 Partition Key: client_id (String)
-Sort Key: entity_type (String) — or PK for uniqueness
-Projection: ALL (or KEYS_ONLY + needed fields)
-```
-
-**Query pattern:**
-```python
-response = table.query(
-    IndexName='ClientEntityIndex',
-    KeyConditionExpression=Key('client_id').eq(client_id) & Key('entity_type').eq('PET')
-)
+Sort Key: pet_id (String)
+Projection: ALL
 ```
 
 **Advantages:**
-- Bounded read — only items with matching client_id are evaluated
-- Sort key can distinguish PET from other entity types
-- Supports pagination via LastEvaluatedKey
-- No migration needed — DynamoDB backfills the GSI automatically
-- Existing items with `client_id` attribute are indexed immediately
+- Both `client_id` and `pet_id` exist on ALL PET items (guaranteed by key structure)
+- Unique sort key (pet_id is UUID) — no duplicate-key issues
+- Bounded query: reads only items matching the specific client_id
+- Natural result ordering by pet_id (stable, if not meaningful)
+- Supports LastEvaluatedKey pagination
+- Non-PET items with client_id (e.g., REQ items stored with `SK = CLIENT#{id}`) will NOT appear because their PK doesn't match `PET#` pattern — **however**, the GSI indexes by `client_id` attribute, not PK. Items with a `client_id` attribute that are NOT pets will enter the index.
+- Post-query `entity_type = 'PET'` FilterExpression needed as defense
 
-**Considerations:**
-- GSI applies to ALL items with a `client_id` attribute (not just PETs)
-- Request items also have `client_id` — they would appear in this index too
-- Using `entity_type` as sort key provides clean filtering
-- Additional read capacity consumed for index maintenance
+**Tenant-isolation approach:**
+1. Resolve `company_id` from trusted authenticated claims
+2. Direct GetItem: `PK = COMPANY#{company_id}, SK = CLIENT#{client_id}` — confirms client belongs to tenant
+3. If not found → 404/403 (client not owned by this tenant)
+4. Query GSI: `client_id = {verified_client_id}`
+5. FilterExpression: `entity_type = 'PET'`
+6. Post-query defense: verify each item's `company_id` matches trusted context
+7. Apply is_active filter per existing behavior
 
-### Option 2 — Restructure PET Keys (Not Recommended Now)
+**Why client_id alone is NOT tenant authorization:**
+A client_id is a UUID that could theoretically be guessed or leaked. Authorization requires proving the CLIENT belongs to the authenticated tenant BEFORE querying pet data. The GSI itself provides no tenant boundary.
 
-Move PET items under a tenant-partitioned key:
-```
-PK: COMPANY#{company_id}
-SK: PET#{pet_id}#CLIENT#{client_id}
-```
+**Migration requirement:** None — DynamoDB auto-backfills existing items that have both `client_id` and `pet_id` attributes.
 
-**Rejected because:**
-- Requires data migration of all existing PET records
-- Breaks existing pet_handler and pet_profile code
-- Higher risk for a read-path improvement
-
-### Option 3 — SK-Based Sparse GSI
+### Option 2 — Original ClientEntityIndex Proposal
 
 ```
-GSI: PetClientIndex
-Partition Key: SK (CLIENT#{client_id})
-Sort Key: PK (PET#{pet_id})
+Partition Key: client_id
+Sort Key: entity_type
+```
+
+**Problems:**
+- `entity_type = 'PET'` is identical for all PET items → sort key provides no ordering benefit
+- All PET items for a client would have the same sort-key value → DynamoDB allows this but pagination behavior is less predictable
+- Non-unique sort key makes individual item retrieval impossible via the index alone
+- Other entity types with `client_id` + `entity_type` attributes (e.g., REQUEST items) also enter the index
+
+**Verdict:** Inferior to Option 1.
+
+### Option 3 — Tenant-Scoped Synthetic Key
+
+```
+Attribute: client_pet_pk = COMPANY#{company_id}#CLIENT#{client_id}
+Sort Key: PET#{pet_id}
+```
+
+**Advantages:** Strongest tenant isolation at the index level.
+
+**Problems:**
+- Requires adding a new synthetic attribute to ALL existing PET items (backfill)
+- Requires modifying every PET write path to populate the synthetic key
+- Migration and rollback complexity
+- Higher implementation risk for what is currently a read-optimization
+
+**Verdict:** Deferred. The tenant-validation-first approach (Option 1 + GetItem check) provides equivalent security without migration.
+
+---
+
+## Recommended Design: Option 1 — ClientPetIndex
+
+### GSI Specification
+
+```
+Name: ClientPetIndex
+Partition Key: client_id (String)
+Sort Key: pet_id (String)
 Projection: ALL
-Condition: entity_type = 'PET'
 ```
 
-**Note:** DynamoDB GSIs cannot have conditions — all items with SK matching the pattern would be indexed. Since many item types use `CLIENT#` sort keys (REQ items use `SK = CLIENT#{id}` too), this GSI would include non-PET items.
+### Projection Choice: ALL
 
-**Mitigation:** Filter `entity_type = 'PET'` at query time. Still bounded to the `SK = CLIENT#{client_id}` partition.
+**Reasoning:** The current endpoint returns all PET fields in the response. A KEYS_ONLY or INCLUDE projection would require a follow-up GetItem for every returned pet to populate the full response — creating the N+1 pattern we're avoiding. Since PET items are small (typically <1 KB each) and per-client counts are low (typically 1-5 pets), the storage cost of ALL projection is negligible.
+
+### Bounded Backend Flow
+
+1. **Authenticate** — resolve `company_id` from trusted Cognito claims
+2. **Authorize client** — `GetItem(PK=COMPANY#{company_id}, SK=CLIENT#{client_id})`
+   - Not found → return 404 or 403
+3. **Query GSI** — `ClientPetIndex` with `KeyConditionExpression: client_id = :cid`
+   - FilterExpression: `entity_type = :pet` (defense against non-PET items with client_id)
+4. **Post-query defense** — verify `company_id` on each returned item matches trusted context
+5. **Apply active/archive filter** — exclude `is_active === false` unless explicitly requested
+6. **Return** — existing response shape `{ "pets": [...] }` with optional `lastKey` for pagination
+
+**DynamoDB requests per call:** 1 GetItem + 1 Query = 2 (bounded)
+
+**Empty filtered page handling:** If FilterExpression removes all items from a page but LastEvaluatedKey exists, the handler must continue querying until results are found or the index is exhausted. This prevents premature termination.
+
+**Archived pets:** Controlled by `is_active` filter (same as current behavior). Future explicit archive-view parameter can override.
+
+**Cross-tenant client_id:** Step 2 rejects it before any pet data is accessed.
+
+**Legacy pets missing company_id:** Treated as belonging to the default tenant (existing behavior). Defense-in-depth filter retains them only if the caller is the default tenant.
+
+### Pagination
+
+- Expose `LastEvaluatedKey` as an opaque `nextToken` in the response
+- Accept `nextToken` query parameter for continuation
+- Preserve existing behavior (no pagination) when result set fits in one page
+
+### Endpoint Compatibility
+
+| Parameter | Current | After Change |
+|-----------|---------|-------------|
+| `clientId` (query) | ✅ | ✅ (unchanged) |
+| Response `{ "pets": [...] }` | ✅ | ✅ (unchanged) |
+| Active-only filter | ✅ | ✅ (unchanged) |
+| Pagination token | Not supported | Optional `nextToken` (additive) |
 
 ---
 
-## Recommended Path Forward
+## Terraform Implications
 
-1. **Add ClientEntityIndex GSI** via Terraform (Option 1)
-2. **Update pet_handler** to use Query with the GSI when client_id is provided
-3. **Preserve Scan fallback** for any existing call path that doesn't provide client_id
-4. **Add pagination support** using LastEvaluatedKey
-5. **Apply tenant filtering** post-query (verify company_id matches caller)
-6. **Frontend implementation** proceeds only after the bounded query is deployed
+- **Resource changed:** `module.data.aws_dynamodb_table.main` (in-place update)
+- **Change:** Add one `attribute` definition + one `global_secondary_index` block
+- **Backfill:** Automatic, non-blocking. Table remains fully available during index creation.
+- **Expected plan:** 0 add, 1 change, 0 destroy
+- **GSI status monitoring:** Check `IndexStatus = ACTIVE` before deploying backend code
+- **Rollback:** Remove the GSI (non-destructive to data)
+- **Backend archive refresh:** Required (all 13 Lambdas share backend package)
 
-### Terraform Scope
+## Approval Gates (Sequential)
 
-- Add one `attribute` definition for `entity_type` (if not already declared)
-- Add one `global_secondary_index` block
-- Expected plan: 1 resource changed in-place (DynamoDB table update)
-- GSI backfill is automatic and non-blocking
-- No downtime during GSI creation
-- Existing reads/writes are unaffected
-
-### Migration/Backfill
-
-- **None required** — existing PET items already have `client_id` and `entity_type` attributes
-- DynamoDB automatically populates the GSI with existing items
-- Backfill time depends on table size (typically minutes for small tables)
-
-### Rollout Sequence
-
-1. Terraform plan (adds GSI) — requires Matthew approval
-2. Terraform apply — GSI begins backfilling
-3. Wait for GSI status = ACTIVE
-4. Deploy backend update (pet_handler uses Query when GSI is ready)
-5. Deploy frontend (drawer uses the bounded endpoint)
-6. Each step requires separate approval
+1. Matthew reviews this GSI design
+2. Saved Terraform plan for the GSI addition
+3. Reviewed Terraform apply (GSI begins backfilling)
+4. Wait for GSI IndexStatus = ACTIVE
+5. Backend pet_handler update (replace Scan with Query) + tests
+6. Saved backend Terraform plan (13 Lambda refresh)
+7. Backend apply + smoke validation
+8. Frontend pet inventory implementation
+9. Frontend deployment approval
 
 ---
 
-## Workflow Validation Status Correction
+## Workflow Validation Status (Corrected)
 
 | Workflow | Status |
 |----------|--------|
@@ -167,17 +236,12 @@ Condition: entity_type = 'PET'
 
 ## What Was NOT Done
 
-- ❌ No frontend pet inventory added (blocked on Scan replacement)
 - ❌ No GSI created (requires Terraform approval)
 - ❌ No backend code changed
+- ❌ No frontend pet inventory added
 - ❌ No deployment
-- ❌ No production-data modification
+- ❌ No production-data modification or inspection
 
-## Next Steps (Require Separate Approvals)
+## Next Step
 
-1. Matthew reviews and approves the GSI design
-2. Terraform plan for ClientEntityIndex GSI addition
-3. Terraform apply
-4. Backend pet_handler update to use Query
-5. Frontend pet inventory in drawer
-6. Frontend deployment
+Matthew reviews this GSI design. If approved, proceed to a saved Terraform plan for the ClientPetIndex addition.
