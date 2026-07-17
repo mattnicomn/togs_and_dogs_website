@@ -1,7 +1,7 @@
 # Phase 1B.2A.2: PET Legacy Normalization and Creation Hardening
 
 **Date:** 2026-07-16
-**Status:** Local Implementation Complete — Awaiting Kiro Review
+**Status:** Classifier Correction Complete — Awaiting Kiro Review
 **Type:** Backend defect correction + legacy remediation tooling (no deployment)
 
 ---

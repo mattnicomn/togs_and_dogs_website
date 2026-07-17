@@ -25,6 +25,7 @@
 | Phase 1B.2A AG execution handoff | `docs/project-continuity/phase-1b2a-pet-read-path-ag-execution-handoff.md` |
 | Phase 1B.2A.2 legacy normalization plan | `docs/planning/phase-1b2a2-pet-legacy-normalization-and-creation-hardening.md` |
 | Phase 1B.2A.2 legacy remediation release notes | `docs/release-notes/phase-1b2a2-pet-creation-hardening-and-remediation-tool-predeploy.md` |
+| Phase 1B.2A.2 remediation classifier correction notes | `docs/release-notes/phase-1b2a2-remediation-classifier-correction-predeploy.md` |
 | Billing & entitlement architecture | `docs/planning/release-12a-billing-and-entitlement-architecture-plan.md` |
 | Stripe webhook/data model | `docs/planning/release-12c-stripe-webhook-and-billing-data-model-implementation-plan.md` |
 | Booking payment architecture | `docs/planning/release-12f-stripe-checkout-booking-payment-architecture-plan.md` |
