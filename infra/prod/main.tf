@@ -64,6 +64,14 @@ data "archive_file" "backend_zip" {
   type        = "zip"
   source_dir  = "${path.module}/../../src/backend"
   output_path = "${path.module}/backend.zip"
+  excludes = [
+    "**/.pytest_cache/**",
+    "**/__pycache__/**",
+    "**/*.pyc",
+    "**/*.pyo",
+    "**/*.log",
+    "**/*.tmp"
+  ]
 }
 
 resource "aws_lambda_function" "intake" {
