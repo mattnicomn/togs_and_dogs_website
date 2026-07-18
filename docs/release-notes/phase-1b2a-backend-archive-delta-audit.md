@@ -64,12 +64,8 @@ We performed `git diff --name-status 234b51d..HEAD -- src/backend` and found onl
   - `src/backend/common/__pycache__/`
   - `src/backend/common/notifications/__pycache__/`
   - `src/backend/handlers/__pycache__/`
-- **Classification:** **NOT READY** (due to archive pollution)
-- **Local Cleanup Remedy:** Before generating the plan or running deployment, the local environment must delete these untracked directories using:
-  ```powershell
-  Remove-Item -Recurse -Force src/backend/.pytest_cache
-  Get-ChildItem -Path src/backend -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
-  ```
+- **Classification:** **RESOLVED via Exclusions** (local caches are now successfully excluded by HCL configuration)
+- **Local Cleanup Remedy:** Exclusions configured in `infra/prod/main.tf` prevent cache pollution. Prior local pycache/pytest directories can still be manually deleted if desired, but they will no longer enter the archive.
 
 ---
 

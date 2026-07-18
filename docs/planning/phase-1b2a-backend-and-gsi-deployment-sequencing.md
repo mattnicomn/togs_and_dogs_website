@@ -139,6 +139,7 @@ AG has completed the backend archive readiness audit:
 - Existing saved plan (`phase-1b2a-client-pet-index.tfplan`): NOT apply-ready, retained as review evidence
 - ClientPetIndex: configured in repository, NOT deployed
 - PET is_active hardening: committed, NOT deployed
+- Backend archive: deterministic excludes implemented, local caches blocked
 - Latest production backend: Phase 1A (`234b51d`)
 - Latest production frontend: Phase 1B.1 (`51b78bf`)
 - Remediation: deferred
@@ -148,8 +149,9 @@ AG has completed the backend archive readiness audit:
 
 ## What Is NOT Authorized
 
-- ❌ No code changes in this task
-- ❌ No Terraform operations
-- ❌ No deployment
-- ❌ No commit reverts
+- ❌ No production Terraform plan/apply/refresh from `infra/prod`
+- ❌ No AWS access or STS calls
+- ❌ No temporary ClientPetIndex removal (GSI revert)
+- ❌ No Lambda deployment
 - ❌ No production-data modification
+- ❌ No Cognito or tenant writes

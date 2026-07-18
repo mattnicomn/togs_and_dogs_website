@@ -145,19 +145,17 @@ Safe rollback approaches:
 - Existing saved plan (`phase-1b2a-client-pet-index.tfplan`): NOT apply-ready, retained locally
 - ClientPetIndex: configured in repository, NOT deployed
 - PET is_active hardening: committed, NOT deployed
-- Backend archive: contains 42 cache entries (nondeterministic)
+- Backend archive: excludes implemented, local caches blocked (reproducible inputs verified)
 - Latest production backend: Phase 1A (`234b51d`)
 - Latest production frontend: Phase 1B.1 (`51b78bf`)
 - Remediation: deferred
 - Frontend pet inventory: deferred
 
----
-
 ## What Was NOT Done
 
-- ❌ No AWS access
-- ❌ No Terraform plan/apply/refresh
-- ❌ No configuration changes
-- ❌ No cache deletion
-- ❌ No GSI revert
-- ❌ No backend deployment
+- ❌ No AWS access or STS calls
+- ❌ No production Terraform plan/apply/refresh from `infra/prod`
+- ❌ No GSI configuration revert
+- ❌ No Lambda deployment
+- ❌ No production-data modification
+- ❌ No Cognito or tenant writes
