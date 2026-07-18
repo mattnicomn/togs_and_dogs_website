@@ -1,5 +1,7 @@
 # Release Notes: Phase 1B.2A — ClientPetIndex Terraform Plan
 
+> **⚠️ CORRECTION (Kiro Review):** This plan is **NOT apply-ready**. It contains 13 unrelated Lambda code-package updates alongside the intended DynamoDB GSI change. See `phase-1b2a-client-pet-index-plan-scope-mismatch-review.md` for the full assessment. A separate backend deployment must occur first, followed by a new clean plan containing only the GSI change.
+
 ## 1. Executive Summary
 This release implements the Terraform configuration for the `ClientPetIndex` Global Secondary Index (GSI) on the primary DynamoDB table. We generated a saved production plan (`phase-1b2a-client-pet-index.tfplan`), validated formatting and structure, and reviewed all changes.
 
