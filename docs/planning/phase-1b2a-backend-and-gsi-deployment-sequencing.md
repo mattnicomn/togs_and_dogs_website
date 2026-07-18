@@ -91,9 +91,9 @@ These must be deployed in separate, independently reviewed operations. The GSI c
 
 | # | Step | Approval |
 |---|------|----------|
-| 1 | AG creates a bounded commit removing ClientPetIndex from `modules/data/main.tf` (the 3 attribute definitions + 1 GSI block added by `cda722a`) | — |
-| 2 | AG validates: `terraform fmt -check`, `terraform validate` | — |
-| 3 | AG generates a normal full Terraform plan | — |
+| 1 | ✅ AG creates a bounded commit removing ClientPetIndex from `modules/data/main.tf` (commit `f3b9a79`) | — |
+| 2 | ✅ AG validates: `terraform fmt -check`, `terraform validate` | — |
+| 3 | ✅ AG generates a normal full Terraform plan (`phase-1b2a-backend-only.tfplan`) | — |
 | 4 | Kiro reviews: confirms plan shows 0 add, 13 change, 0 destroy (Lambda-only) | — |
 | 5 | Matthew approves backend deployment plan | Matthew |
 | 6 | AG applies the saved plan | — |
