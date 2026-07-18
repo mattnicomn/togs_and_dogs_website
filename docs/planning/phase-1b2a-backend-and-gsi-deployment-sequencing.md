@@ -124,17 +124,13 @@ These must be deployed in separate, independently reviewed operations. The GSI c
 
 ---
 
-## Backend Archive Readiness (Separate Future Audit)
+## Backend Archive Readiness Audit (Complete)
 
-Before step 3, AG must audit the backend archive delta:
-- Identify the exact production-deployed baseline (commit `234b51d` was the Phase 1A deploy source)
-- Enumerate every `src/backend` file changed between `234b51d` and current HEAD
-- Confirm `ca73d93` (pet_handler is_active default) is the only application behavior change
-- Verify all other changes are documentation, scripts, or test-only
-- Run full baseline/candidate backend test comparison
-- Confirm zero candidate-only failures
-
-This audit is NOT started in this task.
+AG has completed the backend archive readiness audit:
+- Confirmed the exact production-deployed baseline commit is `234b51d` (confidence: EXACT BASELINE CONFIRMED).
+- Confirmed `ca73d93` (pet_handler `is_active` default) is the only application behavior change in `src/backend`.
+- Ran full backend test comparison and confirmed zero candidate-only failures (725 collected, 654 passed, 71 failed, matching the baseline).
+- Identified archive hygiene issues: untracked caches (`.pytest_cache/` and `__pycache__/` directories) exist under `src/backend/` and would be packaged. Therefore, the package is classified as **NOT READY** until a local cleanup is executed.
 
 ---
 

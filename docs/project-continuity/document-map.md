@@ -25,7 +25,7 @@
 | Phase 1B.2A ClientPetIndex plan | `docs/release-notes/phase-1b2a-client-pet-index-terraform-plan.md` |
 | Phase 1B.2A plan scope mismatch | `docs/release-notes/phase-1b2a-client-pet-index-plan-scope-mismatch-review.md` |
 | Phase 1B.2A deployment sequencing | `docs/planning/phase-1b2a-backend-and-gsi-deployment-sequencing.md` |
-| Phase 1B.2A ClientPetIndex Terraform plan notes | `docs/release-notes/phase-1b2a-client-pet-index-terraform-plan.md` |
+| Phase 1B.2A backend archive audit | `docs/release-notes/phase-1b2a-backend-archive-delta-audit.md` |
 | Phase 1B.2A AG execution handoff | `docs/project-continuity/phase-1b2a-pet-read-path-ag-execution-handoff.md` |
 | Phase 1B.2A.2 legacy normalization plan | `docs/planning/phase-1b2a2-pet-legacy-normalization-and-creation-hardening.md` |
 | Phase 1B.2A.2 legacy remediation release notes | `docs/release-notes/phase-1b2a2-pet-creation-hardening-and-remediation-tool-predeploy.md` |
