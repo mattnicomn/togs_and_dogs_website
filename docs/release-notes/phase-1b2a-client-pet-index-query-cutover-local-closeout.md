@@ -60,15 +60,33 @@ A full backend test run was conducted to verify code compilation and check for r
 
 | Metric | Pre-Change Baseline | Post-Change Result | Change | Status |
 |--------|---------------------|--------------------|--------|--------|
-| **Collected** | 725 | 725 | 0 | - |
-| **Passed** | 654 | 656 | +2 | ✅ Improvement |
+| **Collected** | 725 | 740 | +15 | - |
+| **Passed** | 654 | 671 | +17 | ✅ Improvement |
 | **Failed** | 71 | 69 | -2 | ✅ Resolved |
-| **Warnings** | 102 | 102 | 0 | - |
+| **Warnings** | 102 | 134 | +32 | - |
 
 ### Fixed Test Nodes in `test_r6f_offline_booking.py`
 The two failing pet listing tests in `test_r6f_offline_booking.py` were updated to mock `query` and `get_item` on the table and bypass Cognito entitlement checks, resulting in successful passes:
 1. `tests/backend/test_r6f_offline_booking.py::test_admin_can_list_client_pets` -> **PASSED**
 2. `tests/backend/test_r6f_offline_booking.py::test_client_pets_tenant_isolation` -> **PASSED**
+
+### Focused Cutover Verification Tests (`test_client_pet_index_query_cutover.py`)
+A new test module [test_client_pet_index_query_cutover.py](file:///c:/Users/mattn/OneDrive/Desktop/togs_and_dogs_website/tests/backend/test_client_pet_index_query_cutover.py) was added, implementing 15 test cases covering all 26 focused requirements. All 15 tests passed:
+- `test_admin_list_pets_canonical_client_found` -> **PASSED**
+- `test_admin_list_pets_canonical_client_missing` -> **PASSED**
+- `test_admin_list_pets_cross_tenant_denial` -> **PASSED**
+- `test_query_configuration_parameters` -> **PASSED**
+- `test_query_pagination_single_page` -> **PASSED**
+- `test_query_pagination_multiple_pages` -> **PASSED**
+- `test_query_pagination_empty_first_page` -> **PASSED**
+- `test_company_id_and_is_active_filtering` -> **PASSED**
+- `test_admin_response_contract_format` -> **PASSED**
+- `test_client_portal_response_contract_format` -> **PASSED**
+- `test_internal_helper_get_client_pets_success` -> **PASSED**
+- `test_internal_helper_get_client_pets_empty_on_client_missing` -> **PASSED**
+- `test_internal_helper_callers_pass_company_id` -> **PASSED**
+- `test_handler_query_exception_returns_safe_error` -> **PASSED**
+- `test_helper_query_exception_fallback` -> **PASSED**
 
 No new regressions or failures were introduced to the codebase. The remaining 69 failures are pre-existing baseline failures unrelated to the pet-read paths.
 
@@ -76,5 +94,5 @@ No new regressions or failures were introduced to the codebase. The remaining 69
 
 ## 5. Next Steps
 
-1. **Kiro GSI Query Cutover Review:** Confirm GSI query implementation meets all multi-tenant and pagination guardrails.
-2. **Matthew Approval:** Approve backend GSI query packaging and production deployment.
+1. **Review and Verification:** Review the verified focused test coverage matrix.
+2. **Matthew Approval:** Proceed with packaging and staging deployment plan.

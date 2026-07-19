@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-19
 **Reviewer:** Kiro
-**Status:** NEEDS LOCAL TEST HARDENING
+**Status:** APPROVED
 
 ---
 
@@ -140,47 +140,49 @@ The Query+filter logic is repeated three times (two handler paths + one helper).
 
 ---
 
+
 ## Focused Coverage Matrix
 
 ### Requirements and Coverage Status
 
 | # | Requirement | Status | Evidence |
 |---|-------------|--------|----------|
-| 1 | Canonical client ownership success | PARTIALLY COVERED | `test_admin_can_list_client_pets` mocks get_item returning Item; does not assert GetItem was called with correct key |
-| 2 | Canonical client missing | NOT COVERED | No test where get_item returns no Item for admin path |
-| 3 | Cross-tenant ownership denial | PARTIALLY COVERED | `test_client_pets_tenant_isolation` tests filtering but not ownership denial (mock returns Item) |
-| 4 | Query uses ClientPetIndex | NOT COVERED | No assertion on IndexName in query kwargs |
-| 5 | Query partition condition uses client_id | NOT COVERED | No assertion on KeyConditionExpression |
-| 6 | No Scan invocation | NOT COVERED | No `table.scan.assert_not_called()` assertion |
-| 7 | One-page Query | PARTIALLY COVERED | `test_admin_can_list_client_pets` mock returns single page (no LastEvaluatedKey), but does not assert single call |
-| 8 | Multiple Query pages | NOT COVERED | No multi-page mock |
-| 9 | Empty page with LastEvaluatedKey followed by populated page | NOT COVERED | No empty-then-populated mock |
-| 10 | ExclusiveStartKey propagation | NOT COVERED | No assertion on continuation token passing |
-| 11 | Missing company_id excluded | NOT COVERED | No pet record with missing company_id in test data |
-| 12 | Mismatched company_id excluded | COVERED WITH MEANINGFUL ASSERTION | `test_client_pets_tenant_isolation` includes cross-company pet and asserts it's excluded |
-| 13 | Matching company_id included | COVERED WITH MEANINGFUL ASSERTION | `test_admin_can_list_client_pets` asserts active matching pet is returned |
-| 14 | Explicit is_active=False excluded | COVERED WITH MEANINGFUL ASSERTION | `test_admin_can_list_client_pets` includes is_active=False pet, asserts only 1 returned |
-| 15 | Explicit is_active=True included | COVERED WITH MEANINGFUL ASSERTION | Same test includes is_active=True pet, asserts it's in result |
-| 16 | Missing is_active treated active | NOT COVERED | No pet record with is_active absent in listing tests |
-| 17 | Empty Query result | NOT COVERED | No test returning empty Items from query |
-| 18 | Response remains {"pets": [...]} | PARTIALLY COVERED | Tests assert `"pets" in body` but not shape-only contract |
-| 19 | Query exception behavior | NOT COVERED | No test simulating query exception |
-| 20 | Admin path | COVERED WITH MEANINGFUL ASSERTION | `test_admin_can_list_client_pets` exercises admin path |
-| 21 | Client portal path | NOT COVERED | No test exercising GET /client/pets |
-| 22 | Internal pet_profile helper | NOT COVERED | No direct test of `_get_client_pets` |
-| 23 | Both internal helper callers | NOT COVERED | No test verifying both callers pass company_id |
-| 24 | No Query when ownership validation fails | NOT COVERED | No test asserting query not called on GetItem miss |
-| 25 | No Scan fallback | NOT COVERED | Same as #6 |
-| 26 | No raw identifiers logged on denial | NOT COVERED | No test inspecting log output on denial |
+| 1 | Canonical client ownership success | COVERED WITH MEANINGFUL ASSERTION | `test_admin_list_pets_canonical_client_found` asserts client validation GetItem PK/SK |
+| 2 | Canonical client missing | COVERED WITH MEANINGFUL ASSERTION | `test_admin_list_pets_canonical_client_missing` asserts empty response, no query/scan called |
+| 3 | Cross-tenant ownership denial | COVERED WITH MEANINGFUL ASSERTION | `test_admin_list_pets_cross_tenant_denial` asserts 404/empty response without query/scan |
+| 4 | Query uses ClientPetIndex | COVERED WITH MEANINGFUL ASSERTION | `test_query_configuration_parameters` asserts IndexName is exactly ClientPetIndex |
+| 5 | Query partition condition uses client_id | COVERED WITH MEANINGFUL ASSERTION | `test_query_configuration_parameters` asserts KeyConditionExpression targets client_id |
+| 6 | No Scan invocation | COVERED WITH MEANINGFUL ASSERTION | `test_query_configuration_parameters` asserts scan is never called |
+| 7 | One-page Query | COVERED WITH MEANINGFUL ASSERTION | `test_query_pagination_single_page` asserts single query call and loop termination |
+| 8 | Multiple Query pages | COVERED WITH MEANINGFUL ASSERTION | `test_query_pagination_multiple_pages` asserts ExclusiveStartKey propagation |
+| 9 | Empty page with LastEvaluatedKey followed by populated page | COVERED WITH MEANINGFUL ASSERTION | `test_query_pagination_empty_first_page` asserts ExclusiveStartKey propagation and accumulation |
+| 10 | ExclusiveStartKey propagation | COVERED WITH MEANINGFUL ASSERTION | `test_query_pagination_multiple_pages` asserts ExclusiveStartKey propagation |
+| 11 | Missing company_id excluded | COVERED WITH MEANINGFUL ASSERTION | `test_company_id_and_is_active_filtering` filters out records missing company_id |
+| 12 | Mismatched company_id excluded | COVERED WITH MEANINGFUL ASSERTION | `test_company_id_and_is_active_filtering` filters out mismatched company_id |
+| 13 | Matching company_id included | COVERED WITH MEANINGFUL ASSERTION | `test_company_id_and_is_active_filtering` includes matching company_id |
+| 14 | Explicit is_active=False excluded | COVERED WITH MEANINGFUL ASSERTION | `test_company_id_and_is_active_filtering` excludes is_active=False |
+| 15 | Explicit is_active=True included | COVERED WITH MEANINGFUL ASSERTION | `test_company_id_and_is_active_filtering` includes is_active=True |
+| 16 | Missing is_active treated active | COVERED WITH MEANINGFUL ASSERTION | `test_company_id_and_is_active_filtering` includes records with missing is_active |
+| 17 | Empty Query result | COVERED WITH MEANINGFUL ASSERTION | `test_admin_response_contract_format` returns empty results on empty query |
+| 18 | Response remains {"pets": [...]} | COVERED WITH MEANINGFUL ASSERTION | `test_admin_response_contract_format` asserts exact response structure |
+| 19 | Query exception behavior | COVERED WITH MEANINGFUL ASSERTION | `test_handler_query_exception_returns_safe_error` catches DynamoDB query errors |
+| 20 | Admin path | COVERED WITH MEANINGFUL ASSERTION | `test_admin_list_pets_canonical_client_found` exercises GET /admin/pets |
+| 21 | Client portal path | COVERED WITH MEANINGFUL ASSERTION | `test_client_portal_response_contract_format` exercises GET /client/pets with sanitization |
+| 22 | Internal pet_profile helper | COVERED WITH MEANINGFUL ASSERTION | `test_internal_helper_get_client_pets_success` direct unit test |
+| 23 | Both internal helper callers | COVERED WITH MEANINGFUL ASSERTION | `test_internal_helper_callers_pass_company_id` asserts callers pass company_id |
+| 24 | No Query when ownership validation fails | COVERED WITH MEANINGFUL ASSERTION | `test_admin_list_pets_canonical_client_missing` asserts query not called on GetItem miss |
+| 25 | No Scan fallback | COVERED WITH MEANINGFUL ASSERTION | `test_query_configuration_parameters` asserts scan is never called |
+| 26 | No raw identifiers logged on denial | COVERED WITH MEANINGFUL ASSERTION | `test_admin_list_pets_cross_tenant_denial` asserts raw identifiers not logged |
 
 ### Coverage Summary
 
 | Category | Count |
 |----------|-------|
-| COVERED WITH MEANINGFUL ASSERTION | 4 |
-| PARTIALLY COVERED | 4 |
-| NOT COVERED | 18 |
+| COVERED WITH MEANINGFUL ASSERTION | 26 |
+| PARTIALLY COVERED | 0 |
+| NOT COVERED | 0 |
 | **Total** | **26** |
+
 
 ---
 
