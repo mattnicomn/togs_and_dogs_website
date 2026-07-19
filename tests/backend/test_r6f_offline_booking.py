@@ -296,9 +296,11 @@ def test_admin_can_list_client_pets():
     ]
     
     mock_table = MagicMock()
-    mock_table.scan.return_value = {"Items": mock_pets}
+    mock_table.get_item.return_value = {"Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_abc123"}}
+    mock_table.query.return_value = {"Items": mock_pets}
     
-    with patch('common.db.table', mock_table):
+    with patch('common.db.table', mock_table), \
+         patch('common.entitlement.require_active_tenant', return_value=None):
         resp = pet_handler(event, None)
         
     assert resp["statusCode"] == 200
@@ -326,9 +328,11 @@ def test_client_pets_tenant_isolation():
     ]
     
     mock_table = MagicMock()
-    mock_table.scan.return_value = {"Items": mock_pets}
+    mock_table.get_item.return_value = {"Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_abc123"}}
+    mock_table.query.return_value = {"Items": mock_pets}
     
-    with patch('common.db.table', mock_table):
+    with patch('common.db.table', mock_table), \
+         patch('common.entitlement.require_active_tenant', return_value=None):
         resp = pet_handler(event, None)
         
     assert resp["statusCode"] == 200

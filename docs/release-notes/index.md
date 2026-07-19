@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Phase 1B.2A: ClientPetIndex Query Cutover (Local Closeout)**](phase-1b2a-client-pet-index-query-cutover-local-closeout.md) (2026-07-19) — ✅ **PASSED** — Implemented GSI-query cutover for all three pet-read paths (Client Portal listing, Admin list by client, and internal summaries helper). Restored offline booking tests and resolved local mocks.
 - [**Phase 1B.2A: ClientPetIndex Production Deployment Closeout**](phase-1b2a-client-pet-index-production-deployment-closeout.md) (2026-07-19) — ✅ **PASSED** — Applied GSI-only plan to create the ClientPetIndex global secondary database index in production. Monitored creation status until ACTIVE.
 - [**Phase 1B.2A: ClientPetIndex GSI-Only Terraform Plan**](phase-1b2a-client-pet-index-gsi-only-terraform-plan.md) (2026-07-19) — ✅ **Plan Saved** — Isolated GSI production plan generated after restoring ClientPetIndex configuration; targets DynamoDB main table for in-place GSI creation (0 add, 1 change, 0 destroy).
 - [**Phase 1B.2A: Backend Production Deployment Closeout**](phase-1b2a-backend-production-deployment-closeout.md) (2026-07-19) — ✅ **PASSED** — Applied backend-only plan to target 13 Lambda functions for code-only updates in production. Verified Active/Successful status and performed read-only smoke testing.

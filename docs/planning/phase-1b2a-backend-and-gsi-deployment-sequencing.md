@@ -1,7 +1,7 @@
 # Phase 1B.2A: Backend and GSI Deployment Sequencing
 
-**Date:** 2026-07-17
-**Status:** Planning — Awaiting Matthew approval for sequencing approach
+**Date:** 2026-07-19
+**Status:** Local Implementation Complete — Awaiting deployment approval
 **Type:** Deployment strategy (no code or infrastructure changes)
 
 ---
@@ -111,7 +111,9 @@ These must be deployed in separate, independently reviewed operations. The GSI c
 | 13 | ✅ Matthew approves GSI plan | Matthew |
 | 14 | ✅ AG applies the saved plan | — |
 | 15 | ✅ AG monitors GSI IndexStatus until ACTIVE | — |
-| 16 | Proceed to bounded backend Query implementation | — |
+| 16 | ✅ AG implements bounded backend Query cutover locally (GET /client/pets, GET /admin/pets, and internal helper) | — |
+| 17 | ✅ AG updates local tests in test_r6f_offline_booking.py to mock query/get_item and require_active_tenant, verifying all 19 tests pass | — |
+| 18 | Prepare for production query cutover deployment review | — |
 
 ### Why This Is Safest
 

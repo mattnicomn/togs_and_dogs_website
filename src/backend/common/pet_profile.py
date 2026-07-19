@@ -63,7 +63,7 @@ def create_or_link_pets_from_request(request_item, request_id, client_id, compan
         return _create_legacy_single_pet(request_item, request_id, client_id, owner_client_id, company_id, now)
 
     # Load existing PET# records for this client (for name matching)
-    existing_pets = _get_client_pets(owner_client_id)
+    existing_pets = _get_client_pets(owner_client_id, company_id)
 
     pet_ids = []
     created_count = 0
@@ -172,13 +172,43 @@ def _create_legacy_single_pet(request_item, request_id, client_id, owner_client_
     return {"pet_ids": [], "created": 0, "linked": 0, "warnings": ["Failed to create legacy PET record"]}
 
 
-def _get_client_pets(client_id):
+def _get_client_pets(client_id, company_id):
     """Fetches all active PET# records for a client."""
     try:
-        response = table.scan(
-            FilterExpression=Attr('client_id').eq(client_id) & Attr('entity_type').eq('PET') & Attr('is_active').ne(False)
-        )
-        return response.get('Items', [])
+        # Security: Validate the client exists under the trusted company
+        client_key = {'PK': f"COMPANY#{company_id}", 'SK': f"CLIENT#{client_id}"}
+        client_resp = table.get_item(Key=client_key)
+        if 'Item' not in client_resp:
+            return []
+
+        # Query ClientPetIndex with pagination
+        from boto3.dynamodb.conditions import Key
+        query_kwargs = {
+            'IndexName': 'ClientPetIndex',
+            'KeyConditionExpression': Key('client_id').eq(client_id)
+        }
+        items = []
+        while True:
+            resp = table.query(**query_kwargs)
+            items.extend(resp.get('Items', []))
+            last_key = resp.get('LastEvaluatedKey')
+            if not last_key:
+                break
+            query_kwargs['ExclusiveStartKey'] = last_key
+
+        # Result filtering
+        filtered_items = []
+        for p in items:
+            if p.get('entity_type') != 'PET':
+                continue
+            p_company = p.get('company_id')
+            if not p_company or p_company != company_id:
+                continue
+            if p.get('is_active') is False:
+                continue
+            filtered_items.append(p)
+
+        return filtered_items
     except Exception as e:
         print(f"WARNING: [PetProfile] Failed to query client pets: {e}")
         return []
@@ -323,7 +353,7 @@ def _rebuild_pet_summary(owner_client_id, company_id):
     Fully idempotent — always reflects current state.
     """
     try:
-        pets = _get_client_pets(owner_client_id)
+        pets = _get_client_pets(owner_client_id, company_id)
         names = sorted(set(p.get('name', '') for p in pets if p.get('name')))
         breeds = sorted(set(p.get('breed', '') for p in pets if p.get('breed')))
 

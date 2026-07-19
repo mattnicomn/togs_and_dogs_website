@@ -39,19 +39,44 @@ def handler(event, context):
                     return success({"pets": []}, event)
                 
                 from common.auth import get_current_company_id
-                from boto3.dynamodb.conditions import Attr
                 company_id = get_current_company_id(event)
                 
-                # Fetch all pets for this client via scan (since pets are PK=PET#, SK=CLIENT#{client_id})
-                scan_kwargs = {
-                    "FilterExpression": Attr("client_id").eq(client_id) & Attr("entity_type").eq("PET")
-                }
+                # Security: Validate the client exists under the trusted company
                 from common.db import table as items_table
-                resp = items_table.scan(**scan_kwargs)
-                items = resp.get('Items', [])
-                items = [sanitize_booking_for_role(item, 'client') for item in items]
+                client_key = {'PK': f"COMPANY#{company_id}", 'SK': f"CLIENT#{client_id}"}
+                client_resp = items_table.get_item(Key=client_key)
+                if 'Item' not in client_resp:
+                    return success({"pets": []}, event)
                 
-                return success({"pets": items}, event)
+                # Query ClientPetIndex with pagination
+                from boto3.dynamodb.conditions import Key
+                query_kwargs = {
+                    'IndexName': 'ClientPetIndex',
+                    'KeyConditionExpression': Key('client_id').eq(client_id)
+                }
+                items = []
+                while True:
+                    resp = items_table.query(**query_kwargs)
+                    items.extend(resp.get('Items', []))
+                    last_key = resp.get('LastEvaluatedKey')
+                    if not last_key:
+                        break
+                    query_kwargs['ExclusiveStartKey'] = last_key
+                
+                # Result filtering
+                filtered_items = []
+                for p in items:
+                    if p.get('entity_type') != 'PET':
+                        continue
+                    p_company = p.get('company_id')
+                    if not p_company or p_company != company_id:
+                        continue
+                    if p.get('is_active') is False:
+                        continue
+                    filtered_items.append(p)
+                
+                sanitized_items = [sanitize_booking_for_role(item, 'client') for item in filtered_items]
+                return success({"pets": sanitized_items}, event)
 
             # Release 6F: Admin pet listing for a specific client
             # GET /admin/pets?clientId={client_id} — returns all active pets for the client
@@ -60,24 +85,43 @@ def handler(event, context):
                 client_id = query_params.get('clientId')
                 if client_id:
                     from common.auth import get_current_company_id
-                    from boto3.dynamodb.conditions import Attr
                     company_id = get_current_company_id(event)
 
-                    # Scan for pets belonging to this client
+                    # Security: Validate client exists under the trusted company
                     from common.db import table as items_table
-                    scan_kwargs = {
-                        "FilterExpression": Attr("client_id").eq(client_id) & Attr("entity_type").eq("PET")
+                    client_key = {'PK': f"COMPANY#{company_id}", 'SK': f"CLIENT#{client_id}"}
+                    client_resp = items_table.get_item(Key=client_key)
+                    if 'Item' not in client_resp:
+                        return success({"pets": []}, event)
+
+                    # Query ClientPetIndex with pagination
+                    from boto3.dynamodb.conditions import Key
+                    query_kwargs = {
+                        'IndexName': 'ClientPetIndex',
+                        'KeyConditionExpression': Key('client_id').eq(client_id)
                     }
-                    resp = items_table.scan(**scan_kwargs)
-                    items = resp.get('Items', [])
+                    items = []
+                    while True:
+                        resp = items_table.query(**query_kwargs)
+                        items.extend(resp.get('Items', []))
+                        last_key = resp.get('LastEvaluatedKey')
+                        if not last_key:
+                            break
+                        query_kwargs['ExclusiveStartKey'] = last_key
 
-                    # Tenant isolation: filter to same company
-                    items = [p for p in items if not p.get('company_id') or p.get('company_id') == company_id]
+                    # Result filtering
+                    filtered_items = []
+                    for p in items:
+                        if p.get('entity_type') != 'PET':
+                            continue
+                        p_company = p.get('company_id')
+                        if not p_company or p_company != company_id:
+                            continue
+                        if p.get('is_active') is False:
+                            continue
+                        filtered_items.append(p)
 
-                    # Exclude inactive/archived pets
-                    items = [p for p in items if p.get('is_active') is not False]
-
-                    return success({"pets": items}, event)
+                    return success({"pets": filtered_items}, event)
 
             if not pet_id:
                 return bad_request("Missing petId in path", event)
