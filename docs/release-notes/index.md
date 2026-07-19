@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Phase 1B.2A: ClientPetIndex GSI-Only Terraform Plan**](phase-1b2a-client-pet-index-gsi-only-terraform-plan.md) (2026-07-19) — ✅ **Plan Saved** — Isolated GSI production plan generated after restoring ClientPetIndex configuration; targets DynamoDB main table for in-place GSI creation (0 add, 1 change, 0 destroy).
 - [**Phase 1B.2A: Backend Production Deployment Closeout**](phase-1b2a-backend-production-deployment-closeout.md) (2026-07-19) — ✅ **PASSED** — Applied backend-only plan to target 13 Lambda functions for code-only updates in production. Verified Active/Successful status and performed read-only smoke testing.
 - [**Phase 1B.2A: Backend-Only Terraform Plan**](phase-1b2a-backend-only-terraform-plan.md) (2026-07-18) — ✅ **Plan Saved** — Bounded production plan generated after temporarily removing ClientPetIndex; targets 13 Lambda functions for code-only updates (0 add, 13 change, 0 destroy).
 - [**Phase 1B.2A: Backend Packaging Correction (Pre-Plan)**](phase-1b2a-backend-packaging-correction-preplan.md) (2026-07-18) — ✅ **PASS** — Implement deterministic exclusions for `.pytest_cache`, `__pycache__`, `*.pyc`, `*.pyo` to prevent cache pollution and achieve input determinism for Lambda ZIP packaging.
