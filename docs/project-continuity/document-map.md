@@ -26,6 +26,8 @@
 | Phase 1B.2A plan scope mismatch | `docs/release-notes/phase-1b2a-client-pet-index-plan-scope-mismatch-review.md` |
 | Phase 1B.2A deployment sequencing | `docs/planning/phase-1b2a-backend-and-gsi-deployment-sequencing.md` |
 | Phase 1B.2A packaging readiness review | `docs/release-notes/phase-1b2a-backend-packaging-readiness-review.md` |
+| Phase 1B.2A query cutover plan | `docs/planning/phase-1b2a-client-pet-index-query-cutover.md` |
+| Phase 1B.2A GSI deployment review closeout | `docs/release-notes/phase-1b2a-client-pet-index-deployment-review-closeout.md` |
 | Phase 1B.2A packaging correction pre-plan | `docs/release-notes/phase-1b2a-backend-packaging-correction-preplan.md` |
 | Phase 1B.2A backend-only Terraform plan | `docs/release-notes/phase-1b2a-backend-only-terraform-plan.md` |
 | Phase 1B.2A backend deployment closeout | `docs/release-notes/phase-1b2a-backend-production-deployment-closeout.md` |
