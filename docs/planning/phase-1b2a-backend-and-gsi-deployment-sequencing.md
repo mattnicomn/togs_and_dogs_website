@@ -94,10 +94,10 @@ These must be deployed in separate, independently reviewed operations. The GSI c
 | 1 | ✅ AG creates a bounded commit removing ClientPetIndex from `modules/data/main.tf` (commit `f3b9a79`) | — |
 | 2 | ✅ AG validates: `terraform fmt -check`, `terraform validate` | — |
 | 3 | ✅ AG generates a normal full Terraform plan (`phase-1b2a-backend-only.tfplan`) | — |
-| 4 | Kiro reviews: confirms plan shows 0 add, 13 change, 0 destroy (Lambda-only) | — |
-| 5 | Matthew approves backend deployment plan | Matthew |
-| 6 | AG applies the saved plan | — |
-| 7 | AG verifies all 13 Lambda functions Active/Successful | — |
+| 4 | ✅ Kiro reviews: confirms plan shows 0 add, 13 change, 0 destroy (Lambda-only) | — |
+| 5 | ✅ Matthew approves backend deployment plan | Matthew |
+| 6 | ✅ AG applies the saved plan | — |
+| 7 | ✅ AG verifies all 13 Lambda functions Active/Successful | — |
 | 8 | Matthew validates PET creation behavior and existing endpoint stability | Matthew |
 
 **Phase B — GSI Deployment (ClientPetIndex)**
