@@ -30,6 +30,7 @@
 | Phase 1B.2A backend-only Terraform plan | `docs/release-notes/phase-1b2a-backend-only-terraform-plan.md` |
 | Phase 1B.2A backend deployment closeout | `docs/release-notes/phase-1b2a-backend-production-deployment-closeout.md` |
 | Phase 1B.2A ClientPetIndex GSI-only plan | `docs/release-notes/phase-1b2a-client-pet-index-gsi-only-terraform-plan.md` |
+| Phase 1B.2A ClientPetIndex deployment closeout | `docs/release-notes/phase-1b2a-client-pet-index-production-deployment-closeout.md` |
 | Phase 1B.2A backend archive audit | `docs/release-notes/phase-1b2a-backend-archive-delta-audit.md` |
 | Phase 1B.2A AG execution handoff | `docs/project-continuity/phase-1b2a-pet-read-path-ag-execution-handoff.md` |
 | Phase 1B.2A.2 legacy normalization plan | `docs/planning/phase-1b2a2-pet-legacy-normalization-and-creation-hardening.md` |

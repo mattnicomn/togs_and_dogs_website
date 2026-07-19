@@ -107,10 +107,10 @@ These must be deployed in separate, independently reviewed operations. The GSI c
 | 9 | ✅ AG restores ClientPetIndex configuration (re-applied changes in commit `757cabb`) | — |
 | 10 | ✅ AG validates: `terraform fmt -check`, `terraform validate` | — |
 | 11 | ✅ AG generates a normal full Terraform plan (`phase-1b2a-client-pet-index-gsi-only.tfplan`) | — |
-| 12 | Kiro reviews: confirms plan shows 0 add, 1 change, 0 destroy (DynamoDB-only) | — |
-| 13 | Matthew approves GSI plan | Matthew |
-| 14 | AG applies the saved plan | — |
-| 15 | AG monitors GSI IndexStatus until ACTIVE | — |
+| 12 | ✅ Kiro reviews: confirms plan shows 0 add, 1 change, 0 destroy (DynamoDB-only) | — |
+| 13 | ✅ Matthew approves GSI plan | Matthew |
+| 14 | ✅ AG applies the saved plan | — |
+| 15 | ✅ AG monitors GSI IndexStatus until ACTIVE | — |
 | 16 | Proceed to bounded backend Query implementation | — |
 
 ### Why This Is Safest
