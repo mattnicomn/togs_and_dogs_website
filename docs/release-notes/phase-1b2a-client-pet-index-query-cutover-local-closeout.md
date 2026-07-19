@@ -63,7 +63,7 @@ A full backend test run was conducted to verify code compilation and check for r
 | **Collected** | 725 | 740 | +15 | - |
 | **Passed** | 654 | 671 | +17 | ✅ Improvement |
 | **Failed** | 71 | 69 | -2 | ✅ Resolved |
-| **Warnings** | 102 | 134 | +32 | - |
+| **Warnings** | 102 | 102 | 0 | - |
 
 ### Fixed Test Nodes in `test_r6f_offline_booking.py`
 The two failing pet listing tests in `test_r6f_offline_booking.py` were updated to mock `query` and `get_item` on the table and bypass Cognito entitlement checks, resulting in successful passes:
