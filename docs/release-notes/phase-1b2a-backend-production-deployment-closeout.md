@@ -61,10 +61,10 @@ After the Terraform apply, all 13 Lambda functions were verified for active stat
 No write actions (insertions, modifications, deletions) were performed on production data. The API endpoints were validated using read-only techniques:
 
 - **Unauthenticated Access Denial:** Confirmed. Sending an unauthenticated `GET` request to `https://a022yxuiue.execute-api.us-east-1.amazonaws.com/prod/admin/clients` was rejected with a standard `403 Forbidden` status code.
-- **Admin Client Listing Read Check:** Confirmed. Directly invoking the `admin` Lambda function with an owner-role claim event returned status code `200` and returned client metadata counts matching existing production data.
-- **Admin Pet Listing Read Check:** Confirmed. Invoking the `pet` Lambda function with `GET /admin/pets?clientId=client_1697162f` returned status code `200` and returned the client's registered pet records (7 pets total).
-- **Onboarding and Public Intake Routes:** Checked. Public intake routing was verified and did not submit any synthetic request payload data.
-- **No API Gateway Regressions:** Confirmed. All checked endpoints responded as expected without Cors or route resolution errors.
+- **Admin Client Listing Read Check:** Confirmed. Directly invoking the `admin` Lambda function with an owner-role claim event returned status code `200` and returned existing client records. (Note: Direct Lambda invocation validates handler execution only, not Cognito/API Gateway authentication. Real authenticated web smoke was later confirmed separately.)
+- **Admin Pet Listing Read Check:** Confirmed. Invoking the `pet` Lambda function with a client-scoped query returned status code `200` and returned existing pet records. (Note: Production identifiers redacted.)
+- **Onboarding and Public Intake Routes:** Inconclusive. An attempted invocation used an unsupported route/body shape. No production intake submission occurred.
+- **No API Gateway Regressions:** Unauthenticated access rejection (403) was confirmed via curl. Full authenticated end-to-end API Gateway flow was later confirmed via manual web smoke.
 
 ---
 
