@@ -54,8 +54,8 @@ No `terraform apply`, Lambda deployment, or DynamoDB modification has occurred.
 
 | File | Changes |
 |------|---------|
-| `src/backend/handlers/pet_handler.py` | `+86 / -` — Replaces `Scan`-based client-pet listing with a `ClientPetIndex` GSI `Query`; adds `is_active` filter expression and `ExclusiveStartKey` pagination |
-| `src/backend/common/pet_profile.py` | `+44 / -` — Adds `client_id` write-through on pet creation/update to populate the GSI partition key |
+| `src/backend/handlers/pet_handler.py` | Replaces both Scan-based client-pet listing paths (GET /client/pets, GET /admin/pets?clientId) with ClientPetIndex GSI Query; adds canonical client ownership GetItem validation before Query; adds full pagination with ExclusiveStartKey; adds post-query Python filtering for entity_type, company_id, and is_active |
+| `src/backend/common/pet_profile.py` | Replaces `_get_client_pets()` Scan with ClientPetIndex GSI Query; adds `company_id` parameter to function signature; adds canonical client ownership validation; adds pagination and post-query tenant/status filtering; updates both internal callers to pass company_id |
 
 No other `src/backend` file differs between `ca73d93` and `e7b99f5` (HEAD).
 
@@ -118,9 +118,14 @@ replacements or destructions exist in the plan.
 - **ClientPetIndex status:** `ACTIVE` (deployed by the preceding Phase 1B.2A GSI plan apply)
 - **Query cutover status:** Not yet live — `c372223` is in the repository at HEAD but
   the deployed Lambda package still reflects the `ca73d93` baseline
-- **`pet_handler.py` behaviour once deployed:** All `list_client_pets` calls route
-  through a `ClientPetIndex` GSI `Query` with an `is_active = :true` filter; no
-  fallback `Scan` path remains
+- **`pet_handler.py` behaviour once deployed:**
+  - GET /client/pets: validates canonical client ownership via GetItem, queries ClientPetIndex by client_id with full pagination, filters results in Python (entity_type=PET, company_id match, is_active not explicitly False), sanitizes for client role, returns `{"pets": [...]}`
+  - GET /admin/pets?clientId: validates canonical client ownership via GetItem, queries ClientPetIndex with full pagination, applies same tenant/status filtering, returns `{"pets": [...]}`
+  - No Scan fallback path remains in any pet-by-client read operation
+- **`pet_profile.py` behaviour once deployed:**
+  - `_get_client_pets(client_id, company_id)`: validates canonical client via GetItem, queries ClientPetIndex with full pagination, applies entity_type/company_id/is_active filtering, returns list
+  - Callers: `create_or_link_pets_from_request` and `_rebuild_pet_summary`
+- **Filtering:** Post-query Python filtering excludes records where `is_active` is explicitly `False`; records missing `is_active` are treated as active. No `is_active` FilterExpression is used on the GSI Query itself.
 
 ---
 
