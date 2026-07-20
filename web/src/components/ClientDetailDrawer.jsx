@@ -12,6 +12,7 @@ import { buildClientDetailViewModel } from '../utils/clientManagement';
 const ClientDetailDrawer = ({
   client,
   pets,
+  loadingPets = false,
   onClose,
   onEdit,
   onExecuteAction,
@@ -176,7 +177,9 @@ const ClientDetailDrawer = ({
           {/* Section 3: Pets */}
           <section className="drawer-section">
             <h4 className="drawer-section-title">Pets</h4>
-            {pets && pets.length > 0 ? (
+            {loadingPets ? (
+              <p className="client-detail-empty" style={{ fontStyle: 'italic' }}>Loading pets...</p>
+            ) : pets && pets.length > 0 ? (
               <ul className="client-drawer-pet-list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {pets.map((p, idx) => (
                   <li key={p.pet_id || idx} style={{ padding: '8px 12px', background: 'var(--bg-muted, #f8fafc)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
