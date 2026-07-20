@@ -2559,21 +2559,30 @@
 
 /* Mobile-specific overrides for Profile Editor Drawer (under 768px) */
 @media (max-width: 767px) {
-  .profile-editor-drawer-overlay {
-    background-color: transparent !important;
+  .profile-editor-drawer-overlay,
+  .client-detail-drawer-overlay {
+    background-color: rgba(0, 0, 0, 0.5) !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
   }
 
-  .profile-editor-drawer {
+  .profile-editor-drawer,
+  .client-detail-drawer {
     width: 100vw !important;
     max-width: 100vw !important;
-    height: 100dvh !important;
-    top: 0 !important;
+    height: 90dvh !important;
+    max-height: 90dvh !important;
+    top: auto !important;
+    bottom: 0 !important;
     right: 0 !important;
     border-left: none !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
+    border-top: 1px solid var(--border-color, #333) !important;
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.3) !important;
+    border-radius: 20px 20px 0 0 !important;
     display: flex !important;
     flex-direction: column !important;
+    transform: translateY(0) !important;
+    animation: slideUpSheet 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 
   /* Sticky header at the top */
@@ -2636,11 +2645,21 @@
   }
 }
 
-/* Desktop/Tablet (768px and up): hide the mobile drawer sticky footer */
-@media (min-width: 768px) {
-  .drawer-footer {
-    display: none !important;
-  }
+/* General sticky drawer-footer outside media query */
+.drawer-footer {
+  display: flex;
+  gap: 12px;
+  padding: 16px 24px;
+  background-color: var(--card-bg, #1e1e1e);
+  border-top: 1px solid var(--border-color, #333);
+  justify-content: flex-end;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+@keyframes slideUpSheet {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 
 /* ===== Release 22ZC: Dashboard Cards and Request List Mobile Layout ===== */
@@ -2960,5 +2979,25 @@
 @media (max-width: 600px) {
   .client-detail-drawer {
     width: 100vw;
+  }
+}
+
+/* Responsive overrides for very small viewports (<360px) */
+@media (max-width: 360px) {
+  .staff-profile-card,
+  .client-profile-card {
+    padding: 12px !important;
+  }
+  .client-detail-drawer-content,
+  .drawer-content {
+    padding: 12px !important;
+  }
+  .client-detail-drawer-header,
+  .drawer-header {
+    padding: 12px 12px !important;
+  }
+  .client-detail-drawer-footer,
+  .drawer-footer {
+    padding: 12px 12px !important;
   }
 }

@@ -1,12 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import React, { useState, useEffect, useRef } from 'react';
-import { getSession } from './api/auth';
+import { getSession, getEffectiveRole } from './api/auth';
 import { getTenantInfo } from './api/client';
 import PortalGateway from './components/PortalGateway';
 import About from './components/About';
 import Services from './components/Services';
 import IntakeForm from './components/IntakeForm';
 import ClientPortal from './components/ClientPortal';
+import MyPets from './components/MyPets';
 import AdminDashboard from './components/AdminDashboard';
 import GoogleCallback from './components/GoogleCallback';
 import ThemeToggle from './components/ThemeToggle';
@@ -66,6 +67,7 @@ function PlatformAdminGuard({ children }) {
 
 function AppContent() {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [hasClientSession, setHasClientSession] = useState(false);
   const [tenantInfo, setTenantInfo] = useState(null);
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -182,7 +184,7 @@ function AppContent() {
   }, [isMobileMenuOpen]);
 
   useEffect(() => {
-    const checkPlatformAdmin = async () => {
+    const checkUserSession = async () => {
       try {
         const session = await getSession();
         if (session) {
@@ -192,6 +194,13 @@ function AppContent() {
           const normalizedGroups = groupArray.map(g => String(g).toLowerCase());
           if (normalizedGroups.includes('platform_admin')) {
             setIsPlatformAdmin(true);
+          } else {
+            setIsPlatformAdmin(false);
+          }
+
+          const role = getEffectiveRole(session);
+          if (['client', 'owner', 'admin'].includes(role)) {
+            setHasClientSession(true);
             return;
           }
         }
@@ -199,8 +208,9 @@ function AppContent() {
         // Ignore
       }
       setIsPlatformAdmin(false);
+      setHasClientSession(false);
     };
-    checkPlatformAdmin();
+    checkUserSession();
   }, [location.pathname]);
 
   useEffect(() => {
@@ -243,6 +253,7 @@ function AppContent() {
           {/* Desktop Navigation */}
           <nav className="main-nav desktop-only">
             <Link to="/" className="nav-link">Portal</Link>
+            {hasClientSession && <Link to="/my-pets" className="nav-link">My Pets</Link>}
             <Link to="/my-bookings" className="nav-link">My Bookings</Link>
             {isPlatformAdmin && (
               <Link to="/platform-admin" className="nav-link" style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
@@ -295,6 +306,7 @@ function AppContent() {
             </div>
             <div className="mobile-drawer-links">
               <Link to="/" className="drawer-link" onClick={() => setIsMobileMenuOpen(false)}>Portal</Link>
+              {hasClientSession && <Link to="/my-pets" className="drawer-link" onClick={() => setIsMobileMenuOpen(false)}>My Pets</Link>}
               <Link to="/my-bookings" className="drawer-link" onClick={() => setIsMobileMenuOpen(false)}>My Bookings</Link>
               {isPlatformAdmin && (
                 <Link to="/platform-admin" className="drawer-link platform-admin-link" onClick={() => setIsMobileMenuOpen(false)}>
@@ -313,6 +325,7 @@ function AppContent() {
           <Route path="/about" element={<About />} />
           <Route path="/services" element={<Services />} />
           <Route path="/book" element={<IntakeForm />} />
+          <Route path="/my-pets" element={<MyPets />} />
           <Route path="/my-bookings" element={<ClientPortal />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/auth/callback" element={<GoogleCallback />} />

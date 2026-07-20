@@ -1,16 +1,24 @@
 /**
- * Phase 1B.1B: Read-only client detail drawer.
+ * Phase 1B.1B & 1B.3: Read-only client detail drawer.
  *
- * Displays a safe view model of the selected client. Does not perform
- * any network requests on open or close. Does not expose PK, SK,
- * cognito_sub, company_id, or other internal identifiers.
+ * Displays a safe view model of the selected client. Relocates client-action
+ * buttons from the card to the drawer footer. Displays individual PET records.
  */
 
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { buildClientDetailViewModel } from '../utils/clientManagement';
 
-const ClientDetailDrawer = ({ client, onClose }) => {
+const ClientDetailDrawer = ({
+  client,
+  pets,
+  onClose,
+  onEdit,
+  onExecuteAction,
+  onLinkEmail,
+  onCreateProfile,
+  isProtectedProfile
+}) => {
   const closeBtnRef = useRef(null);
   const drawerRef = useRef(null);
   const vm = buildClientDetailViewModel(client);
@@ -150,6 +158,8 @@ const ClientDetailDrawer = ({ client, onClose }) => {
           <section className="drawer-section">
             <h4 className="drawer-section-title">Login Identity</h4>
             <dl className="client-detail-fields">
+              <dt>Client ID</dt>
+              <dd style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{client.client_id}</dd>
               <dt>Account Status</dt>
               <dd><span className={`access-badge ${vm.accountStatusClass}`}>{vm.accountStatusLabel}</span></dd>
               <dt>Portal Access</dt>
@@ -166,7 +176,22 @@ const ClientDetailDrawer = ({ client, onClose }) => {
           {/* Section 3: Pets */}
           <section className="drawer-section">
             <h4 className="drawer-section-title">Pets</h4>
-            {vm.petSummary ? (
+            {pets && pets.length > 0 ? (
+              <ul className="client-drawer-pet-list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {pets.map((p, idx) => (
+                  <li key={p.pet_id || idx} style={{ padding: '8px 12px', background: 'var(--bg-muted, #f8fafc)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong>{p.name || 'Unnamed'}</strong> {p.species ? `(${p.species})` : ''} {p.breed ? `— ${p.breed}` : ''}
+                    </div>
+                    {p.is_active === false ? (
+                      <span className="access-badge status-offline" style={{ fontSize: '10px' }}>Archived</span>
+                    ) : (
+                      <span className="access-badge status-profile-active" style={{ fontSize: '10px' }}>Active</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : vm.petSummary ? (
               <p className="client-detail-pet-summary">🐾 {vm.petSummary}</p>
             ) : (
               <p className="client-detail-empty">No pet information available.</p>
@@ -185,6 +210,167 @@ const ClientDetailDrawer = ({ client, onClose }) => {
             )}
           </section>
 
+        </div>
+
+        {/* Section 5: Actions & Danger Zone */}
+        <div className="client-detail-drawer-footer" style={{ padding: '20px 24px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '12px', flexShrink: 0, backgroundColor: 'var(--card-bg)' }}>
+          <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>Actions</h4>
+          
+          <div className="btn-group" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="button-primary btn-small"
+              onClick={() => {
+                onEdit(client);
+                onClose();
+              }}
+            >
+              Edit Profile
+            </button>
+
+            {client.is_virtual ? (
+              <button
+                type="button"
+                className="btn-small"
+                onClick={() => {
+                  onCreateProfile(client);
+                  onClose();
+                }}
+              >
+                Create Profile
+              </button>
+            ) : null}
+
+            {client.cognito_sub ? (
+              <>
+                <button
+                  type="button"
+                  className="btn-small"
+                  onClick={() => onExecuteAction(client.client_id, 'resend-invite')}
+                  disabled={!['FORCE_CHANGE_PASSWORD', 'UNCONFIRMED'].includes(client.cognito_status)}
+                >
+                  Resend Invite
+                </button>
+                <button
+                  type="button"
+                  className="btn-small"
+                  onClick={() => onExecuteAction(client.client_id, 'reset-password')}
+                  disabled={isProtectedProfile(client)}
+                  title={isProtectedProfile(client) ? 'This account is protected and cannot be modified' : undefined}
+                >
+                  Send Password Reset Email
+                </button>
+                <button
+                  type="button"
+                  className="btn-small"
+                  onClick={() => onExecuteAction(client.client_id, 'set-temp-password')}
+                  disabled={isProtectedProfile(client)}
+                  title={isProtectedProfile(client) ? 'This account is protected and cannot be modified' : undefined}
+                >
+                  Set Temporary Password
+                </button>
+              </>
+            ) : (
+              !client.is_virtual && (
+                client.email ? (
+                  <button
+                    type="button"
+                    className="btn-small secondary"
+                    onClick={() => onLinkEmail(client)}
+                  >
+                    Link Login Account
+                  </button>
+                ) : (
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    Offline client — add email to enable login
+                  </span>
+                )
+              )
+            )}
+          </div>
+
+          {/* Danger Zone */}
+          <div className="danger-zone" style={{ marginTop: '8px', padding: '12px', border: '1px solid var(--warning-color, #f44336)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <h5 style={{ margin: 0, color: 'var(--warning-color, #f44336)', fontSize: '0.85rem', fontWeight: 600 }}>Danger Zone</h5>
+            <div className="btn-group" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {client.is_virtual ? (
+                client.is_active !== false ? (
+                  <button
+                    type="button"
+                    className="btn-small error"
+                    disabled={isProtectedProfile(client)}
+                    title={isProtectedProfile(client) ? 'This account is protected and cannot be modified' : undefined}
+                    onClick={() => onExecuteAction(client.client_id, 'disable')}
+                  >
+                    Turn Off Login Access
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-small"
+                      onClick={() => onExecuteAction(client.client_id, 'enable')}
+                    >
+                      Restore Login Access
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-small error"
+                      disabled={isProtectedProfile(client)}
+                      title={isProtectedProfile(client) ? 'This account is protected and cannot be modified' : undefined}
+                      onClick={() => onExecuteAction(client.client_id, 'delete_cognito')}
+                    >
+                      Delete Login Account
+                    </button>
+                  </>
+                )
+              ) : (
+                <>
+                  {client.is_active !== false ? (
+                    <button
+                      type="button"
+                      className="btn-small error"
+                      disabled={isProtectedProfile(client)}
+                      title={isProtectedProfile(client) ? 'This account is protected and cannot be modified' : undefined}
+                      onClick={() => onExecuteAction(client.client_id, 'disable')}
+                    >
+                      Turn Off Login Access
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn-small"
+                      onClick={() => onExecuteAction(client.client_id, 'enable')}
+                    >
+                      Restore Login Access
+                    </button>
+                  )}
+                  {client.cognito_sub && (
+                    <button
+                      type="button"
+                      className="btn-small"
+                      disabled={isProtectedProfile(client)}
+                      title={isProtectedProfile(client) ? 'This account is protected and cannot be modified' : undefined}
+                      onClick={() => onExecuteAction(client.client_id, 'unlink')}
+                    >
+                      Unlink
+                    </button>
+                  )}
+                  {client.is_active === false && (
+                    <button
+                      type="button"
+                      className="btn-small error"
+                      disabled={isProtectedProfile(client)}
+                      title={isProtectedProfile(client) ? 'This account is protected and cannot be modified' : undefined}
+                      onClick={() => onExecuteAction(client.client_id, 'delete_profile')}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>,
