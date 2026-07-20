@@ -1,7 +1,7 @@
 # Phase 1B.2A: ClientPetIndex Query Cutover Implementation Plan
 
 **Date:** 2026-07-19
-**Status:** Local Implementation & Test Hardening Complete
+**Status:** Backend Deployed to Production — Authenticated Browser Smoke Pending
 **Type:** Backend Scan-to-Query migration (no infrastructure changes)
 
 ---
