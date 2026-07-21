@@ -40,6 +40,7 @@
 | Phase 1B.3 component test review | `docs/release-notes/phase-1b3-component-test-review.md` |
 | Phase 1B.3 component test hardening | `docs/release-notes/phase-1b3-component-test-hardening.md` |
 | Phase 1B.3 frontend production deployment | `docs/release-notes/phase-1b3-frontend-production-deployment.md` |
+| Phase 1B.3 admin hook-order hotfix pre-deploy | `docs/release-notes/phase-1b3-admin-hook-order-production-hotfix-predeploy.md` |
 | Phase 1B.2A backend archive audit | `docs/release-notes/phase-1b2a-backend-archive-delta-audit.md` |
 | Phase 1B.2A AG execution handoff | `docs/project-continuity/phase-1b2a-pet-read-path-ag-execution-handoff.md` |
 | Phase 1B.2A.2 legacy normalization plan | `docs/planning/phase-1b2a2-pet-legacy-normalization-and-creation-hardening.md` |
