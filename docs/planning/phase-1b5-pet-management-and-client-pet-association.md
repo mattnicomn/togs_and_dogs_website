@@ -1,7 +1,7 @@
 # Phase 1B.5 — Pet Management and Client–Pet Association
 
 **Date:** 2026-07-21
-**Status:** Planning Complete — Awaiting Matthew Policy Approval
+**Status:** Phase 1B.5A Complete (Local); Phase 1B.5B–D Planned
 **Type:** Full-stack (backend API gaps + frontend implementation)
 
 ---
@@ -95,10 +95,10 @@ preserving historical booking references and multi-tenant isolation.
 
 ### Identified Risks
 
-1. **Client drawer loads pets from request-derived pet_ids** — misses pets that were directly created but never linked to a request
+1. **Client drawer loads pets from request-derived pet_ids** — resolved in Phase 1B.5A (uses listAdminClientPets)
 2. **Legacy records missing `company_id`** — excluded by query filtering (13 known, documented in Phase 1B.2A)
 3. **No archive/restore API route** — is_active is toggled via PUT but no dedicated endpoint
-4. **No dedicated client-pet-list admin endpoint in the drawer** — drawer uses individual getPet calls instead of `listAdminClientPets`
+4. **No dedicated client-pet-list admin endpoint in the drawer** — resolved in Phase 1B.5A (cutover to listAdminClientPets complete)
 5. **No client-facing pet create/edit** — /my-pets is read-only
 6. **No duplicate-detection mechanism** for pets with the same name
 

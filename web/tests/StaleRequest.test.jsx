@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { getPet } from '../src/api/client';
+import { listAdminClientPets } from '../src/api/client';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
-// Mock getPet API
+// Mock listAdminClientPets API
 vi.mock('../src/api/client', () => ({
-  getPet: vi.fn()
+  listAdminClientPets: vi.fn()
 }));
 
 // Test Harness matching AdminDashboard's state and sequence checks exactly
@@ -28,16 +28,18 @@ const StaleRequestHarness = ({ clientList }) => {
     setClientPets([]);
     setIsClientPetsLoading(true);
 
-    if (client.pet_ids && client.pet_ids.length > 0) {
-      Promise.all(client.pet_ids.map(id => getPet(id)))
-        .then(results => {
+    if (currentClientId && currentClientId !== 'new') {
+      listAdminClientPets(currentClientId)
+        .then(resp => {
           if (currentSeq === clientPetRequestSeqRef.current && activeClientDetailIdRef.current === currentClientId) {
-            setClientPets(results.filter(Boolean));
+            const pets = (resp && Array.isArray(resp.pets) ? resp.pets : []).filter(p => p && p.pet_id);
+            setClientPets(pets);
             setIsClientPetsLoading(false);
           }
         })
-        .catch(err => {
+        .catch(() => {
           if (currentSeq === clientPetRequestSeqRef.current && activeClientDetailIdRef.current === currentClientId) {
+            setClientPets([]);
             setIsClientPetsLoading(false);
           }
         });
@@ -75,8 +77,8 @@ const StaleRequestHarness = ({ clientList }) => {
 
 describe('Stale-Request Race-Condition Guard Tests', () => {
   const clients = [
-    { client_id: 'client-A', display_name: 'Client A', pet_ids: ['pet-1'] },
-    { client_id: 'client-B', display_name: 'Client B', pet_ids: ['pet-2'] }
+    { client_id: 'client-A', display_name: 'Client A' },
+    { client_id: 'client-B', display_name: 'Client B' }
   ];
 
   beforeEach(() => {
@@ -84,17 +86,17 @@ describe('Stale-Request Race-Condition Guard Tests', () => {
   });
 
   it('1. stale request sequence matches expected behavior', async () => {
-    // Setup deferred promises for getPet calls to control resolution timing
+    // Setup deferred promises for listAdminClientPets calls to control resolution timing
     let resolveA;
     const promiseA = new Promise((resolve) => { resolveA = resolve; });
     
     let resolveB;
     const promiseB = new Promise((resolve) => { resolveB = resolve; });
 
-    getPet.mockImplementation((id) => {
-      if (id === 'pet-1') return promiseA;
-      if (id === 'pet-2') return promiseB;
-      return Promise.resolve(null);
+    listAdminClientPets.mockImplementation((id) => {
+      if (id === 'client-A') return promiseA;
+      if (id === 'client-B') return promiseB;
+      return Promise.resolve({ pets: [] });
     });
 
     render(<StaleRequestHarness clientList={clients} />);
@@ -113,7 +115,7 @@ describe('Stale-Request Race-Condition Guard Tests', () => {
     expect(screen.getByTestId('pets-count').textContent).toBe('0');
 
     // Step 3: resolve Client B response
-    resolveB({ pet_id: 'pet-2', name: 'Max' });
+    resolveB({ pets: [{ pet_id: 'pet-2', name: 'Max' }] });
     await waitFor(() => {
       expect(screen.getByTestId('pets-count').textContent).toBe('1');
       expect(screen.getByText('Max')).toBeInTheDocument();
@@ -121,7 +123,7 @@ describe('Stale-Request Race-Condition Guard Tests', () => {
     });
 
     // Step 4: resolve Client A response afterward
-    resolveA({ pet_id: 'pet-1', name: 'Buddy' });
+    resolveA({ pets: [{ pet_id: 'pet-1', name: 'Buddy' }] });
     
     // Wait to ensure Client A resolve does NOT overwrite Client B
     await new Promise(r => setTimeout(r, 50));
@@ -133,7 +135,7 @@ describe('Stale-Request Race-Condition Guard Tests', () => {
   it('2. late empty result cannot clear active client pets', async () => {
     let resolveA;
     const promiseA = new Promise((resolve) => { resolveA = resolve; });
-    getPet.mockImplementation((id) => id === 'pet-1' ? promiseA : Promise.resolve({ pet_id: 'pet-2', name: 'Max' }));
+    listAdminClientPets.mockImplementation((id) => id === 'client-A' ? promiseA : Promise.resolve({ pets: [{ pet_id: 'pet-2', name: 'Max' }] }));
 
     render(<StaleRequestHarness clientList={clients} />);
 
@@ -147,7 +149,7 @@ describe('Stale-Request Race-Condition Guard Tests', () => {
     });
 
     // Resolve A with empty array/null
-    resolveA(null);
+    resolveA({ pets: [] });
     await new Promise(r => setTimeout(r, 50));
     expect(screen.getByText('Max')).toBeInTheDocument();
   });
@@ -155,7 +157,7 @@ describe('Stale-Request Race-Condition Guard Tests', () => {
   it('3. late error cannot replace active client state', async () => {
     let rejectA;
     const promiseA = new Promise((_, reject) => { rejectA = reject; });
-    getPet.mockImplementation((id) => id === 'pet-1' ? promiseA : Promise.resolve({ pet_id: 'pet-2', name: 'Max' }));
+    listAdminClientPets.mockImplementation((id) => id === 'client-A' ? promiseA : Promise.resolve({ pets: [{ pet_id: 'pet-2', name: 'Max' }] }));
 
     render(<StaleRequestHarness clientList={clients} />);
 
@@ -178,7 +180,7 @@ describe('Stale-Request Race-Condition Guard Tests', () => {
   it('4. drawer close invalidates an unresolved request', async () => {
     let resolveA;
     const promiseA = new Promise((resolve) => { resolveA = resolve; });
-    getPet.mockImplementation(() => promiseA);
+    listAdminClientPets.mockImplementation(() => promiseA);
 
     render(<StaleRequestHarness clientList={clients} />);
 
@@ -192,7 +194,7 @@ describe('Stale-Request Race-Condition Guard Tests', () => {
     expect(screen.getByTestId('active-id').textContent).toBe('none');
 
     // Resolve A
-    resolveA({ pet_id: 'pet-1', name: 'Buddy' });
+    resolveA({ pets: [{ pet_id: 'pet-1', name: 'Buddy' }] });
     await new Promise(r => setTimeout(r, 50));
     expect(screen.getByTestId('pets-count').textContent).toBe('0');
     expect(screen.getByTestId('loading-state').textContent).toBe('Idle');

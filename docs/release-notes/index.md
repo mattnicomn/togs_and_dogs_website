@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Phase 1B.5A: Authoritative Client Drawer Pet Loading**](phase-1b5a-authoritative-client-pet-loading.md) (2026-07-21) — ✅ **COMPLETE (LOCAL)** — Replaced request-derived pet loading with direct listAdminClientPets queries. Added 9 new focused integration/race-condition tests (all passing).
 - [**Phase 1B.4A–E: Authenticated Production Validation Closeout**](phase-1b4a-e-authenticated-production-validation-closeout.md) (2026-07-21) — ✅ **PHASE 1B.4A–E COMPLETE** — Matthew confirmed drawer View/Edit/Create works, inline editor retired, Staff Management unaffected. Pet management deferred to Phase 1B.5.
 - [**Phase 1B.4A–E: Client Drawer Frontend Production Deployment**](phase-1b4a-e-client-drawer-frontend-production-deployment.md) (2026-07-21) — ✅ **DEPLOYED & VALIDATED** — Build assets successfully synced to S3 and CloudFront invalidated. Authenticated validation PASSED.
 - [**Phase 1B.4: Client Drawer Test Hardening**](phase-1b4a-e-client-drawer-test-hardening.md) (2026-07-21) — ✅ **COMPLETE (LOCAL)** — Added 25 new hardened component and parent-integration tests. Covered all critical unsaved-change, closing, focus, and API save paths, bringing total tests to 169 (all passing).

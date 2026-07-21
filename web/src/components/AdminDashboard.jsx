@@ -3121,29 +3121,20 @@ const AdminDashboard = () => {
 
     if (currentClientId && currentClientId !== 'new') {
       setIsClientPetsLoading(true);
-      const linkedRequests = allRequests.filter(r => r.linked_client_profile_id === currentClientId || r.client_id === currentClientId);
-      const petIdSet = new Set();
-      linkedRequests.forEach(r => {
-        if (r.pet_ids) r.pet_ids.forEach(pid => petIdSet.add(pid));
-        if (r.pet_id) petIdSet.add(r.pet_id);
-      });
-      const petIds = [...petIdSet];
-      if (petIds.length > 0) {
-        Promise.all(petIds.map(pid => getPet(pid, currentClientId).catch(() => null)))
-          .then(results => {
-            if (currentSeq === clientPetRequestSeqRef.current && activeClientDetailIdRef.current === currentClientId) {
-              setClientPets(results.filter(p => p !== null));
-              setIsClientPetsLoading(false);
-            }
-          })
-          .catch(() => {
-            if (currentSeq === clientPetRequestSeqRef.current && activeClientDetailIdRef.current === currentClientId) {
-              setIsClientPetsLoading(false);
-            }
-          });
-      } else {
-        setIsClientPetsLoading(false);
-      }
+      listAdminClientPets(currentClientId)
+        .then(resp => {
+          if (currentSeq === clientPetRequestSeqRef.current && activeClientDetailIdRef.current === currentClientId) {
+            const pets = (resp && Array.isArray(resp.pets) ? resp.pets : []).filter(p => p && p.pet_id);
+            setClientPets(pets);
+            setIsClientPetsLoading(false);
+          }
+        })
+        .catch(() => {
+          if (currentSeq === clientPetRequestSeqRef.current && activeClientDetailIdRef.current === currentClientId) {
+            setClientPets([]);
+            setIsClientPetsLoading(false);
+          }
+        });
     }
   };
 

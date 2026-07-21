@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import ClientDetailDrawer from '../src/components/ClientDetailDrawer';
 import AdminDashboard from '../src/components/AdminDashboard';
@@ -9,7 +9,9 @@ import {
   getClients,
   getStaff,
   getGoogleStatus,
-  getTenantInfo
+  getTenantInfo,
+  listAdminClientPets,
+  getPet
 } from '../src/api/client';
 
 // Mock scrollIntoView in JSDOM
@@ -40,7 +42,8 @@ vi.mock('../src/api/client', () => ({
   resendInvite: vi.fn(),
   resetStaffPassword: vi.fn(),
   setStaffTempPassword: vi.fn(),
-  linkCognitoUser: vi.fn()
+  linkCognitoUser: vi.fn(),
+  listAdminClientPets: vi.fn()
 }));
 
 const clientData = {
@@ -358,6 +361,7 @@ describe('Client Drawer Editor Consolidation - Hardened Component Tests', () => 
           }
         ]
       });
+      listAdminClientPets.mockResolvedValue({ pets: [] });
     });
 
     const switchToClientMgmt = async () => {
@@ -744,6 +748,207 @@ describe('Client Drawer Editor Consolidation - Hardened Component Tests', () => 
       // Check search & filters exist
       expect(screen.getByLabelText(/Search clients/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Filter clients/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('Section 7: Authoritative Pet Loading Tests (Phase 1B.5A)', () => {
+    const mockSession = {
+      getIdToken: () => ({
+        payload: {
+          email: 'owner@example.com',
+          sub: 'owner-sub-123',
+          name: 'Owner User'
+        }
+      })
+    };
+
+    beforeEach(() => {
+      getSession.mockResolvedValue(mockSession);
+      getEffectiveRole.mockReturnValue('owner');
+      getAdminRequests.mockResolvedValue({ requests: [] });
+      getStaff.mockResolvedValue({ staff: [] });
+      getGoogleStatus.mockResolvedValue({});
+      getTenantInfo.mockResolvedValue({
+        company_name: 'Togs and Dogs',
+        support_email: 'support@example.com'
+      });
+      getClients.mockResolvedValue({
+        clients: [
+          {
+            client_id: 'client-jane',
+            display_name: 'Jane Doe',
+            email: 'jane@example.com',
+            phone: '555-1234',
+            is_active: true
+          },
+          {
+            client_id: 'client-bob',
+            display_name: 'Bob Smith',
+            email: 'bob@example.com',
+            is_active: true
+          }
+        ]
+      });
+      listAdminClientPets.mockResolvedValue({ pets: [] });
+    });
+
+    const switchToClientMgmt = async () => {
+      render(<AdminDashboard />);
+      const tabButton = await screen.findByRole('button', { name: /Client Management/i });
+      fireEvent.click(tabButton);
+      await screen.findByText('Client Access Management');
+    };
+
+    it('1. opening a client invokes listAdminClientPets with that client ID', async () => {
+      await switchToClientMgmt();
+      fireEvent.click(screen.getByRole('button', { name: /Client profile for Jane Doe/i }));
+      
+      expect(listAdminClientPets).toHaveBeenCalledWith('client-jane');
+    });
+
+    it('2. returned pets render in the ClientDetailDrawer', async () => {
+      listAdminClientPets.mockResolvedValue({
+        pets: [
+          { pet_id: 'pet-1', name: 'Max', species: 'DOG', breed: 'Labrador', age: '3', is_active: true }
+        ]
+      });
+      await switchToClientMgmt();
+      fireEvent.click(screen.getByRole('button', { name: /Client profile for Jane Doe/i }));
+      
+      await screen.findByText('Max');
+      expect(screen.getByText(/DOG/)).toBeInTheDocument();
+      expect(screen.getByText(/Labrador/)).toBeInTheDocument();
+    });
+
+    it('3. a saved pet with no request association still renders', async () => {
+      // Return a pet with no request association
+      listAdminClientPets.mockResolvedValue({
+        pets: [
+          { pet_id: 'pet-unassociated', name: 'MysteryPet', species: 'CAT', breed: 'Siamese', age: '5', is_active: true }
+        ]
+      });
+      
+      await switchToClientMgmt();
+      fireEvent.click(screen.getByRole('button', { name: /Client profile for Jane Doe/i }));
+      
+      await screen.findByText('MysteryPet');
+      expect(screen.getByText(/CAT/)).toBeInTheDocument();
+      expect(screen.getByText(/Siamese/)).toBeInTheDocument();
+    });
+
+    it('4. no request-derived getPet fan-out occurs', async () => {
+      // Even if requests exist with pet IDs, getPet shouldn't be called for drawer loading.
+      getAdminRequests.mockResolvedValue({
+        requests: [
+          {
+            request_id: 'req-1',
+            client_id: 'client-jane',
+            pet_ids: ['pet-request-derived-123'],
+            status: 'approved'
+          }
+        ]
+      });
+      
+      listAdminClientPets.mockResolvedValue({
+        pets: [
+          { pet_id: 'pet-authoritative', name: 'Authoritative Buddy', species: 'DOG', is_active: true }
+        ]
+      });
+      
+      await switchToClientMgmt();
+      fireEvent.click(screen.getByRole('button', { name: /Client profile for Jane Doe/i }));
+      
+      await screen.findByText('Authoritative Buddy');
+      expect(screen.getByText(/DOG/)).toBeInTheDocument();
+      expect(getPet).not.toHaveBeenCalled();
+    });
+
+    it('5. no pets produces the correct empty state', async () => {
+      listAdminClientPets.mockResolvedValue({ pets: [] });
+      await switchToClientMgmt();
+      fireEvent.click(screen.getByRole('button', { name: /Client profile for Jane Doe/i }));
+      
+      await screen.findByText('Client Overview');
+      expect(screen.getByText(/No pet information available/i)).toBeInTheDocument();
+    });
+
+    it('6. loading state displays while the request is pending', async () => {
+      let resolvePets;
+      const petsPromise = new Promise(resolve => { resolvePets = resolve; });
+      listAdminClientPets.mockReturnValue(petsPromise);
+      
+      await switchToClientMgmt();
+      fireEvent.click(screen.getByRole('button', { name: /Client profile for Jane Doe/i }));
+      
+      expect(screen.getByText(/Loading pets/i)).toBeInTheDocument();
+      
+      resolvePets({ pets: [] });
+      await waitFor(() => {
+        expect(screen.queryByText(/Loading pets/i)).not.toBeInTheDocument();
+      });
+    });
+
+    it('7. an API failure clears loading safely', async () => {
+      listAdminClientPets.mockRejectedValue(new Error('API Error'));
+      await switchToClientMgmt();
+      fireEvent.click(screen.getByRole('button', { name: /Client profile for Jane Doe/i }));
+      
+      await waitFor(() => {
+        expect(screen.queryByText(/Loading pets/i)).not.toBeInTheDocument();
+      });
+      expect(screen.getByText(/No pet information available/i)).toBeInTheDocument();
+    });
+
+    it('8. rapid Client A -> Client B switching ignores stale Client A results', async () => {
+      let resolveA;
+      const promiseA = new Promise(resolve => { resolveA = resolve; });
+      
+      let resolveB;
+      const promiseB = new Promise(resolve => { resolveB = resolve; });
+      
+      listAdminClientPets.mockImplementation((id) => {
+        if (id === 'client-jane') return promiseA;
+        if (id === 'client-bob') return promiseB;
+        return Promise.resolve({ pets: [] });
+      });
+      
+      await switchToClientMgmt();
+      
+      // Select Jane
+      fireEvent.click(screen.getByRole('button', { name: /Client profile for Jane Doe/i }));
+      
+      // Switch immediately to Bob
+      fireEvent.click(screen.getByRole('button', { name: /Client profile for Bob Smith/i }));
+      
+      // Resolve Bob first
+      resolveB({ pets: [{ pet_id: 'pet-bob', name: 'BobPet', species: 'DOG', is_active: true }] });
+      await screen.findByText('BobPet');
+      
+      // Resolve Jane late
+      resolveA({ pets: [{ pet_id: 'pet-jane', name: 'JanePet', species: 'CAT', is_active: true }] });
+      await new Promise(r => setTimeout(r, 50));
+      
+      expect(screen.queryByText('JanePet')).not.toBeInTheDocument();
+      expect(screen.getByText('BobPet')).toBeInTheDocument();
+    });
+
+    it('9. closing the drawer ignores a late response', async () => {
+      let resolveA;
+      const promiseA = new Promise(resolve => { resolveA = resolve; });
+      listAdminClientPets.mockReturnValue(promiseA);
+      
+      await switchToClientMgmt();
+      fireEvent.click(screen.getByRole('button', { name: /Client profile for Jane Doe/i }));
+      
+      // Close drawer
+      const closeBtn = screen.getByRole('button', { name: /close client details/i });
+      fireEvent.click(closeBtn);
+      
+      // Resolve Jane late
+      resolveA({ pets: [{ pet_id: 'pet-jane', name: 'JanePet', species: 'CAT', is_active: true }] });
+      await new Promise(r => setTimeout(r, 50));
+      
+      expect(screen.queryByText('JanePet (CAT)')).not.toBeInTheDocument();
     });
   });
 });
