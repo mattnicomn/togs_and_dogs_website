@@ -100,26 +100,28 @@ describe('sanitizePetsList', () => {
 
 describe('AdminDashboard Code Structure Validation', () => {
   const adminDashboardPath = path.resolve(__dirname, '../src/components/AdminDashboard.jsx');
+  const clientCardPath = path.resolve(__dirname, '../src/components/ClientProfileCard.jsx');
+  const staffCardPath = path.resolve(__dirname, '../src/components/StaffProfileCard.jsx');
+  
   const code = fs.readFileSync(adminDashboardPath, 'utf8');
+  const clientCardCode = fs.readFileSync(clientCardPath, 'utf8');
+  const staffCardCode = fs.readFileSync(staffCardPath, 'utf8');
 
   it('should not contain role="button" inside client-profile-card markup', () => {
-    const clientCardBlock = code.substring(code.indexOf('className={`client-profile-card'), code.indexOf('View Details'));
-    assert.equal(clientCardBlock.includes('role="button"'), false);
-    assert.equal(clientCardBlock.includes('tabIndex='), false);
-    assert.equal(clientCardBlock.includes('onKeyDown='), false);
+    assert.equal(clientCardCode.includes('role="button"'), false);
+    assert.equal(clientCardCode.includes('tabIndex='), false);
+    assert.equal(clientCardCode.includes('onKeyDown='), false);
   });
 
   it('should not contain role="button" inside staff-profile-card markup', () => {
-    const staffCardBlock = code.substring(code.indexOf('className={`staff-profile-card'), code.lastIndexOf('View Details'));
-    assert.equal(staffCardBlock.includes('role="button"'), false);
-    assert.equal(staffCardBlock.includes('tabIndex='), false);
-    assert.equal(staffCardBlock.includes('onKeyDown='), false);
+    assert.equal(staffCardCode.includes('role="button"'), false);
+    assert.equal(staffCardCode.includes('tabIndex='), false);
+    assert.equal(staffCardCode.includes('onKeyDown='), false);
   });
 
   it('should define a native card-summary-button-link for client cards and staff cards', () => {
-    // Check that we render buttons with the correct class for card activation
-    const count = (code.match(/className="card-summary-button-link"/g) || []).length;
-    assert.ok(count >= 2, `Expected at least 2 instances of card-summary-button-link, found ${count}`);
+    assert.ok(clientCardCode.includes('className="card-summary-button-link"'), 'Client card should have card-summary-button-link');
+    assert.ok(staffCardCode.includes('className="card-summary-button-link"'), 'Staff card should have card-summary-button-link');
   });
 
   it('should pass explicit triggerElement parameter to openClientDetail and openStaffDetail', () => {
