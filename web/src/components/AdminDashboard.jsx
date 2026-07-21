@@ -96,6 +96,7 @@ const AdminDashboard = () => {
   const activeTabRef = useRef(null);
   const staffDrawerTriggerRef = useRef(null);
   const staffDrawerCloseBtnRef = useRef(null);
+  const clientDrawerTriggerRef = useRef(null);
   
   useEffect(() => {
     if (activeTabRef.current) {
@@ -2977,8 +2978,6 @@ const AdminDashboard = () => {
     );
   }
 
-
-  const clientDrawerTriggerRef = useRef(null);
 
   const openClientDetail = (client, triggerElement) => {
     const el = triggerElement || document.activeElement;

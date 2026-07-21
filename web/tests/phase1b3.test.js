@@ -160,4 +160,23 @@ describe('AdminDashboard Code Structure Validation', () => {
     assert.ok(code.includes('clientPetRequestSeqRef.current += 1'), 'sequence should increment on close');
     assert.ok(code.includes('activeClientDetailIdRef.current = null'), 'active ID ref should clear on close');
   });
+
+  it('should declare clientDrawerTriggerRef exactly once before the authentication check early return', () => {
+    const matches = code.match(/clientDrawerTriggerRef\s*=\s*useRef/g);
+    assert.equal(matches ? matches.length : 0, 1, 'clientDrawerTriggerRef must be declared exactly once');
+
+    const declIndex = code.indexOf('clientDrawerTriggerRef = useRef');
+    const earlyReturnIndex = code.indexOf('if (!isAuthenticated)');
+    assert.ok(declIndex > 0, 'clientDrawerTriggerRef must be declared');
+    assert.ok(earlyReturnIndex > 0, 'if (!isAuthenticated) early return check must be defined');
+    assert.ok(declIndex < earlyReturnIndex, 'clientDrawerTriggerRef must be declared BEFORE the authentication early return check');
+  });
+
+  it('should not declare any React hooks after the authentication check early return block', () => {
+    const earlyReturnIndex = code.indexOf('if (!isAuthenticated)');
+    const codeAfterEarlyReturn = code.substring(earlyReturnIndex);
+    const hooksRegex = /\b(useState|useEffect|useRef|useMemo|useCallback|useContext)\b/g;
+    const hooksFound = codeAfterEarlyReturn.match(hooksRegex);
+    assert.equal(hooksFound, null, 'No React hooks should be declared after the authentication check early return: ' + (hooksFound ? hooksFound.join(', ') : ''));
+  });
 });
