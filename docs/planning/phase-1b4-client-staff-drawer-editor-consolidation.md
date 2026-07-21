@@ -1,7 +1,7 @@
 # Phase 1B.4 — Client and Staff Drawer Editor Consolidation
 
 **Date:** 2026-07-21
-**Status:** Phase 1B.4A–E Deployed to Production — Authenticated Validation Pending Matthew
+**Status:** Phase 1B.4A–E Complete and Closed (2026-07-21) — Phase 1B.4F–H Deferred
 **Type:** Frontend-only (no backend or infrastructure changes)
 
 ---

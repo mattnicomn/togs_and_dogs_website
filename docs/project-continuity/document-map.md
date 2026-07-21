@@ -42,6 +42,8 @@
 | Phase 1B.3 authenticated validation closeout | `docs/release-notes/phase-1b3-authenticated-production-validation-closeout.md` |
 | Phase 1B.4 drawer editor consolidation plan | `docs/planning/phase-1b4-client-staff-drawer-editor-consolidation.md` |
 | Phase 1B.4A–E implementation review | `docs/release-notes/phase-1b4a-e-client-drawer-editor-implementation-review.md` |
+| Phase 1B.4A–E validation closeout | `docs/release-notes/phase-1b4a-e-authenticated-production-validation-closeout.md` |
+| Phase 1B.5 pet management plan | `docs/planning/phase-1b5-pet-management-and-client-pet-association.md` |
 | Phase 1B.4A–E test hardening release notes | `docs/release-notes/phase-1b4a-e-client-drawer-test-hardening.md` |
 | Phase 1B.4A–E test hardening review | `docs/release-notes/phase-1b4a-e-client-drawer-test-hardening-review.md` |
 | Phase 1B.4A–E frontend production deployment | `docs/release-notes/phase-1b4a-e-client-drawer-frontend-production-deployment.md` |
