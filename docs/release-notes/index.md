@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Phase 1B.4: Client Drawer Editor Consolidation**](phase-1b4-client-drawer-editor-consolidation.md) (2026-07-21) — ✅ **COMPLETE (LOCAL)** — Consolidated client details, profile edit, and profile creation into the right-side profile drawer. Retired duplicate inline client editor. Implemented unsaved-change protection and validation inside the drawer.
 - [**Phase 1B.3: Authenticated Production Validation Closeout**](phase-1b3-authenticated-production-validation-closeout.md) (2026-07-21) — ✅ **PHASE 1B.3 COMPLETE** — Matthew confirms production Admin Dashboard works after hook-order hotfix. /admin loads, no error #310, Client and Staff Management both open. Phase 1B.3 closed. Editor consolidation deferred to Phase 1B.4.
 - [**Phase 1B.3: Admin Hook-Order Hotfix (Deployment)**](phase-1b3-admin-hook-order-production-hotfix-deployment.md) (2026-07-21) — ✅ **DEPLOYED** — Hotfix bundle synced to S3 and CloudFront invalidated. Authenticated validation PASSED.
 - [**Phase 1B.3: Admin Hook-Order Hotfix (Pre-Deploy)**](phase-1b3-admin-hook-order-production-hotfix-predeploy.md) (2026-07-21) — ✅ **COMPLETE** — Hook order violation resolved. 140/140 tests pass. Verified by Kiro review.

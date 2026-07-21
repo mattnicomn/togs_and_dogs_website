@@ -81,6 +81,21 @@ const AdminDashboard = () => {
   const [isSavingClient, setIsSavingClient] = useState(false);
   const [isSavingStaff, setIsSavingStaff] = useState(false);
   const [clientLinkPrompt, setClientLinkPrompt] = useState(null);
+  const [clientDrawerMode, setClientDrawerMode] = useState('view');
+  const [clientInitialFormValues, setClientInitialFormValues] = useState(null);
+
+  const hasClientUnsavedChanges = clientDetailTarget && clientDrawerMode !== 'view' && clientInitialFormValues && (
+    clientForm.display_name !== clientInitialFormValues.display_name ||
+    clientForm.email !== clientInitialFormValues.email ||
+    clientForm.phone !== clientInitialFormValues.phone ||
+    clientForm.address !== clientInitialFormValues.address ||
+    clientForm.emergency_contact !== clientInitialFormValues.emergency_contact ||
+    clientForm.notes !== clientInitialFormValues.notes ||
+    (clientDrawerMode === 'create' && (
+      clientForm.creation_mode !== clientInitialFormValues.creation_mode ||
+      clientForm.send_invite !== clientInitialFormValues.send_invite
+    ))
+  );
 
   // Release 22J: Profile Editor side drawer states
   const [isStaffDrawerOpen, setIsStaffDrawerOpen] = useState(false);
@@ -2979,11 +2994,77 @@ const AdminDashboard = () => {
   }
 
 
+  const closeClientDrawer = () => {
+    if (hasClientUnsavedChanges) {
+      if (!window.confirm("You have unsaved changes. Are you sure you want to discard them?")) {
+        return;
+      }
+    }
+    setClientDetailTarget(null);
+    setClientDrawerMode('view');
+    setEditingClientId(null);
+    clientPetRequestSeqRef.current += 1;
+    activeClientDetailIdRef.current = null;
+    setIsClientPetsLoading(false);
+    const trigger = clientDrawerTriggerRef.current;
+    if (trigger && typeof trigger.focus === 'function' && document.body.contains(trigger)) {
+      trigger.focus();
+    }
+    clientDrawerTriggerRef.current = null;
+  };
+
   const openClientDetail = (client, triggerElement) => {
+    if (hasClientUnsavedChanges) {
+      if (!window.confirm("You have unsaved changes. Are you sure you want to discard them?")) {
+        return;
+      }
+    }
     const el = triggerElement || document.activeElement;
     clientDrawerTriggerRef.current = el;
     handleEditClient(client);
     setClientDetailTarget(client);
+    setClientDrawerMode('view');
+  };
+
+  const handleNewClient = (triggerElement) => {
+    if (hasClientUnsavedChanges) {
+      if (!window.confirm("You have unsaved changes. Are you sure you want to discard them?")) {
+        return;
+      }
+    }
+    const defaultVals = {
+      display_name: '',
+      email: '',
+      phone: '',
+      address: '',
+      emergency_contact: '',
+      notes: '',
+      creation_mode: 'onboard',
+      send_invite: true
+    };
+    setEditingClientId(null);
+    setClientForm(defaultVals);
+    setClientInitialFormValues(defaultVals);
+    setClientDetailTarget({ client_id: 'new', ...defaultVals });
+    setClientDrawerMode('create');
+    const el = triggerElement || document.activeElement;
+    clientDrawerTriggerRef.current = el;
+  };
+
+  const handleCancelClientEdit = () => {
+    if (hasClientUnsavedChanges) {
+      if (!window.confirm("You have unsaved changes. Are you sure you want to discard them?")) {
+        return;
+      }
+    }
+    if (clientDrawerMode === 'create') {
+      setClientDetailTarget(null);
+      setEditingClientId(null);
+      setClientDrawerMode('view');
+    } else {
+      setClientForm(clientInitialFormValues);
+      setClientDrawerMode('view');
+    }
   };
 
   const handleLinkEmail = (client) => {
@@ -2997,23 +3078,25 @@ const AdminDashboard = () => {
   };
 
   const handleCreateProfileFromVirtual = (client) => {
-    setClientForm({
-      display_name: client.display_name,
-      email: client.email,
+    const formVals = {
+      display_name: client.display_name || '',
+      email: client.email || '',
       phone: '',
       address: '',
       emergency_contact: '',
       notes: '',
       creation_mode: 'profile_only',
       send_invite: false
-    });
+    };
     setEditingClientId(client.client_id);
-    setView('CLIENT_MGMT');
+    setClientForm(formVals);
+    setClientInitialFormValues(formVals);
+    setClientDetailTarget(client);
+    setClientDrawerMode('edit');
   };
 
   const handleEditClient = (client) => {
-    setEditingClientId(client.client_id);
-    setClientForm({
+    const formVals = {
       display_name: client.display_name || '',
       email: client.email || '',
       phone: client.phone || '',
@@ -3022,7 +3105,10 @@ const AdminDashboard = () => {
       notes: client.notes || '',
       creation_mode: 'profile_only',
       send_invite: true
-    });
+    };
+    setEditingClientId(client.client_id);
+    setClientForm(formVals);
+    setClientInitialFormValues(formVals);
 
     // Increment sequence and track active client ID
     clientPetRequestSeqRef.current += 1;
@@ -3033,10 +3119,8 @@ const AdminDashboard = () => {
     setClientPets([]);
     setIsClientPetsLoading(false);
 
-    if (currentClientId) {
+    if (currentClientId && currentClientId !== 'new') {
       setIsClientPetsLoading(true);
-      // Scan for pets belonging to this client via the existing export/scan data
-      // Use allRequests to find pet_ids linked to this client, then fetch each
       const linkedRequests = allRequests.filter(r => r.linked_client_profile_id === currentClientId || r.client_id === currentClientId);
       const petIdSet = new Set();
       linkedRequests.forEach(r => {
@@ -3061,12 +3145,10 @@ const AdminDashboard = () => {
         setIsClientPetsLoading(false);
       }
     }
-    setView('CLIENT_MGMT');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSaveClient = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const editingClient = editingClientId ? clientList.find(c => c.client_id === editingClientId) : null;
     const isProfileOnly = clientForm.creation_mode === 'profile_only' && (!editingClient || (!editingClient.cognito_sub && editingClient.cognito_status !== 'onboard' && editingClient.cognito_status !== 'linked'));
     
@@ -3079,6 +3161,9 @@ const AdminDashboard = () => {
       if (editingClientId) {
         await updateClient(editingClientId, clientForm);
         showNotification("Client profile updated successfully", "success");
+        setClientDetailTarget(prev => ({ ...prev, ...clientForm }));
+        setClientDrawerMode('view');
+        setClientInitialFormValues({ ...clientForm });
       } else {
         if (clientForm.creation_mode === 'onboard') {
           await onboardClient(clientForm);
@@ -3087,18 +3172,10 @@ const AdminDashboard = () => {
           await createClient(clientForm);
           showNotification("Client profile created successfully", "success");
         }
+        setClientDetailTarget(null);
+        setEditingClientId(null);
+        setClientDrawerMode('view');
       }
-      setClientForm({
-        display_name: '',
-        email: '',
-        phone: '',
-        address: '',
-        emergency_contact: '',
-        notes: '',
-        creation_mode: 'onboard',
-        send_invite: true
-      });
-      setEditingClientId(null);
       await fetchClientData();
     } catch(err) {
       if (err.message && err.message.includes("Cognito user already exists")) {
@@ -3110,6 +3187,23 @@ const AdminDashboard = () => {
         }
         showNotification(errorMsg, "error");
       }
+    } finally {
+      setIsSavingClient(false);
+    }
+  };
+
+  const handleLinkExistingClientOnboard = async () => {
+    try {
+      setIsSavingClient(true);
+      await onboardClient({ ...clientLinkPrompt, mode: 'create_or_link' });
+      showNotification("Client profile linked successfully", "success");
+      setClientLinkPrompt(null);
+      setClientDetailTarget(null);
+      setEditingClientId(null);
+      setClientDrawerMode('view');
+      await fetchClientData();
+    } catch (err) {
+      showNotification(err.message || "Link failed", "error");
     } finally {
       setIsSavingClient(false);
     }
@@ -3218,166 +3312,13 @@ const AdminDashboard = () => {
   const renderClientManagement = () => (
     <div className="client-management-container card" style={{ padding: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h2>{editingClientId ? 'Edit Client Profile' : 'Add New Client Profile'}</h2>
-        {editingClientId && (
-          <button className="button-secondary" onClick={() => {
-            setEditingClientId(null);
-            setClientForm({
-              display_name: '',
-              email: '',
-              phone: '',
-              address: '',
-              emergency_contact: '',
-              notes: '',
-              creation_mode: 'onboard',
-              send_invite: true
-            });
-          }}>Cancel Edit</button>
-        )}
+        <h2>Client Access Management</h2>
+        <button type="button" className="button-primary" onClick={(e) => handleNewClient(e.currentTarget)}>
+          + Add New Client
+        </button>
       </div>
 
-      <form onSubmit={handleSaveClient} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '40px', backgroundColor: 'var(--surface-color)', padding: '20px', borderRadius: '12px' }}>
-        {!editingClientId && (
-          <div className="field" style={{ gridColumn: 'span 2', display: 'flex', gap: '20px', marginBottom: '10px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-              <input 
-                type="radio" 
-                name="client_creation_mode" 
-                value="onboard" 
-                checked={clientForm.creation_mode === 'onboard'} 
-                onChange={(e) => setClientForm({ ...clientForm, creation_mode: e.target.value })}
-              />
-              Create Login & Profile
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-              <input 
-                type="radio" 
-                name="client_creation_mode" 
-                value="profile_only" 
-                checked={clientForm.creation_mode === 'profile_only'} 
-                onChange={(e) => setClientForm({ ...clientForm, creation_mode: e.target.value })}
-              />
-              Create Profile Only (No Login)
-            </label>
-          </div>
-        )}
-
-        <div className="field-groups-container">
-          <div className="field-group">
-            <h4 className="field-group-heading">Login Identity</h4>
-            <p className="field-group-helper">Primary authentication details. The login email cannot be changed once the account is created.</p>
-            <div className="field">
-              <label>Email Address {editingClientId && '(Read-only)'} {clientForm.creation_mode === 'onboard' ? '*' : '(Optional)'}</label>
-              <input 
-                type="email" 
-                className={editingClientId ? 'read-only-identity' : ''}
-                value={clientForm.email} 
-                onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })} 
-                disabled={!!editingClientId}
-                required={clientForm.creation_mode === 'onboard'} 
-                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-              />
-            </div>
-            {editingClientId && (
-              <div className="field">
-                <label>Cognito Username (Read-only)</label>
-                <input 
-                  type="text" 
-                  className="read-only-identity"
-                  value={clientList.find(c => c.client_id === editingClientId)?.cognito_username || clientList.find(c => c.client_id === editingClientId)?.email || 'N/A'} 
-                  disabled 
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="field-group">
-            <h4 className="field-group-heading">Profile Details</h4>
-            <p className="field-group-helper">Contact information and internal metadata.</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div className="field">
-                <label>Display Name *</label>
-                <input 
-                  type="text" 
-                  value={clientForm.display_name} 
-                  onChange={(e) => setClientForm({ ...clientForm, display_name: e.target.value })} 
-                  required 
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                />
-              </div>
-              <div className="field">
-                <label>Phone</label>
-                <input 
-                  type="text" 
-                  value={clientForm.phone} 
-                  onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })} 
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                />
-              </div>
-              <div className="field" style={{ gridColumn: 'span 2' }}>
-                <label>Physical Address</label>
-                <textarea 
-                  rows="2" 
-                  value={clientForm.address} 
-                  onChange={(e) => setClientForm({ ...clientForm, address: e.target.value })}
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                ></textarea>
-              </div>
-              <div className="field" style={{ gridColumn: 'span 2' }}>
-                <label>Emergency Contact</label>
-                <input 
-                  type="text" 
-                  value={clientForm.emergency_contact} 
-                  onChange={(e) => setClientForm({ ...clientForm, emergency_contact: e.target.value })} 
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="field" style={{ marginBottom: '24px' }}>
-          <label>Client Notes (Internal)</label>
-          <textarea 
-            rows="3" 
-            value={clientForm.notes} 
-            onChange={(e) => setClientForm({ ...clientForm, notes: e.target.value })}
-            style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}
-          ></textarea>
-        </div>
-
-        {clientLinkPrompt && (
-          <div className="existing-user-warning" style={{ gridColumn: 'span 2' }}>
-            <p><strong>A login account already exists for {clientLinkPrompt.email}.</strong> Link it instead?</p>
-            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-              <button type="button" className="button-primary" onClick={async () => {
-                try {
-                  setIsSavingClient(true);
-                  await onboardClient({ ...clientLinkPrompt, mode: 'create_or_link' });
-                  showNotification("Client profile linked successfully", "success");
-                  setClientLinkPrompt(null);
-                  await fetchClientData();
-                } catch (err) {
-                  showNotification(err.message || "Link failed", "error");
-                } finally {
-                  setIsSavingClient(false);
-                }
-              }}>Link Existing</button>
-              <button type="button" className="button-secondary" onClick={() => setClientLinkPrompt(null)}>Cancel</button>
-            </div>
-          </div>
-        )}
-
-        <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
-          <button type="submit" className="button-primary" disabled={isSavingClient} style={{ width: '100%' }}>
-            {isSavingClient ? 'Saving...' : editingClientId ? 'Save Changes' : 'Process Client Onboarding'}
-          </button>
-        </div>
-      </form>
-
-      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
-        <h3>Client Access Management</h3>
+      <div>
         {/* Phase 1B.1A: Client search and filter controls */}
         <div style={{ marginTop: '12px', marginBottom: '16px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
           <div style={{ position: 'relative', flex: '1 1 300px', maxWidth: '400px' }}>
@@ -3435,24 +3376,26 @@ const AdminDashboard = () => {
       {clientDetailTarget && (
         <ClientDetailDrawer
           client={clientDetailTarget}
+          mode={clientDrawerMode}
+          formValues={clientForm}
+          setFormValues={setClientForm}
+          onClose={closeClientDrawer}
+          onEdit={(c) => {
+            handleEditClient(c);
+            setClientDrawerMode('edit');
+          }}
+          onCancel={handleCancelClientEdit}
+          onSave={handleSaveClient}
+          isSaving={isSavingClient}
           pets={clientPets}
           loadingPets={isClientPetsLoading}
-          onClose={() => {
-            setClientDetailTarget(null);
-            clientPetRequestSeqRef.current += 1;
-            activeClientDetailIdRef.current = null;
-            setIsClientPetsLoading(false);
-            const trigger = clientDrawerTriggerRef.current;
-            if (trigger && typeof trigger.focus === 'function' && document.body.contains(trigger)) {
-              trigger.focus();
-            }
-            clientDrawerTriggerRef.current = null;
-          }}
-          onEdit={(c) => handleEditClient(c)}
           onExecuteAction={executeClientAction}
           onLinkEmail={handleLinkEmail}
           onCreateProfile={handleCreateProfileFromVirtual}
           isProtectedProfile={isProtectedProfile}
+          clientLinkPrompt={clientLinkPrompt}
+          setClientLinkPrompt={setClientLinkPrompt}
+          onLinkExistingClientOnboard={handleLinkExistingClientOnboard}
         />
       )}
     </div>
