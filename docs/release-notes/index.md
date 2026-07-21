@@ -3,7 +3,8 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
-- [**Phase 1B.3: Admin Hook-Order Hotfix (Pre-Deploy)**](phase-1b3-admin-hook-order-production-hotfix-predeploy.md) (2026-07-21) — ✅ **LOCAL COMPLETE** — Hook order violation resolved. 140/140 tests pass. Ready for hotfix review and deployment approval.
+- [**Phase 1B.3: Admin Hook-Order Hotfix (Deployment)**](phase-1b3-admin-hook-order-production-hotfix-deployment.md) (2026-07-21) — ✅ **DEPLOYED** — Hotfix bundle index-BnpMcuCZ.js synced to S3 and CloudFront invalidated. Unauthenticated deep links pass. Awaiting Matthew authenticated manual smoke test.
+- [**Phase 1B.3: Admin Hook-Order Hotfix (Pre-Deploy)**](phase-1b3-admin-hook-order-production-hotfix-predeploy.md) (2026-07-21) — ✅ **COMPLETE** — Hook order violation resolved. 140/140 tests pass. Verified by Kiro review.
 - [**Phase 1B.3: Frontend Production Deployment**](phase-1b3-frontend-production-deployment.md) (2026-07-21) — ⚠️ **DEPLOYED / FAILED SMOKE** — Sync to S3 and CloudFront invalidation complete. 138/138 tests passed. Authenticated manual smoke failed due to React hook order violation (Minified Error #310).
 - [**Phase 1B.3: Component Test Hardening**](phase-1b3-component-test-hardening.md) (2026-07-20) — ✅ **COMPLETE** — Vitest + React Testing Library infrastructure. 44 component tests (real production components + harness-based). 138 total tests pass. Ready for frontend deployment approval.
 - [**Phase 1B.3: Component Test Review**](phase-1b3-component-test-review.md) (2026-07-20) — ✅ **READY FOR DEPLOYMENT** — Kiro review confirms 22 of 32 requirements covered with real production components, 4 with harness behavior. Code is sound.
