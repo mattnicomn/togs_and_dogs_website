@@ -1,7 +1,7 @@
 # Phase 1B.5 — Pet Management and Client–Pet Association
 
 **Date:** 2026-07-21
-**Status:** Phase 1B.5A Complete (Local); Phase 1B.5B–D Planned
+**Status:** Phase 1B.5A Deployed — Awaiting Matthew Authenticated Validation; Phase 1B.5B–D Planned
 **Type:** Full-stack (backend API gaps + frontend implementation)
 
 ---
