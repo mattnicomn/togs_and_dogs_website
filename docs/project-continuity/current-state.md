@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-20 (Phase 1B.2A: ClientPetIndex Query Cutover Complete)
+**Last Updated:** 2026-07-21 (Phase 1B.4A-E Client Drawer Test Hardening Complete)
 
 ---
 
@@ -63,6 +63,7 @@
 
 ## Latest Completed Releases
 
+- Phase 1B.4: Client Drawer Editor Consolidation & Test Hardening (✅ PASS — Implemented & Test Hardened Locally — Awaiting Kiro Review — 2026-07-21)
 - Phase 1B.3: Client Pet Inventory and Management Detail UX (✅ PASS — Deployed & Hotfix Applied — Awaiting Matthew Authenticated Manual Smoke Validation — 2026-07-21)
 - Phase 1B.2A: ClientPetIndex Query Cutover (✅ PASS — Deployed & Manually Validated — 2026-07-20)
 - Phase 1B.2A: ClientPetIndex Query Cutover (Local Closeout) (✅ PASS — 2026-07-19)
@@ -116,10 +117,11 @@
 - 19B: Tenant provisioning script dry run
 - 18U: Post-enable strict-mode monitoring checkpoint (PASS)
 
-**Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes. Release 22ZA implemented the mobile responsive foundation and accessible slide-out navigation drawer (pre-deploy validated). Release 22ZB implemented the full-screen Profile Editor mobile sheet layout (pre-deploy validated). Release 22ZC added keyboard-accessible stat cards, responsive filter controls stacking, and accessible data-label column labels on mobile request cards (pre-deploy validated). Phase 1B.2A backend-only Lambda package apply completed successfully, deploying the pet creation is_active hardening code to production. Phase 1B.2A ClientPetIndex GSI-only apply completed successfully, creating the global secondary database index in production (index backfilled and status ACTIVE). Phase 1B.2A ClientPetIndex query cutover deployed to production on 2026-07-20 (0 added, 13 changed, 0 destroyed). All 13 Lambda functions verified Active/Successful with expected CodeSha256. Matthew authenticated manual smoke PASSED (admin login, Client Management page, client drawer, admin pet list). Phase 1B.3 frontend deployed to production with /my-pets route, card-click drawer interaction, accessible cards, and mobile bottom-sheet. Hook-order hotfix applied. Matthew confirmed production works: /admin loads, authentication transitions correctly, no React error #310, Client Management and Staff Management both open. Phase 1B.3 is COMPLETE and CLOSED.**
+**Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes. Release 22ZA implemented the mobile responsive foundation and accessible slide-out navigation drawer (pre-deploy validated). Release 22ZB implemented the full-screen Profile Editor mobile sheet layout (pre-deploy validated). Release 22ZC added keyboard-accessible stat cards, responsive filter controls stacking, and accessible data-label column labels on mobile request cards (pre-deploy validated). Phase 1B.2A backend-only Lambda package apply completed successfully, deploying the pet creation is_active hardening code to production. Phase 1B.2A ClientPetIndex GSI-only apply completed successfully, creating the global secondary database index in production (index backfilled and status ACTIVE). Phase 1B.2A ClientPetIndex query cutover deployed to production on 2026-07-20 (0 added, 13 changed, 0 destroyed). All 13 Lambda functions verified Active/Successful with expected CodeSha256. Matthew authenticated manual smoke PASSED (admin login, Client Management page, client drawer, admin pet list). Phase 1B.3 frontend deployed to production with /my-pets route, card-click drawer interaction, accessible cards, and mobile bottom-sheet. Hook-order hotfix applied. Matthew confirmed production works: /admin loads, authentication transitions correctly, no React error #310, Client Management and Staff Management both open. Phase 1B.3 is COMPLETE and CLOSED. Phase 1B.4A-E Client Drawer Editor Consolidation has been fully implemented and test hardened locally, with 169 combined tests passing and production build compilation verified. Awaiting Kiro review for frontend deployment.**
 
 **Next options:**
-- Phase 1B.4: Client and Staff Drawer Editor Consolidation (1B.4A–E implemented locally, test hardening needed before deployment)
+- Obtain Kiro review approval for Phase 1B.4A–E frontend deployment.
+- Defer Phase 1B.4F–H (Staff drawer consolidation and closeout) to later release.
 - Begin Release 22ZD — Scheduler, Client Management, Platform Admin mobile polish (Phase 4 of 22Z plan)
 - Address 22Y remediation items (Cognito password-reset state handling, Google Calendar disconnect API Gateway fix) in a separate release.
 - Continue SaaS maturity priorities (blocked on EIN for Stripe live).

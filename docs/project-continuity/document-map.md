@@ -42,6 +42,7 @@
 | Phase 1B.3 authenticated validation closeout | `docs/release-notes/phase-1b3-authenticated-production-validation-closeout.md` |
 | Phase 1B.4 drawer editor consolidation plan | `docs/planning/phase-1b4-client-staff-drawer-editor-consolidation.md` |
 | Phase 1B.4A–E implementation review | `docs/release-notes/phase-1b4a-e-client-drawer-editor-implementation-review.md` |
+| Phase 1B.4A–E test hardening release notes | `docs/release-notes/phase-1b4a-e-client-drawer-test-hardening.md` |
 | Phase 1B.3 frontend production deployment | `docs/release-notes/phase-1b3-frontend-production-deployment.md` |
 | Phase 1B.3 admin hook-order hotfix pre-deploy | `docs/release-notes/phase-1b3-admin-hook-order-production-hotfix-predeploy.md` |
 | Phase 1B.3 admin hook-order hotfix deployment | `docs/release-notes/phase-1b3-admin-hook-order-production-hotfix-deployment.md` |
