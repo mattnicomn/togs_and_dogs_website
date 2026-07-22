@@ -3121,7 +3121,8 @@ const AdminDashboard = () => {
 
     if (currentClientId && currentClientId !== 'new') {
       setIsClientPetsLoading(true);
-      listAdminClientPets(currentClientId)
+      // Phase 1B.5B-A: Load all pets (active + archived) for staff pet management
+      listAdminClientPets(currentClientId, true)
         .then(resp => {
           if (currentSeq === clientPetRequestSeqRef.current && activeClientDetailIdRef.current === currentClientId) {
             const pets = (resp && Array.isArray(resp.pets) ? resp.pets : []).filter(p => p && p.pet_id);
@@ -3136,6 +3137,34 @@ const AdminDashboard = () => {
           }
         });
     }
+  };
+
+  // Phase 1B.5B-A: Pet CRUD handlers passed to ClientDetailDrawer
+  const handleDrawerPetCreate = async (clientId, petData) => {
+    const result = await createPet({ ...petData, client_id: clientId });
+    if (!result || !result.pet_id) throw new Error('Invalid response from server');
+    // Refresh the pet list in the drawer
+    try {
+      const resp = await listAdminClientPets(clientId, true);
+      const pets = (resp && Array.isArray(resp.pets) ? resp.pets : []).filter(p => p && p.pet_id);
+      setClientPets(pets);
+    } catch { /* non-fatal — pet was created */ }
+    showNotification(`Pet "${result.name || 'New pet'}" created successfully!`, 'success');
+    return result;
+  };
+
+  const handleDrawerPetUpdate = async (petId, clientId, petData) => {
+    const result = await updatePet(petId, clientId, petData);
+    if (!result || !result.pet_id) throw new Error('Invalid response from server');
+    // Refresh the pet list in the drawer
+    try {
+      const resp = await listAdminClientPets(clientId, true);
+      const pets = (resp && Array.isArray(resp.pets) ? resp.pets : []).filter(p => p && p.pet_id);
+      setClientPets(pets);
+    } catch { /* non-fatal */ }
+    const action = petData.is_active === false ? 'archived' : (petData.is_active === true ? 'restored' : 'updated');
+    showNotification(`Pet "${result.name || ''}" ${action}.`, 'success');
+    return result;
   };
 
   const handleSaveClient = async (e) => {
@@ -3363,7 +3392,7 @@ const AdminDashboard = () => {
           })}
         </div>
       </div>
-      {/* Phase 1B.1B & 1B.3: Client detail drawer */}
+      {/* Phase 1B.1B, 1B.3 & 1B.5B-A: Client detail drawer */}
       {clientDetailTarget && (
         <ClientDetailDrawer
           client={clientDetailTarget}
@@ -3387,6 +3416,9 @@ const AdminDashboard = () => {
           clientLinkPrompt={clientLinkPrompt}
           setClientLinkPrompt={setClientLinkPrompt}
           onLinkExistingClientOnboard={handleLinkExistingClientOnboard}
+          onPetCreate={handleDrawerPetCreate}
+          onPetUpdate={handleDrawerPetUpdate}
+          userRole={role}
         />
       )}
     </div>

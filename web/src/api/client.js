@@ -36,8 +36,12 @@ export const submitRequest = (data) => request('/requests', 'POST', data);
 // Release 6F: Admin-created booking (authenticated, owner/admin only)
 export const createAdminBooking = (data) => request('/client/requests', 'POST', { ...data, source: 'admin_created' }, true);
 
-// Release 6F: List pets for a specific client (admin only, for New Visit modal)
-export const listAdminClientPets = (clientId) => request(`/admin/pets?clientId=${encodeURIComponent(clientId)}`, 'GET', null, true);
+// Release 6F / 1B.5B-A: List pets for a specific client.
+// includeInactive=true returns both active and archived pets (staff/admin only).
+export const listAdminClientPets = (clientId, includeInactive = false) => {
+  const base = `/admin/pets?clientId=${encodeURIComponent(clientId)}`;
+  return request(includeInactive ? `${base}&includeInactive=true` : base, 'GET', null, true);
+};
 
 // Release 2: Public staff-options endpoint for preferred sitter selection.
 // Returns only sanitized display names — no sensitive data exposed.

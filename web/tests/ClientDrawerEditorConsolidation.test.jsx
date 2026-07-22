@@ -803,7 +803,8 @@ describe('Client Drawer Editor Consolidation - Hardened Component Tests', () => 
       await switchToClientMgmt();
       fireEvent.click(screen.getByRole('button', { name: /Client profile for Jane Doe/i }));
       
-      expect(listAdminClientPets).toHaveBeenCalledWith('client-jane');
+      // Phase 1B.5B-A: drawer now loads all pets (active + archived) via includeInactive=true
+      expect(listAdminClientPets).toHaveBeenCalledWith('client-jane', true);
     });
 
     it('2. returned pets render in the ClientDetailDrawer', async () => {
