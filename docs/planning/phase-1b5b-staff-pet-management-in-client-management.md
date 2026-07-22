@@ -1,8 +1,8 @@
 # Phase 1B.5B — Staff Pet Management in Client Management
 
 **Date:** 2026-07-22
-**Status:** Planning Complete — Awaiting Matthew Implementation Policy Approval
-**Type:** Frontend + bounded backend (delete-reference check)
+**Status:** Phase 1B.5B-A Implementation Complete — Awaiting Kiro Review
+**Type:** Frontend + bounded backend (staff pet management & includeInactive support)
 
 ---
 
