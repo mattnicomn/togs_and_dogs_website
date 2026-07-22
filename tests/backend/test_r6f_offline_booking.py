@@ -342,9 +342,10 @@ def test_client_pets_tenant_isolation():
     assert body["pets"][0]["name"] == "Buddy"
 
 
-def test_staff_cannot_list_client_pets():
-    """Staff role should not be allowed to list all pets of a client via admin route."""
+def test_staff_can_list_client_pets():
+    """Staff role should be allowed to list all pets of a client via admin route."""
     from handlers.pet_handler import handler as pet_handler
+    from unittest.mock import MagicMock, patch
     
     event = {
         "requestContext": {"authorizer": {"claims": {"cognito:groups": "Staff"}}},
@@ -353,10 +354,17 @@ def test_staff_cannot_list_client_pets():
         "queryStringParameters": {"clientId": "client_abc123"}
     }
     
-    resp = pet_handler(event, None)
-    # Rejects because path parameters (petId) is missing/None for GET and it is not a client role
-    assert resp["statusCode"] == 400
-    assert "Missing petId" in resp["body"]
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {"Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_abc123"}}
+    mock_table.query.return_value = {"Items": []}
+
+    with patch('common.db.table', mock_table), \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert "pets" in body
 
 
 def test_new_pet_is_active_behavior():
