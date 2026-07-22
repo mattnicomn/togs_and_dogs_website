@@ -350,3 +350,92 @@ def test_client_facing_get_pets_always_excludes_archived():
     body = json.loads(resp["body"])
     assert len(body["pets"]) == 1
     assert body["pets"][0]["name"] == "Buddy"
+
+@patch('common.db.table')
+@patch('handlers.pet_handler.get_item')
+@patch('handlers.pet_handler.put_item')
+def test_put_multiple_records_fails_safely_500(mock_put, mock_get, mock_table):
+    """PUT /admin/pets/{petId} returns 500 when multiple records exist for same pet partition."""
+    event = make_event(role='admin', method='PUT', path_params={"petId": "pet_corrupted"}, body={
+        "client_id": "client_123",
+        "name": "Buddy"
+    })
+
+    existing_pets = [
+        {"PK": "PET#pet_corrupted", "SK": "CLIENT#client_123", "client_id": "client_123", "company_id": "tog_and_dogs"},
+        {"PK": "PET#pet_corrupted", "SK": "CLIENT#client_456", "client_id": "client_456", "company_id": "tog_and_dogs"}
+    ]
+
+    mock_get.return_value = None
+    mock_table.get_item.return_value = {"Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123"}}
+    mock_table.query.return_value = {"Items": existing_pets}
+
+    with patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 500
+    mock_put.assert_not_called()
+
+@patch('common.db.table')
+@patch('handlers.pet_handler.get_item')
+@patch('handlers.pet_handler.put_item')
+def test_put_cross_tenant_pet_mismatch_denied(mock_put, mock_get, mock_table):
+    """PUT /admin/pets/{petId} returns 403 when pet belongs to another tenant."""
+    event = make_event(role='admin', method='PUT', path_params={"petId": "pet_other_tenant"}, body={
+        "client_id": "client_123",
+        "name": "Buddy"
+    })
+
+    other_tenant_pet = {
+        "PK": "PET#pet_other_tenant",
+        "SK": "CLIENT#client_other",
+        "pet_id": "pet_other_tenant",
+        "client_id": "client_other",
+        "company_id": "other_company"
+    }
+
+    mock_get.return_value = None
+    mock_table.get_item.return_value = {"Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123"}}
+    mock_table.query.return_value = {"Items": [other_tenant_pet]}
+
+    with patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 403
+    mock_put.assert_not_called()
+
+@patch('common.db.table')
+@patch('handlers.pet_handler.get_item')
+@patch('handlers.pet_handler.put_item')
+def test_put_preserves_pk_sk_client_id_company_id(mock_put, mock_get, mock_table):
+    """PUT /admin/pets/{petId} preserves original PK, SK, client_id, and company_id."""
+    event = make_event(role='admin', company_id='tog_and_dogs', method='PUT', path_params={"petId": "pet_abc"}, body={
+        "client_id": "client_123",
+        "name": "Buddy Preserved",
+        "company_id": "hacker_override"
+    })
+
+    existing_pet = {
+        "PK": "PET#pet_abc",
+        "SK": "CLIENT#client_123",
+        "pet_id": "pet_abc",
+        "client_id": "client_123",
+        "company_id": "tog_and_dogs",
+        "name": "Buddy"
+    }
+
+    mock_get.return_value = existing_pet
+    mock_table.get_item.return_value = {"Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123"}}
+    mock_table.query.return_value = {"Items": [existing_pet]}
+    mock_put.return_value = True
+
+    with patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    mock_put.assert_called_once()
+    saved_item = mock_put.call_args[0][0]
+    assert saved_item["PK"] == "PET#pet_abc"
+    assert saved_item["SK"] == "CLIENT#client_123"
+    assert saved_item["client_id"] == "client_123"
+    assert saved_item["company_id"] == "tog_and_dogs"

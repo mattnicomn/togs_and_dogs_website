@@ -173,48 +173,47 @@ def handler(event, context):
             from common.auth import get_current_company_id
             company_id = get_current_company_id(event)
 
-            if http_method == 'POST' and (not pet_id or pet_id == 'NEW'):
-                pet_id = str(uuid.uuid4())
-                existing_item = {}
-            else:
-                if not pet_id or pet_id == 'NEW':
-                    return bad_request("Missing petId for update", event)
-
-                existing_item = get_item(f"PET#{pet_id}", f"CLIENT#{client_id}") or {}
-                if existing_item and existing_item.get('client_id') != client_id:
-                    return bad_request("Cannot reassign client ownership of a pet", event)
-
-                if not existing_item:
-                    # Query by PK to check if the pet exists under any other client partition
-                    from boto3.dynamodb.conditions import Key
-                    from common.db import table as items_table
-                    query_resp = items_table.query(
-                        KeyConditionExpression=Key('PK').eq(f"PET#{pet_id}")
-                    )
-                    if isinstance(query_resp, dict) and "Items" in query_resp:
-                        items = query_resp.get('Items', [])
-                        if len(items) > 1:
-                            return error(500, "Inconsistent pet data state", event)
-                        elif len(items) == 1:
-                            other_pet = items[0]
-                            if other_pet.get('client_id') != client_id:
-                                return bad_request("Cannot reassign client ownership of a pet", event)
-                            existing_item = other_pet
-                        elif http_method == 'PUT':
-                            return not_found(f"Pet {pet_id} not found", event)
-                    elif http_method == 'PUT':
-                        return not_found(f"Pet {pet_id} not found", event)
-
-            # Release 11E: Indirect PET tenant validation — verify client belongs to caller's company
-            _cid_check = company_id
-            from common.db import table as _pet_put_table
-            _client_verify = _pet_put_table.get_item(Key={"PK": f"COMPANY#{_cid_check}", "SK": f"CLIENT#{client_id}"}).get('Item')
-            if not _client_verify:
+            # Step C: Client tenant validation BEFORE pet existence/ownership check
+            from common.db import table as items_table
+            client_verify = items_table.get_item(Key={"PK": f"COMPANY#{company_id}", "SK": f"CLIENT#{client_id}"}).get('Item')
+            if not client_verify:
                 from common.auth import get_claims as _gc
                 _cp = _gc(event)
                 print(f"SECURITY: Cross-tenant PET write attempt by {_cp.get('email')} for client {client_id}")
-                from common.response import error as _error
-                return _error(403, "Forbidden", event)
+                return error(403, "Forbidden", event)
+
+            # Step D: Pet resolution for POST vs PUT
+            if http_method == 'POST' or not pet_id or pet_id == 'NEW':
+                pet_id = str(uuid.uuid4())
+                existing_item = {}
+            else:
+                existing_item = get_item(f"PET#{pet_id}", f"CLIENT#{client_id}") or {}
+                if existing_item:
+                    if existing_item.get('client_id') != client_id:
+                        return bad_request("Cannot reassign client ownership of a pet", event)
+                    if existing_item.get('company_id') and existing_item.get('company_id') != company_id:
+                        return error(403, "Forbidden", event)
+                else:
+                    # Bounded partition-key Query by PK to check if pet exists under another client/tenant
+                    from boto3.dynamodb.conditions import Key
+                    query_resp = items_table.query(
+                        KeyConditionExpression=Key('PK').eq(f"PET#{pet_id}")
+                    )
+                    items = []
+                    if isinstance(query_resp, dict) and "Items" in query_resp:
+                        items = query_resp.get('Items', [])
+
+                    if len(items) > 1:
+                        return error(500, "Inconsistent pet data state", event)
+                    elif len(items) == 1:
+                        other_pet = items[0]
+                        if other_pet.get('company_id') and other_pet.get('company_id') != company_id:
+                            return error(403, "Forbidden", event)
+                        if other_pet.get('client_id') != client_id:
+                            return bad_request("Cannot reassign client ownership of a pet", event)
+                        existing_item = other_pet
+                    elif http_method == 'PUT':
+                        return not_found(f"Pet {pet_id} not found", event)
 
             is_new_record = not existing_item
             item = existing_item.copy()
