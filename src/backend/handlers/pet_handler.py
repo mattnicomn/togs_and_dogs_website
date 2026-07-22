@@ -19,35 +19,35 @@ def handler(event, context):
         http_method = event.get('httpMethod')
         path_params = event.get('pathParameters', {}) or {}
         pet_id = path_params.get('petId')
-        
+
         role = get_effective_role(event)
         path = event.get('path', '')
-        
+
         # Determine allowed roles
         allowed_roles = ['owner', 'admin', 'staff']
         if path.startswith('/client/'):
             allowed_roles.append('client')
-            
+
         if role not in allowed_roles:
             return error(403, "Forbidden", event)
-            
+
         if http_method == 'GET':
-            if path == '/client/pets' and role == 'client':
+            if path == '/client/pets':
                 from common.auth import resolve_client_identity
                 client_id = resolve_client_identity(event)
                 if not client_id:
-                    return success({"pets": []}, event)
-                
+                    return success({"pets": [], "message": "No local profile linked", "linked_profile": False}, event)
+
                 from common.auth import get_current_company_id
                 company_id = get_current_company_id(event)
-                
+
                 # Security: Validate the client exists under the trusted company
                 from common.db import table as items_table
                 client_key = {'PK': f"COMPANY#{company_id}", 'SK': f"CLIENT#{client_id}"}
                 client_resp = items_table.get_item(Key=client_key)
                 if 'Item' not in client_resp:
-                    return success({"pets": []}, event)
-                
+                    return success({"pets": [], "message": "No local profile linked", "linked_profile": False}, event)
+
                 # Query ClientPetIndex with pagination
                 from boto3.dynamodb.conditions import Key
                 query_kwargs = {
@@ -62,7 +62,7 @@ def handler(event, context):
                     if not last_key:
                         break
                     query_kwargs['ExclusiveStartKey'] = last_key
-                
+
                 # Result filtering
                 filtered_items = []
                 for p in items:
@@ -74,7 +74,7 @@ def handler(event, context):
                     if p.get('is_active') is False:
                         continue
                     filtered_items.append(p)
-                
+
                 sanitized_items = [sanitize_booking_for_role(item, 'client') for item in filtered_items]
                 return success({"pets": sanitized_items}, event)
 
@@ -125,14 +125,14 @@ def handler(event, context):
 
             if not pet_id:
                 return bad_request("Missing petId in path", event)
-            
+
             # Need client_id for SK. In dispatcher view, we likely have it.
             # If not provided, we might need a GSI lookup by PET_ID (PK) if it's unique across clients.
             # For now, assume client_id is passed as query param.
             client_id = (event.get('queryStringParameters', {}) or {}).get('clientId')
             if not client_id:
                 return bad_request("Missing clientId in query params", event)
-            
+
             item = get_item(f"PET#{pet_id}", f"CLIENT#{client_id}")
             if item:
                 # Release 11E: Indirect PET tenant validation — verify client belongs to caller's company
@@ -154,21 +154,21 @@ def handler(event, context):
             role = get_effective_role(event)
             if role not in ['owner', 'admin', 'staff']:
                 return error(403, "Forbidden", event)
-                
+
             body = json.loads(event.get('body', '{}'))
             client_id = body.get('client_id')
             request_id = body.get('request_id') # Extract request_id if passed
-            
+
             if role == 'staff':
                 sensitive_fields = ['meet_and_greet_notes', 'internal_pricing_notes', 'quote_amount', 'deposit_required']
                 for field in sensitive_fields:
                     if field in body:
                         del body[field]
 
-            
+
             if not client_id:
                 return bad_request("Missing client_id in body", event)
-            
+
             from common.auth import get_current_company_id
             company_id = get_current_company_id(event)
 
@@ -188,7 +188,7 @@ def handler(event, context):
                 print(f"SECURITY: Cross-tenant PET write attempt by {_cp.get('email')} for client {client_id}")
                 from common.response import error as _error
                 return _error(403, "Forbidden", event)
-            
+
             is_new_record = not existing_item
             item = existing_item.copy()
             item.update({
@@ -205,20 +205,20 @@ def handler(event, context):
             if is_new_record and 'is_active' not in body:
                 item['is_active'] = True
 
-            
+
             editable_fields = [
                 'name', 'breed', 'age', 'photo_url', 'care_instructions',
-                'behavior', 'logistics', 'health', 'document_links', 
-                'meet_and_greet_completed', 'meet_and_greet_required', 
-                'meet_and_greet_scheduled_at', 'meet_and_greet_completed_at', 
-                'meet_and_greet_notes', 'quote_amount', 'deposit_required', 
-                'deposit_paid', 'payment_status', 'quote_sent_date', 
+                'behavior', 'logistics', 'health', 'document_links',
+                'meet_and_greet_completed', 'meet_and_greet_required',
+                'meet_and_greet_scheduled_at', 'meet_and_greet_completed_at',
+                'meet_and_greet_notes', 'quote_amount', 'deposit_required',
+                'deposit_paid', 'payment_status', 'quote_sent_date',
                 'quote_accepted_date', 'quote_notes', 'internal_pricing_notes',
                 # Release 4: Per-pet structured fields
                 'species', 'feeding_notes', 'medication_notes', 'behavior_notes',
                 'vet_notes', 'emergency_notes', 'is_active'
             ]
-            
+
             for field in editable_fields:
                 if field in body:
                     val = body[field]
@@ -233,7 +233,7 @@ def handler(event, context):
                         except Exception:
                             pass # Fallback to original value if casting fails
                     item[field] = val
-            
+
             if put_item(item):
                 if request_id:
                     try:
@@ -252,12 +252,12 @@ def handler(event, context):
                         print(f"INFO: [Req:{request_id}] Linked Pet:{pet_id} to pet_ids array")
                     except Exception as link_err:
                         print(f"ERROR: [Req:{request_id}] Failed to link to Pet:{pet_id}: {link_err}")
-                
+
                 return success(item, event)
             return internal_error("Failed to save pet record", event)
 
         return bad_request(f"Unsupported method: {http_method}", event)
-            
+
     except Exception as e:
         print(f"Unhandled error in pet_handler: {e}")
         return internal_error(str(e), event)

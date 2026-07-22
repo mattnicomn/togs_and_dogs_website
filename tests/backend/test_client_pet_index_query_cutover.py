@@ -45,7 +45,7 @@ def mock_db_table():
 def test_admin_list_pets_canonical_client_found(mock_db_table):
     """Req 1: Mocks get_item client validation with correct PK/SK and returns success on success."""
     event = create_event("Admin", query_params={"clientId": "client_123"})
-    
+
     mock_db_table.get_item.return_value = {
         "Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs"}
     }
@@ -63,7 +63,7 @@ def test_admin_list_pets_canonical_client_found(mock_db_table):
 def test_admin_list_pets_canonical_client_missing(mock_db_table):
     """Req 2, 24: Client not found returns success empty list immediately without query/scan."""
     event = create_event("Admin", query_params={"clientId": "client_123"})
-    
+
     mock_db_table.get_item.return_value = {} # Item not in response
 
     with patch('handlers.pet_handler.table', mock_db_table), \
@@ -82,7 +82,7 @@ def test_admin_list_pets_cross_tenant_denial(mock_db_table):
        Ensures no query/scan is executed and no raw identifiers are logged on denial.
     """
     event = create_event("Admin", query_params={"clientId": "client_foreign"})
-    
+
     # Client exists in DB but not under caller's company (tog_and_dogs)
     # PK will be COMPANY#tog_and_dogs, SK=CLIENT#client_foreign. It returns None because it's not found in that company context.
     mock_db_table.get_item.return_value = {}
@@ -103,7 +103,7 @@ def test_admin_list_pets_cross_tenant_denial(mock_db_table):
     assert body == {"pets": []} # Silently returns empty list, does not expose cross-tenant existence
     mock_db_table.query.assert_not_called()
     mock_db_table.scan.assert_not_called()
-    
+
     # Assert logs/stdout don't leak identifiers
     log_output = stdout_capture.getvalue()
     assert "client_foreign" not in log_output
@@ -114,7 +114,7 @@ def test_admin_list_pets_cross_tenant_denial(mock_db_table):
 def test_query_configuration_parameters(mock_db_table):
     """Req 4, 5, 6, 7, 25: Verify query arguments: ClientPetIndex, key condition, no ConsistentRead, no scan fallback."""
     event = create_event("Admin", query_params={"clientId": "client_123"})
-    
+
     mock_db_table.get_item.return_value = {
         "Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs"}
     }
@@ -126,13 +126,13 @@ def test_query_configuration_parameters(mock_db_table):
 
     mock_db_table.query.assert_called_once()
     kwargs = mock_db_table.query.call_args[1]
-    
+
     # Assert GSI IndexName is exactly ClientPetIndex
     assert kwargs.get("IndexName") == "ClientPetIndex"
-    
+
     # Assert partition key targets client_id
     assert kwargs.get("KeyConditionExpression") == Key('client_id').eq('client_123')
-    
+
     # Assert ConsistentRead is not set or not True
     assert kwargs.get("ConsistentRead") is not True
 
@@ -145,7 +145,7 @@ def test_query_configuration_parameters(mock_db_table):
 def test_query_pagination_single_page(mock_db_table):
     """Req 8: Loop terminates on single page without LastEvaluatedKey."""
     event = create_event("Admin", query_params={"clientId": "client_123"})
-    
+
     mock_db_table.get_item.return_value = {
         "Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs"}
     }
@@ -167,11 +167,11 @@ def test_query_pagination_single_page(mock_db_table):
 def test_query_pagination_multiple_pages(mock_db_table):
     """Req 9: Loop processes multiple pages via ExclusiveStartKey and returns accumulated results."""
     event = create_event("Admin", query_params={"clientId": "client_123"})
-    
+
     mock_db_table.get_item.return_value = {
         "Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs"}
     }
-    
+
     # Mock query returning a second page
     mock_db_table.query.side_effect = [
         {"Items": [{"PK": "PET#pet_1", "SK": "CLIENT#client_123", "entity_type": "PET", "company_id": "tog_and_dogs", "is_active": True}], "LastEvaluatedKey": {"PK": "PET#pet_1", "SK": "CLIENT#client_123"}},
@@ -186,7 +186,7 @@ def test_query_pagination_multiple_pages(mock_db_table):
     body = json.loads(resp["body"])
     assert len(body["pets"]) == 2
     assert mock_db_table.query.call_count == 2
-    
+
     # Assert correct propagation of ExclusiveStartKey
     calls = mock_db_table.query.call_args_list
     assert "ExclusiveStartKey" not in calls[0][1]
@@ -196,11 +196,11 @@ def test_query_pagination_multiple_pages(mock_db_table):
 def test_query_pagination_empty_first_page(mock_db_table):
     """Req 10: Loop processes empty page with LastEvaluatedKey followed by populated page."""
     event = create_event("Admin", query_params={"clientId": "client_123"})
-    
+
     mock_db_table.get_item.return_value = {
         "Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs"}
     }
-    
+
     mock_db_table.query.side_effect = [
         {"Items": [], "LastEvaluatedKey": {"PK": "PET#dummy", "SK": "CLIENT#client_123"}},
         {"Items": [{"PK": "PET#pet_1", "SK": "CLIENT#client_123", "entity_type": "PET", "company_id": "tog_and_dogs", "is_active": True}]}
@@ -214,7 +214,7 @@ def test_query_pagination_empty_first_page(mock_db_table):
     body = json.loads(resp["body"])
     assert len(body["pets"]) == 1
     assert mock_db_table.query.call_count == 2
-    
+
     calls = mock_db_table.query.call_args_list
     assert calls[1][1]["ExclusiveStartKey"] == {"PK": "PET#dummy", "SK": "CLIENT#client_123"}
 
@@ -231,11 +231,11 @@ def test_company_id_and_is_active_filtering(mock_db_table):
        - Missing is_active: Included (default to active)
     """
     event = create_event("Admin", query_params={"clientId": "client_123"})
-    
+
     mock_db_table.get_item.return_value = {
         "Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs"}
     }
-    
+
     mock_pets = [
         {"PK": "PET#p1", "SK": "CLIENT#client_123", "entity_type": "PET", "company_id": "tog_and_dogs", "is_active": True}, # OK
         {"PK": "PET#p2", "SK": "CLIENT#client_123", "entity_type": "PET", "company_id": "tog_and_dogs"}, # missing is_active (default True) -> OK
@@ -263,7 +263,7 @@ def test_company_id_and_is_active_filtering(mock_db_table):
 def test_admin_response_contract_format(mock_db_table):
     """Req 18: Admin path returns 200, {"pets": [...]}, and no pagination token or metadata."""
     event = create_event("Admin", query_params={"clientId": "client_123"})
-    
+
     mock_db_table.get_item.return_value = {
         "Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs"}
     }
@@ -284,11 +284,11 @@ def test_client_portal_response_contract_format(mock_db_table):
     """Req 19: Client portal path returns 200, {"pets": [...]}, and sanitizes fields (e.g. quote_amount, internal_pricing_notes)."""
     # Create client event
     event = create_event("Client", path="/client/pets", client_id="client_123")
-    
+
     mock_db_table.get_item.return_value = {
         "Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs"}
     }
-    
+
     # Mock client resolve identity
     mock_pets = [
         {
@@ -314,7 +314,7 @@ def test_client_portal_response_contract_format(mock_db_table):
     body = json.loads(resp["body"])
     assert "pets" in body
     assert len(body["pets"]) == 1
-    
+
     pet = body["pets"][0]
     assert pet["name"] == "Buddy"
     # Verify client role sanitization: sensitive fields are set to None
@@ -387,7 +387,7 @@ def test_internal_helper_callers_pass_company_id(mock_db_table):
 def test_handler_query_exception_returns_safe_error(mock_db_table):
     """Req 22: Handler catches DynamoDB exceptions on query and returns 500 error response without Scan fallback."""
     event = create_event("Admin", query_params={"clientId": "client_123"})
-    
+
     mock_db_table.get_item.return_value = {
         "Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs"}
     }
@@ -413,3 +413,242 @@ def test_helper_query_exception_fallback(mock_db_table):
 
     assert pets == []
     mock_db_table.scan.assert_not_called()
+
+
+# --- Phase 1B.5A.1 GET /client/pets Route & Branching Tests ---
+
+def test_linked_client_list_success(mock_db_table):
+    """1. Linked client GET /client/pets returns the client's pets."""
+    event = create_event("Client", path="/client/pets")
+
+    mock_db_table.get_item.return_value = {
+        "Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs"}
+    }
+    mock_db_table.query.return_value = {
+        "Items": [
+            {"PK": "PET#pet1", "SK": "CLIENT#client_123", "entity_type": "PET", "company_id": "tog_and_dogs", "name": "Buddy", "is_active": True}
+        ]
+    }
+
+    with patch('handlers.pet_handler.table', mock_db_table), \
+         patch('common.auth.resolve_client_identity', return_value="client_123"), \
+         patch('common.auth.get_current_company_id', return_value="tog_and_dogs"), \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert "pets" in body
+    assert len(body["pets"]) == 1
+    assert body["pets"][0]["name"] == "Buddy"
+
+
+def test_linked_client_list_tenant_scoped(mock_db_table):
+    """2. Linked client response remains tenant-scoped (filters out cross-tenant pets)."""
+    event = create_event("Client", path="/client/pets")
+
+    mock_db_table.get_item.return_value = {
+        "Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs"}
+    }
+    mock_db_table.query.return_value = {
+        "Items": [
+            {"PK": "PET#pet1", "SK": "CLIENT#client_123", "entity_type": "PET", "company_id": "tog_and_dogs", "name": "Buddy", "is_active": True},
+            {"PK": "PET#pet2", "SK": "CLIENT#client_123", "entity_type": "PET", "company_id": "other_company", "name": "Spy", "is_active": True}
+        ]
+    }
+
+    with patch('handlers.pet_handler.table', mock_db_table), \
+         patch('common.auth.resolve_client_identity', return_value="client_123"), \
+         patch('common.auth.get_current_company_id', return_value="tog_and_dogs"), \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert len(body["pets"]) == 1
+    assert body["pets"][0]["name"] == "Buddy"
+
+
+def test_linked_client_list_sanitized(mock_db_table):
+    """3. Linked client response remains sanitized for client visibility."""
+    event = create_event("Client", path="/client/pets")
+
+    mock_db_table.get_item.return_value = {
+        "Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs"}
+    }
+    mock_db_table.query.return_value = {
+        "Items": [
+            {"PK": "PET#pet1", "SK": "CLIENT#client_123", "entity_type": "PET", "company_id": "tog_and_dogs", "name": "Buddy", "is_active": True, "internal_pricing_notes": "sensitive", "quote_amount": 100}
+        ]
+    }
+
+    with patch('handlers.pet_handler.table', mock_db_table), \
+         patch('common.auth.resolve_client_identity', return_value="client_123"), \
+         patch('common.auth.get_current_company_id', return_value="tog_and_dogs"), \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    pet = body["pets"][0]
+    assert pet["name"] == "Buddy"
+    assert "internal_pricing_notes" not in pet or pet["internal_pricing_notes"] is None
+
+
+def test_linked_client_list_empty(mock_db_table):
+    """4. Linked client with no pets returns HTTP 200 and pets: []."""
+    event = create_event("Client", path="/client/pets")
+
+    mock_db_table.get_item.return_value = {
+        "Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs"}
+    }
+    mock_db_table.query.return_value = {"Items": []}
+
+    with patch('handlers.pet_handler.table', mock_db_table), \
+         patch('common.auth.resolve_client_identity', return_value="client_123"), \
+         patch('common.auth.get_current_company_id', return_value="tog_and_dogs"), \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["pets"] == []
+    assert "message" not in body or body["message"] is None
+
+
+def test_unlinked_client_list(mock_db_table):
+    """5. Unlinked client identity returns HTTP 200, pets: [], and unlinked message/status."""
+    event = create_event("Client", path="/client/pets")
+
+    with patch('handlers.pet_handler.table', mock_db_table), \
+         patch('common.auth.resolve_client_identity', return_value=None), \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["pets"] == []
+    assert body["message"] == "No local profile linked"
+    assert body["linked_profile"] is False
+
+
+def test_owner_client_list_unlinked(mock_db_table):
+    """6. Owner identity requesting GET /client/pets receives the same safe unlinked contract."""
+    event = create_event("Owner", path="/client/pets")
+
+    with patch('handlers.pet_handler.table', mock_db_table), \
+         patch('common.auth.resolve_client_identity', return_value=None), \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["pets"] == []
+    assert body["message"] == "No local profile linked"
+    assert body["linked_profile"] is False
+
+
+def test_admin_client_list_unlinked(mock_db_table):
+    """7. Admin identity requesting GET /client/pets receives the same safe unlinked contract."""
+    event = create_event("Admin", path="/client/pets")
+
+    with patch('handlers.pet_handler.table', mock_db_table), \
+         patch('common.auth.resolve_client_identity', return_value=None), \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["pets"] == []
+    assert body["message"] == "No local profile linked"
+    assert body["linked_profile"] is False
+
+
+def test_client_list_never_missing_pet_id(mock_db_table):
+    """8. GET /client/pets never returns 'Missing petId in path'."""
+    # Even if client resolution fails completely, it should return unlinked response, not "Missing petId in path"
+    event = create_event("Client", path="/client/pets")
+
+    with patch('handlers.pet_handler.table', mock_db_table), \
+         patch('common.auth.resolve_client_identity', return_value=None), \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert "Missing petId in path" not in resp.get("body", "")
+    assert body["message"] == "No local profile linked"
+
+
+def test_admin_pets_query_param_unchanged(mock_db_table):
+    """9. GET /admin/pets?clientId remains unchanged."""
+    event = create_event("Admin", path="/admin/pets", query_params={"clientId": "client_123"})
+
+    mock_db_table.get_item.return_value = {
+        "Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs"}
+    }
+    mock_db_table.query.return_value = {"Items": []}
+
+    with patch('handlers.pet_handler.table', mock_db_table), \
+         patch('common.auth.get_current_company_id', return_value="tog_and_dogs"), \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert "pets" in body
+
+
+def test_admin_pet_detail_unchanged(mock_db_table):
+    """10. GET /admin/pets/{petId} remains unchanged."""
+    event = create_event("Admin", path="/admin/pets/pet_123", query_params={"clientId": "client_123"})
+    event["pathParameters"] = {"petId": "pet_123"}
+
+    mock_db_table.get_item.side_effect = [
+        {"Item": {"PK": "PET#pet_123", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs", "name": "Buddy"}},
+        {"Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs"}}
+    ]
+
+    with patch('handlers.pet_handler.table', mock_db_table), \
+         patch('common.auth.get_current_company_id', return_value="tog_and_dogs"), \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["name"] == "Buddy"
+
+
+def test_cross_tenant_admin_detail_denied(mock_db_table):
+    """11. Cross-tenant admin/client pet access remains denied or filtered according to existing rules."""
+    # Try accessing a pet belonging to client_123, but caller belongs to different company
+    event = create_event("Admin", path="/admin/pets/pet_123", query_params={"clientId": "client_123"})
+    event["pathParameters"] = {"petId": "pet_123"}
+
+    # First call: get PET record
+    # Second call: get CLIENT record (it returns None or company mismatch)
+    mock_db_table.get_item.side_effect = [
+        {"Item": {"PK": "PET#pet_123", "SK": "CLIENT#client_123", "company_id": "tog_and_dogs", "name": "Buddy"}},
+        {} # CLIENT verify fails safely by returning empty dict
+    ]
+
+    with patch('handlers.pet_handler.table', mock_db_table), \
+         patch('common.auth.get_current_company_id', return_value="other_company"), \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 403
+
+
+def test_malformed_detail_requests_missing_client_id(mock_db_table):
+    """12. Malformed detail requests (missing clientId query parameter) still use the existing safe detail error path."""
+    event = create_event("Admin", path="/admin/pets/pet_123") # No clientId in query params
+    event["pathParameters"] = {"petId": "pet_123"}
+
+    with patch('handlers.pet_handler.table', mock_db_table), \
+         patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert body["error"] == "Missing clientId in query params"
