@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-22 (Phase 1B.5A.1 Hotfix Deployed — Pending Matthew Authenticated Validation)
+**Last Updated:** 2026-07-22 (Phase 1B.5A & 1B.5A.1 Complete; Phase 1B.5B Planned)
 
 ---
 
@@ -123,9 +123,9 @@
 **Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes. Release 22ZA implemented the mobile responsive foundation and accessible slide-out navigation drawer (pre-deploy validated). Release 22ZB implemented the full-screen Profile Editor mobile sheet layout (pre-deploy validated). Release 22ZC added keyboard-accessible stat cards, responsive filter controls stacking, and accessible data-label column labels on mobile request cards (pre-deploy validated). Phase 1B.2A backend-only Lambda package apply completed successfully, deploying the pet creation is_active hardening code to production. Phase 1B.2A ClientPetIndex GSI-only apply completed successfully, creating the global secondary database index in production (index backfilled and status ACTIVE). Phase 1B.2A ClientPetIndex query cutover deployed to production on 2026-07-20 (0 added, 13 changed, 0 destroyed). All 13 Lambda functions verified Active/Successful with expected CodeSha256. Matthew authenticated manual smoke PASSED (admin login, Client Management page, client drawer, admin pet list). Phase 1B.3 frontend deployed to production with /my-pets route, card-click drawer interaction, accessible cards, and mobile bottom-sheet. Hook-order hotfix applied. Matthew confirmed production works. Phase 1B.3 COMPLETE and CLOSED. Phase 1B.4A–E Client Drawer Editor Consolidation deployed to production. Matthew confirmed drawer View/Edit/Create experience works correctly, inline editor retired, Staff Management unaffected. Phase 1B.4A–E COMPLETE and CLOSED. Phase 1B.4F–H remain deferred. Phase 1B.5 (Pet Management and Client–Pet Association) is active. Phase 1B.5A (Authoritative Client Drawer Pet Loading) deployed to production on 2026-07-21. Bundle changed from index-B-lRTVkt.js to index-B9b14KXI.js. CloudFront invalidation I5N3QUSW8OFBB5SU4UA5IJE302 completed. All 178 tests pass. Authenticated validation pending Matthew. Latest completed production release remains Phase 1B.4A–E until validation passes. Phase 1B.5A.1 (My Pets List and Status Hotfix) resolved the raw Missing petId in path error on /my-pets for unlinked/admin users and corrected the Active badge contrast in dark mode. Locally implemented and reviewed. Terraform apply completed (0 added, 13 changed, 0 destroyed) and web/dist synced to S3 with CloudFront invalidated (invalidation Completed). Authenticated validation remains pending Matthew. Phase 1B.5B and later slices have not started.**
 
 **Next options:**
-- Phase 1B.5A.1: Matthew authenticated portal validation (READY FOR MATTHEW)
-- Phase 1B.5A: Matthew authenticated admin smoke validation (READY FOR MATTHEW)
-- Phase 1B.5B–D: Pet Management and Client–Pet Association backend/frontend implementation (planned, pending Phase 1B.5A validation closeout)
+- Phase 1B.5B: Staff Pet Management in Client Management (planning complete, awaiting Matthew implementation policy approval)
+- Phase 1B.5C: Customer self-service pet editing (deferred)
+- Phase 1B.5D–E: Lifecycle safeguards and booking integration (deferred)
 - Address remaining Phase 1B.4F–H staff drawer alignment (deferred, low priority)
 - Begin Release 22ZD — Scheduler, Client Management, Platform Admin mobile polish (Phase 4 of 22Z plan)
 - Address 22Y remediation items (Cognito password-reset state handling, Google Calendar disconnect API Gateway fix) in a separate release.
