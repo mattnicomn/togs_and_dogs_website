@@ -3,6 +3,7 @@
 This index tracks the evolution of the Tog and Dogs application, including structural changes, security hardening, and operational remediation.
 
 ## 🌟 Featured / Recent
+- [**Phase 1B.5B-A: Pet PUT Validation Order Correction**](phase-1b5b-a-put-validation-order-correction.md) (2026-07-22) — ✅ **COMPLETE (LOCAL)** — Restored client tenant validation sequence before pet existence resolution in `pet_handler.py`. Restored same-tenant 200 and cross-tenant 403 status codes. Resolved candidate regressions.
 - [**Phase 1B.5B-A: Staff Pet Editor Implementation**](phase-1b5b-a-staff-pet-editor-implementation.md) (2026-07-22) — ✅ **COMPLETE (LOCAL)** — Embedded pet view, create, edit, archive, restore, and duplicate warning into Client Detail Drawer. Extended backend staff pet management permissions and includeInactive support.
 - [**Phase 1B.5A & 1B.5A.1: Authenticated Production Validation Closeout**](phase-1b5a-and-1b5a1-authenticated-production-validation-closeout.md) (2026-07-22) — ✅ **CLOSED** — Matthew validated: admin guidance, pet lists, dark-mode badges, no regressions. Both slices complete.
 - [**Phase 1B.5A.1: My Pets Hotfix Production Deployment Record**](phase-1b5a1-my-pets-hotfix-production-deployment.md) (2026-07-22) — ✅ **DEPLOYED & VALIDATED** — Applied saved Terraform plan to update 13 Lambdas in-place. Synced build to S3 and invalidated CloudFront. Authenticated validation PASSED.

@@ -1,7 +1,7 @@
 # Phase 1B.5B — Staff Pet Management in Client Management
 
 **Date:** 2026-07-22
-**Status:** Phase 1B.5B-A Implementation Complete — Awaiting Kiro Review
+**Status:** Phase 1B.5B-A Local Correction Complete — Awaiting Kiro Re-review
 **Type:** Frontend + bounded backend (staff pet management & includeInactive support)
 
 ---
