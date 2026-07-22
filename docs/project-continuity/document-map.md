@@ -50,6 +50,7 @@
 | Phase 1B.5A.1 pet hotfix release notes | `docs/release-notes/phase-1b5a1-my-pets-list-and-status-hotfix-implementation.md` |
 | Phase 1B.5A.1 pet hotfix review | `docs/release-notes/phase-1b5a1-my-pets-list-and-status-hotfix-review.md` |
 | Phase 1B.5A.1 pet hotfix deployment plan | `docs/release-notes/phase-1b5a1-my-pets-hotfix-deployment-readiness.md` |
+| Phase 1B.5A.1 pet hotfix deployment record | `docs/release-notes/phase-1b5a1-my-pets-hotfix-production-deployment.md` |
 | Phase 1B.4A–E test hardening release notes | `docs/release-notes/phase-1b4a-e-client-drawer-test-hardening.md` |
 | Phase 1B.4A–E test hardening review | `docs/release-notes/phase-1b4a-e-client-drawer-test-hardening-review.md` |
 | Phase 1B.4A–E frontend production deployment | `docs/release-notes/phase-1b4a-e-client-drawer-frontend-production-deployment.md` |
