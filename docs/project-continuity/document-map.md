@@ -47,6 +47,7 @@
 | Phase 1B.5A pet loading release notes | `docs/release-notes/phase-1b5a-authoritative-client-pet-loading.md` |
 | Phase 1B.5A pet loading review | `docs/release-notes/phase-1b5a-authoritative-client-pet-loading-review.md` |
 | Phase 1B.5A production deployment | `docs/release-notes/phase-1b5a-authoritative-client-pet-loading-production-deployment.md` |
+| Phase 1B.5A.1 pet hotfix release notes | `docs/release-notes/phase-1b5a1-my-pets-list-and-status-hotfix-implementation.md` |
 | Phase 1B.4A–E test hardening release notes | `docs/release-notes/phase-1b4a-e-client-drawer-test-hardening.md` |
 | Phase 1B.4A–E test hardening review | `docs/release-notes/phase-1b4a-e-client-drawer-test-hardening-review.md` |
 | Phase 1B.4A–E frontend production deployment | `docs/release-notes/phase-1b4a-e-client-drawer-frontend-production-deployment.md` |
