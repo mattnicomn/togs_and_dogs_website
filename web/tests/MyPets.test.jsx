@@ -105,7 +105,7 @@ describe('MyPets Component Tests', () => {
     render(<MyPets />);
 
     await waitFor(() => {
-      expect(screen.getByText('Network Error')).toBeInTheDocument();
+      expect(screen.getByText('Failed to load pets. Please try again.')).toBeInTheDocument();
     });
   });
 
@@ -120,7 +120,7 @@ describe('MyPets Component Tests', () => {
     render(<MyPets />);
 
     await waitFor(() => {
-      expect(screen.getByText('Network Error')).toBeInTheDocument();
+      expect(screen.getByText('Failed to load pets. Please try again.')).toBeInTheDocument();
     });
 
     const retryBtn = screen.getByRole('button', { name: /retry/i });
@@ -234,5 +234,51 @@ describe('MyPets Component Tests', () => {
     // The wrapper of the loading/error/empty elements has aria-live="polite"
     const liveRegion = container.querySelector('[aria-live="polite"]');
     expect(liveRegion).toBeInTheDocument();
+  });
+
+  it('12. unlinked client-role identity renders client support message', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'client@example.com' } } });
+    getEffectiveRole.mockReturnValue('client');
+    getClientPets.mockResolvedValue({ pets: [], message: 'No local profile linked', linked_profile: false });
+
+    render(<MyPets />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Your portal account is not yet linked to a client profile. Please contact support.')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+  });
+
+  it('13. unlinked owner/admin-role identity renders administrative warning and redirect link', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'admin@usmissionhero.com' } } });
+    getEffectiveRole.mockReturnValue('admin');
+    getClientPets.mockResolvedValue({ pets: [], message: 'No local profile linked', linked_profile: false });
+
+    render(<MyPets />);
+
+    await waitFor(() => {
+      expect(screen.getByText('You are signed in as an administrator. My Pets is for linked client accounts. Use Client Management to view and manage client pets.')).toBeInTheDocument();
+    });
+
+    const link = screen.getByRole('link', { name: /go to admin dashboard/i });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute('href', '/admin');
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+  });
+
+  it('14. transient API failure shows safe generic message and retry, never raw internals', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'client@example.com' } } });
+    getEffectiveRole.mockReturnValue('client');
+    getClientPets.mockRejectedValue(new Error('Missing petId in path'));
+
+    render(<MyPets />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to load pets. Please try again.')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Missing petId in path')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 });

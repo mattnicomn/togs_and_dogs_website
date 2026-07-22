@@ -14,10 +14,6 @@ const MyPets = () => {
   const [error, setError] = useState(null);
   const [apiError, setApiError] = useState(null);
 
-  useEffect(() => {
-    checkSession();
-  }, []);
-
   const checkSession = async () => {
     try {
       setLoading(true);
@@ -27,38 +23,51 @@ const MyPets = () => {
         if (['owner', 'admin', 'client'].includes(role)) {
           setSession(s);
           setUserRole(role);
-          await fetchMyPets();
+          await fetchMyPets(role);
         } else {
           setError("Access denied. Staff members must use the Staff Portal.");
           setSession(null);
+          setLoading(false);
         }
+      } else {
+        setLoading(false);
       }
     } catch (e) {
       console.error("No session", e);
-    } finally {
       setLoading(false);
     }
   };
 
-  const fetchMyPets = async () => {
+  const fetchMyPets = async (resolvedRole = null) => {
     try {
       setLoading(true);
       setApiError(null);
       const data = await getClientPets();
-      if (data.message === "No local profile linked") {
+      if (data.message === "No local profile linked" || data.linked_profile === false) {
         setPets([]);
-        setError("Your portal account is not yet linked to a client profile. Please contact support.");
+        const activeRole = resolvedRole || userRole;
+        if (activeRole && ['owner', 'admin'].includes(activeRole)) {
+          setError("You are signed in as an administrator. My Pets is for linked client accounts. Use Client Management to view and manage client pets.");
+        } else {
+          setError("Your portal account is not yet linked to a client profile. Please contact support.");
+        }
       } else {
         setPets(sanitizePetsList(data.pets || []));
         setError(null);
       }
     } catch (err) {
       console.error("Fetch pets failed", err);
-      setApiError(err.message || "Failed to load pets. Please try again.");
+      setApiError("Failed to load pets. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    checkSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!session) {
     return (
@@ -78,11 +87,14 @@ const MyPets = () => {
               setSession(s);
               setUserRole(role);
               setError(null);
-              // fetch pets will run in a separate step or directly here
               const data = await getClientPets();
-              if (data.message === "No local profile linked") {
+              if (data.message === "No local profile linked" || data.linked_profile === false) {
                 setPets([]);
-                setError("Your portal account is not yet linked to a client profile. Please contact support.");
+                if (role && ['owner', 'admin'].includes(role)) {
+                  setError("You are signed in as an administrator. My Pets is for linked client accounts. Use Client Management to view and manage client pets.");
+                } else {
+                  setError("Your portal account is not yet linked to a client profile. Please contact support.");
+                }
               } else {
                 setPets(sanitizePetsList(data.pets || []));
               }
@@ -146,13 +158,18 @@ const MyPets = () => {
         ) : apiError ? (
           <div className="card error-card" style={{ padding: '24px', textAlign: 'center' }}>
             <p className="error-text" style={{ color: 'var(--warning-color)', marginBottom: '16px' }}>{apiError}</p>
-            <button onClick={fetchMyPets} className="button-secondary" style={{ padding: '8px 16px' }}>
+            <button onClick={() => fetchMyPets()} className="button-secondary" style={{ padding: '8px 16px' }}>
               Retry
             </button>
           </div>
         ) : error ? (
           <div className="card error-card" style={{ padding: '24px', textAlign: 'center' }}>
             <p className="error-text">{error}</p>
+            {userRole && ['owner', 'admin'].includes(userRole) && (
+              <div style={{ marginTop: '20px' }}>
+                <a href="/admin" className="button-primary">Go to Admin Dashboard</a>
+              </div>
+            )}
           </div>
         ) : pets.length === 0 ? (
           <div className="card empty-bookings-card" style={{ padding: '40px', textAlign: 'center' }}>
