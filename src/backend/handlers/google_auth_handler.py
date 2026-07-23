@@ -7,7 +7,7 @@ import urllib.request
 import boto3
 from common.response import success, error, bad_request, internal_error, ALLOWED_ORIGINS
 from common.db import table
-from common.auth import get_claims
+from common.auth import get_claims, get_effective_role
 from common.entitlement import EntitlementDenied
 
 
@@ -145,6 +145,10 @@ def disconnect_auth(event):
     DELETE /admin/auth/google
     Clears the stored tokens in Secrets Manager to disconnect Google Calendar.
     """
+    role = get_effective_role(event)
+    if role not in ['owner', 'admin']:
+        return error(403, "Forbidden: Insufficient permissions to manage calendar integration.", event)
+
     company_id = get_company_id_safe(event)
     from common.google_calendar import resolve_google_token_secret_name
     secret_name = resolve_google_token_secret_name(company_id)
@@ -176,6 +180,10 @@ def initiate_auth(event):
     GET /admin/auth/google
     Generates auth URL and stores state in DynamoDB.
     """
+    role = get_effective_role(event)
+    if role not in ['owner', 'admin']:
+        return error(403, "Forbidden: Insufficient permissions to manage calendar integration.", event)
+
     try:
         from common.auth import get_current_company_id
         company_id = get_current_company_id(event)

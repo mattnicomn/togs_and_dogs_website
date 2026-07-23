@@ -170,6 +170,7 @@ const AdminDashboard = () => {
     canManageStaff: ['owner', 'admin'].includes(role),
     canManageClients: ['owner', 'admin'].includes(role),
     canExportData: ['owner', 'admin'].includes(role),
+    canManageGoogleCalendarIntegration: ['owner', 'admin'].includes(role),
   };
 
   useEffect(() => {
@@ -3526,7 +3527,7 @@ const AdminDashboard = () => {
               {googleStatus === 'NOT_CONNECTED' && 'Google Calendar is not connected. Connect calendar to enable automatic sitter schedule sync.'}
             </span>
           </div>
-          {googleStatus !== 'CREDENTIALS_MISSING' && (
+          {googleStatus !== 'CREDENTIALS_MISSING' && capabilities.canManageGoogleCalendarIntegration && (
             <button 
               onClick={handleConnectGoogle}
               className="btn-small" 
@@ -3747,7 +3748,9 @@ const AdminDashboard = () => {
                         Shared business calendar — individual calendar connections are not available yet.
                       </p>
                     ) : (
-                      <button onClick={handleConnectGoogle} className="btn-small primary" style={{ flex: 1 }}>Connect Calendar</button>
+                      capabilities.canManageGoogleCalendarIntegration && (
+                        <button onClick={handleConnectGoogle} className="btn-small primary" style={{ flex: 1 }}>Connect Calendar</button>
+                      )
                     )}
                   </div>
 
