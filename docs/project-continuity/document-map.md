@@ -53,6 +53,7 @@
 | Phase 1B.5B-A.1 staff pet editor hotfix deployment readiness | `docs/release-notes/phase-1b5b-a1-pet-edit-save-hotfix-deployment-readiness.md` |
 | Phase 1B.5B-A.1 staff pet editor hotfix production deployment | `docs/release-notes/phase-1b5b-a1-pet-edit-save-hotfix-production-deployment.md` |
 | Phase 1B.5B-A.1 Google Calendar access control remediation | `docs/release-notes/phase-1b5b-a1-google-calendar-access-control-remediation.md` |
+| Phase 1B.5B-A.1 Google Calendar RBAC deployment readiness | `docs/release-notes/phase-1b5b-a1-google-calendar-rbac-deployment-readiness.md` |
 | Phase 1B.5A pet loading release notes | `docs/release-notes/phase-1b5a-authoritative-client-pet-loading.md` |
 | Phase 1B.5A pet loading review | `docs/release-notes/phase-1b5a-authoritative-client-pet-loading-review.md` |
 | Phase 1B.5A production deployment | `docs/release-notes/phase-1b5a-authoritative-client-pet-loading-production-deployment.md` |
