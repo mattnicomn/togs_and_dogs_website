@@ -243,14 +243,16 @@ describe('Phase 1B.5B-A Staff Pet Management - ClientDetailDrawer Subview', () =
     expect(screen.getByText('Client Overview')).toBeInTheDocument();
   });
 
-  it('12. ordinary edit preserves active status, maps fields correctly, and passes update action', async () => {
+  it('12. ordinary edit preserves active status, maps fields correctly, passes update action, and color/weight are not editable or sent', async () => {
     render(<ClientDetailDrawer {...defaultProps} />);
     fireEvent.click(screen.getAllByRole('button', { name: /View/i })[0]); // Buddy (active)
     fireEvent.click(screen.getByRole('button', { name: /Edit Pet/i }));
 
+    // Prove color and weight are not displayed as editable staff fields
+    expect(screen.queryByLabelText(/Color \/ Markings/i)).toBeNull();
+    expect(screen.queryByLabelText(/Weight \(lbs\)/i)).toBeNull();
+
     fireEvent.change(screen.getByLabelText(/Breed/i), { target: { value: 'Golden Mix' } });
-    fireEvent.change(screen.getByLabelText(/Color \/ Markings/i), { target: { value: 'Gold/Yellow' } });
-    fireEvent.change(screen.getByLabelText(/Weight \(lbs\)/i), { target: { value: '70' } });
     fireEvent.change(screen.getByLabelText(/Medical Notes/i), { target: { value: 'Allergy to bees' } });
     fireEvent.change(screen.getByLabelText(/Behavioral Notes/i), { target: { value: 'Loves treats' } });
     fireEvent.change(screen.getByLabelText(/Vet Name/i), { target: { value: 'Dr. Adams' } });
@@ -259,22 +261,26 @@ describe('Phase 1B.5B-A Staff Pet Management - ClientDetailDrawer Subview', () =
     fireEvent.click(screen.getByRole('button', { name: /Save Pet/i }));
 
     await waitFor(() => {
-      expect(defaultProps.onPetUpdate).toHaveBeenCalledWith(
-        'pet-1',
-        'client-jane',
-        expect.objectContaining({
-          breed: 'Golden Mix',
-          color: 'Gold/Yellow',
-          weight: '70',
-          medication_notes: 'Allergy to bees',
-          behavior_notes: 'Loves treats',
-          health: {
-            vet_name: 'Dr. Adams',
-            vet_phone: '555-9999'
-          }
-        }),
-        'update'
-      );
+      expect(defaultProps.onPetUpdate).toHaveBeenCalled();
+      const calls = defaultProps.onPetUpdate.mock.calls;
+      expect(calls.length).toBe(1);
+      const [petId, clientId, payload, action] = calls[0];
+      expect(petId).toBe('pet-1');
+      expect(clientId).toBe('client-jane');
+      expect(action).toBe('update');
+      
+      // Verify correct fields map
+      expect(payload.breed).toBe('Golden Mix');
+      expect(payload.medication_notes).toBe('Allergy to bees');
+      expect(payload.behavior_notes).toBe('Loves treats');
+      expect(payload.health).toEqual(expect.objectContaining({
+        vet_name: 'Dr. Adams',
+        vet_phone: '555-9999'
+      }));
+
+      // Verify color and weight are NOT in the payload
+      expect(payload.color).toBeUndefined();
+      expect(payload.weight).toBeUndefined();
     });
   });
 

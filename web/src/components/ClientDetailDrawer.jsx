@@ -185,11 +185,10 @@ const ClientDetailDrawer = ({
         name: petForm.name,
         species: petForm.species,
         breed: petForm.breed,
-        color: petForm.color,
-        weight: petForm.weight ? String(petForm.weight) : undefined,
         medication_notes: petForm.medical_notes,
         behavior_notes: petForm.behavioral_notes,
         health: {
+          ...(petSubview?.health || {}),
           vet_name: petForm.vet_name,
           vet_phone: petForm.vet_phone,
         },
@@ -466,40 +465,20 @@ const ClientDetailDrawer = ({
               </div>
 
               {/* Color */}
-              <div className="field">
-                <label htmlFor="pet-color-field">Color / Markings</label>
-                {isFormMode ? (
-                  <input
-                    id="pet-color-field"
-                    type="text"
-                    value={petForm.color}
-                    onChange={(e) => handlePetFieldChange('color', e.target.value)}
-                    placeholder="e.g. Golden"
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.9rem' }}
-                  />
-                ) : (
+              {!isFormMode && (
+                <div className="field">
+                  <label htmlFor="pet-color-field">Color / Markings</label>
                   <span style={{ fontSize: '0.9rem' }}>{petForm.color || '—'}</span>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Weight */}
-              <div className="field">
-                <label htmlFor="pet-weight-field">Weight (lbs)</label>
-                {isFormMode ? (
-                  <input
-                    id="pet-weight-field"
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={petForm.weight}
-                    onChange={(e) => handlePetFieldChange('weight', e.target.value)}
-                    placeholder="e.g. 65"
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.9rem' }}
-                  />
-                ) : (
+              {!isFormMode && (
+                <div className="field">
+                  <label htmlFor="pet-weight-field">Weight (lbs)</label>
                   <span style={{ fontSize: '0.9rem' }}>{petForm.weight ? `${petForm.weight} lbs` : '—'}</span>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </section>
 
