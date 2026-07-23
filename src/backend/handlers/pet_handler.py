@@ -242,7 +242,7 @@ def handler(event, context):
                 'quote_accepted_date', 'quote_notes', 'internal_pricing_notes',
                 # Release 4: Per-pet structured fields
                 'species', 'feeding_notes', 'medication_notes', 'behavior_notes',
-                'vet_notes', 'emergency_notes', 'is_active'
+                'vet_notes', 'emergency_notes', 'is_active', 'color', 'weight'
             ]
 
             for field in editable_fields:

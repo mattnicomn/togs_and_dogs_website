@@ -103,8 +103,23 @@ const ClientDetailDrawer = ({
     setPetDuplicateWarning(null);
   };
 
+  const mapApiToForm = (pet) => {
+    if (!pet) return BLANK_PET_FORM;
+    return {
+      name: pet.name || '',
+      species: pet.species || '',
+      breed: pet.breed || '',
+      color: pet.color || '',
+      weight: pet.weight || '',
+      medical_notes: pet.medication_notes || '',
+      behavioral_notes: pet.behavior_notes || '',
+      vet_name: pet.health?.vet_name || '',
+      vet_phone: pet.health?.vet_phone || '',
+    };
+  };
+
   const openViewPet = (pet) => {
-    const populated = { ...BLANK_PET_FORM, ...pet };
+    const populated = mapApiToForm(pet);
     setPetForm(populated);
     setPetInitialForm(populated);
     setPetSubview(pet);
@@ -114,7 +129,7 @@ const ClientDetailDrawer = ({
   };
 
   const openEditPet = (pet) => {
-    const populated = { ...BLANK_PET_FORM, ...pet };
+    const populated = mapApiToForm(pet);
     setPetForm(populated);
     setPetInitialForm(populated);
     setPetSubview(pet);
@@ -166,17 +181,25 @@ const ClientDetailDrawer = ({
     setPetSaving(true);
     setPetDuplicateWarning(null);
     try {
+      const payload = {
+        name: petForm.name,
+        species: petForm.species,
+        breed: petForm.breed,
+        color: petForm.color,
+        weight: petForm.weight ? String(petForm.weight) : undefined,
+        medication_notes: petForm.medical_notes,
+        behavior_notes: petForm.behavioral_notes,
+        health: {
+          vet_name: petForm.vet_name,
+          vet_phone: petForm.vet_phone,
+        },
+      };
+
       if (petSubviewMode === 'add') {
-        const created = await onPetCreate(client.client_id, {
-          ...petForm,
-          weight: petForm.weight ? String(petForm.weight) : undefined,
-        });
+        const created = await onPetCreate(client.client_id, payload);
         openViewPet(created);
       } else {
-        const updated = await onPetUpdate(petSubview.pet_id, client.client_id, {
-          ...petForm,
-          weight: petForm.weight ? String(petForm.weight) : undefined,
-        });
+        const updated = await onPetUpdate(petSubview.pet_id, client.client_id, payload, 'update');
         openViewPet(updated);
       }
     } catch (err) {
@@ -190,7 +213,7 @@ const ClientDetailDrawer = ({
     if (!window.confirm(`Archive ${pet.name || 'this pet'}? They will be hidden from active lists.`)) return;
     setPetError(null);
     try {
-      const updated = await onPetUpdate(pet.pet_id, client.client_id, { is_active: false });
+      const updated = await onPetUpdate(pet.pet_id, client.client_id, { is_active: false }, 'archive');
       // If we are in the pet subview for this pet, refresh it
       if (petSubview && petSubview.pet_id === pet.pet_id) {
         openViewPet(updated);
@@ -203,7 +226,7 @@ const ClientDetailDrawer = ({
   const handlePetRestore = async (pet) => {
     setPetError(null);
     try {
-      const updated = await onPetUpdate(pet.pet_id, client.client_id, { is_active: true });
+      const updated = await onPetUpdate(pet.pet_id, client.client_id, { is_active: true }, 'restore');
       if (petSubview && petSubview.pet_id === pet.pet_id) {
         openViewPet(updated);
       }

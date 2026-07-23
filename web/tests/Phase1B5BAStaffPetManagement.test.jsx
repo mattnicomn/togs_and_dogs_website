@@ -144,7 +144,7 @@ describe('Phase 1B.5B-A Staff Pet Management - ClientDetailDrawer Subview', () =
     await waitFor(() => {
       expect(defaultProps.onPetUpdate).toHaveBeenCalledWith('pet-1', 'client-jane', expect.objectContaining({
         name: 'Buddy Changed'
-      }));
+      }), 'update');
     });
   });
 
@@ -158,7 +158,7 @@ describe('Phase 1B.5B-A Staff Pet Management - ClientDetailDrawer Subview', () =
     
     expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('Archive Buddy?'));
     await waitFor(() => {
-      expect(defaultProps.onPetUpdate).toHaveBeenCalledWith('pet-1', 'client-jane', { is_active: false });
+      expect(defaultProps.onPetUpdate).toHaveBeenCalledWith('pet-1', 'client-jane', { is_active: false }, 'archive');
     });
     confirmSpy.mockRestore();
   });
@@ -173,7 +173,7 @@ describe('Phase 1B.5B-A Staff Pet Management - ClientDetailDrawer Subview', () =
     fireEvent.click(screen.getByRole('button', { name: /Restore/i }));
     
     await waitFor(() => {
-      expect(defaultProps.onPetUpdate).toHaveBeenCalledWith('pet-2', 'client-jane', { is_active: true });
+      expect(defaultProps.onPetUpdate).toHaveBeenCalledWith('pet-2', 'client-jane', { is_active: true }, 'restore');
     });
   });
 
@@ -241,5 +241,76 @@ describe('Phase 1B.5B-A Staff Pet Management - ClientDetailDrawer Subview', () =
     
     // Returned to client view
     expect(screen.getByText('Client Overview')).toBeInTheDocument();
+  });
+
+  it('12. ordinary edit preserves active status, maps fields correctly, and passes update action', async () => {
+    render(<ClientDetailDrawer {...defaultProps} />);
+    fireEvent.click(screen.getAllByRole('button', { name: /View/i })[0]); // Buddy (active)
+    fireEvent.click(screen.getByRole('button', { name: /Edit Pet/i }));
+
+    fireEvent.change(screen.getByLabelText(/Breed/i), { target: { value: 'Golden Mix' } });
+    fireEvent.change(screen.getByLabelText(/Color \/ Markings/i), { target: { value: 'Gold/Yellow' } });
+    fireEvent.change(screen.getByLabelText(/Weight \(lbs\)/i), { target: { value: '70' } });
+    fireEvent.change(screen.getByLabelText(/Medical Notes/i), { target: { value: 'Allergy to bees' } });
+    fireEvent.change(screen.getByLabelText(/Behavioral Notes/i), { target: { value: 'Loves treats' } });
+    fireEvent.change(screen.getByLabelText(/Vet Name/i), { target: { value: 'Dr. Adams' } });
+    fireEvent.change(screen.getByLabelText(/Vet Phone/i), { target: { value: '555-9999' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /Save Pet/i }));
+
+    await waitFor(() => {
+      expect(defaultProps.onPetUpdate).toHaveBeenCalledWith(
+        'pet-1',
+        'client-jane',
+        expect.objectContaining({
+          breed: 'Golden Mix',
+          color: 'Gold/Yellow',
+          weight: '70',
+          medication_notes: 'Allergy to bees',
+          behavior_notes: 'Loves treats',
+          health: {
+            vet_name: 'Dr. Adams',
+            vet_phone: '555-9999'
+          }
+        }),
+        'update'
+      );
+    });
+  });
+
+  it('13. editing archived pet preserves archived status', async () => {
+    render(<ClientDetailDrawer {...defaultProps} />);
+    fireEvent.click(screen.getAllByRole('button', { name: /View/i })[1]); // Max (archived)
+    fireEvent.click(screen.getByRole('button', { name: /Edit Pet/i }));
+
+    fireEvent.change(screen.getByLabelText(/Breed/i), { target: { value: 'Siamese Mix' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save Pet/i }));
+
+    await waitFor(() => {
+      expect(defaultProps.onPetUpdate).toHaveBeenCalledWith(
+        'pet-2',
+        'client-jane',
+        expect.objectContaining({
+          breed: 'Siamese Mix'
+        }),
+        'update'
+      );
+    });
+  });
+
+  it('14. API failure displays error message and preserves form values', async () => {
+    defaultProps.onPetUpdate = vi.fn().mockRejectedValue(new Error('Network error'));
+    render(<ClientDetailDrawer {...defaultProps} />);
+    fireEvent.click(screen.getAllByRole('button', { name: /View/i })[0]); // Buddy
+    fireEvent.click(screen.getByRole('button', { name: /Edit Pet/i }));
+
+    fireEvent.change(screen.getByLabelText(/Breed/i), { target: { value: 'Failed Edit' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save Pet/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Network error')).toBeInTheDocument();
+    });
+    // Form values are preserved
+    expect(screen.getByLabelText(/Breed/i).value).toBe('Failed Edit');
   });
 });

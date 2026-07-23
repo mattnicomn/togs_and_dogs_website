@@ -3153,7 +3153,7 @@ const AdminDashboard = () => {
     return result;
   };
 
-  const handleDrawerPetUpdate = async (petId, clientId, petData) => {
+  const handleDrawerPetUpdate = async (petId, clientId, petData, action = 'update') => {
     const result = await updatePet(petId, clientId, petData);
     if (!result || !result.pet_id) throw new Error('Invalid response from server');
     // Refresh the pet list in the drawer
@@ -3162,8 +3162,8 @@ const AdminDashboard = () => {
       const pets = (resp && Array.isArray(resp.pets) ? resp.pets : []).filter(p => p && p.pet_id);
       setClientPets(pets);
     } catch { /* non-fatal */ }
-    const action = petData.is_active === false ? 'archived' : (petData.is_active === true ? 'restored' : 'updated');
-    showNotification(`Pet "${result.name || ''}" ${action}.`, 'success');
+    const actionLabel = action === 'archive' ? 'archived' : (action === 'restore' ? 'restored' : 'updated');
+    showNotification(`Pet "${result.name || ''}" ${actionLabel}.`, 'success');
     return result;
   };
 
