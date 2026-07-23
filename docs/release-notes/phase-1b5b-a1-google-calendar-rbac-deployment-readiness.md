@@ -27,7 +27,11 @@
 * **Total Skipped:** **0**
 * **Total Errors:** **0**
 * *Includes:* 96 legacy Node tests, 104 component tests (including 5 new GoogleCalendarRBAC tests).
-* *Lint Status:* 100% clean for changed files.
+* *Lint Status:*
+  * `GoogleCalendarRBAC.test.jsx`: 0 lint errors and 0 warnings.
+  * `AdminDashboard.jsx`: retains established pre-existing lint findings; however, no lint findings occur on the newly edited Calendar RBAC lines.
+  * Repository-wide lint baseline: remains 49 errors and 9 warnings (0 remediation-only lint regressions).
+
 
 ### Backend Tests
 * **Total Collected:** **772**
@@ -110,12 +114,18 @@ aws cloudfront create-invalidation \
 ## 8. Rollback Procedures
 
 ### Frontend Rollback
-1. Re-sync the previous production build (`assets/index-B347XrXA.js`) to S3.
-2. Invalidate the CloudFront cache.
+1. Restore/check out the application source code from pre-remediation checkpoint `8efd153`.
+2. Rebuild the frontend production assets from that pre-remediation source. (Note: The previously deployed frontend bundle set was `assets/index-B347XrXA.js` with its matching assets). Do not directly copy single JavaScript files without rebuilding the complete matching `dist` artifact set.
+3. Sync the rebuilt pre-remediation `dist` directory to the target S3 bucket using the `aws s3 sync` command.
+4. Invalidate the CloudFront CDN cache paths (`/*`) only after receiving explicit approval from Matthew.
 
 ### Backend Rollback
-1. Checkout the previous commit (`574aa4b`).
-2. Run `terraform plan -out=rollback.tfplan` and execute `terraform apply` to restore the original Lambda package hashes.
+1. Restore/check out the application source code from pre-remediation checkpoint `8efd153`.
+2. Rebuild the `backend.zip` package from that pre-remediation source.
+3. Run a new Terraform plan (`terraform plan -out=rollback.tfplan`) to target the code hash reversion.
+4. Review the generated rollback plan with Matthew and obtain separate explicit approval.
+5. Execute `terraform apply "rollback.tfplan"` only after receiving explicit approval.
+
 
 ---
 
