@@ -1,0 +1,26 @@
+/* ============================================================
+ * GENERATED FILE — DO NOT EDIT MANUALLY
+ *
+ * Source: shared/tokens/colors.json
+ * Generator: shared/generate-adapters.mjs
+ * Phase: 24A-1B (platform token adapters)
+ *
+ * To regenerate: node shared/generate-adapters.mjs
+ * To modify colors: edit shared/tokens/colors.json, then regenerate.
+ * ============================================================ */
+
+:root {
+  --primary: #c28b1e;
+  --primary-hover: #f08c3a;
+  --page-bg: #faf7f2;
+  --card-bg: #ffffff;
+  --text-primary: #3c3c3b;
+  --text-muted: #6a6a66;
+  --border-color: #e2dfd9;
+  --border-soft: #e2dfd9;
+  --success-color: #4a7c59;
+  --warning-color: #d64933;
+  --info-color: #3b82f6;
+  --caution-color: #f59e0b;
+  --white: #ffffff;
+}

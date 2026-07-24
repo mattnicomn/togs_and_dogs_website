@@ -1,14 +1,4 @@
-export const COLORS = {
-  primary: '#c28b1e',
-  primaryHover: '#a37213',
-  background: '#faf7f2',
-  cardBg: '#ffffff',
-  text: '#3c3c3b',
-  textMuted: '#7f8c8d',
-  border: '#e2e8f0',
-  borderSoft: '#edf2ee',
-  success: '#10b981',
-  danger: '#ef4444',
-  info: '#3b82f6',
-  white: '#ffffff',
-};
+// Phase 24A-1B: Re-export from generated adapter.
+// Source of truth: shared/tokens/colors.json → node shared/generate-adapters.mjs
+// Do not edit color values here. Edit the shared contract and regenerate.
+export { COLORS } from './generatedColors';

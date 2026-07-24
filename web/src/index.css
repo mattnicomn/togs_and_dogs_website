@@ -1,3 +1,8 @@
+/* Phase 24A-1B: Import generated color tokens from shared contract.
+ * These values are currently identical to the declarations below.
+ * Source of truth: shared/tokens/colors.json → node shared/generate-adapters.mjs */
+@import './generated/color-tokens.css';
+
 /* System Font Stacks - Privacy & Performance Optimized */
 
 :root {
