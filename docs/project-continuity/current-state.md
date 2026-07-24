@@ -63,6 +63,7 @@
 
 ## Active Local Work / Pending Review
 
+- Phase 1B.5C-A: Customer Pet Editing Deployment Readiness (✅ PLAN PREPARED / NOT DEPLOYED — 2026-07-24)
 - Phase 1B.5C-A: Customer Pet Editing Bounded Local Correction (🛠️ LOCAL IMPLEMENTATION CORRECTED / NOT DEPLOYED / AWAITING KIRO RE-REVIEW — 2026-07-24)
 
 ## Latest Completed Releases

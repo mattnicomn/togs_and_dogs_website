@@ -56,6 +56,9 @@
 | Phase 1B.5B-A.1 Google Calendar RBAC deployment readiness | `docs/release-notes/phase-1b5b-a1-google-calendar-rbac-deployment-readiness.md` |
 | Phase 1B.5B-A.1 Google Calendar RBAC production deployment | `docs/release-notes/phase-1b5b-a1-google-calendar-rbac-production-deployment.md` |
 | Phase 1B.5C-A customer pet editing release notes | `docs/release-notes/phase-1b5c-a-customer-pet-editing-local-implementation.md` |
+| Phase 1B.5C-A customer pet editing audit | `docs/release-notes/phase-1b5c-a-customer-pet-editing-audit.md` |
+| Phase 1B.5C-A customer pet editing re-review | `docs/release-notes/phase-1b5c-a-bounded-correction-rereview.md` |
+| Phase 1B.5C-A customer pet editing deployment readiness | `docs/release-notes/phase-1b5c-a-customer-pet-editing-deployment-readiness.md` |
 | Phase 1B.5A pet loading release notes | `docs/release-notes/phase-1b5a-authoritative-client-pet-loading.md` |
 | Phase 1B.5A pet loading review | `docs/release-notes/phase-1b5a-authoritative-client-pet-loading-review.md` |
 | Phase 1B.5A production deployment | `docs/release-notes/phase-1b5a-authoritative-client-pet-loading-production-deployment.md` |
