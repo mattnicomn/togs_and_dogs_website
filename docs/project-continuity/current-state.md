@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-24 (Phase 1B.5C-A Customer Pet Editing Local Correction)
+**Last Updated:** 2026-07-24 (Phase 23A AWS Tagging Evidence Audit Complete)
 
 ---
 
@@ -65,6 +65,23 @@
 
 - Phase 1B.5C-A: Customer Pet Editing Deployment Readiness (✅ PLAN PREPARED / NOT DEPLOYED — 2026-07-24)
 - Phase 1B.5C-A: Customer Pet Editing Bounded Local Correction (🛠️ LOCAL IMPLEMENTATION CORRECTED / NOT DEPLOYED / AWAITING KIRO RE-REVIEW — 2026-07-24)
+
+## Completed Planning / Evidence Workstreams
+
+- Phase 23A: AWS Tagging Evidence Audit (✅ EVIDENCE AUDIT COMPLETE — No Terraform remediation required — 2026-07-24)
+  - All supported Terraform-managed resources carry full nine-key tag set via provider default_tags.
+  - Optional deferred items: bootstrap resource tagging, Lambda log-group tagging, SESv2 migration evaluation.
+  - Budget filter (`Client=TogAndDogs`) confirmed functioning.
+  - Cost-allocation activation status requires payer-account access (linked account cannot query).
+  - See `docs/planning/phase-23a-aws-tagging-evidence-audit-and-minimal-remediation.md`
+
+## Cross-Platform UI Alignment (Planning Only)
+
+- Direction approved: shared design tokens, terminology, validation, API contracts.
+- React/Vite remains the web framework. Expo/React Native remains mobile.
+- No website rewrite to React Native Web.
+- Preferred eventual pilot: My Pets workflow (depends on Phase 1B.5C-A deployment).
+- No EAS, TestFlight, App Store, Google Play, Ryan-testing, or mobile-distribution changes approved.
 
 ## Latest Completed Releases
 

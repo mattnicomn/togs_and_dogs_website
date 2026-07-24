@@ -96,6 +96,7 @@
 | Identity & Care Request triage | `docs/planning/release-22a-identity-profile-and-care-request-validation-defect-triage.md` |
 | Smoke test plan & triage | `docs/planning/release-22x-controlled-core-workflow-smoke-test-plan.md`, `docs/planning/release-22y-smoke-test-identity-actions-and-google-calendar-disconnect-triage.md` |
 | Mobile responsive UX plan | `docs/planning/release-22z-mobile-responsive-ux-polish-detailed-plan.md` |
+| AWS tagging evidence audit | `docs/planning/phase-23a-aws-tagging-evidence-audit-and-minimal-remediation.md` |
 
 
 ## Backlog

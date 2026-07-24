@@ -36,9 +36,12 @@ CURRENT STATE SUMMARY (verify against docs/project-continuity/current-state.md):
 - Stripe payments are sandbox-only (live blocked on EIN).
 - Tenant isolation is enforced. Entitlement gates Phase 1+2 are active.
 - TENANT_RESOLUTION_MODE=multi is ACTIVE and validated (strict mode enabled 18T, confirmed 18U).
-- Platform Admin UI exists. No second tenant exists.
-- Ryan testing is paused. Second-tenant creation requires Matthew approval.
-- Next major action: second-tenant provisioning dry-run planning.
+- Platform Admin UI exists. Second test tenant exists (test_tenant_alpha).
+- Ryan testing is paused.
+- Phase 1B.5C-A (Customer Pet Editing) is ready for Matthew deployment decision. Not deployed. Saved Terraform plan exists and has not been applied.
+- Phase 23A (AWS Tagging Evidence Audit) is complete. No Terraform tagging remediation required. Optional deferred items documented.
+- Cross-platform UI alignment direction established (planning only, no implementation approved).
+- Next production action: Matthew decides on Phase 1B.5C-A deployment.
 
 Please read the continuity docs and confirm you understand the current state before proceeding with any recommendations.
 ```
