@@ -1,7 +1,7 @@
 # Phase 1B.5B-A.1: Google Calendar Integration RBAC Production Deployment Record
 
 ## 1. Deployment Metadata
-* **Status:** ⏳ **DEPLOYED — AWAITING MATTHEW ROLE-BASED VALIDATION**
+* **Status:** ✅ **VALIDATED AND CLOSED — 2026-07-23**
 * **Deployment Date:** 2026-07-23
 * **Implementation Commit:** `9e522473f4f20176fe8fe86f6ec1e5c107c7fad2`
 * **Audit Commit:** `574aa4b3211a76c8c4a176865d448651c62f27ad`
@@ -109,15 +109,35 @@
 
 ---
 
-## 8. Matthew Role-Based Validation Checklist
-Matthew should authenticate into the production dashboard with the appropriate roles to verify correct operation:
+## 8. Matthew Role-Based Validation Results & Closeout
+Matthew completed manual role-based authorization validation on the production environment on 2026-07-23.
 
-1. **Staff Role (`staff`) Verification**:
-   * Log in to the scheduler as a sitter.
-   * Verify the Master Scheduler displays visits and is responsive.
-   * Go to the Integration card/banner. Confirm the connection status reads "Needs Reconnect" or "Not Connected" but the **Connect Calendar** / **Reconnect Calendar** buttons are **completely hidden**.
-2. **Owner Role (`owner` / `admin`) Verification**:
-   * Log in to the dashboard as an owner/admin.
-   * Verify that the **Connect Calendar** / **Reconnect Calendar** action buttons are visible and active.
-3. **API Access Control Verification**:
-   * Confirm that any direct API invocation of `/admin/auth/google` (initiate) or `/admin/auth/google` (disconnect) using a non-owner/non-admin JWT token returns a `403 Forbidden` response.
+### Staff Account Validation Results
+* **Scheduler visible:** PASS (Sitter can interact with scheduler grid)
+* **Google Calendar connection/status visible:** PASS (Reads "CONNECTED")
+* **Shared business-calendar read-only notice visible:** PASS
+* **Connect Calendar hidden:** PASS
+* **Reconnect Calendar hidden:** PASS
+* **Disconnect hidden:** PASS
+* **Request List hidden:** PASS
+* **Staff Management hidden:** PASS
+* **Client Management hidden:** PASS
+* **Administrative New Visit control hidden:** PASS
+
+### Admin Account Validation Results
+* **ADMIN role displayed:** PASS
+* **Scheduler visible:** PASS
+* **Request List visible:** PASS
+* **Staff Management visible:** PASS
+* **Client Management visible:** PASS
+* **New Visit visible:** PASS
+* **Google Calendar connection/status visible:** PASS
+
+### Validation Context & Access Guidelines
+* **Read-only Connection awareness:** Staff retain read-only visibility of the calendar status and integration metadata on the frontend dashboard for synchronization awareness.
+* **Connect / Reconnect / Disconnect Actions:** Completely hidden from the staff role on both the frontend UI and guarded on the backend API layer. Staff cannot initiate Google OAuth connect, reconnect, or disconnect.
+* **Admin capabilities:** Admin/owner navigation, staff management, client management, new visit coordination, and tenant integration actions remain fully operational.
+* **Safeguards During Validation:** No actual Google OAuth callback initiation, connection state modification, or token Secrets Manager mutations were performed during validation.
+* **Connected State Verification:** Deployed verification was conducted with the Google Calendar integration in a normal `CONNECTED` state. The connection was not degraded or disconnected for testing to avoid impact.
+* **Degraded Action Visibility coverage:** Automated Vitest and Pytest suites verify that when a tenant connection transitions to a degraded state (e.g. `VALIDATION_FAILED` or `NOT_CONNECTED`), the Connect/Reconnect action buttons remain hidden from staff and only appear for owners/admins.
+
