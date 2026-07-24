@@ -1,9 +1,9 @@
 # Phase 24A: Cross-Platform Design System and Mobile Workflow Alignment
 
-**Status:** 📋 PLANNING COMPLETE — Implementation not approved
-**Date:** 2026-07-24
-**Starting HEAD:** `2fbfba9`
-**Depends on:** Phase 1B.5C-A deployment (for mobile pet editing)
+**Status:** 📋 PLANNING COMPLETE (Revised) — Implementation not approved
+**Date:** 2026-07-24 (revised)
+**Starting HEAD:** `2fbfba9` (planning), `bc73408` (revision)
+**Depends on:** Phase 1B.5C-A deployment (for mobile pet editing only)
 
 ---
 
@@ -15,375 +15,431 @@ Make the React/Vite website and Expo/React Native mobile application feel like o
 
 ---
 
-## 2. Current Technology Baseline
+## 2. Authentication Parity (Corrected)
+
+### 2.1 Web — Forgot-Password Status: **Missing**
+
+| Capability | Status | Evidence |
+|---|---|---|
+| Forgot-password entry point | ❌ Missing | No "Forgot password?" link exists in the web login flow (`AdminDashboard.jsx` login section) |
+| Reset initiation (`forgotPassword`) | ❌ Missing | `web/src/api/auth.js` does not export a `forgotPassword` function |
+| Verification-code handling | ❌ Missing | No UI or function exists |
+| New-password submission | ❌ Missing | No UI or function exists |
+| Success/error states | ❌ Missing | No UI exists |
+| Complete flow usable | ❌ No | |
+| Tests | N/A | No implementation to test |
+
+The web auth module (`web/src/api/auth.js`) provides only: `signIn`, `signOut`, `getSession`, `getIdToken`, `getEffectiveRole`. The underlying `amazon-cognito-identity-js` SDK supports `forgotPassword` and `confirmPassword`, but neither is called or exposed.
+
+The admin-initiated `resetStaffPassword` and `resetClientPassword` API functions exist for staff/client account management — these are **not** self-service forgot-password flows.
+
+### 2.2 Mobile — Forgot-Password Status: **Complete**
+
+| Capability | Status | Evidence |
+|---|---|---|
+| Forgot-password entry point | ✅ Present | "Forgot password?" link in LoginScreen login mode |
+| Reset initiation (`forgotPassword`) | ✅ Complete | `mobile/src/auth/cognito.ts` exports `forgotPassword(email)` calling `cognitoUser.forgotPassword()` |
+| Verification-code handling | ✅ Complete | LoginScreen `forgotResetPassword` mode with 6-digit code input |
+| New-password submission | ✅ Complete | `confirmForgotPassword(email, code, newPassword)` with confirm-password match validation |
+| Success state | ✅ Present | Green success banner with "Back to Sign In" button |
+| Error states | ✅ Comprehensive | Code mismatch, expiry, generic failure, validation (8-char min, password match) |
+| Complete flow usable | ✅ Yes | Three-mode LoginScreen: login → forgotSendCode → forgotResetPassword |
+| Tests | ❌ None | No automated tests exist for the mobile app |
+
+### 2.3 Disposition
+
+- Web self-service forgot-password is a gap that should be addressed independently of this plan.
+- Mobile's implementation is the reference for future web parity.
+- This is NOT a blocking dependency for the cross-platform design-system work.
+
+---
+
+## 3. Current Technology Baseline
 
 | Property | Web | Mobile |
 |----------|-----|--------|
-| Framework | React 19 (Vite) | React Native 0.81 (Expo 54) |
+| Framework | React 19 (Vite 8) | React Native 0.81 (Expo 54) |
 | Language | JavaScript (JSX) | TypeScript (TSX) |
-| Styling | CSS custom properties + component CSS | React Native StyleSheet |
-| Routing | React Router (createBrowserRouter) | React Navigation (stack + bottom tabs) |
-| Auth | Cognito (amazon-cognito-identity-js, browser storage) | Cognito (amazon-cognito-identity-js, SecureStore) |
-| API Client | `web/src/api/client.js` | `mobile/src/api/client.ts` |
-| Config | Same API URL, same Cognito pool, same Client ID | Same values |
-| State | Local component state (no global store) | Context + local state |
-| Tests | Vitest + React Testing Library (209 passing) | None configured |
-| Build | Vite production build | Expo EAS (not active) |
+| Styling | CSS custom properties + component CSS files | React Native StyleSheet (inline) |
+| Routing | React Router 7 (createBrowserRouter) | React Navigation 7 (stack + bottom tabs) |
+| Auth | Cognito SDK (browser localStorage) | Cognito SDK (Expo SecureStore) |
+| Tests | Vitest 4 + RTL (209 passing) + Node test runner (legacy) | None configured |
+| Build | Vite production build | Expo EAS (not currently active) |
+| Module format | ESM (`"type": "module"`) | Metro bundler (CommonJS interop) |
 
 ---
 
-## 3. Design Token Comparison
+## 4. Design Token Comparison
 
-### 3.1 Color Alignment
+### 4.1 Color Alignment
 
-| Token | Web CSS Variable | Web Value | Mobile COLORS.* | Mobile Value | Aligned? |
-|-------|-----------------|-----------|-----------------|--------------|----------|
-| Primary | `--primary` | `#c28b1e` | `primary` | `#c28b1e` | ✅ Exact |
-| Primary Hover | `--primary-hover` | `#f08c3a` | `primaryHover` | `#a37213` | ❌ Different |
-| Background | `--page-bg` | `#faf7f2` | `background` | `#faf7f2` | ✅ Exact |
-| Card | `--card-bg` | `#ffffff` | `cardBg` | `#ffffff` | ✅ Exact |
-| Text | `--text-primary` | `#3c3c3b` | `text` | `#3c3c3b` | ✅ Exact |
-| Text Muted | `--text-muted` | `#6a6a66` | `textMuted` | `#7f8c8d` | ❌ Different |
-| Border | `--border-color` | `#e2dfd9` | `border` | `#e2e8f0` | ⚠️ Similar, not identical |
-| Border Soft | `--border-soft` (alias) | `#e2dfd9` | `borderSoft` | `#edf2ee` | ❌ Different |
-| Success | `--success-color` | `#4a7c59` | `success` | `#10b981` | ❌ Different (muted green vs emerald) |
-| Warning/Danger | `--warning-color` | `#d64933` | `danger` | `#ef4444` | ❌ Different |
-| Info | N/A (no explicit) | — | `info` | `#3b82f6` | N/A (mobile-only) |
-| Secondary | `--secondary` | `#b8a890` | N/A | — | Web-only |
-| Accent | `--accent` | `#e17c80` | N/A | — | Web-only |
+| Token | Web Value | Mobile Value | Aligned? |
+|-------|-----------|--------------|----------|
+| Primary | `#c28b1e` | `#c28b1e` | ✅ Exact |
+| Primary Hover | `#f08c3a` | `#a37213` | ❌ Different |
+| Background | `#faf7f2` | `#faf7f2` | ✅ Exact |
+| Card | `#ffffff` | `#ffffff` | ✅ Exact |
+| Text | `#3c3c3b` | `#3c3c3b` | ✅ Exact |
+| Text Muted | `#6a6a66` | `#7f8c8d` | ❌ Different |
+| Border | `#e2dfd9` | `#e2e8f0` | ❌ Different |
+| Border Soft | `#e2dfd9` (alias) | `#edf2ee` | ❌ Different |
+| Success | `#4a7c59` | `#10b981` | ❌ Different |
+| Danger/Warning | `#d64933` | `#ef4444` | ❌ Different |
 
-### 3.2 Spacing, Radii, Typography
+**Five tokens require visual alignment** (primaryHover, textMuted, border, success, danger). Each represents a user-visible color change and must be reviewed individually.
 
-| Token | Web | Mobile | Status |
-|-------|-----|--------|--------|
-| Radius small | `--radius-sm: 10px` | Inline `8` or `12` | ⚠️ No shared standard |
-| Radius medium | `--radius-md: 20px` | Inline `12` or `16` | ⚠️ No shared standard |
-| Radius pill | `--radius-pill: 99px` | Inline `99` | ✅ Convention matches |
-| Font family | System sans-serif stack | React Native system default | ✅ Acceptable platform difference |
-| Base font size | 18px (16px mobile) | 14–16px body text | ⚠️ Scale differs slightly |
-| Spacing scale | Not defined as tokens | Not defined as tokens | ❌ Both use ad-hoc values |
+### 4.2 Spacing, Radii, Typography
 
-### 3.3 Status Colors (In-Use, Not Formalized)
-
-| Status | Web (CSS / inline) | Mobile (inline) | Aligned? |
-|--------|-------------------|-----------------|----------|
-| Pending | Amber/gold inline | `#f59e0b` | ⚠️ Similar intent |
-| Approved | Blue inline | `#3b82f6` | ⚠️ Similar intent |
-| Assigned/Scheduled | Green inline | `#10b981` | ⚠️ Similar intent |
-| Completed | Gray inline | `#6b7280` | ⚠️ Similar intent |
-| Cancelled | Red inline | `#ef4444` | ⚠️ Similar intent |
+No formal shared scale exists on either platform. Both use ad-hoc pixel/dp values inline.
 
 ---
 
-## 4. Screen and Workflow Parity Matrix
+## 5. Screen and Workflow Parity Matrix
 
-| Workflow | Web | Mobile | Functionally Aligned | Visually Aligned | Disposition |
-|----------|-----|--------|---------------------|-----------------|-------------|
-| **Sign-in** | `/admin` login form in AdminDashboard | `LoginScreen` (dedicated) | ✅ Same Cognito flow | ⚠️ Different layout, same brand | Align copy/error messages |
-| **Forgot password** | Not implemented on web | ✅ Full flow (send code + confirm) | ❌ Web lacks this | — | Add to web eventually |
-| **Session refresh** | Browser session (auto via Cognito SDK) | SecureStore + silent refresh before API calls | ✅ Both maintain sessions | N/A | Mobile has better offline resilience |
-| **Customer profile** | No dedicated profile screen | No profile screen | — | — | Future: both platforms |
-| **My Pets (list)** | `/my-pets` — card list with edit | ❌ Not implemented | ❌ Missing on mobile | — | **Pilot target** |
-| **Pet viewing** | Inline in My Pets cards | ❌ Not implemented | ❌ Missing on mobile | — | Part of My Pets pilot |
-| **Pet editing** | Inline editor in My Pets (Phase 1B.5C-A) | ❌ Not implemented | ❌ Missing on mobile | — | Depends on 1B.5C-A deployment |
-| **Care request intake** | `/book` — 4-step form | ❌ Not implemented | ❌ Missing on mobile | — | Second-stage pilot |
-| **My Bookings** | `/my-bookings` (ClientPortal) | `BookingsScreen` | ✅ Both show client bookings | ⚠️ Layout differs (table vs cards) | Align status labels |
-| **Request detail** | CareCard within AdminDashboard | `RequestDetailScreen` | ✅ Core actions match | ⚠️ Layout differs | Align action labels |
-| **Request list (admin)** | Tab in AdminDashboard | `RequestListScreen` | ✅ Both filter by status | ⚠️ Different filter UX | Align filter labels |
-| **Schedule view** | `MasterScheduler` in AdminDashboard | `ScheduleScreen` | ⚠️ Different granularity | ❌ Different approaches | Intentional: web is dispatcher view |
-| **Staff dashboard** | Stats in AdminDashboard | `DashboardScreen` (mobile) | ✅ Same stat categories | ⚠️ Different layout | Align terminology |
-| **Client management** | Full CRUD in AdminDashboard | ❌ Not implemented | — | — | Intentionally web-only |
-| **Staff management** | Full CRUD in AdminDashboard | ❌ Not implemented | — | — | Intentionally web-only |
-| **Platform admin** | `/platform-admin` (guarded) | ❌ Not implemented | — | — | Intentionally web-only |
-| **Google Calendar** | Connect/disconnect/status in admin | ❌ Not implemented | — | — | Intentionally web-only |
-| **Payment actions** | Payment session + email sending | ❌ Not implemented | — | — | Intentionally web-only (fat-finger risk) |
-| **Export** | CSV download from admin | ❌ Not implemented | — | — | Intentionally web-only |
-| **Dark mode** | ✅ ThemeToggle (CSS dark class) | ❌ Not implemented | ❌ Missing on mobile | — | Future: mobile dark mode |
-| **Terms / Privacy** | `/terms`, `/privacy` | ❌ Not implemented (privacy URL in app.json) | — | — | Linked from app, rendered on web |
-
-### 4.1 Intentionally Web-Only Features
-
-- Client/staff CRUD management (complex forms, keyboard-heavy)
-- Platform Admin console (multi-tenant governance)
-- Google Calendar OAuth management
-- Payment session creation and email sending
-- Data export (file downloads)
-- Full-page Terms/Privacy rendering
-
-### 4.2 Features That Should Eventually Exist on Both
-
-- My Pets (view + edit)
-- Care request intake
-- Dark mode / theme switching
-- Forgot password (web currently lacks this)
-- Push notifications (mobile has infra, web doesn't)
+| Workflow | Web | Mobile | Aligned | Disposition |
+|----------|-----|--------|---------|-------------|
+| Sign-in | `/admin` inline login | `LoginScreen` dedicated | ✅ Functional | Align error messages |
+| Forgot password | ❌ Missing | ✅ Complete | ❌ Gap (web) | Separate web remediation |
+| Session refresh | Cognito SDK auto (browser) | SecureStore + pre-request refresh | ✅ Both maintain | Platform-appropriate |
+| My Pets (list) | `/my-pets` ✅ | ❌ Missing | — | **Pilot target** |
+| Pet editing | ✅ (Phase 1B.5C-A) | ❌ Missing | — | After 1B.5C-A deployment |
+| Care request intake | `/book` ✅ (4-step) | ❌ Missing | — | Second-stage target |
+| My Bookings | `/my-bookings` ✅ | `BookingsScreen` ✅ | ✅ Functional | Align labels |
+| Request detail (admin) | CareCard ✅ | `RequestDetailScreen` ✅ | ✅ Actions match | Align labels |
+| Request list (admin) | Dashboard tab ✅ | `RequestListScreen` ✅ | ✅ Filter + list | Align filter labels |
+| Schedule | `MasterScheduler` ✅ | `ScheduleScreen` ✅ | ⚠️ Different approach | Intentional |
+| Staff/Client management | ✅ Full CRUD | ❌ | — | Intentionally web-only |
+| Platform admin | ✅ | ❌ | — | Intentionally web-only |
+| Google Calendar | ✅ | ❌ | — | Intentionally web-only |
+| Payments | ✅ | ❌ | — | Intentionally web-only |
+| Dark mode | ✅ | ❌ Missing | — | Future |
 
 ---
 
-## 5. Shared Code Inventory (Current State)
+## 6. Design-System Structure
 
-| Category | Web | Mobile | Shared? |
-|----------|-----|--------|---------|
-| API base URL & config | `web/src/api/config.js` | `mobile/src/api/config.ts` | ❌ Duplicated (identical values) |
-| API client functions | `web/src/api/client.js` (50+ functions) | `mobile/src/api/client.ts` (9 functions) | ❌ Duplicated subset |
-| Auth logic | `web/src/api/auth.js` | `mobile/src/auth/cognito.ts` | ❌ Duplicated (different storage backends) |
-| Role resolution | `getEffectiveRole()` in both | Same logic, both files | ❌ Duplicated |
-| Color tokens | CSS variables in `index.css` | `mobile/src/theme/colors.ts` | ❌ Duplicated (partially misaligned) |
-| Status labels | Inline in components | Inline in screens | ❌ Not shared |
-| Pet field definitions | `web/src/utils/petHelpers.js` | N/A | Web-only |
-| Client management utils | `web/src/utils/clientManagement.js` | N/A | Web-only (admin) |
-| Service type labels | Inline | Inline | ❌ Not shared |
-| Site content/branding | `web/src/config/siteContent.js` | N/A | Web-only |
-| Type definitions | N/A (JavaScript) | `mobile/src/types/index.ts` | Mobile-only (TypeScript) |
-| Validation schemas | Inline in IntakeForm | N/A | Web-only |
+### 6.1 Recommended: Shared Tokens + Contracts, Separate Presentation
 
----
-
-## 6. Recommended Design-System Structure
-
-### 6.1 Approach: Shared Design Tokens + Contracts, Separate Presentation
-
-Create a root-level `shared/` directory that both `web/` and `mobile/` can import from. This directory contains only platform-neutral data (JSON, TypeScript types, constant definitions) — never React DOM or React Native components.
+A root-level `shared/` directory containing platform-neutral data only:
 
 ```
 shared/
 ├── tokens/
-│   ├── colors.json          # Canonical color palette
-│   ├── spacing.json         # Spacing scale (4, 8, 12, 16, 24, 32, 48)
-│   ├── radii.json           # Border radius scale
-│   └── typography.json      # Font size scale and weights
+│   ├── colors.json
+│   ├── spacing.json
+│   ├── radii.json
+│   └── typography.json
 ├── constants/
-│   ├── statuses.ts          # Request status labels and colors
-│   ├── services.ts          # Service type labels and metadata
-│   ├── petFields.ts         # Pet field definitions and labels
-│   └── errors.ts            # Shared error message templates
+│   ├── statuses.ts
+│   ├── services.ts
+│   ├── petFields.ts
+│   └── errors.ts
 ├── contracts/
-│   ├── api-paths.ts         # API endpoint path constants
-│   └── config.ts            # Shared config values (pool ID, region, API URL)
+│   ├── api-paths.ts
+│   └── config.ts
 ├── validation/
-│   ├── pet.ts               # Pet field validation rules
-│   └── intake.ts            # Intake form field validation rules
+│   ├── pet.ts
+│   └── intake.ts
 └── types/
-    ├── pet.ts               # PetRequest, Pet, PetField types
-    ├── request.ts           # ServiceRequest, RequestStatus types
-    ├── auth.ts              # Role, Session types
-    └── client.ts            # Client, Staff types
+    ├── pet.ts
+    ├── request.ts
+    ├── auth.ts
+    └── client.ts
 ```
 
-### 6.2 Technical Considerations
+### 6.2 Module Resolution Considerations
 
-| Concern | Resolution |
-|---------|------------|
-| Vite import resolution | Vite supports relative imports outside `web/src/` via `resolve.alias` in `vite.config.js` |
-| Metro bundler (Expo) | Metro requires `watchFolders` config in `metro.config.js` to resolve outside `mobile/` |
-| TypeScript | Both can reference `shared/` via `tsconfig.json` paths or `references` |
-| Package boundary | A root `package.json` workspaces config is optional but not required for a single `shared/` dir |
-| Build isolation | `shared/` must contain only importable modules (no build step, no React components) |
-| Testing | Shared modules need their own unit tests runnable by either Vitest or Jest |
+| Concern | Current State | Resolution Required |
+|---------|---------------|-------------------|
+| **Vite** access to `../shared/` | No alias configured; Vite defaults to resolving relative imports from project root | Add `resolve.alias` in `vite.config.js` mapping `@shared` to `../shared` |
+| **Metro** (Expo) watch folders | `metro.config.js` uses default config; does not watch outside `mobile/` | Add `watchFolders: [path.resolve(__dirname, '../shared')]` and resolver `nodeModulesPaths` |
+| **TypeScript** (mobile) | `tsconfig.json` extends `expo/tsconfig.base`; no path aliases | Add `compilerOptions.paths` mapping `@shared/*` to `../shared/*` |
+| **TypeScript** (web) | No tsconfig (JavaScript project) | JSON imports work natively; TS types would require adding a tsconfig or using JSDoc |
+| **Vitest** | `vitest.config.js` has no alias | Must mirror the Vite alias for test resolution |
+| **Jest** (future mobile) | Not configured | Must add `moduleNameMapper` for `@shared/` |
+| **JSON imports** | Vite supports natively; Metro supports natively | ✅ No issue for token files |
+| **Expo EAS** | Builds from `mobile/` directory | Must include `shared/` in the EAS build context (eas.json or monorepo config) |
+| **Package boundary** | Neither `shared/` nor root has a `package.json` | Options: (A) direct relative imports, (B) npm workspace, (C) symlink. Recommend (A) for simplicity until complexity warrants (B) |
+| **Generated adapters** | N/A currently | Consider a build-time script that generates `web/src/generated/tokens.css` and `mobile/src/generated/theme.ts` from JSON if direct cross-root imports prove problematic |
 
-### 6.3 Canonical Color Palette (Proposed)
+### 6.3 Decision: Direct Imports vs Generated Adapters
 
-The authoritative palette should resolve the current mismatches by adopting the web's warm brand palette (which is more intentionally designed) while keeping mobile's utility colors where they provide better contrast:
+This decision requires implementation-time evidence. The planning document records both options:
 
-```json
-{
-  "brand": {
-    "primary": "#c28b1e",
-    "primaryHover": "#f08c3a",
-    "secondary": "#b8a890",
-    "accent": "#e17c80"
-  },
-  "semantic": {
-    "success": "#4a7c59",
-    "warning": "#f59e0b",
-    "danger": "#d64933",
-    "info": "#3b82f6"
-  },
-  "surface": {
-    "background": "#faf7f2",
-    "card": "#ffffff",
-    "cardMuted": "#f3efe8",
-    "input": "#ffffff"
-  },
-  "text": {
-    "primary": "#3c3c3b",
-    "secondary": "#5a5a58",
-    "muted": "#6a6a66"
-  },
-  "border": {
-    "default": "#e2dfd9",
-    "soft": "#edf2ee"
-  },
-  "status": {
-    "pendingReview": "#f59e0b",
-    "approved": "#3b82f6",
-    "assigned": "#10b981",
-    "completed": "#6b7280",
-    "cancelled": "#ef4444",
-    "paid": "#10b981",
-    "unpaid": "#6b7280"
-  }
-}
-```
+**Option A — Direct cross-root imports:** Simpler, fewer files, but requires build-tool configuration changes on both sides. Risk: EAS build context may not include `shared/` without additional config.
 
-### 6.4 Shared Terminology
+**Option B — Generated adapters:** A script reads `shared/tokens/colors.json` and outputs `web/src/generated/tokens.css` (CSS custom properties) and `mobile/src/generated/theme.ts` (COLORS object). No build-tool changes needed; generated files are committed. Risk: must remember to regenerate after token changes.
 
-| Concept | Canonical Label | Notes |
-|---------|----------------|-------|
-| Request statuses | `PENDING_REVIEW` → "Pending Review", `APPROVED` → "Approved", `ASSIGNED`/`JOB_CREATED`/`SCHEDULED` → "Scheduled", `COMPLETED` → "Completed", `CANCELLED` → "Cancelled" | Both platforms must use identical labels |
-| Service types | `PET_SITTING` → "Pet Sitting", `DOG_WALKING` → "Dog Walking", `OVERNIGHT` → "Overnight Stay" | Derive from shared constant |
-| Pet fields | `name`, `species`, `breed`, `age`, `care_instructions`, `feeding_notes`, `medication_notes`, `behavior_notes` | Same allowlist on both |
-| Error messages | "Your session expired. Please sign in again." | Already partially aligned |
+**Recommendation:** Evaluate both during Phase 24A-1A (architecture decision). Do not pre-select without testing actual import resolution.
 
 ---
 
-## 7. My Pets Pilot Plan
+## 7. Revised Release Sequence
 
-### 7.1 Prerequisites
+### Phase 24A-1A — Shared Architecture and Token Contract
 
-- Phase 1B.5C-A (Customer Pet Editing) must be **deployed and production-validated** before mobile editing can be implemented.
-- Planning may proceed before deployment.
-- Read-only pet listing depends only on `GET /client/pets` which is already deployed.
+| Property | Value |
+|---|---|
+| **Scope** | Decide directory structure, module resolution approach, token schema format. Create `shared/tokens/colors.json` with canonical palette. Document import strategy. |
+| **Prerequisites** | None |
+| **Source files likely affected** | New: `shared/tokens/colors.json`, `shared/README.md` |
+| **Expected tests** | Schema validation test (JSON valid, all required keys present) |
+| **Expected build validation** | None (no application imports change yet) |
+| **User-visible impact** | None |
+| **Production deployment needed** | No |
+| **EAS build needed** | No |
+| **Required Matthew approval** | Standard implementation approval |
+| **Rollback** | Delete `shared/` directory |
+| **Continuity update** | Record architecture decision |
 
-### 7.2 Staged Implementation
+### Phase 24A-1B — Platform Adapters and No-Visual-Change Wiring
 
-| Stage | Scope | Depends On | Approval |
-|-------|-------|------------|----------|
-| **24A-1** | Shared design tokens (`shared/tokens/`) and constants (`shared/constants/statuses.ts`, `shared/constants/petFields.ts`) | None | Standard implementation approval |
-| **24A-2** | Mobile My Pets read-only screen — list active pets using `GET /client/pets` | 24A-1 complete; API already deployed | Standard implementation approval |
-| **24A-3** | Mobile pet detail screen — expand card to show all fields | 24A-2 | Standard implementation approval |
-| **24A-4** | Mobile pet editing — inline edit form using `PUT /client/pets/{petId}` | 24A-3 + Phase 1B.5C-A DEPLOYED and validated | Standard implementation approval |
-| **24A-5** | Shared validation alignment — extract pet validation rules to `shared/validation/pet.ts` | 24A-4 | Standard implementation approval |
-| **24A-6** | Accessibility and responsive polish | 24A-5 | Standard implementation approval |
-| **24A-7** | Automated tests (Jest + RNTL for mobile, verify Vitest still passes for web) | 24A-6 | Standard implementation approval |
-| **24A-8** | Manual iOS/Android validation | 24A-7 | Matthew visual review |
+| Property | Value |
+|---|---|
+| **Scope** | Configure Vite alias and/or generate `web/src/generated/tokens.css`. Configure Metro watchFolders and/or generate `mobile/src/generated/theme.ts`. Wire adapters but do NOT change any rendered color values. |
+| **Prerequisites** | 24A-1A complete |
+| **Source files likely affected** | `web/vite.config.js` OR `web/src/generated/tokens.css`; `mobile/metro.config.js` and/or `mobile/src/generated/theme.ts`; possibly `web/vitest.config.js` |
+| **Expected tests** | Web: existing 209 tests pass. Mobile: TypeScript type check passes. Builds succeed. |
+| **Expected build validation** | `npm run build` (web) succeeds. Expo type check succeeds. |
+| **User-visible impact** | None — all rendered values identical |
+| **Production deployment needed** | No (web build unchanged; no mobile distribution) |
+| **EAS build needed** | No |
+| **Required Matthew approval** | Standard implementation approval |
+| **Rollback** | Revert config changes; remove generated files |
+| **Continuity update** | Record wiring approach chosen |
 
-### 7.3 Mobile My Pets Screen Design Notes
+### Phase 24A-1C — Visual Token Alignment
 
-- Role gate: only `client` role (same as web)
-- API: `GET /client/pets` → list of active pets
-- Card layout: pet name, species, breed badge, age
-- Edit mode: inline form matching web's field allowlist
-- Duplicate name detection: client-scoped, same logic as web
-- Toast/banner notifications for success/error
-- Dirty-state: navigation blocker via React Navigation's `beforeRemove` event
-- No photo upload (matches web limitation)
-- No archive/delete (matches web client limitation)
+| Property | Value |
+|---|---|
+| **Scope** | Resolve the five misaligned tokens (primaryHover, textMuted, border, success, danger). Each change reviewed independently. Update both platform adapters to use canonical values. |
+| **Prerequisites** | 24A-1B complete and verified |
+| **Source files likely affected** | `shared/tokens/colors.json`, web CSS variables in `index.css`, `mobile/src/theme/colors.ts` (or generated equivalent) |
+| **Expected tests** | Web: existing tests pass. Visual regression review (manual screenshots). |
+| **Expected build validation** | Web production build. Mobile type check. |
+| **User-visible impact** | Yes — color changes visible to users on both platforms |
+| **Production deployment needed** | Yes (web S3/CloudFront sync for color changes to appear) |
+| **EAS build needed** | No (mobile colors only appear to TestFlight testers after a future build) |
+| **Required Matthew approval** | Deployment approval (user-visible change) |
+| **Rollback** | Revert token values; redeploy web |
+| **Continuity update** | Record aligned palette |
+
+### Phase 24A-2 — Shared Constants and API Contracts
+
+| Property | Value |
+|---|---|
+| **Scope** | Create `shared/constants/statuses.ts`, `shared/constants/services.ts`, `shared/constants/petFields.ts`, `shared/contracts/api-paths.ts`, `shared/types/`. Wire imports in web and mobile where currently hardcoded inline. |
+| **Prerequisites** | 24A-1B complete |
+| **Source files likely affected** | New shared files + modifications to web components and mobile screens that currently hardcode status labels |
+| **Expected tests** | Shared module unit tests. Web: existing tests pass with updated imports. Mobile: type check passes. |
+| **Expected build validation** | Both builds succeed |
+| **User-visible impact** | None if labels are unchanged; alignment if labels differ |
+| **Production deployment needed** | Only if web label rendering changes |
+| **EAS build needed** | No |
+| **Required Matthew approval** | Standard implementation approval |
+| **Rollback** | Revert shared imports; restore inline values |
+| **Continuity update** | Record constants extracted |
+
+### Phase 24A-3 — Mobile Test Foundation
+
+| Property | Value |
+|---|---|
+| **Scope** | Establish mobile automated test infrastructure. |
+| **Prerequisites** | 24A-1B complete (so metro config is settled) |
+| **Source files likely affected** | `mobile/package.json` (devDependencies), `mobile/jest.config.js` or `package.json` jest field, test setup files, `mobile/__tests__/` or `mobile/tests/` directory, mock files |
+| **Planned infrastructure** | |
+| - Jest preset | `jest-expo` (Expo's supported preset) |
+| - Component testing | `@testing-library/react-native` |
+| - API-client mocking | Manual `fetch` mock or `msw` |
+| - Navigation mocking | `@react-navigation/native` mock via `jest.mock` |
+| - SecureStore mocking | Mock `expo-secure-store` module |
+| - Auth context mocking | Custom test wrapper providing `AuthContext` |
+| - Type checking | `tsc --noEmit` as a test script |
+| - CI-compatible command | `npm test` (Jest) + `npm run typecheck` |
+| - Initial smoke tests | LoginScreen renders, BookingsScreen renders, DashboardScreen renders, AppNavigator role routing |
+| **Expected tests** | ≥5 initial smoke tests for existing screens |
+| **Expected build validation** | `jest --passWithNoTests` succeeds |
+| **User-visible impact** | None |
+| **Production deployment needed** | No |
+| **EAS build needed** | No |
+| **Required Matthew approval** | Standard implementation approval |
+| **Rollback** | Remove test config and devDependencies |
+| **Continuity update** | Record test infrastructure established |
+
+### Phase 24A-4 — Mobile My Pets (Read-Only)
+
+| Property | Value |
+|---|---|
+| **Scope** | New `MyPetsScreen` for client role. List active pets from `GET /client/pets`. Pet card with name, species, breed, age. |
+| **Prerequisites** | 24A-3 complete (tests exist); deployed `GET /client/pets` contract confirmed operational |
+| **Source files likely affected** | New: `mobile/src/screens/MyPetsScreen.tsx`; modified: `mobile/src/navigation/AppNavigator.tsx` (add tab) |
+| **Expected tests** | Component test for MyPetsScreen (renders, shows loading, shows pets, shows empty state) |
+| **Expected build validation** | Mobile type check + Jest pass |
+| **User-visible impact** | New screen visible only to internal TestFlight testers (after future EAS build) |
+| **Production deployment needed** | No |
+| **EAS build needed** | Not until 24A-9 |
+| **Required Matthew approval** | Standard implementation approval |
+| **Rollback** | Remove screen; revert navigation change |
+| **Continuity update** | Record My Pets read-only complete |
+
+### Phase 24A-5 — Mobile My Pets (Editing)
+
+| Property | Value |
+|---|---|
+| **Scope** | Inline edit form in MyPetsScreen using `PUT /client/pets/{petId}`. Shared validation from `shared/validation/pet.ts`. Duplicate name detection, toast notifications, dirty-state navigation blocker. |
+| **Prerequisites** | 24A-4 complete; **Phase 1B.5C-A explicitly approved, deployed, authenticated production validated, and recorded as completed** |
+| **Source files likely affected** | `mobile/src/screens/MyPetsScreen.tsx`, `shared/validation/pet.ts` |
+| **Expected tests** | Edit form validation tests, save success/error tests, dirty-state tests |
+| **Expected build validation** | Mobile type check + Jest pass |
+| **User-visible impact** | New editing capability (visible after future EAS build) |
+| **Production deployment needed** | No (API already deployed via 1B.5C-A) |
+| **EAS build needed** | Not until 24A-9 |
+| **Required Matthew approval** | Standard implementation approval |
+| **Rollback** | Remove edit mode; restore read-only |
+| **Continuity update** | Record mobile pet editing complete |
+
+### Phase 24A-6 — Mobile Care-Request Intake
+
+| Property | Value |
+|---|---|
+| **Scope** | Multi-step intake form on mobile matching web's `/book` flow. Steps: client info → service/dates → pet details → review/submit. |
+| **Prerequisites** | 24A-3 complete; 24A-2 (shared constants) complete |
+| **Source files likely affected** | New: `mobile/src/screens/IntakeScreen.tsx` (or multi-file); modified: navigation |
+| **Expected tests** | Per-step validation tests, submission tests, error recovery tests |
+| **Expected build validation** | Mobile type check + Jest pass |
+| **User-visible impact** | New capability (visible after future EAS build) |
+| **Production deployment needed** | No |
+| **EAS build needed** | Not until 24A-9 |
+| **Required Matthew approval** | Standard implementation approval |
+| **Rollback** | Remove intake screen; revert navigation |
+| **Continuity update** | Record mobile intake complete |
+
+### Phase 24A-7 — Visual Consistency Polish
+
+| Property | Value |
+|---|---|
+| **Scope** | Align badge styles, card radii, button hierarchy, typography scale, spacing between web and mobile using shared tokens. |
+| **Prerequisites** | 24A-1C (visual token alignment) + 24A-2 (constants) complete |
+| **Source files likely affected** | Mobile StyleSheet values, web CSS refinements |
+| **Expected tests** | Existing tests pass; manual visual comparison |
+| **User-visible impact** | Yes (visual polish) |
+| **Production deployment needed** | Yes (web changes) |
+| **EAS build needed** | Not until 24A-9 |
+| **Required Matthew approval** | Deployment approval for web visual changes |
+| **Rollback** | Revert style values |
+| **Continuity update** | Record visual alignment complete |
+
+### Phase 24A-8 — Accessibility Validation
+
+| Property | Value |
+|---|---|
+| **Scope** | Web: verify WCAG 2.1 AA compliance of changed colors. Mobile: verify React Native accessibility props (accessibilityLabel, accessibilityRole, accessibilityState). |
+| **Prerequisites** | 24A-7 complete |
+| **Source files likely affected** | Accessibility prop additions; possible color contrast adjustments |
+| **Expected tests** | Accessibility lint; manual screen-reader testing expectations documented |
+| **User-visible impact** | Improved accessibility |
+| **Production deployment needed** | Yes if web changes |
+| **EAS build needed** | Not until 24A-9 |
+| **Required Matthew approval** | Standard for props; deployment approval for web changes |
+| **Rollback** | Revert accessibility additions |
+| **Continuity update** | Record accessibility pass |
+
+### Phase 24A-9 — Mobile Build and Distribution (Separately Approved)
+
+| Property | Value |
+|---|---|
+| **Scope** | EAS build, TestFlight update, Matthew validation on device |
+| **Prerequisites** | All prior 24A phases complete and reviewed |
+| **Source files likely affected** | `mobile/app.json` version bump, possibly `eas.json` |
+| **Expected tests** | All mobile Jest tests pass; type check clean |
+| **Expected build validation** | EAS build succeeds |
+| **User-visible impact** | New TestFlight build available |
+| **Production deployment needed** | No (API already deployed) |
+| **EAS build needed** | **Yes** |
+| **Required Matthew approval** | **Separate explicit Matthew approval for EAS build and TestFlight** |
+| **Rollback** | Do not distribute; previous TestFlight build remains active |
+| **Continuity update** | Record build version and distribution status |
 
 ---
 
-## 8. Care-Request Intake Second-Stage Plan
+## 8. My Pets Dependencies (Corrected)
 
-### 8.1 Web Intake Flow (Current)
+| Dependency | Required For | Status |
+|---|---|---|
+| Shared tokens and constants (24A-1, 24A-2) | All mobile feature work | Not started |
+| Mobile test infrastructure (24A-3) | Any new mobile screen | Not started |
+| `GET /client/pets` API | Mobile My Pets read-only (24A-4) | ✅ Already deployed and operational |
+| `PUT /client/pets/{petId}` API (Phase 1B.5C-A) | Mobile My Pets editing (24A-5) | ⏸️ NOT deployed — awaiting Matthew decision |
 
-| Step | Content |
-|------|---------|
-| 1 | Client info (name, email — pre-filled if authenticated) |
-| 2 | Service selection, date picker (calendar grid + range), visit windows (multi-select), preferred sitter |
-| 3 | Pet details (multi-pet array: name, species, breed, age, feeding/medication/behavior notes), household vet/emergency |
-| 4 | Review + terms acceptance + submit |
-
-### 8.2 Mobile Adaptation Considerations
-
-| Aspect | Web Approach | Mobile Recommendation |
-|--------|-------------|----------------------|
-| Multi-step wizard | Tab-based steps | Scrollable stack or swipeable steps |
-| Date picker | Custom DatePickerGrid (calendar) | React Native calendar component or date-range picker |
-| Visit windows | Checkbox multi-select | Chip-toggle multi-select |
-| Multi-pet input | Dynamic array with add/remove | Expandable accordion cards |
-| Review screen | Summary table | Card-based summary |
-| Terms acceptance | Checkbox + link to /terms | Checkbox + in-app WebView or link to production URL |
-| Saved profile use | Pre-fill from Cognito session | Pre-fill from SecureStore session data |
-| Pet selection from saved pets | Not currently integrated | Future: select from `GET /client/pets` |
-| Draft/resume | Not implemented on either platform | Future consideration |
-| Validation | Per-step inline errors | Per-step inline errors (same rules via shared/validation/) |
-
-### 8.3 Mobile Intake Stages
-
-| Stage | Scope |
-|-------|-------|
-| **24A-9** | Mobile intake — Step 1 (client info pre-fill from auth) |
-| **24A-10** | Mobile intake — Step 2 (service type, date selection, visit windows) |
-| **24A-11** | Mobile intake — Step 3 (pet details, vet/emergency) |
-| **24A-12** | Mobile intake — Step 4 (review, terms, submit) |
-| **24A-13** | Shared intake validation rules (`shared/validation/intake.ts`) |
-| **24A-14** | Integration with saved pets (select existing pet from My Pets) |
+**Critical distinction:**
+- Planning may proceed at any time.
+- Mobile My Pets **read-only** may proceed after 24A-3 (the GET endpoint is already live).
+- Mobile My Pets **editing** must NOT proceed until Phase 1B.5C-A is:
+  1. Explicitly approved by Matthew
+  2. Deployed via the saved Terraform plan
+  3. Authenticated production validated by Matthew
+  4. Recorded as completed in continuity documents
+- No EAS build or mobile distribution is approved regardless of implementation progress.
 
 ---
 
-## 9. Testing Strategy
+## 9. Care-Request Intake Comparison
 
-### 9.1 Shared Package Testing
+### Web Intake Flow (Current — 4 Steps)
 
-- Unit tests for all `shared/` modules (colors, constants, validation rules)
-- Runnable by both Vitest (web) and Jest (mobile)
-- Contract tests: validate that shared types match actual API response shapes
+| Step | Fields |
+|------|--------|
+| 1 | Client name, email (pre-filled if authenticated) |
+| 2 | Service type, date picker (calendar grid + range helper), visit windows (multi-select), preferred sitter, timing notes |
+| 3 | Multi-pet array (name, species, breed, age, feeding/medication/behavior notes), household vet info, emergency contact |
+| 4 | Review summary, terms/privacy acceptance checkbox, submit |
 
-### 9.2 Web Testing (Existing — Must Remain Passing)
+### Mobile Adaptation Notes
 
-- 96 legacy tests + 113 component tests = 209 total (Vitest + React Testing Library)
-- Production build must continue to succeed
-- Any shared import changes must not break existing test mocks
-- Accessibility lint (existing eslint-plugin-jsx-a11y)
-
-### 9.3 Mobile Testing (To Be Established)
-
-- Jest configuration needed (Expo default: `jest-expo` preset)
-- React Native Testing Library for component tests
-- Navigation flow tests (screen transitions, role-based routing)
-- API client mocking (same pattern as web: mock fetch)
-- Form validation unit tests (shared validation module)
-- TypeScript strict-mode type checking via `tsc --noEmit`
-- Manual validation: iOS simulator + physical device
-
-### 9.4 No Test Infrastructure Changes During This Planning Task
-
-All testing changes require separate implementation approval.
+- Multi-step wizard via scrollable stack or swipeable pager
+- Date selection: RN calendar component or date-range picker
+- Visit windows: chip-toggle multi-select
+- Multi-pet: expandable accordion cards
+- Terms: checkbox + link to production URL (not in-app rendering)
+- Pre-fill from SecureStore session data
+- Future: select saved pets from My Pets list
+- Validation: shared rules via `shared/validation/intake.ts`
+- Draft/resume behavior: not currently on either platform (future consideration)
 
 ---
 
-## 10. Recommended Release Sequence
+## 10. Testing Strategy
 
-| Release | Name | Scope | Dependencies | Approval |
-|---------|------|-------|-------------|----------|
-| **24A-1** | Design System Foundation | Create `shared/tokens/`, `shared/constants/`, configure Vite/Metro imports | None | Standard |
-| **24A-2** | Shared Constants and Contracts | Status labels, service labels, pet fields, API paths, types | 24A-1 | Standard |
-| **24A-3** | Mobile My Pets (Read) | MyPetsScreen, pet card, API integration | 24A-2 | Standard |
-| **24A-4** | Mobile My Pets (Edit) | Pet edit form, validation, save flow | 24A-3 + **1B.5C-A deployed** | Standard |
-| **24A-5** | Mobile Care Request Intake | Multi-step form, date selection, submission | 24A-2 | Standard |
-| **24A-6** | Visual Consistency Polish | Align colors, badge styles, typography between web and mobile | 24A-1 | Standard |
-| **24A-7** | Accessibility Validation | WCAG compliance check (web), RN accessibility props (mobile) | 24A-6 | Standard |
-| **24A-8** | Mobile Test Infrastructure | Jest + RNTL setup, shared module tests | 24A-2 | Standard |
-| **24A-9** | Mobile Build and Distribution | EAS build, TestFlight update, tester access | All above complete | **Separate Matthew approval** |
+### Shared Package
+- Unit tests for JSON schema validity, constant completeness, validation rule correctness
+- Runnable by both Vitest (web context) and Jest (mobile context)
 
-**24A-9 is explicitly separated** — no EAS build, TestFlight, App Store, or distribution action is included in any earlier release.
+### Web (Existing — Must Remain Passing)
+- 96 legacy tests (Node test runner) + 113 component tests (Vitest + RTL) = 209 total
+- Production build (`npm run build`) must succeed
+- Shared imports must not break existing test mocks
 
----
-
-## 11. Approval Gates
-
-| Action | Requires |
-|--------|----------|
-| Create `shared/` directory and configure build tools | Implementation approval |
-| Modify `vite.config.js` or `metro.config.js` | Implementation approval |
-| Add new mobile screen | Implementation approval |
-| Phase 1B.5C-A deployment (prerequisite for mobile editing) | Matthew explicit deployment approval |
-| EAS build | Separate Matthew approval |
-| TestFlight update | Separate Matthew approval |
-| App Store submission | Separate Matthew approval |
-| Ryan tester access | Separate Matthew approval |
+### Mobile (To Be Established in Phase 24A-3)
+- `jest-expo` preset
+- `@testing-library/react-native`
+- API-client mock (mock `fetch` globally)
+- Navigation mock (`@react-navigation/native` jest mock)
+- SecureStore mock (`expo-secure-store` jest mock)
+- Auth context mock (wrapper providing `AuthProvider` with controllable state)
+- Type checking: `tsc --noEmit`
+- CI command: `npm test` + `npm run typecheck`
+- Initial smoke tests: screen renders for LoginScreen, BookingsScreen, DashboardScreen, role-based navigation routing
 
 ---
 
-## 12. What This Document Does NOT Authorize
+## 11. What This Document Does NOT Authorize
 
 - ❌ Source code changes (web, mobile, backend, or Terraform)
 - ❌ Build tool configuration changes
 - ❌ Dependency installation
+- ❌ Test infrastructure setup
 - ❌ EAS builds or mobile distribution
 - ❌ TestFlight or App Store Connect changes
-- ❌ Ryan or external tester additions
 - ❌ React Native Web migration
-- ❌ Website rewrite
 - ❌ Phase 1B.5C-A deployment
-- ❌ Any Terraform, AWS, Cognito, Stripe, or production mutation
+- ❌ Any AWS, Cognito, Stripe, or production mutation
