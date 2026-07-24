@@ -81,7 +81,10 @@
 - React/Vite remains the web framework. Expo/React Native remains mobile.
 - No website rewrite to React Native Web.
 - Preferred eventual pilot: My Pets workflow (depends on Phase 1B.5C-A deployment).
+- Mobile pet editing depends on the customer pet API being available after the Phase 1B.5C-A deployment decision.
 - No EAS, TestFlight, App Store, Google Play, Ryan-testing, or mobile-distribution changes approved.
+- Phase 24A planning document complete: `docs/planning/phase-24a-cross-platform-design-system-and-mobile-workflow-alignment.md`
+- Recommended sequence: shared tokens → shared constants → mobile My Pets (read) → mobile My Pets (edit) → mobile intake → polish → tests → build/distribution (separately approved).
 
 ## Latest Completed Releases
 

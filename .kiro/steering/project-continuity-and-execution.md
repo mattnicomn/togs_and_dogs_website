@@ -98,15 +98,20 @@ has materially changed. Leave a resume block containing:
 
 ### Cross-Platform UI Alignment
 
-- Planning/audit only. No source implementation has been approved.
+- Planning document complete: `docs/planning/phase-24a-cross-platform-design-system-and-mobile-workflow-alignment.md`
+- No source implementation has been approved.
 - Preserve React/Vite (web) and Expo/React Native (mobile).
 - Do not recommend rewriting the website in React Native Web without new technical evidence.
-- Start future implementation with shared tokens and constants, followed by
-  a bounded My Pets mobile pilot only after prerequisite approval.
+- Start future implementation with shared tokens and constants (Phase 24A-1/24A-2),
+  followed by a bounded My Pets mobile pilot (24A-3/24A-4) only after prerequisite approval.
 - Mobile pet editing depends on the customer pet API being available
   (requires Phase 1B.5C-A deployment decision first).
+- Mobile read-only pet listing may proceed independently (GET /client/pets is already deployed).
+- Shared color canonical source: `shared/tokens/colors.json` (to be created in 24A-1).
+- Shared status labels: `shared/constants/statuses.ts` (to be created in 24A-2).
 - No EAS, TestFlight, App Store, Google Play, Ryan-testing, or
   mobile-distribution changes are approved.
+- EAS build and distribution is a separately approved release (24A-9).
 
 ### Phase 1B.5C-A (Customer Pet Editing)
 
