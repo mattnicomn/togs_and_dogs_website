@@ -3,7 +3,7 @@
 ## Overview
 Phase 1B.5C-A implements customer self-service editing of their existing active pet profiles via the client portal. It introduces a secured client-facing API endpoint, infrastructure routing, and an interactive inline detail editor form on the "My Pets" page with client-scoped duplicate name detection and toast alerts.
 
-Starting parent commit: `816e011794653c070f5cd31b0b76585fba34657d`
+Implementation commit: `3da81c15edec5ba4ba739ccf11116399b8058e68`
 
 ## Key Capabilities & Changes
 
