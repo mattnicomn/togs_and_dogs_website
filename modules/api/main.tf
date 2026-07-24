@@ -586,6 +586,31 @@ resource "aws_api_gateway_integration" "get_client_pets_lambda" {
   type                    = "AWS_PROXY"
   uri                     = var.pet_handler_invoke_arn
 }
+ 
+# Client /client/pets/{petId}
+resource "aws_api_gateway_resource" "client_pet_id" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.client_pets.id
+  path_part   = "{petId}"
+}
+
+resource "aws_api_gateway_method" "put_client_pet" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.client_pet_id.id
+  http_method   = "PUT"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "put_client_pet_lambda" {
+  rest_api_id             = aws_api_gateway_rest_api.main.id
+  resource_id             = aws_api_gateway_resource.client_pet_id.id
+  http_method             = aws_api_gateway_method.put_client_pet.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.pet_handler_invoke_arn
+}
+
 
 # ------------------------------------------------------------------------------
 # /client/devices
@@ -1167,6 +1192,7 @@ locals {
     "admin_clients_link" : aws_api_gateway_resource.admin_clients_link.id,
     "client_requests" : aws_api_gateway_resource.client_requests.id,
     "client_pets" : aws_api_gateway_resource.client_pets.id,
+    "client_pet_id" : aws_api_gateway_resource.client_pet_id.id,
     "client_devices" : aws_api_gateway_resource.client_devices.id,
     "client_device_id" : aws_api_gateway_resource.client_device_id.id,
     "admin_export" : aws_api_gateway_resource.admin_export.id,
@@ -1289,6 +1315,7 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.get_admin_pets_lambda,
     aws_api_gateway_integration.get_pet_lambda,
     aws_api_gateway_integration.put_pet_lambda,
+    aws_api_gateway_integration.put_client_pet_lambda,
     aws_api_gateway_integration.post_client_cancel_lambda,
     aws_api_gateway_integration.put_admin_cancel_lambda,
     aws_api_gateway_integration.get_admin_staff_lambda,
@@ -1345,6 +1372,7 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.client_cancel,
       aws_api_gateway_resource.client_requests,
       aws_api_gateway_resource.client_pets,
+      aws_api_gateway_resource.client_pet_id,
       aws_api_gateway_resource.admin_cancel_decision,
       aws_api_gateway_resource.admin_staff,
       aws_api_gateway_resource.admin_staff_id,
@@ -1359,6 +1387,8 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_method.get_client_requests,
       aws_api_gateway_method.post_client_requests,
       aws_api_gateway_method.get_client_pets,
+      aws_api_gateway_method.put_client_pet,
+      aws_api_gateway_integration.put_client_pet_lambda,
       aws_api_gateway_resource.webhooks,
       aws_api_gateway_resource.webhooks_postmark,
       aws_api_gateway_method.post_webhooks_postmark,

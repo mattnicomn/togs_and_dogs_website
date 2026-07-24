@@ -51,6 +51,7 @@ export const getStaffOptions = () => request('/requests', 'POST', { action: 'sta
 export const getClientRequests = () => request('/client/requests', 'GET', null, true);
 export const submitClientRequest = (data) => request('/client/requests', 'POST', data, true);
 export const getClientPets = () => request('/client/pets', 'GET', null, true);
+export const updateClientPet = (petId, data) => request(`/client/pets/${encodeURIComponent(petId)}`, 'PUT', data, true);
 
 // Protected Admin Calls
 export const getAdminRequests = (status = 'PENDING_REVIEW', startKey = null, timeframe = null) => {

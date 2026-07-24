@@ -29,6 +29,8 @@ def handler(event, context):
             allowed_roles.append('client')
 
         if role not in allowed_roles:
+            if path.startswith('/client/') and role == 'unknown':
+                return error(401, "Unauthenticated", event)
             return error(403, "Forbidden", event)
 
         if http_method == 'GET':
@@ -150,6 +152,97 @@ def handler(event, context):
                 return success(item, event)
 
             return not_found(f"Pet {pet_id} not found", event)
+
+        elif http_method == 'PUT' and path.startswith('/client/pets/'):
+            if role == 'unknown':
+                return error(401, "Unauthenticated", event)
+            if role != 'client':
+                return error(403, "Forbidden: Only clients can access this customer endpoint", event)
+
+            from common.auth import resolve_client_identity
+            client_id = resolve_client_identity(event)
+            if not client_id:
+                return error(403, "Forbidden: No linked client profile", event)
+
+            from common.auth import get_current_company_id
+            company_id = get_current_company_id(event)
+            if not company_id:
+                return error(403, "Forbidden: No tenant context", event)
+
+            if not pet_id:
+                return bad_request("Missing petId in path", event)
+
+            existing_pet = get_item(f"PET#{pet_id}", f"CLIENT#{client_id}")
+            if not existing_pet or existing_pet.get('is_active') is False or existing_pet.get('company_id') != company_id or existing_pet.get('client_id') != client_id:
+                return not_found(f"Pet {pet_id} not found", event)
+
+            body = json.loads(event.get('body', '{}'))
+
+            allowed_fields = {'name', 'species', 'breed', 'age', 'care_instructions', 'feeding_notes', 'medication_notes', 'behavior_notes', 'health'}
+            for k in body.keys():
+                if k not in allowed_fields:
+                    return bad_request(f"Field {k} is not allowed to be modified by clients", event)
+
+            if 'health' in body:
+                if not isinstance(body['health'], dict):
+                    return bad_request("health must be an object", event)
+                for k in body['health'].keys():
+                    if k not in {'vet_name', 'vet_phone'}:
+                        return bad_request(f"Health field {k} is not allowed to be modified by clients", event)
+
+            if 'name' in body:
+                name_val = body['name']
+                if not name_val or not str(name_val).strip():
+                    return bad_request("Name cannot be empty", event)
+
+            item = existing_pet.copy()
+            item['updated_at'] = datetime.datetime.utcnow().isoformat()
+
+            changed_fields = []
+            for field in ['name', 'species', 'breed', 'age', 'care_instructions', 'feeding_notes', 'medication_notes', 'behavior_notes']:
+                if field in body:
+                    if item.get(field) != body[field]:
+                        changed_fields.append(field)
+                    item[field] = body[field]
+
+            if 'health' in body:
+                existing_health = item.get('health') or {}
+                if not isinstance(existing_health, dict):
+                    existing_health = {}
+                new_health = existing_health.copy()
+                body_health = body['health'] or {}
+                if 'vet_name' in body_health:
+                    if existing_health.get('vet_name') != body_health['vet_name']:
+                        changed_fields.append('health.vet_name')
+                    new_health['vet_name'] = body_health['vet_name']
+                if 'vet_phone' in body_health:
+                    if existing_health.get('vet_phone') != body_health['vet_phone']:
+                        changed_fields.append('health.vet_phone')
+                    new_health['vet_phone'] = body_health['vet_phone']
+                item['health'] = new_health
+
+            if put_item(item):
+                from common.audit import log_action
+                log_action(
+                    event=event,
+                    action="CUSTOMER_PET_UPDATE",
+                    target_pk=f"PET#{pet_id}",
+                    target_sk=f"CLIENT#{client_id}",
+                    success=True,
+                    metadata={
+                        "company_id": company_id,
+                        "client_id": client_id,
+                        "pet_id": pet_id,
+                        "changed_fields": changed_fields
+                    }
+                )
+
+                from common.pet_profile import _rebuild_pet_summary
+                _rebuild_pet_summary(client_id, company_id)
+
+                return success(sanitize_booking_for_role(item, 'client'), event)
+
+            return internal_error("Failed to save pet record", event)
 
         elif http_method == 'POST' or http_method == 'PUT':
             role = get_effective_role(event)

@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import MyPets from '../src/components/MyPets';
 import { getSession, getEffectiveRole } from '../src/api/auth';
-import { getClientPets } from '../src/api/client';
+import { getClientPets, updateClientPet } from '../src/api/client';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 // Mock auth API
@@ -14,7 +14,8 @@ vi.mock('../src/api/auth', () => ({
 
 // Mock client API
 vi.mock('../src/api/client', () => ({
-  getClientPets: vi.fn()
+  getClientPets: vi.fn(),
+  updateClientPet: vi.fn()
 }));
 
 // Mock UserProfile component since it contains auth state/UI elements
@@ -159,7 +160,7 @@ describe('MyPets Component Tests', () => {
     expect(screen.queryByText(/Meet and greet thoughts/)).not.toBeInTheDocument();
   });
 
-  it('8. no create, edit, archive, restore, or delete controls appear', async () => {
+  it('8. no create, archive, restore, or delete controls appear', async () => {
     getSession.mockResolvedValue({ idToken: { payload: { email: 'client@example.com' } } });
     getEffectiveRole.mockReturnValue('client');
     getClientPets.mockResolvedValue({
@@ -172,9 +173,9 @@ describe('MyPets Component Tests', () => {
       expect(screen.getByText('Buddy')).toBeInTheDocument();
     });
 
-    // Check that there are no buttons matching create, edit, delete, archive, or save
+    // Check that there are no buttons matching create, delete, archive, or restore
     const buttons = screen.queryAllByRole('button');
-    const controlKeywords = [/create/i, /add/i, /edit/i, /delete/i, /archive/i, /restore/i, /save/i];
+    const controlKeywords = [/create/i, /add/i, /delete/i, /archive/i, /restore/i];
     buttons.forEach(btn => {
       controlKeywords.forEach(regex => {
         expect(btn.textContent).not.toMatch(regex);
@@ -280,5 +281,141 @@ describe('MyPets Component Tests', () => {
 
     expect(screen.queryByText('Missing petId in path')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+  });
+
+  it('15. clicking Edit Pet toggles the inline editor form', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'client@example.com' } } });
+    getEffectiveRole.mockReturnValue('client');
+    getClientPets.mockResolvedValue({
+      pets: [{ pet_id: 'pet-1', name: 'Buddy', species: 'Dog', breed: 'Retriever' }]
+    });
+
+    render(<MyPets />);
+
+    await screen.findByText('Buddy');
+
+    const editBtn = screen.getByRole('button', { name: /edit pet/i });
+    fireEvent.click(editBtn);
+
+    // Form inputs should be visible
+    expect(screen.getByText('Edit Pet Details')).toBeInTheDocument();
+    const nameInput = screen.getByLabelText(/^name/i);
+    expect(nameInput.value).toBe('Buddy');
+    
+    const speciesInput = screen.getByLabelText(/species/i);
+    expect(speciesInput.value).toBe('Dog');
+
+    const breedInput = screen.getByLabelText(/breed/i);
+    expect(breedInput.value).toBe('Retriever');
+
+    expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
+  });
+
+  it('16. clicking Cancel exits the inline editor form', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'client@example.com' } } });
+    getEffectiveRole.mockReturnValue('client');
+    getClientPets.mockResolvedValue({
+      pets: [{ pet_id: 'pet-1', name: 'Buddy', species: 'Dog' }]
+    });
+
+    render(<MyPets />);
+
+    await screen.findByText('Buddy');
+
+    fireEvent.click(screen.getByRole('button', { name: /edit pet/i }));
+    expect(screen.getByText('Edit Pet Details')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(screen.queryByText('Edit Pet Details')).not.toBeInTheDocument();
+    expect(screen.getByText('Buddy')).toBeInTheDocument();
+  });
+
+  it('17. saving updates the pet and shows success toast', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'client@example.com' } } });
+    getEffectiveRole.mockReturnValue('client');
+    getClientPets.mockResolvedValue({
+      pets: [{ pet_id: 'pet-1', name: 'Buddy', species: 'Dog' }]
+    });
+    updateClientPet.mockResolvedValue({
+      pet_id: 'pet-1',
+      name: 'Buddy Jr.',
+      species: 'Dog',
+      is_active: true
+    });
+
+    render(<MyPets />);
+
+    await screen.findByText('Buddy');
+
+    fireEvent.click(screen.getByRole('button', { name: /edit pet/i }));
+
+    const nameInput = screen.getByLabelText(/^name/i);
+    fireEvent.change(nameInput, { target: { value: 'Buddy Jr.' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(updateClientPet).toHaveBeenCalledWith('pet-1', expect.objectContaining({ name: 'Buddy Jr.' }));
+      expect(screen.getByText('Pet "Buddy Jr." updated successfully.')).toBeInTheDocument();
+    });
+  });
+
+  it('18. save error shows error toast', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'client@example.com' } } });
+    getEffectiveRole.mockReturnValue('client');
+    getClientPets.mockResolvedValue({
+      pets: [{ pet_id: 'pet-1', name: 'Buddy', species: 'Dog' }]
+    });
+    updateClientPet.mockRejectedValue(new Error('Validation error'));
+
+    render(<MyPets />);
+
+    await screen.findByText('Buddy');
+
+    fireEvent.click(screen.getByRole('button', { name: /edit pet/i }));
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Validation error')).toBeInTheDocument();
+    });
+  });
+
+  it('19. duplicate pet name triggers warning dialog', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'client@example.com' } } });
+    getEffectiveRole.mockReturnValue('client');
+    getClientPets.mockResolvedValue({
+      pets: [
+        { pet_id: 'pet-1', name: 'Buddy', species: 'Dog' },
+        { pet_id: 'pet-2', name: 'Max', species: 'Dog' }
+      ]
+    });
+    updateClientPet.mockResolvedValue({
+      pet_id: 'pet-1',
+      name: 'Max',
+      species: 'Dog',
+      is_active: true
+    });
+
+    const confirmSpy = vi.spyOn(window, 'confirm');
+    confirmSpy.mockReturnValue(true); // User says yes to duplicate warning
+
+    render(<MyPets />);
+
+    await screen.findByText('Buddy');
+
+    fireEvent.click(screen.getAllByRole('button', { name: /edit pet/i })[0]); // Edit Buddy
+
+    const nameInput = screen.getByLabelText(/^name/i);
+    fireEvent.change(nameInput, { target: { value: 'Max' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('already have another pet named "Max"'));
+      expect(updateClientPet).toHaveBeenCalled();
+    });
+
+    confirmSpy.mockRestore();
   });
 });

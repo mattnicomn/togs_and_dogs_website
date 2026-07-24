@@ -778,3 +778,54 @@
     padding: 12px !important;
   }
 }
+
+/* Notification Banner */
+.notification-banner {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 16px 24px;
+  border-radius: var(--radius-sm, 4px);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 10001;
+  box-shadow: 0 10px 15px -3px rgba(60, 60, 59, 0.1);
+  animation: slideIn 0.3s ease-out;
+  min-width: 300px;
+  justify-content: space-between;
+}
+
+.notification-banner.success {
+  background: #10b981;
+  color: white;
+}
+
+.notification-banner.error {
+  background: #ef4444;
+  color: white;
+}
+
+.notification-banner.info {
+  background: #3b82f6;
+  color: white;
+}
+
+.notification-banner button {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.notification-banner button:hover {
+  opacity: 1;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
