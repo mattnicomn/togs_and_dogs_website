@@ -3,6 +3,7 @@ import { getSession, signIn, getEffectiveRole } from '../api/auth';
 import { getClientPets, updateClientPet } from '../api/client';
 import UserProfile from './UserProfile';
 import { sanitizePetsList } from '../utils/petHelpers';
+import { useBlocker } from 'react-router-dom';
 import '../Portal.css';
 
 const MyPets = () => {
@@ -29,6 +30,57 @@ const MyPets = () => {
     behavior_notes: '',
     health: { vet_name: '', vet_phone: '' }
   });
+  const [initialFormValues, setInitialFormValues] = useState(null);
+  const [reloadWarning, setReloadWarning] = useState(null);
+
+  const checkIsDirty = (current, initial) => {
+    if (!current || !initial) return false;
+    if (current.name !== initial.name) return true;
+    if (current.species !== initial.species) return true;
+    if (current.breed !== initial.breed) return true;
+    if (current.age !== initial.age) return true;
+    if (current.care_instructions !== initial.care_instructions) return true;
+    if (current.feeding_notes !== initial.feeding_notes) return true;
+    if (current.medication_notes !== initial.medication_notes) return true;
+    if (current.behavior_notes !== initial.behavior_notes) return true;
+    if (current.health?.vet_name !== initial.health?.vet_name) return true;
+    if (current.health?.vet_phone !== initial.health?.vet_phone) return true;
+    return false;
+  };
+
+  const isDirty = !!editingPetId && checkIsDirty(editForm, initialFormValues);
+
+  // React Router Navigation Blocker
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      isDirty && currentLocation.pathname !== nextLocation.pathname
+  );
+
+  useEffect(() => {
+    if (blocker.state === "blocked") {
+      const proceed = window.confirm("You have unsaved pet changes. Are you sure you want to discard them?");
+      if (proceed) {
+        blocker.proceed();
+      } else {
+        blocker.reset();
+      }
+    }
+  }, [blocker, isDirty]);
+
+  // Window beforeunload listener
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "You have unsaved pet changes. Are you sure you want to discard them?";
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isDirty]);
 
   const showNotification = (message, type = 'info') => {
     setNotification({ message, type });
@@ -91,8 +143,7 @@ const MyPets = () => {
   }, []);
 
   const handleStartEdit = (pet) => {
-    setEditingPetId(pet.pet_id);
-    setEditForm({
+    const initialValues = {
       name: pet.name || '',
       species: pet.species || '',
       breed: pet.breed || '',
@@ -105,11 +156,61 @@ const MyPets = () => {
         vet_name: pet.health?.vet_name || '',
         vet_phone: pet.health?.vet_phone || ''
       }
-    });
+    };
+
+    if (editingPetId && checkIsDirty(editForm, initialFormValues)) {
+      if (!window.confirm("You have unsaved pet changes. Are you sure you want to discard them?")) {
+        return;
+      }
+    }
+
+    setEditingPetId(pet.pet_id);
+    setEditForm(JSON.parse(JSON.stringify(initialValues)));
+    setInitialFormValues(initialValues);
+    setReloadWarning(null);
   };
 
   const handleCancel = () => {
+    if (editingPetId && checkIsDirty(editForm, initialFormValues)) {
+      if (!window.confirm("You have unsaved pet changes. Are you sure you want to discard them?")) {
+        return;
+      }
+    }
     setEditingPetId(null);
+    setInitialFormValues(null);
+    setReloadWarning(null);
+  };
+
+  const performReload = async (petId, petName) => {
+    try {
+      setSaving(true);
+      const data = await getClientPets();
+      
+      if (data.message === "No local profile linked" || data.linked_profile === false) {
+        throw new Error("No linked profile found.");
+      }
+      
+      const reloadedPets = sanitizePetsList(data.pets || []);
+      const isPresent = reloadedPets.some(p => p.pet_id === petId);
+      if (!isPresent) {
+        throw new Error("Updated pet not found in reloaded profile.");
+      }
+
+      setPets(reloadedPets);
+      setEditingPetId(null);
+      setInitialFormValues(null);
+      setReloadWarning(null);
+      showNotification(`Pet "${petName}" updated successfully.`, "success");
+    } catch (reloadErr) {
+      console.error("Authoritative reload failed:", reloadErr);
+      setReloadWarning({
+        message: "Pet updated successfully, but the latest profile could not be reloaded.",
+        petId,
+        petName
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSave = async (petId) => {
@@ -128,10 +229,14 @@ const MyPets = () => {
 
     try {
       setSaving(true);
-      const updatedPet = await updateClientPet(petId, editForm);
-      setPets(prevPets => prevPets.map(p => p.pet_id === petId ? updatedPet : p));
-      setEditingPetId(null);
-      showNotification(`Pet "${updatedPet.name}" updated successfully.`, "success");
+      setReloadWarning(null);
+      await updateClientPet(petId, editForm);
+      
+      // Clear dirty state on successful save (PUT succeeds)
+      setInitialFormValues(JSON.parse(JSON.stringify(editForm)));
+
+      // Perform reload check
+      await performReload(petId, editForm.name);
     } catch (err) {
       console.error(err);
       showNotification(err.message || "Failed to update pet. Please try again.", "error");
@@ -397,6 +502,21 @@ const MyPets = () => {
                           style={{ padding: '8px', fontSize: '0.9rem', width: '100%', boxSizing: 'border-box' }}
                         />
                       </div>
+
+                      {reloadWarning && reloadWarning.petId === pet.pet_id && (
+                        <div className="reload-warning-box" style={{ marginTop: '12px', padding: '12px', backgroundColor: 'var(--warning-bg, #fff3cd)', border: '1px solid var(--warning-border, #ffeeba)', borderRadius: '4px', color: 'var(--warning-text, #856404)' }}>
+                          <p style={{ margin: 0, fontSize: '0.9rem' }}>{reloadWarning.message}</p>
+                          <button
+                            type="button"
+                            className="button-secondary"
+                            onClick={() => performReload(reloadWarning.petId, reloadWarning.petName)}
+                            style={{ marginTop: '8px', padding: '6px 12px', fontSize: '0.85rem', width: '100%' }}
+                            disabled={saving}
+                          >
+                            {saving ? 'Retrying...' : 'Retry Reload'}
+                          </button>
+                        </div>
+                      )}
 
                       <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                         <button

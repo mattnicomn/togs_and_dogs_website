@@ -23,6 +23,16 @@ vi.mock('../src/components/UserProfile', () => ({
   default: () => <div data-testid="user-profile">UserProfileMock</div>
 }));
 
+let mockBlockerState = { state: 'unblocked', proceed: vi.fn(), reset: vi.fn() };
+
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    useBlocker: vi.fn(() => mockBlockerState)
+  };
+});
+
 describe('MyPets Component Tests', () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -417,5 +427,155 @@ describe('MyPets Component Tests', () => {
     });
 
     confirmSpy.mockRestore();
+  });
+
+  it('20. unsaved Cancel warning appears only when dirty', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'client@example.com' } } });
+    getEffectiveRole.mockReturnValue('client');
+    getClientPets.mockResolvedValue({
+      pets: [{ pet_id: 'pet-1', name: 'Buddy', species: 'Dog' }]
+    });
+
+    const confirmSpy = vi.spyOn(window, 'confirm');
+
+    render(<MyPets />);
+    await screen.findByText('Buddy');
+
+    fireEvent.click(screen.getByRole('button', { name: /edit pet/i }));
+
+    // Click cancel when clean - no confirm dialog
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(confirmSpy).not.toHaveBeenCalled();
+
+    // Re-open editor
+    fireEvent.click(screen.getByRole('button', { name: /edit pet/i }));
+
+    // Make dirty
+    const nameInput = screen.getByLabelText(/^name/i);
+    fireEvent.change(nameInput, { target: { value: 'Buddy Changed' } });
+
+    // Cancel when dirty - confirm dialog shown and user chooses Stay (Cancel)
+    confirmSpy.mockReturnValue(false); // User clicks "Stay" / "Cancel" on dialog
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(screen.getByLabelText(/^name/i)).toBeInTheDocument(); // Editor still visible
+
+    // Cancel when dirty - confirm dialog shown and user chooses Discard (OK)
+    confirmSpy.mockReturnValue(true); // User clicks "Discard" / "OK"
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/^name/i)).not.toBeInTheDocument(); // Editor closed
+    });
+
+    confirmSpy.mockRestore();
+  });
+
+  it('21. switching pets warns when dirty', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'client@example.com' } } });
+    getEffectiveRole.mockReturnValue('client');
+    getClientPets.mockResolvedValue({
+      pets: [
+        { pet_id: 'pet-1', name: 'Buddy', species: 'Dog' },
+        { pet_id: 'pet-2', name: 'Max', species: 'Dog' }
+      ]
+    });
+
+    const confirmSpy = vi.spyOn(window, 'confirm');
+    confirmSpy.mockReturnValue(false); // User stays on Buddy
+
+    render(<MyPets />);
+    await screen.findByText('Buddy');
+    await screen.findByText('Max');
+
+    // Edit Buddy
+    fireEvent.click(screen.getAllByRole('button', { name: /edit pet/i })[0]);
+    const nameInput = screen.getByLabelText(/^name/i);
+    fireEvent.change(nameInput, { target: { value: 'Buddy Changed' } });
+
+    // Try editing Max (it is the only "Edit Pet" button visible since Buddy is in edit mode)
+    fireEvent.click(screen.getByRole('button', { name: /edit pet/i }));
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('unsaved pet changes'));
+    
+    confirmSpy.mockRestore();
+  });
+
+  it('22. beforeunload protection registered only while dirty', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'client@example.com' } } });
+    getEffectiveRole.mockReturnValue('client');
+    getClientPets.mockResolvedValue({
+      pets: [{ pet_id: 'pet-1', name: 'Buddy', species: 'Dog' }]
+    });
+
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
+
+    render(<MyPets />);
+    await screen.findByText('Buddy');
+
+    // Start edit - clean
+    fireEvent.click(screen.getByRole('button', { name: /edit pet/i }));
+
+    // Make dirty
+    const nameInput = screen.getByLabelText(/^name/i);
+    fireEvent.change(nameInput, { target: { value: 'Buddy Changed' } });
+
+    // Expect beforeunload listener registered
+    expect(addEventListenerSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
+
+    // Save pet (clean state)
+    updateClientPet.mockResolvedValue({ pet_id: 'pet-1', name: 'Buddy Changed', species: 'Dog' });
+    getClientPets.mockResolvedValue({
+      pets: [{ pet_id: 'pet-1', name: 'Buddy Changed', species: 'Dog', is_active: true }]
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      // Expect beforeunload listener removed
+      expect(removeEventListenerSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
+    });
+
+    addEventListenerSpy.mockRestore();
+    removeEventListenerSpy.mockRestore();
+  });
+
+  it('23. reload failure displays warning and Retry Reload button, successful retry closes editor', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'client@example.com' } } });
+    getEffectiveRole.mockReturnValue('client');
+    // First call (mount) succeeds
+    getClientPets.mockResolvedValueOnce({
+      pets: [{ pet_id: 'pet-1', name: 'Buddy', species: 'Dog' }]
+    });
+    updateClientPet.mockResolvedValue({ pet_id: 'pet-1', name: 'Buddy Saved', species: 'Dog' });
+    // Second call (reload) fails
+    getClientPets.mockRejectedValueOnce(new Error('Network error during reload'));
+
+    render(<MyPets />);
+    await screen.findByText('Buddy');
+
+    fireEvent.click(screen.getByRole('button', { name: /edit pet/i }));
+    const nameInput = screen.getByLabelText(/^name/i);
+    fireEvent.change(nameInput, { target: { value: 'Buddy Saved' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    // Reload failure warning shown, editor stays visible
+    await screen.findByText(/could not be reloaded/i);
+    const retryBtn = screen.getByRole('button', { name: /retry reload/i });
+    expect(retryBtn).toBeInTheDocument();
+    expect(screen.getByLabelText(/^name/i)).toBeInTheDocument(); // Editor still open
+
+    // Mock subsequent reload success
+    getClientPets.mockResolvedValue({
+      pets: [{ pet_id: 'pet-1', name: 'Buddy Saved', species: 'Dog', is_active: true }]
+    });
+
+    // Click retry
+    fireEvent.click(retryBtn);
+
+    // Editor closes and success notification shown
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/^name/i)).not.toBeInTheDocument();
+      expect(screen.getByText('Pet "Buddy Saved" updated successfully.')).toBeInTheDocument();
+    });
   });
 });

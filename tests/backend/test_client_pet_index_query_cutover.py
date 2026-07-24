@@ -317,9 +317,9 @@ def test_client_portal_response_contract_format(mock_db_table):
 
     pet = body["pets"][0]
     assert pet["name"] == "Buddy"
-    # Verify client role sanitization: sensitive fields are set to None
-    assert pet.get("internal_pricing_notes") is None
-    assert pet.get("notes_redacted") is True
+    # Verify client role sanitization: sensitive fields are completely absent from allowlist response
+    assert "internal_pricing_notes" not in pet
+    assert "notes_redacted" not in pet
 
 
 # --- 6. Internal Helper _get_client_pets (Req 20, 21) ---

@@ -9,6 +9,37 @@ from common.response import success, bad_request, internal_error, not_found, err
 from common.auth import get_effective_role, sanitize_booking_for_role
 
 
+def sanitize_pet_for_client(item):
+    if not isinstance(item, dict):
+        return item
+    
+    sanitized = {
+        "pet_id": item.get("pet_id"),
+        "name": item.get("name"),
+        "species": item.get("species"),
+        "breed": item.get("breed"),
+        "age": item.get("age"),
+        "care_instructions": item.get("care_instructions"),
+        "feeding_notes": item.get("feeding_notes"),
+        "medication_notes": item.get("medication_notes"),
+        "behavior_notes": item.get("behavior_notes"),
+    }
+    
+    if "is_active" in item:
+        sanitized["is_active"] = item["is_active"]
+        
+    health = item.get("health")
+    if isinstance(health, dict):
+        sanitized_health = {}
+        if "vet_name" in health:
+            sanitized_health["vet_name"] = health["vet_name"]
+        if "vet_phone" in health:
+            sanitized_health["vet_phone"] = health["vet_phone"]
+        sanitized["health"] = sanitized_health
+    
+    return sanitized
+
+
 def handler(event, context):
     try:
         from common.entitlement import require_active_tenant
@@ -77,7 +108,7 @@ def handler(event, context):
                         continue
                     filtered_items.append(p)
 
-                sanitized_items = [sanitize_booking_for_role(item, 'client') for item in filtered_items]
+                sanitized_items = [sanitize_pet_for_client(item) for item in filtered_items]
                 return success({"pets": sanitized_items}, event)
 
             # Release 6F: Admin pet listing for a specific client
@@ -176,24 +207,77 @@ def handler(event, context):
             if not existing_pet or existing_pet.get('is_active') is False or existing_pet.get('company_id') != company_id or existing_pet.get('client_id') != client_id:
                 return not_found(f"Pet {pet_id} not found", event)
 
-            body = json.loads(event.get('body', '{}'))
+            # 1. Parse JSON body safely
+            raw_body = event.get('body')
+            if raw_body is None:
+                return bad_request("Missing request body", event)
+            
+            try:
+                body = json.loads(raw_body)
+            except Exception:
+                return bad_request("Malformed JSON body", event)
 
+            if body is None:
+                return bad_request("Request body cannot be null", event)
+
+            if not isinstance(body, dict):
+                return bad_request("Request body must be a JSON object", event)
+
+            if not body:
+                return bad_request("Request body cannot be empty", event)
+
+            # 2. Field Allowlist validation
             allowed_fields = {'name', 'species', 'breed', 'age', 'care_instructions', 'feeding_notes', 'medication_notes', 'behavior_notes', 'health'}
             for k in body.keys():
                 if k not in allowed_fields:
                     return bad_request(f"Field {k} is not allowed to be modified by clients", event)
 
-            if 'health' in body:
-                if not isinstance(body['health'], dict):
-                    return bad_request("health must be an object", event)
-                for k in body['health'].keys():
-                    if k not in {'vet_name', 'vet_phone'}:
-                        return bad_request(f"Health field {k} is not allowed to be modified by clients", event)
+            # 3. Type & length validation
+            limits = {
+                'name': 100,
+                'species': 100,
+                'breed': 100,
+                'age': 100,
+                'care_instructions': 2000,
+                'feeding_notes': 2000,
+                'medication_notes': 2000,
+                'behavior_notes': 2000
+            }
+            for field, max_len in limits.items():
+                if field in body:
+                    val = body[field]
+                    if val is not None and not isinstance(val, str):
+                        return bad_request(f"Field {field} must be a string", event)
+                    if val is not None and len(val) > max_len:
+                        return bad_request(f"Field {field} exceeds maximum length of {max_len} characters", event)
 
             if 'name' in body:
                 name_val = body['name']
-                if not name_val or not str(name_val).strip():
-                    return bad_request("Name cannot be empty", event)
+                if name_val is None or not str(name_val).strip():
+                    return bad_request("Name cannot be empty or blank", event)
+
+            # 4. Nested health object validation
+            if 'health' in body:
+                health_val = body['health']
+                if health_val is None:
+                    return bad_request("health must be a non-null JSON object", event)
+                if not isinstance(health_val, dict):
+                    return bad_request("health must be a non-null JSON object", event)
+                
+                # Check for unknown health keys
+                allowed_health_fields = {'vet_name', 'vet_phone'}
+                for hk in health_val.keys():
+                    if hk not in allowed_health_fields:
+                        return bad_request(f"Health field {hk} is not allowed to be modified by clients", event)
+                
+                # Check types and limits of health fields
+                for hk in ['vet_name', 'vet_phone']:
+                    if hk in health_val:
+                        val = health_val[hk]
+                        if val is not None and not isinstance(val, str):
+                            return bad_request(f"Health field {hk} must be a string", event)
+                        if val is not None and len(val) > 100:
+                            return bad_request(f"Health field {hk} exceeds maximum length of 100 characters", event)
 
             item = existing_pet.copy()
             item['updated_at'] = datetime.datetime.utcnow().isoformat()
@@ -223,24 +307,36 @@ def handler(event, context):
 
             if put_item(item):
                 from common.audit import log_action
-                log_action(
-                    event=event,
-                    action="CUSTOMER_PET_UPDATE",
-                    target_pk=f"PET#{pet_id}",
-                    target_sk=f"CLIENT#{client_id}",
-                    success=True,
-                    metadata={
-                        "company_id": company_id,
-                        "client_id": client_id,
-                        "pet_id": pet_id,
-                        "changed_fields": changed_fields
-                    }
-                )
+                try:
+                    log_action(
+                        event=event,
+                        action="CUSTOMER_PET_UPDATE",
+                        target_pk=f"PET#{pet_id}",
+                        target_sk=f"CLIENT#{client_id}",
+                        success=True,
+                        metadata={
+                            "company_id": company_id,
+                            "client_id": client_id,
+                            "pet_id": pet_id,
+                            "changed_fields": changed_fields
+                        }
+                    )
+                except Exception as log_err:
+                    print(f"WARNING: failed to write audit log: {log_err}")
 
-                from common.pet_profile import _rebuild_pet_summary
-                _rebuild_pet_summary(client_id, company_id)
+                rebuild_warning = None
+                try:
+                    from common.pet_profile import _rebuild_pet_summary
+                    _rebuild_pet_summary(client_id, company_id)
+                except Exception as rebuild_err:
+                    print(f"WARNING: failed to rebuild pet summary for client {client_id}: {rebuild_err}")
+                    rebuild_warning = "Pet updated successfully, but secondary summary refresh failed."
 
-                return success(sanitize_booking_for_role(item, 'client'), event)
+                response_body = sanitize_pet_for_client(item)
+                if rebuild_warning:
+                    response_body["_warning"] = rebuild_warning
+
+                return success(response_body, event)
 
             return internal_error("Failed to save pet record", event)
 

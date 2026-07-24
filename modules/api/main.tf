@@ -586,7 +586,7 @@ resource "aws_api_gateway_integration" "get_client_pets_lambda" {
   type                    = "AWS_PROXY"
   uri                     = var.pet_handler_invoke_arn
 }
- 
+
 # Client /client/pets/{petId}
 resource "aws_api_gateway_resource" "client_pet_id" {
   rest_api_id = aws_api_gateway_rest_api.main.id

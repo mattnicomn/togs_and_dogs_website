@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import React, { useState, useEffect, useRef } from 'react';
 import { getSession, getEffectiveRole } from './api/auth';
 import { getTenantInfo } from './api/client';
@@ -418,11 +418,16 @@ function AppContent() {
   );
 }
 
+const router = createBrowserRouter([
+  {
+    path: '*',
+    element: <AppContent />
+  }
+]);
+
 function App() {
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <RouterProvider router={router} />
   );
 }
 
