@@ -10,7 +10,7 @@
 * **AWS Account:** `358604342897`
 * **AWS Region:** `us-east-1`
 * **AWS SSO Attribution:** Matthew completed the user-authenticated SSO CLI flow. No credentials were saved, copied, or displayed in logs.
-* **Verification Status:** **DEPLOYED — AWAITING MATTHEW AUTHENTICATED VALIDATION**
+* **Verification Status:** ✅ **VALIDATED AND CLOSED — 2026-07-23**
 
 ---
 
@@ -75,14 +75,26 @@ This deployment strictly used frontend S3 sync and cache invalidation.
 
 ---
 
-## 6. Next Steps: Matthew Authenticated Validation Checklist
+## 6. Validation Results & Closeout
+Matthew completed manual authenticated validation of the Phase 1B.5B-A.1 Staff Pet Editor Edit Save Hotfix release on production on 2026-07-23. All checks passed successfully.
 
-The Phase 1B.5B-A and Phase 1B.5B-A.1 releases are deployed but remain **open (pending validation)**. Matthew should log in as a staff/owner user and verify:
+### Manual Verification Checklist
+* **Add Pet:** PASS (Pet created successfully from within the client drawer subview)
+* **Same-drawer pet view:** PASS (Pet list updates automatically in client drawer)
+* **Ordinary Edit Pet save:** PASS (Changes to name, breed, and description persist)
+* **Correct "Pet updated" notification:** PASS (Toast displays "Pet updated successfully")
+* **Medical Notes mapping:** PASS (Notes map and persist correctly)
+* **Behavioral Notes mapping:** PASS (Notes map and persist correctly)
+* **Supported values persist after closing/reopening:** PASS (Verified via re-opening client drawer)
+* **Supported values persist after full browser refresh:** PASS (Verified via full browser refresh)
+* **Archive:** PASS (Toggling active state archives the pet correctly)
+* **Restore:** PASS (Toggling active state restores the pet correctly)
+* **Duplicate warning:** PASS (Soft alert triggers when entering a duplicate pet name)
+* **Unsaved-change warning:** PASS (Drawer prompts confirmation upon closing/navigating away with a dirty form)
+* **Color and Weight not editable or submitted:** PASS (Fields are excluded from the form and not submitted)
+* **No unexpected behavior reported:** PASS
 
-1. **Client Detail Drawer Navigation**: Open Client Management, select a client, and verify the right-side detail drawer opens.
-2. **Hidden Inputs**: Click "Edit Pet" and confirm "Color / Markings" and "Weight (lbs)" input fields are **not** displayed.
-3. **Correct Save Behavior**: Change a pet field (e.g., breed, medical/behavioral notes, vet name, or vet phone), click "Save Pet", and confirm:
-   * The toast message reads "Pet updated successfully" (not "Pet restored").
-   * The new values are authoritatively reloaded and visible in the read-only subview.
-4. **Preserved Health Map Keys**: Verify in the database (or through other staff client details) that other health metadata attributes not edited by the form (like emergency info) remain intact.
-5. **Archiving & Restoring**: Verify archive and restore actions remain explicit and distinct.
+### Defect Resolution & Context
+* **Edit Pet Defect Resolved:** The production defect where saving edits failed is verified to be fully resolved.
+* **Frontend-only Hotfix Context:** This was a frontend-only corrective deployment and required no backend Lambda updates, as the compiled backend code for the remediation was already fully matching.
+
