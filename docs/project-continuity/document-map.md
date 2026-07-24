@@ -98,6 +98,7 @@
 | Mobile responsive UX plan | `docs/planning/release-22z-mobile-responsive-ux-polish-detailed-plan.md` |
 | AWS tagging evidence audit | `docs/planning/phase-23a-aws-tagging-evidence-audit-and-minimal-remediation.md` |
 | Cross-platform design system and mobile alignment | `docs/planning/phase-24a-cross-platform-design-system-and-mobile-workflow-alignment.md` |
+| Phase 24A-1A shared token contract | `docs/release-notes/phase-24a-1a-shared-token-contract.md` |
 
 
 ## Backlog

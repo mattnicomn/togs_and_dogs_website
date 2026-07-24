@@ -1,0 +1,98 @@
+{
+  "_contract": "Togs & Dogs cross-platform color token contract",
+  "_version": "24A-1A",
+  "_note": "Neither web nor mobile imports this file. It is the canonical reference for Phase 24A alignment work.",
+  "tokens": {
+    "primary": {
+      "semantic": "Brand primary — gold accent used for buttons, links, and key UI elements",
+      "web": "#c28b1e",
+      "mobile": "#c28b1e",
+      "aligned": true,
+      "decision": "aligned"
+    },
+    "primaryHover": {
+      "semantic": "Primary interaction state — hover on web, pressed on mobile",
+      "web": "#f08c3a",
+      "mobile": "#a37213",
+      "aligned": false,
+      "decision": "requires-24A-1C"
+    },
+    "background": {
+      "semantic": "Page-level background surface",
+      "web": "#faf7f2",
+      "mobile": "#faf7f2",
+      "aligned": true,
+      "decision": "aligned"
+    },
+    "card": {
+      "semantic": "Card and elevated surface background",
+      "web": "#ffffff",
+      "mobile": "#ffffff",
+      "aligned": true,
+      "decision": "aligned"
+    },
+    "textPrimary": {
+      "semantic": "Primary body and heading text",
+      "web": "#3c3c3b",
+      "mobile": "#3c3c3b",
+      "aligned": true,
+      "decision": "aligned"
+    },
+    "textMuted": {
+      "semantic": "De-emphasized or secondary text (labels, captions)",
+      "web": "#6a6a66",
+      "mobile": "#7f8c8d",
+      "aligned": false,
+      "decision": "requires-24A-1C"
+    },
+    "border": {
+      "semantic": "Default border and divider color",
+      "web": "#e2dfd9",
+      "mobile": "#e2e8f0",
+      "aligned": false,
+      "decision": "requires-24A-1C"
+    },
+    "borderSoft": {
+      "semantic": "Subtle or secondary border (card edges, section dividers)",
+      "web": "#e2dfd9",
+      "mobile": "#edf2ee",
+      "aligned": false,
+      "decision": "requires-24A-1C"
+    },
+    "success": {
+      "semantic": "Positive outcome — completed, active, paid, healthy",
+      "web": "#4a7c59",
+      "mobile": "#10b981",
+      "aligned": false,
+      "decision": "requires-24A-1C"
+    },
+    "danger": {
+      "semantic": "Negative outcome — error, cancelled, destructive action",
+      "web": "#d64933",
+      "mobile": "#ef4444",
+      "aligned": false,
+      "decision": "requires-24A-1C"
+    },
+    "info": {
+      "semantic": "Informational highlight — approved, in-progress, neutral alert",
+      "web": "#3b82f6",
+      "mobile": "#3b82f6",
+      "aligned": true,
+      "decision": "aligned"
+    },
+    "warning": {
+      "semantic": "Caution or pending state — pending review, attention needed",
+      "web": "#f59e0b",
+      "mobile": "#f59e0b",
+      "aligned": true,
+      "decision": "aligned"
+    },
+    "white": {
+      "semantic": "Pure white — button text on dark backgrounds, overlays",
+      "web": "#ffffff",
+      "mobile": "#ffffff",
+      "aligned": true,
+      "decision": "aligned"
+    }
+  }
+}

@@ -84,7 +84,8 @@
 - Mobile pet editing depends on the customer pet API being available after the Phase 1B.5C-A deployment decision.
 - No EAS, TestFlight, App Store, Google Play, Ryan-testing, or mobile-distribution changes approved.
 - Phase 24A planning document complete: `docs/planning/phase-24a-cross-platform-design-system-and-mobile-workflow-alignment.md`
-- Recommended sequence: shared architecture (1A) → wiring (1B) → visual alignment (1C) → constants (2) → mobile tests (3) → mobile My Pets read (4) → edit (5) → intake (6) → polish (7) → a11y (8) → build/distribution (9, separately approved).
+- Phase 24A-1A token contract complete: `shared/tokens/colors.json` defined, validation passes, neither app imports it yet.
+- Recommended sequence: shared architecture (1A ✅) → wiring (1B) → visual alignment (1C) → constants (2) → mobile tests (3) → mobile My Pets read (4) → edit (5) → intake (6) → polish (7) → a11y (8) → build/distribution (9, separately approved).
 - Mobile test infrastructure must precede new mobile feature screens.
 - Web forgot-password is missing (mobile has it complete); not a blocking dependency.
 
