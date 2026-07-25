@@ -1,5 +1,5 @@
 /**
- * Phase 24A-3: LoginScreen Baseline Tests
+ * Phase 24A-3: LoginScreen Baseline Tests (RNTL v14)
  *
  * Tests existing sign-in and forgot-password behavior
  * without calling Cognito or changing component behavior.
@@ -35,25 +35,25 @@ beforeEach(() => {
 });
 
 describe('LoginScreen - Sign In', () => {
-  it('renders email and password inputs', () => {
-    render(<LoginScreen />);
+  it('renders email and password inputs', async () => {
+    await render(<LoginScreen />);
     expect(screen.getByPlaceholderText('email@example.com')).toBeTruthy();
     expect(screen.getByPlaceholderText('Enter password')).toBeTruthy();
   });
 
-  it('renders Log In button', () => {
-    render(<LoginScreen />);
+  it('renders Log In button', async () => {
+    await render(<LoginScreen />);
     expect(screen.getByText('Log In')).toBeTruthy();
   });
 
-  it('renders Forgot password link', () => {
-    render(<LoginScreen />);
+  it('renders Forgot password link', async () => {
+    await render(<LoginScreen />);
     expect(screen.getByText('Forgot password?')).toBeTruthy();
   });
 
   it('shows validation error for empty fields', async () => {
-    render(<LoginScreen />);
-    fireEvent.press(screen.getByText('Log In'));
+    await render(<LoginScreen />);
+    await fireEvent.press(screen.getByText('Log In'));
     await waitFor(() => {
       expect(screen.getByText('Please enter your email and password.')).toBeTruthy();
     });
@@ -61,38 +61,34 @@ describe('LoginScreen - Sign In', () => {
 });
 
 describe('LoginScreen - Forgot Password Flow', () => {
-  it('transitions to forgot-password mode', () => {
-    render(<LoginScreen />);
-    fireEvent.press(screen.getByText('Forgot password?'));
+  it('transitions to forgot-password mode', async () => {
+    await render(<LoginScreen />);
+    await fireEvent.press(screen.getByText('Forgot password?'));
     expect(screen.getByText('Forgot Password')).toBeTruthy();
     expect(screen.getByText('Send Reset Code')).toBeTruthy();
   });
 
   it('sends reset code on valid email', async () => {
-    render(<LoginScreen />);
-    fireEvent.press(screen.getByText('Forgot password?'));
-
-    fireEvent.changeText(
+    await render(<LoginScreen />);
+    await fireEvent.press(screen.getByText('Forgot password?'));
+    await fireEvent.changeText(
       screen.getByPlaceholderText('email@example.com'),
       'test@example.com'
     );
-    fireEvent.press(screen.getByText('Send Reset Code'));
-
+    await fireEvent.press(screen.getByText('Send Reset Code'));
     await waitFor(() => {
       expect(mockForgotPassword).toHaveBeenCalledWith('test@example.com');
     });
   });
 
   it('transitions to reset-code entry after sending', async () => {
-    render(<LoginScreen />);
-    fireEvent.press(screen.getByText('Forgot password?'));
-
-    fireEvent.changeText(
+    await render(<LoginScreen />);
+    await fireEvent.press(screen.getByText('Forgot password?'));
+    await fireEvent.changeText(
       screen.getByPlaceholderText('email@example.com'),
       'test@example.com'
     );
-    fireEvent.press(screen.getByText('Send Reset Code'));
-
+    await fireEvent.press(screen.getByText('Send Reset Code'));
     await waitFor(() => {
       expect(screen.getByText('Enter Reset Code')).toBeTruthy();
       expect(screen.getByPlaceholderText('6-digit code')).toBeTruthy();
@@ -100,10 +96,9 @@ describe('LoginScreen - Forgot Password Flow', () => {
   });
 
   it('shows error for empty email in forgot-password mode', async () => {
-    render(<LoginScreen />);
-    fireEvent.press(screen.getByText('Forgot password?'));
-    fireEvent.press(screen.getByText('Send Reset Code'));
-
+    await render(<LoginScreen />);
+    await fireEvent.press(screen.getByText('Forgot password?'));
+    await fireEvent.press(screen.getByText('Send Reset Code'));
     await waitFor(() => {
       expect(screen.getByText('Please enter your email address.')).toBeTruthy();
     });

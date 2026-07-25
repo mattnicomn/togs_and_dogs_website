@@ -6,7 +6,6 @@
  */
 import { COLORS } from '../src/theme/colors';
 
-// Read the shared contract for comparison
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -52,7 +51,6 @@ describe('Generated Color Token Compatibility', () => {
   });
 
   it('preserves existing property names for backward compatibility', () => {
-    // These are the exact property names used by existing mobile consumers
     expect(COLORS.primary).toBeDefined();
     expect(COLORS.primaryHover).toBeDefined();
     expect(COLORS.background).toBeDefined();

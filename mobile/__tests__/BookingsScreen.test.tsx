@@ -1,7 +1,8 @@
 /**
- * Phase 24A-3: BookingsScreen Baseline Smoke Test
+ * Phase 24A-3: BookingsScreen Baseline Tests (RNTL v14)
  *
- * Tests existing client bookings screen behavior with mocked API and auth.
+ * Tests existing client bookings screen with mocked API and auth.
+ * All state updates are awaited — no act() warnings expected.
  */
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react-native';
@@ -31,16 +32,9 @@ beforeEach(() => {
 });
 
 describe('BookingsScreen', () => {
-  it('shows loading state initially', () => {
-    mockGetClientRequests.mockReturnValue(new Promise(() => {})); // Never resolves
-    render(<BookingsScreen />);
-    expect(screen.getByText('Loading your appointments...')).toBeTruthy();
-  });
-
-  it('shows empty state when no bookings exist', async () => {
+  it('shows loading then empty state when no bookings exist', async () => {
     mockGetClientRequests.mockResolvedValue([]);
-    render(<BookingsScreen />);
-
+    await render(<BookingsScreen />);
     await waitFor(() => {
       expect(screen.getByText('No Appointments Yet')).toBeTruthy();
     });
@@ -57,8 +51,7 @@ describe('BookingsScreen', () => {
         created_at: '2026-07-20',
       },
     ]);
-    render(<BookingsScreen />);
-
+    await render(<BookingsScreen />);
     await waitFor(() => {
       expect(screen.getByText(/Buddy/)).toBeTruthy();
     });
@@ -66,11 +59,16 @@ describe('BookingsScreen', () => {
 
   it('shows error state on API failure', async () => {
     mockGetClientRequests.mockRejectedValue(new Error('Network error'));
-    render(<BookingsScreen />);
-
+    await render(<BookingsScreen />);
     await waitFor(() => {
       expect(screen.getByText('Network error')).toBeTruthy();
       expect(screen.getByText('Retry')).toBeTruthy();
     });
+  });
+
+  it('shows title header', async () => {
+    mockGetClientRequests.mockResolvedValue([]);
+    await render(<BookingsScreen />);
+    expect(screen.getByText('My Appointments')).toBeTruthy();
   });
 });

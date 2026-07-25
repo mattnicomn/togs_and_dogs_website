@@ -2,6 +2,7 @@
  * Phase 24A-3: Jest Setup for Mobile Test Foundation
  *
  * Provides minimal deterministic mocks for platform dependencies.
+ * No global console suppression — tests must not produce avoidable warnings.
  */
 
 // Mock expo-secure-store
@@ -14,9 +15,7 @@ jest.mock('expo-secure-store', () => ({
 // Mock @react-navigation/native
 jest.mock('@react-navigation/native', () => {
   const React = require('react');
-  const actual = jest.requireActual('@react-navigation/native');
   return {
-    ...actual,
     useNavigation: () => ({
       navigate: jest.fn(),
       goBack: jest.fn(),
@@ -26,7 +25,6 @@ jest.mock('@react-navigation/native', () => {
       params: {},
     }),
     useFocusEffect: (cb) => {
-      // eslint-disable-next-line react-hooks/rules-of-hooks
       React.useEffect(() => { cb(); }, []);
     },
     NavigationContainer: ({ children }) => children,
@@ -55,17 +53,3 @@ jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }) => children,
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-
-// Suppress noisy act() warnings from async state updates in tests.
-// These are expected when testing components with useEffect/useFocusEffect
-// that trigger state updates after the initial render completes.
-const originalError = console.error;
-console.error = (...args) => {
-  if (typeof args[0] === 'string' && args[0].includes('was not wrapped in act')) {
-    return;
-  }
-  if (typeof args[0] === 'string' && args[0].includes("Can't perform a React state update on a component that hasn't mounted")) {
-    return;
-  }
-  originalError(...args);
-};

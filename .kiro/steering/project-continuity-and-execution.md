@@ -111,9 +111,9 @@ has materially changed. Leave a resume block containing:
 - Mobile pet editing (24A-5) depends on Phase 1B.5C-A being deployed AND validated.
 - Mobile pet read-only (24A-4) may proceed once 24A-3 is complete (GET /client/pets is already deployed).
 - First recommended bounded implementation: Phase 24A-4 (Mobile My Pets read-only screen).
-- Phase 24A-3 mobile test foundation: jest-expo@54.0.17, Jest 29.7.0, RNTL 12.9.0, 18 tests passing.
+- Phase 24A-3 mobile test foundation: jest-expo@54.0.17, Jest 29.7.0, RNTL 14.0.1, test-renderer@1.1.0. 18 tests passing across 4 suites. Zero act() warnings.
 - Mobile test commands: `npm test`, `npm run test:ci`, `npm run typecheck`.
-- Unavoidable limitation: RNTL v12 (deprecated) because RNTL v14 requires React 19.2+.
+- Transitive jest-expo renderer: react-test-renderer@19.1.0 exists only inside jest-expo (unavoidable preset dependency).
 - Phase 24A-4 requires explicit Matthew approval.
 - Mobile pet editing remains blocked by Phase 1B.5C-A deployment and validation.
 - No mobile distribution is approved.

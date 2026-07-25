@@ -1,34 +1,42 @@
 # Phase 24A-3: Mobile Test Foundation
 
 **Status:** ✅ COMPLETE
-**Implementation Commit:** `0e26c1f`
-**Correction Commit:** (this commit)
+**Implementation Commits:** `0e26c1f`, `81ad2ff`, (this commit)
 **Starting HEAD:** `8d41761`
 
 ---
 
 ## Summary
 
-Established automated test infrastructure for the Expo/React Native mobile application using jest-expo, Jest 29, and React Native Testing Library v12. Includes 18 baseline tests across 4 suites covering runner sanity, LoginScreen, BookingsScreen, and generated color token compatibility.
+Established automated test infrastructure for the Expo/React Native mobile application using the React 19-compatible stack: jest-expo, Jest 29, React Native Testing Library v14, and test-renderer@1.1. Includes 18 baseline tests across 4 suites covering runner sanity, LoginScreen, BookingsScreen, and generated color token compatibility.
 
-## Dependencies
+## Final Dependency Stack
 
 | Package | Version | Purpose |
 |---------|---------|---------|
 | `jest-expo` | `~54.0.17` | SDK 54-compatible Jest preset |
 | `jest` | `^29.7.0` | Test runner (v29 required by jest-expo@54) |
-| `@testing-library/react-native` | `^12.9.0` | Component testing (v12 for React 19.1 compat) |
+| `@testing-library/react-native` | `^14.0.1` | Component testing (v14 for React 19.1+) |
+| `test-renderer` | `^1.1.0` | React 19.1 concurrent renderer for testing |
 | `@types/jest` | `^29.5.0` | TypeScript definitions |
-| `react-test-renderer` | `^19.2.8` | Required peer for RNTL v12 |
 
 ### Renderer Dependency Status
 
-- `react-test-renderer@19.1.0` — **transitive** via `jest-expo@54.0.17` (bundled for SDK 54's React version)
-- `react-test-renderer@19.2.8` — **direct** devDependency (satisfies RNTL v12 peer requirement)
+- `test-renderer@1.1.0` — **direct** devDependency (correct renderer for React 19.1)
+- `react-test-renderer@19.1.0` — **transitive only** via jest-expo@54.0.17 (unavoidable preset dependency)
+- No direct `react-test-renderer` dependency exists in the project
 
-### Why RNTL v14 Was Not Adopted
+### Why the Original RNTL v14 Attempt Failed
 
-RNTL v14 imports from a package called `test-renderer` (not `react-test-renderer`). This package requires React 19.2+. The project uses React 19.1.0 (Expo SDK 54). An initial attempt to map `test-renderer` → `react-test-renderer` via `moduleNameMapper` resulted in `createRoot is not a function` errors because the APIs are incompatible. RNTL v12 is the correct choice for this stack.
+The initial attempt incorrectly added `moduleNameMapper: { "^test-renderer$": "react-test-renderer" }`. This mapped RNTL v14's `test-renderer` import to the legacy `react-test-renderer` package, which has incompatible APIs (`createRoot` does not exist in the legacy package). The correct solution is to install `test-renderer@1.1` directly — it is the React 19.1-compatible renderer package that RNTL v14 expects.
+
+### Compatibility Basis
+
+- React 19.0+ → test-renderer@1.0
+- React 19.1 → test-renderer@1.1
+- React 19.2 → test-renderer@1.2
+- Node requirement: ^22.13.0 or >=24 (project has v26.1.0 ✅)
+- React Native requirement: >=0.78 (project has 0.81.5 ✅)
 
 ## Jest Configuration
 
@@ -42,13 +50,15 @@ RNTL v14 imports from a package called `test-renderer` (not `react-test-renderer
 }
 ```
 
+No `moduleNameMapper`. No global console suppression.
+
 ## Test Commands
 
 - `npm test` — standard Jest run
 - `npm run test:ci` — CI mode with `--ci --forceExit`
 - `npm run typecheck` — TypeScript `--noEmit`
 
-## Test Suites and Results
+## Test Results
 
 | Suite | Tests | Status |
 |-------|-------|--------|
@@ -58,6 +68,8 @@ RNTL v14 imports from a package called `test-renderer` (not `react-test-renderer
 | `BookingsScreen.test.tsx` | 4 | ✅ Pass |
 | **Total** | **18** | **✅ All pass** |
 
+**Zero act() warnings. Zero unhandled promises. Deterministic on repeated runs.**
+
 ## Mocks (jest.setup.js)
 
 - `expo-secure-store` — in-memory mock
@@ -66,11 +78,19 @@ RNTL v14 imports from a package called `test-renderer` (not `react-test-renderer
 - `@react-navigation/native-stack` — stub navigator
 - `react-native-safe-area-context` — stub SafeAreaView
 
-## Known Limitations
+No global console.error or console.warn suppression.
 
-- RNTL v12 is deprecated upstream (v13/v14 recommended), but v14 requires React 19.2+
-- `act()` warnings from BookingsScreen async state updates are suppressed in jest.setup.js (expected behavior for components with `useFocusEffect` + async data fetching)
-- Web Vitest tests exhibit a transient `setupFiles` initialization failure under Node 26 + Vitest 4.1.10 that is unrelated to Phase 24A-3 changes (tests pass when the environment is stable)
+## Validation Results
+
+- Shared contracts (9 + 7 + 17 = 33 tests): ✅ All pass
+- Web legacy tests (96): ✅ All pass
+- Web component tests (Vitest 4.1.10): ⚠️ See known limitation below
+- Mobile TypeScript: ✅ Zero errors
+- Mobile Jest (18 tests): ✅ All pass, zero warnings
+
+## Known Limitation: Web Vitest setupFiles Issue
+
+Web Vitest component tests exhibit a `setupFiles` initialization failure under Node 26 + Vitest 4.1.10. The error is: "Vitest failed to find the current suite" at `src/test/setup.js:6` where `afterEach` is called. This is a Vitest 4.x behavioral change where `setupFiles` runs before the test-suite context is established. **No web files were modified by Phase 24A-3** — this is an environment-level issue requiring a separate Vitest configuration investigation.
 
 ## Next Steps
 
@@ -78,3 +98,4 @@ RNTL v14 imports from a package called `test-renderer` (not `react-test-renderer
 |-------|-------|----------|
 | 24A-4 | Mobile My Pets (read-only) | Standard implementation approval |
 | 24A-1C | Visual token alignment | Separate + deployment approval |
+| Web Vitest fix | Separate investigation of setupFiles timing under Node 26 | Separate approval |
