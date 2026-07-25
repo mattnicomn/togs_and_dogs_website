@@ -1,0 +1,128 @@
+{
+  "_contract": "Togs & Dogs request status identifiers",
+  "_version": "24A-2",
+  "_authority": "src/backend/common/status.py (RequestStatus enum)",
+  "_note": "Machine identifiers only. Display labels are platform-specific due to workflow-context sensitivity on web.",
+  "statuses": {
+    "PENDING_REVIEW": {
+      "category": "neutral",
+      "terminal": false,
+      "customerVisible": true,
+      "staffSettable": false,
+      "synonyms": ["NEEDS_REVIEW"]
+    },
+    "MEET_GREET_REQUIRED": {
+      "category": "informational",
+      "terminal": false,
+      "customerVisible": false,
+      "staffSettable": true,
+      "synonyms": ["NEEDS_MG"]
+    },
+    "MG_SCHEDULED": {
+      "category": "informational",
+      "terminal": false,
+      "customerVisible": false,
+      "staffSettable": true,
+      "synonyms": []
+    },
+    "MG_COMPLETED": {
+      "category": "informational",
+      "terminal": false,
+      "customerVisible": false,
+      "staffSettable": true,
+      "synonyms": []
+    },
+    "PROFILE_CREATED": {
+      "category": "informational",
+      "terminal": false,
+      "customerVisible": false,
+      "staffSettable": true,
+      "synonyms": []
+    },
+    "READY_FOR_APPROVAL": {
+      "category": "informational",
+      "terminal": false,
+      "customerVisible": false,
+      "staffSettable": true,
+      "synonyms": ["NEW_REQUEST"]
+    },
+    "QUOTE_NEEDED": {
+      "category": "informational",
+      "terminal": false,
+      "customerVisible": false,
+      "staffSettable": true,
+      "synonyms": []
+    },
+    "QUOTE_SENT": {
+      "category": "informational",
+      "terminal": false,
+      "customerVisible": true,
+      "staffSettable": true,
+      "synonyms": ["QUOTED"]
+    },
+    "APPROVED": {
+      "category": "success",
+      "terminal": false,
+      "customerVisible": true,
+      "staffSettable": true,
+      "synonyms": ["BOOKED"]
+    },
+    "ASSIGNED": {
+      "category": "success",
+      "terminal": false,
+      "customerVisible": true,
+      "staffSettable": true,
+      "synonyms": ["JOB_CREATED", "SCHEDULED"]
+    },
+    "DECLINED": {
+      "category": "danger",
+      "terminal": true,
+      "customerVisible": true,
+      "staffSettable": true,
+      "synonyms": []
+    },
+    "CANCELLATION_REQUESTED": {
+      "category": "warning",
+      "terminal": false,
+      "customerVisible": true,
+      "staffSettable": false,
+      "synonyms": []
+    },
+    "CANCELLATION_DENIED": {
+      "category": "warning",
+      "terminal": false,
+      "customerVisible": true,
+      "staffSettable": true,
+      "synonyms": []
+    },
+    "CANCELLED": {
+      "category": "danger",
+      "terminal": true,
+      "customerVisible": true,
+      "staffSettable": true,
+      "synonyms": []
+    },
+    "COMPLETED": {
+      "category": "success",
+      "terminal": true,
+      "customerVisible": true,
+      "staffSettable": true,
+      "synonyms": []
+    },
+    "ARCHIVED": {
+      "category": "neutral",
+      "terminal": true,
+      "customerVisible": false,
+      "staffSettable": true,
+      "synonyms": []
+    },
+    "DELETED": {
+      "category": "neutral",
+      "terminal": true,
+      "customerVisible": false,
+      "staffSettable": true,
+      "synonyms": []
+    }
+  },
+  "categories": ["neutral", "informational", "success", "warning", "danger"]
+}

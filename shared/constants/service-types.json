@@ -1,0 +1,56 @@
+{
+  "_contract": "Togs & Dogs service type identifiers",
+  "_version": "24A-2",
+  "_authority": "src/backend/common/google_calendar.py (SERVICE_DURATIONS, FRIENDLY_SERVICE_NAMES)",
+  "services": {
+    "WALK_30MIN": {
+      "label": "30-Min Walk",
+      "labelLong": "30-Minute Walk",
+      "durationMinutes": 30,
+      "availableInIntake": true,
+      "supportedOnMobile": true
+    },
+    "WALK_60MIN": {
+      "label": "60-Min Walk",
+      "labelLong": "60-Minute Walk",
+      "durationMinutes": 60,
+      "availableInIntake": true,
+      "supportedOnMobile": true
+    },
+    "DROPIN_1HR": {
+      "label": "1-Hour Drop-in",
+      "labelLong": "1-Hour Drop-in",
+      "durationMinutes": 60,
+      "availableInIntake": true,
+      "supportedOnMobile": true
+    },
+    "DROPIN_3HR": {
+      "label": "3-Hour Drop-in",
+      "labelLong": "3-Hour Drop-in",
+      "durationMinutes": 180,
+      "availableInIntake": true,
+      "supportedOnMobile": true
+    },
+    "OVERNIGHT": {
+      "label": "Overnight Care",
+      "labelLong": "Overnight Care",
+      "durationMinutes": 720,
+      "availableInIntake": true,
+      "supportedOnMobile": true
+    },
+    "PET_SITTING": {
+      "label": "Pet Sitting",
+      "labelLong": "Pet Sitting",
+      "durationMinutes": 60,
+      "availableInIntake": true,
+      "supportedOnMobile": true
+    },
+    "MEET_GREET": {
+      "label": "Meet & Greet",
+      "labelLong": "Meet & Greet",
+      "durationMinutes": 45,
+      "availableInIntake": false,
+      "supportedOnMobile": true
+    }
+  }
+}

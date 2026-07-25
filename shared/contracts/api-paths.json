@@ -1,0 +1,33 @@
+{
+  "_contract": "Togs & Dogs API path identifiers",
+  "_version": "24A-2",
+  "_authority": "modules/api/main.tf (API Gateway resources) and web/src/api/client.js",
+  "_note": "Paths only. No hostnames, environment URLs, secrets, or tenant data. API base URL remains platform configuration.",
+  "client": {
+    "getRequests": "/client/requests",
+    "submitRequest": "/client/requests",
+    "getPets": "/client/pets",
+    "updatePet": "/client/pets/{petId}",
+    "requestCancellation": "/client/cancel"
+  },
+  "admin": {
+    "getRequests": "/admin/requests",
+    "postAction": "/admin/requests",
+    "review": "/admin/review",
+    "assign": "/admin/assign",
+    "jobComplete": "/admin/job/complete",
+    "getPets": "/admin/pets",
+    "getPetById": "/admin/pets/{petId}",
+    "createPet": "/admin/pets",
+    "updatePet": "/admin/pets/{petId}",
+    "getStaff": "/admin/staff",
+    "getClients": "/admin/clients",
+    "cancelDecision": "/admin/cancel/decision",
+    "exportData": "/admin/export-data",
+    "tenantInfo": "/admin/tenant-info"
+  },
+  "public": {
+    "submitRequest": "/requests",
+    "staffOptions": "/requests"
+  }
+}

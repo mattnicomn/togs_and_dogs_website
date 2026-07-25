@@ -1,0 +1,43 @@
+{
+  "_contract": "Togs & Dogs pet field definitions",
+  "_version": "24A-2",
+  "_authority": "src/backend/handlers/pet_handler.py (client PUT allowlist) and web/src/utils/petHelpers.js",
+  "clientReadFields": [
+    "pet_id",
+    "name",
+    "species",
+    "breed",
+    "age",
+    "care_instructions",
+    "feeding_notes",
+    "medication_notes",
+    "behavior_notes",
+    "is_active"
+  ],
+  "clientWriteFields": [
+    "name",
+    "species",
+    "breed",
+    "age",
+    "care_instructions",
+    "feeding_notes",
+    "medication_notes",
+    "behavior_notes",
+    "health"
+  ],
+  "clientWriteHealthSubfields": [
+    "vet_name",
+    "vet_phone"
+  ],
+  "fieldLimits": {
+    "name": 100,
+    "species": 100,
+    "breed": 100,
+    "age": 100,
+    "care_instructions": 2000,
+    "feeding_notes": 2000,
+    "medication_notes": 2000,
+    "behavior_notes": 2000
+  },
+  "clientPetEditApiAvailability": "pending-phase-1B5C-A-deployment"
+}

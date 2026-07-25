@@ -110,7 +110,7 @@ has materially changed. Leave a resume block containing:
   and user-visible color alignment (1C).
 - Mobile pet editing (24A-5) depends on Phase 1B.5C-A being deployed AND validated.
 - Mobile pet read-only (24A-4) may proceed once 24A-3 is complete (GET /client/pets is already deployed).
-- First recommended bounded implementation: Phase 24A-1C (visual token alignment) or Phase 24A-2 (shared constants).
+- First recommended bounded implementation: Phase 24A-3 (mobile test foundation) or Phase 24A-1C (visual token alignment).
 - No EAS, TestFlight, App Store, Google Play, Ryan-testing, or
   mobile-distribution changes are approved.
 - EAS build and distribution (24A-9) is a separately approved release.

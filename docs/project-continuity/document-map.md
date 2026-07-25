@@ -100,6 +100,7 @@
 | Cross-platform design system and mobile alignment | `docs/planning/phase-24a-cross-platform-design-system-and-mobile-workflow-alignment.md` |
 | Phase 24A-1A shared token contract | `docs/release-notes/phase-24a-1a-shared-token-contract.md` |
 | Phase 24A-1B platform token adapters | `docs/release-notes/phase-24a-1b-platform-token-adapters.md` |
+| Phase 24A-2 shared constants and contracts | `docs/release-notes/phase-24a-2-shared-constants-and-contracts.md` |
 
 
 ## Backlog
