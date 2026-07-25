@@ -84,13 +84,14 @@ No global console.error or console.warn suppression.
 
 - Shared contracts (9 + 7 + 17 = 33 tests): ✅ All pass
 - Web legacy tests (96): ✅ All pass
-- Web component tests (Vitest 4.1.10): ⚠️ See known limitation below
+- Web component tests (Vitest 4.1.10, 113): ✅ All pass (requires uppercase drive letter)
+- Web production build: ✅ Success
 - Mobile TypeScript: ✅ Zero errors
 - Mobile Jest (18 tests): ✅ All pass, zero warnings
 
-## Known Limitation: Web Vitest setupFiles Issue
+## Resolved: Web Vitest Path-Casing Issue
 
-Web Vitest component tests exhibit a `setupFiles` initialization failure under Node 26 + Vitest 4.1.10. The error is: "Vitest failed to find the current suite" at `src/test/setup.js:6` where `afterEach` is called. This is a Vitest 4.x behavioral change where `setupFiles` runs before the test-suite context is established. **No web files were modified by Phase 24A-3** — this is an environment-level issue requiring a separate Vitest configuration investigation.
+Web Vitest component tests fail with "Vitest failed to find the current suite" when the working directory starts with a **lowercase** drive letter (e.g., `c:\`). Tests pass when using an **uppercase** drive letter (e.g., `cd C:\Users\...`). This is a known Vitest Windows path-normalization issue. The fix is documented in `.kiro/steering/windows-shell-execution.md`: always use uppercase drive letters when running Vitest.
 
 ## Next Steps
 

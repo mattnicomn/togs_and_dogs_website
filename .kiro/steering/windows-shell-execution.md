@@ -13,6 +13,10 @@ This repository is developed on Windows.
 - Do not use PowerShell unless the task explicitly requires PowerShell syntax.
 - When using `cmd.exe`, keep commands simple and avoid unnecessary nested quoting.
 - Prefer separate commands over long chained commands.
+- When running Vitest or web component tests, always `cd` using an uppercase
+  drive letter (e.g. `cd C:\Users\...`) before executing the test command.
+  Lowercase drive letters (e.g. `c:\`) cause Vitest to fail with
+  "failed to find the current suite" due to a Windows path-casing issue.
 
 ## Failure handling
 
