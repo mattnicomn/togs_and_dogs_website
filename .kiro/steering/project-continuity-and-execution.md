@@ -110,7 +110,13 @@ has materially changed. Leave a resume block containing:
   and user-visible color alignment (1C).
 - Mobile pet editing (24A-5) depends on Phase 1B.5C-A being deployed AND validated.
 - Mobile pet read-only (24A-4) may proceed once 24A-3 is complete (GET /client/pets is already deployed).
-- First recommended bounded implementation: Phase 24A-3 (mobile test foundation) or Phase 24A-1C (visual token alignment).
+- First recommended bounded implementation: Phase 24A-4 (Mobile My Pets read-only screen).
+- Phase 24A-3 mobile test foundation: jest-expo@54.0.17, Jest 29.7.0, RNTL 12.9.0, 18 tests passing.
+- Mobile test commands: `npm test`, `npm run test:ci`, `npm run typecheck`.
+- Unavoidable limitation: RNTL v12 (deprecated) because RNTL v14 requires React 19.2+.
+- Phase 24A-4 requires explicit Matthew approval.
+- Mobile pet editing remains blocked by Phase 1B.5C-A deployment and validation.
+- No mobile distribution is approved.
 - No EAS, TestFlight, App Store, Google Play, Ryan-testing, or
   mobile-distribution changes are approved.
 - EAS build and distribution (24A-9) is a separately approved release.

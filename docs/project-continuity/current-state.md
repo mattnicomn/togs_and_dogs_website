@@ -87,7 +87,8 @@
 - Phase 24A-1A token contract complete: `shared/tokens/colors.json` defined, validation passes, neither app imports it yet.
 - Phase 24A-1B platform adapters complete: generator wired, web and mobile consume generated adapters, no visual change, all tests pass.
 - Phase 24A-2 shared constants and contracts complete: request statuses, service types, pet fields, and API paths defined as reference contracts. Not yet consumed by applications. Role-mapping discrepancy documented for separate resolution.
-- Recommended sequence: shared architecture (1A ✅) → wiring (1B ✅) → visual alignment (1C) → constants (2 ✅) → mobile tests (3) → mobile My Pets read (4) → edit (5) → intake (6) → polish (7) → a11y (8) → build/distribution (9, separately approved).
+- Phase 24A-3 mobile test foundation complete: jest-expo@54, Jest 29, RNTL v12. 18 baseline tests passing across 4 suites.
+- Recommended sequence: shared architecture (1A ✅) → wiring (1B ✅) → visual alignment (1C) → constants (2 ✅) → mobile tests (3 ✅) → mobile My Pets read (4) → edit (5) → intake (6) → polish (7) → a11y (8) → build/distribution (9, separately approved).
 - Mobile test infrastructure must precede new mobile feature screens.
 - Web forgot-password is missing (mobile has it complete); not a blocking dependency.
 

@@ -56,11 +56,16 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-// Suppress noisy act() warnings that are expected in test environments
-const originalWarn = console.warn;
-console.warn = (...args) => {
+// Suppress noisy act() warnings from async state updates in tests.
+// These are expected when testing components with useEffect/useFocusEffect
+// that trigger state updates after the initial render completes.
+const originalError = console.error;
+console.error = (...args) => {
   if (typeof args[0] === 'string' && args[0].includes('was not wrapped in act')) {
     return;
   }
-  originalWarn(...args);
+  if (typeof args[0] === 'string' && args[0].includes("Can't perform a React state update on a component that hasn't mounted")) {
+    return;
+  }
+  originalError(...args);
 };
