@@ -76,10 +76,15 @@
   - See `docs/planning/phase-23a-aws-tagging-evidence-audit-and-minimal-remediation.md`
 - Phase 23B: AWS Budget Coverage and Cost Visibility Dashboard (📋 PLANNED — 2026-07-25)
   - Goal: ensure Matthew can see and monitor complete Togs & Dogs cost footprint.
-  - Planned: cost-allocation-tag verification, Budget coverage validation, Cost Explorer report, untagged-resource evaluation, Budget design review, operating instructions.
+  - Step 1 read-only verification COMPLETE (2026-07-25).
+  - Cost-allocation tags: `Client`, `Environment`, `ManagedBy`, `Repo` are ACTIVE. `Project`, `BillingModel`, `Application`, `CostCenter`, `Company` are INACTIVE.
+  - Budget coverage: 92–97% of workload-account costs captured by `Client=TogAndDogs` filter.
+  - Excluded: CloudWatch alarm monitoring ($0.45/month, tagged but billing doesn't attribute), Terraform state bucket ($0.008/month, untagged).
+  - Classification: SUBSTANTIALLY COMPLETE WITH DOCUMENTED EXCLUSIONS.
+  - Next: Step 2 — activate inactive tags, add budget alerts, create Cost Explorer report (requires Matthew approval).
   - Not blocked by or blocking Phase 1B.5C-A.
-  - Requires payer-account access for authoritative tag activation status.
   - See `docs/planning/phase-23b-aws-budget-coverage-and-cost-visibility-dashboard.md`
+  - See `docs/release-notes/phase-23b-step-1-budget-coverage-verification.md`
 
 ## Cross-Platform UI Alignment (Planning Only)
 

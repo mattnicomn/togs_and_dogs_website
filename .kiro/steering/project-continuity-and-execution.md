@@ -99,15 +99,18 @@ has materially changed. Leave a resume block containing:
 ### AWS Budget and Cost Visibility (Phase 23B)
 
 - Planning document complete: `docs/planning/phase-23b-aws-budget-coverage-and-cost-visibility-dashboard.md`
+- Step 1 read-only verification complete: `docs/release-notes/phase-23b-step-1-budget-coverage-verification.md`
 - Phase 23A tagging evidence audit is complete.
-- Phase 23B Budget and Cost Explorer coverage work is planned but not implemented.
+- Cost-allocation tags verified from payer account: `Client`, `Environment`, `ManagedBy`, `Repo` are ACTIVE. `Project`, `BillingModel`, `Application`, `CostCenter`, `Company` are INACTIVE.
+- Budget coverage classification: SUBSTANTIALLY COMPLETE WITH DOCUMENTED EXCLUSIONS (92–97%).
+- CloudWatch alarm monitoring ($0.45/month) excluded due to AWS billing attribution limitation (not fixable by tagging).
 - The existing $20 Client-filtered budget remains unchanged.
-- Do not claim all Togs & Dogs costs are visible until Phase 23B validation is complete.
-- Payer-account cost-allocation-tag status remains unverified.
+- Do not claim all Togs & Dogs costs are visible until inactive tags are activated and exclusions reviewed.
+- Do not activate or deactivate cost-allocation tags without explicit Matthew approval.
 - Future Kiro or AG sessions must obtain explicit approval before any Billing or Budget mutation.
 - Phase 23B is not blocked by or blocking Phase 1B.5C-A.
-- Read-only payer-account verification may be separately approved as a bounded task.
-- Do not classify Phase 23B planning as a production release.
+- Next step: Phase 23B Step 2 — activate inactive tags, add budget alerts, create Cost Explorer report.
+- Do not classify Phase 23B as a production release.
 
 ### Cross-Platform UI Alignment
 
