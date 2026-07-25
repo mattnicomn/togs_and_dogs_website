@@ -74,6 +74,12 @@
   - Budget filter (`Client=TogAndDogs`) confirmed functioning.
   - Cost-allocation activation status requires payer-account access (linked account cannot query).
   - See `docs/planning/phase-23a-aws-tagging-evidence-audit-and-minimal-remediation.md`
+- Phase 23B: AWS Budget Coverage and Cost Visibility Dashboard (📋 PLANNED — 2026-07-25)
+  - Goal: ensure Matthew can see and monitor complete Togs & Dogs cost footprint.
+  - Planned: cost-allocation-tag verification, Budget coverage validation, Cost Explorer report, untagged-resource evaluation, Budget design review, operating instructions.
+  - Not blocked by or blocking Phase 1B.5C-A.
+  - Requires payer-account access for authoritative tag activation status.
+  - See `docs/planning/phase-23b-aws-budget-coverage-and-cost-visibility-dashboard.md`
 
 ## Cross-Platform UI Alignment (Planning Only)
 

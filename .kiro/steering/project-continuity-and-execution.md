@@ -96,6 +96,19 @@ has materially changed. Leave a resume block containing:
 - Preserve current `CostCenter`, `BillingModel`, and `Repo` semantics unless
   a separately approved migration plan addresses reporting continuity.
 
+### AWS Budget and Cost Visibility (Phase 23B)
+
+- Planning document complete: `docs/planning/phase-23b-aws-budget-coverage-and-cost-visibility-dashboard.md`
+- Phase 23A tagging evidence audit is complete.
+- Phase 23B Budget and Cost Explorer coverage work is planned but not implemented.
+- The existing $20 Client-filtered budget remains unchanged.
+- Do not claim all Togs & Dogs costs are visible until Phase 23B validation is complete.
+- Payer-account cost-allocation-tag status remains unverified.
+- Future Kiro or AG sessions must obtain explicit approval before any Billing or Budget mutation.
+- Phase 23B is not blocked by or blocking Phase 1B.5C-A.
+- Read-only payer-account verification may be separately approved as a bounded task.
+- Do not classify Phase 23B planning as a production release.
+
 ### Cross-Platform UI Alignment
 
 - Planning document complete: `docs/planning/phase-24a-cross-platform-design-system-and-mobile-workflow-alignment.md`
