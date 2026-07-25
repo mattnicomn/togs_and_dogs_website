@@ -104,4 +104,7 @@ export const completeJob = (jobId: string, requestId: string, visitNotes = "") =
     visit_notes: visitNotes
   }, true);
 
+// Phase 24A-4: Client pets listing (read-only)
+export const getClientPets = () => request('/client/pets', 'GET', null, true);
+
 

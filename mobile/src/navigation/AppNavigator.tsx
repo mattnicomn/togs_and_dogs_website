@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../auth/useAuth';
 import { AuthNavigator } from './AuthNavigator';
 import { DashboardScreen } from '../screens/DashboardScreen';
+import { MyPetsScreen } from '../screens/MyPetsScreen';
 import { RequestListScreen } from '../screens/RequestListScreen';
 import { ScheduleScreen } from '../screens/ScheduleScreen';
 import { BookingsScreen } from '../screens/BookingsScreen';
@@ -129,6 +130,16 @@ const ClientTabs = () => {
         component={BookingsScreen}
         options={{
           tabBarLabel: 'Bookings',
+          tabBarIcon: ({ color }) => (
+            <ActivityIndicator color={color} size="small" animating={false} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="MyPets"
+        component={MyPetsScreen}
+        options={{
+          tabBarLabel: 'My Pets',
           tabBarIcon: ({ color }) => (
             <ActivityIndicator color={color} size="small" animating={false} />
           ),
