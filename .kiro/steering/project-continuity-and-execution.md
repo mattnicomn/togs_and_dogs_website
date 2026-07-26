@@ -100,17 +100,19 @@ has materially changed. Leave a resume block containing:
 
 - Planning document complete: `docs/planning/phase-23b-aws-budget-coverage-and-cost-visibility-dashboard.md`
 - Step 1 read-only verification complete: `docs/release-notes/phase-23b-step-1-budget-coverage-verification.md`
-- Phase 23A tagging evidence audit is complete.
-- Cost-allocation tags verified from payer account: `Client`, `Environment`, `ManagedBy`, `Repo` are ACTIVE. `Project`, `BillingModel`, `Application`, `CostCenter`, `Company` are INACTIVE.
-- Budget coverage classification: SUBSTANTIALLY COMPLETE WITH DOCUMENTED EXCLUSIONS (92–97%).
-- CloudWatch alarm monitoring ($0.45/month) excluded due to AWS billing attribution limitation (not fixable by tagging).
-- The existing $20 Client-filtered budget remains unchanged.
-- Do not claim all Togs & Dogs costs are visible until inactive tags are activated and exclusions reviewed.
-- Do not activate or deactivate cost-allocation tags without explicit Matthew approval.
-- Future Kiro or AG sessions must obtain explicit approval before any Billing or Budget mutation.
+- Steps 2A–2C implementation complete: `docs/release-notes/phase-23b-cost-visibility-dashboard-and-budget-alerts.md`
+- Operating guide: `docs/operations/aws-cost-visibility-operating-guide.md`
+- All 9 standard user-defined cost-allocation tags are now ACTIVE.
+- Budget alerts: 80% actual (original), 80% forecasted (new), 100% actual (new).
+- Budget limit: $20, filter: `Client=TogAndDogs` — unchanged.
+- Coverage classification: SUBSTANTIALLY COMPLETE WITH DOCUMENTED EXCLUSIONS (92–97%).
+- Excluded: CloudWatch alarm monitoring ($0.45/month — AWS billing limitation) and Terraform state bucket ($0.01/month — untagged).
+- Cost Explorer saved report requires manual console creation by Matthew (CLI unsupported).
+- Terraform drift: two new budget notifications exist outside Terraform. Reconciliation deferred.
+- Newly activated tags (Project, Application, CostCenter, Company, BillingModel) will begin appearing in Cost Explorer within 24–48 hours of 2026-07-26.
+- Do not deactivate any active cost-allocation tag without Matthew approval.
+- Do not change the budget limit, filter, or remove existing alerts.
 - Phase 23B is not blocked by or blocking Phase 1B.5C-A.
-- Next step: Phase 23B Step 2 — activate inactive tags, add budget alerts, create Cost Explorer report.
-- Do not classify Phase 23B as a production release.
 
 ### Cross-Platform UI Alignment
 

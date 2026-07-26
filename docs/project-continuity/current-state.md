@@ -74,17 +74,21 @@
   - Budget filter (`Client=TogAndDogs`) confirmed functioning.
   - Cost-allocation activation status requires payer-account access (linked account cannot query).
   - See `docs/planning/phase-23a-aws-tagging-evidence-audit-and-minimal-remediation.md`
-- Phase 23B: AWS Budget Coverage and Cost Visibility Dashboard (📋 PLANNED — 2026-07-25)
+- Phase 23B: AWS Budget Coverage and Cost Visibility Dashboard (✅ STEPS 1–2C COMPLETE — 2026-07-26)
   - Goal: ensure Matthew can see and monitor complete Togs & Dogs cost footprint.
   - Step 1 read-only verification COMPLETE (2026-07-25).
-  - Cost-allocation tags: `Client`, `Environment`, `ManagedBy`, `Repo` are ACTIVE. `Project`, `BillingModel`, `Application`, `CostCenter`, `Company` are INACTIVE.
+  - Step 2A: All 5 inactive cost-allocation tags activated (Project, Application, CostCenter, Company, BillingModel) on 2026-07-26.
+  - Step 2B: Cost Explorer saved report spec complete. Manual console step remains (CLI unsupported). Operating guide written.
+  - Step 2C: Budget alerts added — 80% forecasted and 100% actual. Original 80% actual preserved. $20 limit unchanged.
   - Budget coverage: 92–97% of workload-account costs captured by `Client=TogAndDogs` filter.
-  - Excluded: CloudWatch alarm monitoring ($0.45/month, tagged but billing doesn't attribute), Terraform state bucket ($0.008/month, untagged).
+  - Excluded: CloudWatch alarm monitoring ($0.45/month), Terraform state bucket ($0.01/month).
   - Classification: SUBSTANTIALLY COMPLETE WITH DOCUMENTED EXCLUSIONS.
-  - Next: Step 2 — activate inactive tags, add budget alerts, create Cost Explorer report (requires Matthew approval).
+  - Terraform drift note: two new budget notifications added outside Terraform. Reconciliation deferred.
   - Not blocked by or blocking Phase 1B.5C-A.
   - See `docs/planning/phase-23b-aws-budget-coverage-and-cost-visibility-dashboard.md`
   - See `docs/release-notes/phase-23b-step-1-budget-coverage-verification.md`
+  - See `docs/release-notes/phase-23b-cost-visibility-dashboard-and-budget-alerts.md`
+  - See `docs/operations/aws-cost-visibility-operating-guide.md`
 
 ## Cross-Platform UI Alignment (Planning Only)
 
