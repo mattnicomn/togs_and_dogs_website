@@ -112,6 +112,8 @@ const AdminDashboard = () => {
   const staffDrawerTriggerRef = useRef(null);
   const staffDrawerCloseBtnRef = useRef(null);
   const clientDrawerTriggerRef = useRef(null);
+  // Phase 1B.5C-C: Guard against double-click form submission when entering edit mode
+  const staffEditModeGuardRef = useRef(false);
   
   useEffect(() => {
     if (activeTabRef.current) {
@@ -1285,6 +1287,12 @@ const AdminDashboard = () => {
 
   const handleSaveStaff = async (e) => {
     e.preventDefault();
+
+    // Phase 1B.5C-C: Block form submission if edit mode was just activated (double-click guard)
+    if (staffEditModeGuardRef.current) {
+      return;
+    }
+
     if (!staffForm.display_name.trim()) {
       showNotification("Display name is required", "error");
       return;
@@ -1292,6 +1300,22 @@ const AdminDashboard = () => {
     if (staffForm.creation_mode === 'onboard' && !editingStaffId && !staffForm.email.trim()) {
       showNotification("Email is required to create a login account", "error");
       return;
+    }
+
+    // Phase 1B.5C-C: No-change detection — skip PATCH if nothing was modified
+    if (editingStaffId && initialFormValues) {
+      const hasChanges = (
+        staffForm.display_name !== initialFormValues.display_name ||
+        staffForm.role !== initialFormValues.role ||
+        staffForm.is_assignable !== initialFormValues.is_assignable ||
+        staffForm.assignment_color !== initialFormValues.assignment_color ||
+        staffForm.phone !== initialFormValues.phone ||
+        staffForm.notes !== initialFormValues.notes
+      );
+      if (!hasChanges) {
+        showNotification("No changes to save", "info");
+        return;
+      }
     }
     
     setIsSavingStaff(true);
@@ -4203,7 +4227,11 @@ const AdminDashboard = () => {
                         <button type="button" className="button-secondary" onClick={closeStaffDrawer}>
                           Close
                         </button>
-                        <button type="button" className="button-primary" onClick={() => setIsStaffEditMode(true)}>
+                        <button type="button" className="button-primary" onClick={() => {
+                          staffEditModeGuardRef.current = true;
+                          setIsStaffEditMode(true);
+                          setTimeout(() => { staffEditModeGuardRef.current = false; }, 300);
+                        }}>
                           Edit Profile
                         </button>
                       </div>
