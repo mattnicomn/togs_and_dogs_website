@@ -63,8 +63,11 @@
 
 ## Active Local Work / Pending Review
 
-- Phase 1B.5C-A: Customer Pet Editing Deployment Readiness (✅ PLAN PREPARED / NOT DEPLOYED — 2026-07-24)
-- Phase 1B.5C-A: Customer Pet Editing Bounded Local Correction (🛠️ LOCAL IMPLEMENTATION CORRECTED / NOT DEPLOYED / AWAITING KIRO RE-REVIEW — 2026-07-24)
+- Phase 1B.5C-A: Customer Pet Editing — Deployment Preparation Complete (✅ READY FOR MATTHEW DEPLOYMENT DECISION / NOT DEPLOYED — 2026-07-27)
+  - Frontend: EXACT_READINESS_REPRODUCTION — all 11 `web/dist` assets byte-for-byte identical to readiness record.
+  - Backend: `backend.zip` byte-for-byte reaffirmed (134,716 bytes, SHA-256: `69412e90…`).
+  - Terraform plan: REAFFIRMED (8 add, 14 change, 1 destroy; `phase-1b5c-a-customer-pet-editing.tfplan`).
+  - See: `docs/release-notes/phase-1b5c-a-deployment-preparation-addendum.md`
 
 ## Completed Planning / Evidence Workstreams
 
