@@ -610,9 +610,11 @@ def handler(event, context):
 
             existing_staff = resp.get('Items', [])
             
-            # Release 17D: Entitlement gate for staff limits
+            # Phase 1B.5C-B: Count only active staff toward the tier limit.
+            # Archived/disabled staff (is_active == False) do not consume slots.
             from common.entitlement import check_limit
-            check_limit(company_id, 'max_staff', len(existing_staff), context=event)
+            active_staff_count = len([s for s in existing_staff if s.get('is_active') != False])
+            check_limit(company_id, 'max_staff', active_staff_count, context=event)
 
             for s in existing_staff:
                 if (s.get('display_name') or '').lower() == display_name.lower() and s.get('is_active') == True:
@@ -680,9 +682,11 @@ def handler(event, context):
 
             existing_staff = resp.get('Items', [])
             
-            # Release 17D: Entitlement gate for staff limits
+            # Phase 1B.5C-B: Count only active staff toward the tier limit.
+            # Archived/disabled staff (is_active == False) do not consume slots.
             from common.entitlement import check_limit
-            check_limit(company_id, 'max_staff', len(existing_staff), context=event)
+            active_staff_count = len([s for s in existing_staff if s.get('is_active') != False])
+            check_limit(company_id, 'max_staff', active_staff_count, context=event)
 
             for s in existing_staff:
                 if s.get('is_active') == True:

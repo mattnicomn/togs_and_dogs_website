@@ -411,3 +411,132 @@ def test_google_auth_non_gated_routes(mock_db):
         # Status check should be allowed
         resp_status = google_auth_handler(event_status, None)
         assert resp_status["statusCode"] == 200
+
+
+# ---------------------------------------------------------------------------
+# 7. Phase 1B.5C-B: Staff Limit Active-Count Correction Tests
+# ---------------------------------------------------------------------------
+
+def test_staff_creation_allowed_when_total_at_limit_but_active_below(mock_db):
+    """Profile-only creation is allowed when total staff records meet the limit
+    but active staff count is below the limit (archived records don't count)."""
+    event = create_event("Admin", "/admin/staff", method="POST", body_dict={
+        "display_name": "New Staff Member"
+    })
+
+    mock_db["get_item"].return_value = {
+        "PK": "TENANT#test_company",
+        "SK": "METADATA",
+        "company_id": "test_company",
+        "subscription_tier": "starter",  # max_staff = 1
+        "subscription_status": "active"
+    }
+
+    # 1 total staff record, but it is archived (is_active = False)
+    mock_db["table"].query.return_value = {
+        "Items": [
+            {"PK": "COMPANY#test_company", "SK": "STAFF#staff1",
+             "display_name": "Archived Staff", "is_active": False}
+        ]
+    }
+
+    resp = admin_handler(event, None)
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["display_name"] == "New Staff Member"
+
+
+def test_staff_onboard_allowed_when_total_at_limit_but_active_below(mock_db):
+    """Login+profile onboarding is allowed when total staff records meet the limit
+    but active staff count is below the limit (archived records don't count)."""
+    event = create_event("Admin", "/admin/staff/onboard", method="POST", body_dict={
+        "display_name": "New Onboard Staff",
+        "email": "newstaff@test.com",
+        "role": "Staff"
+    })
+
+    mock_db["get_item"].return_value = {
+        "PK": "TENANT#test_company",
+        "SK": "METADATA",
+        "company_id": "test_company",
+        "subscription_tier": "starter",  # max_staff = 1
+        "subscription_status": "active"
+    }
+
+    # 1 total staff record, but it is archived
+    mock_db["table"].query.return_value = {
+        "Items": [
+            {"PK": "COMPANY#test_company", "SK": "STAFF#staff1",
+             "display_name": "Archived Staff", "is_active": False}
+        ]
+    }
+
+    resp = admin_handler(event, None)
+    # Should pass entitlement gate — Cognito call will fail since not mocked,
+    # but we verify EntitlementDenied is NOT the failure reason
+    body = json.loads(resp.get("body", "{}"))
+    assert body.get("error") != "EntitlementDenied"
+
+
+def test_staff_creation_denied_when_active_count_at_limit(mock_db):
+    """Staff creation is still denied when active staff count equals the tier limit,
+    even if some archived records also exist."""
+    event = create_event("Admin", "/admin/staff", method="POST", body_dict={
+        "display_name": "Overflow Staff"
+    })
+
+    mock_db["get_item"].return_value = {
+        "PK": "TENANT#test_company",
+        "SK": "METADATA",
+        "company_id": "test_company",
+        "subscription_tier": "starter",  # max_staff = 1
+        "subscription_status": "active"
+    }
+
+    # 2 total records: 1 active (at limit) + 1 archived
+    mock_db["table"].query.return_value = {
+        "Items": [
+            {"PK": "COMPANY#test_company", "SK": "STAFF#staff1",
+             "display_name": "Active Staff", "is_active": True},
+            {"PK": "COMPANY#test_company", "SK": "STAFF#staff2",
+             "display_name": "Archived Staff", "is_active": False}
+        ]
+    }
+
+    resp = admin_handler(event, None)
+    assert resp["statusCode"] == 403
+    body = json.loads(resp["body"])
+    assert body["error"] == "EntitlementDenied"
+    assert "Limit reached" in body["message"]
+    assert body["limit"] == "max_staff"
+
+
+def test_protected_admin_bypass_still_works_at_active_limit(mock_db):
+    """Protected admin bypass still allows creation even when active count is at limit."""
+    event = create_event(
+        "Admin", "/admin/staff", method="POST",
+        body_dict={"display_name": "Bypass Staff"},
+        email="support@usmissionhero.com",
+        sub="74b86488-1011-7029-bb6d-dad984e1463c"
+    )
+
+    mock_db["get_item"].return_value = {
+        "PK": "TENANT#test_company",
+        "SK": "METADATA",
+        "company_id": "test_company",
+        "subscription_tier": "starter",  # max_staff = 1
+        "subscription_status": "active"
+    }
+
+    # 1 active staff (at limit)
+    mock_db["table"].query.return_value = {
+        "Items": [
+            {"PK": "COMPANY#test_company", "SK": "STAFF#staff1",
+             "display_name": "Existing Staff", "is_active": True}
+        ]
+    }
+
+    resp = admin_handler(event, None)
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["display_name"] == "Bypass Staff"
