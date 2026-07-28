@@ -63,11 +63,13 @@
 
 ## Active Local Work / Pending Review
 
-- Phase 1B.5C-A: Customer Pet Editing — Deployment Preparation Complete (✅ READY FOR MATTHEW DEPLOYMENT DECISION / NOT DEPLOYED — 2026-07-27)
-  - Frontend: EXACT_READINESS_REPRODUCTION — all 11 `web/dist` assets byte-for-byte identical to readiness record.
-  - Backend: `backend.zip` byte-for-byte reaffirmed (134,716 bytes, SHA-256: `69412e90…`).
-  - Terraform plan: REAFFIRMED (8 add, 14 change, 1 destroy; `phase-1b5c-a-customer-pet-editing.tfplan`).
-  - See: `docs/release-notes/phase-1b5c-a-deployment-preparation-addendum.md`
+- Phase 1B.5C-A: Customer Pet Editing — Production Deployment (⏳ DEPLOYED — AWAITING MATTHEW AUTHENTICATED VALIDATION — 2026-07-28)
+  - Applied saved Terraform plan (`phase-1b5c-a-customer-pet-editing.tfplan`, deployment ID `ec4xqi`, 8 added, 14 changed, 1 destroyed).
+  - Backend: All 13 Lambda functions updated with CodeSha256 `aUEukME39YjTvpZN/vml1i2QOrP5CxN4Rb+3NiWRuSM=`. `/client/pets/{petId}` (PUT, Cognito auth) active.
+  - Frontend: `web/dist` synced to S3 (`togs-and-dogs-prod-toganddogs-hosting`) and CloudFront invalidated (`I4LTEENIVINRH6DDP7URES23EM`).
+  - Automated non-mutating checks PASSED (unauthenticated 401, static asset 200s). No business data created/modified.
+  - Authenticated manual validation pending Matthew.
+  - See: `docs/release-notes/phase-1b5c-a-customer-pet-editing-production-deployment.md`
 
 ## Completed Planning / Evidence Workstreams
 
