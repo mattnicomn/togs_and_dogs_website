@@ -20,6 +20,9 @@ const BLANK_PET_FORM = {
   name: '',
   species: '',
   breed: '',
+  age: '',
+  care_instructions: '',
+  feeding_notes: '',
   color: '',
   weight: '',
   medical_notes: '',
@@ -83,6 +86,9 @@ const ClientDetailDrawer = ({
     petForm.name !== petInitialForm.name ||
     petForm.species !== petInitialForm.species ||
     petForm.breed !== petInitialForm.breed ||
+    petForm.age !== petInitialForm.age ||
+    petForm.care_instructions !== petInitialForm.care_instructions ||
+    petForm.feeding_notes !== petInitialForm.feeding_notes ||
     petForm.color !== petInitialForm.color ||
     petForm.weight !== petInitialForm.weight ||
     petForm.medical_notes !== petInitialForm.medical_notes ||
@@ -109,6 +115,9 @@ const ClientDetailDrawer = ({
       name: pet.name || '',
       species: pet.species || '',
       breed: pet.breed || '',
+      age: pet.age || '',
+      care_instructions: pet.care_instructions || '',
+      feeding_notes: pet.feeding_notes || '',
       color: pet.color || '',
       weight: pet.weight || '',
       medical_notes: pet.medication_notes || '',
@@ -185,6 +194,9 @@ const ClientDetailDrawer = ({
         name: petForm.name,
         species: petForm.species,
         breed: petForm.breed,
+        age: petForm.age,
+        care_instructions: petForm.care_instructions,
+        feeding_notes: petForm.feeding_notes,
         medication_notes: petForm.medical_notes,
         behavior_notes: petForm.behavioral_notes,
         health: {
@@ -464,6 +476,23 @@ const ClientDetailDrawer = ({
                 )}
               </div>
 
+              {/* Age */}
+              <div className="field">
+                <label htmlFor="pet-age-field">Age</label>
+                {isFormMode ? (
+                  <input
+                    id="pet-age-field"
+                    type="text"
+                    value={petForm.age}
+                    onChange={(e) => handlePetFieldChange('age', e.target.value)}
+                    placeholder="e.g. 3 years or 36 months"
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.9rem' }}
+                  />
+                ) : (
+                  <span style={{ fontSize: '0.9rem' }}>{petForm.age || '—'}</span>
+                )}
+              </div>
+
               {/* Color */}
               {!isFormMode && (
                 <div className="field">
@@ -479,6 +508,45 @@ const ClientDetailDrawer = ({
                   <span style={{ fontSize: '0.9rem' }}>{petForm.weight ? `${petForm.weight} lbs` : '—'}</span>
                 </div>
               )}
+            </div>
+          </section>
+
+          <section className="drawer-section">
+            <h4 className="drawer-section-title">Care &amp; Feeding</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Care Instructions */}
+              <div className="field">
+                <label htmlFor="pet-care-instructions-field">Care Instructions</label>
+                {isFormMode ? (
+                  <textarea
+                    id="pet-care-instructions-field"
+                    rows={3}
+                    value={petForm.care_instructions}
+                    onChange={(e) => handlePetFieldChange('care_instructions', e.target.value)}
+                    placeholder="Special handling, daily routine, care needs…"
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.9rem', resize: 'vertical' }}
+                  />
+                ) : (
+                  <span style={{ fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>{petForm.care_instructions || '—'}</span>
+                )}
+              </div>
+
+              {/* Feeding Notes */}
+              <div className="field">
+                <label htmlFor="pet-feeding-notes-field">Feeding Notes</label>
+                {isFormMode ? (
+                  <textarea
+                    id="pet-feeding-notes-field"
+                    rows={3}
+                    value={petForm.feeding_notes}
+                    onChange={(e) => handlePetFieldChange('feeding_notes', e.target.value)}
+                    placeholder="Portions, schedule, dietary restrictions…"
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.9rem', resize: 'vertical' }}
+                  />
+                ) : (
+                  <span style={{ fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>{petForm.feeding_notes || '—'}</span>
+                )}
+              </div>
             </div>
           </section>
 
@@ -859,6 +927,11 @@ const ClientDetailDrawer = ({
                             <strong>{p.name || 'Unnamed'}</strong>
                             {p.species ? ` (${p.species})` : ''}
                             {p.breed ? ` — ${p.breed}` : ''}
+                            {p.pet_id && (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginLeft: '8px', fontFamily: 'monospace' }}>
+                                ID: …{p.pet_id.slice(-6)}
+                              </span>
+                            )}
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                             {p.is_active === false ? (

@@ -63,12 +63,17 @@
 
 ## Active Local Work / Pending Review
 
-- Phase 1B.5C-A: Customer Pet Editing — Production Deployment (⏳ DEPLOYED — AWAITING MATTHEW AUTHENTICATED VALIDATION — 2026-07-28)
+- Phase 1B.5C-A.1: Admin Pet Care Field Visibility Hotfix (🛠️ LOCAL HOTFIX IMPLEMENTED / NOT DEPLOYED / AWAITING KIRO RE-REVIEW — 2026-07-28)
+  - Resolved admin drawer `UI_RENDERING_GAP`: added `age`, `care_instructions`, and `feeding_notes` to `BLANK_PET_FORM`, `mapApiToForm()`, `handlePetSave` payload, and JSX read-only/edit views in `ClientDetailDrawer.jsx`.
+  - Added abbreviated Pet ID labels (`ID: …<slice>`) to client drawer list and pet view header for duplicate-name disambiguation.
+  - Confirmed backend contract: all 3 fields are `ALREADY_SUPPORTED_BY_STAFF_UPDATE` in `pet_handler.py`. No backend, API Gateway, or Terraform changes required.
+  - Validation: 217 tests passed (8 focused, 96 legacy, 121 component), ESLint clean, Vite build successful (763ms).
+  - See: `docs/release-notes/phase-1b5c-a1-admin-pet-care-field-visibility-hotfix.md`
+- Phase 1B.5C-A: Customer Pet Editing — Production Deployment (⏳ DEPLOYED — CUSTOMER VALIDATION PASSED / ADMIN REGRESSION VALIDATION NEEDS CORRECTION / NOT CLOSED — 2026-07-28)
   - Applied saved Terraform plan (`phase-1b5c-a-customer-pet-editing.tfplan`, deployment ID `ec4xqi`, 8 added, 14 changed, 1 destroyed).
   - Backend: All 13 Lambda functions updated with CodeSha256 `aUEukME39YjTvpZN/vml1i2QOrP5CxN4Rb+3NiWRuSM=`. `/client/pets/{petId}` (PUT, Cognito auth) active.
   - Frontend: `web/dist` synced to S3 (`togs-and-dogs-prod-toganddogs-hosting`) and CloudFront invalidated (`I4LTEENIVINRH6DDP7URES23EM`).
-  - Automated non-mutating checks PASSED (unauthenticated 401, static asset 200s). No business data created/modified.
-  - Authenticated manual validation pending Matthew.
+  - Customer validation PASSED in production. Local frontend hotfix Phase 1B.5C-A.1 addresses admin drawer display gap.
   - See: `docs/release-notes/phase-1b5c-a-customer-pet-editing-production-deployment.md`
 
 ## Completed Planning / Evidence Workstreams
