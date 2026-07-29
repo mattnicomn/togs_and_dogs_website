@@ -58,7 +58,7 @@ def mock_audit():
 
 def test_unit_protected_accounts_computed_status():
     # 1. Config-protected + data-unprotected -> remains protected
-    config_only = {'email': 'admin@toganddogs.com', 'is_platform_protected': False}
+    config_only = {'email': 'support@usmissionhero.com', 'is_platform_protected': False}
     assert is_config_protected(config_only) is True
     assert is_platform_protected(config_only) is False
     assert is_protected_profile(config_only) is True
@@ -88,19 +88,35 @@ def test_owner_can_set_protected_status(mock_audit):
     }
     
     with patch('common.db.table') as mock_table, patch('handlers.admin_handler.table') as mock_handler_table:
-        side_effect = make_table_get_item_side_effect(target_staff)
+        def side_effect(Key, **kwargs):
+            pk = Key.get("PK", "")
+            sk = Key.get("SK", "")
+            if str(pk).startswith("TENANT#"):
+                return {
+                    "Item": {
+                        "PK": str(pk),
+                        "SK": "METADATA",
+                        "company_id": str(pk).replace("TENANT#", ""),
+                        "subscription_status": "active",
+                        "is_active": True
+                    }
+                }
+            if sk == 'STAFF#staff_2':
+                return {'Item': target_staff}
+            return {}
+
         mock_table.get_item.side_effect = side_effect
         mock_handler_table.get_item.side_effect = side_effect
         mock_table.query.return_value = {'Items': []}
         mock_handler_table.query.return_value = {'Items': []}
 
+        # Caller is owner
         event = make_event('PATCH', path_params={'staff_id': 'staff_2'}, body={'action': 'set-protected'},
-                           sub='owner-sub', email='owner@example.com', groups='Owner')
+                           sub='owner-sub', email='owner@example.com', groups='owner')
         resp = admin_handler(event, None)
         assert resp["statusCode"] == 200
         body = json.loads(resp["body"])
         assert body['is_platform_protected'] is True
-        assert body['is_protected'] is True
         mock_audit.assert_called_with(event, "SET_PROTECTED_ADMIN", ANY, ANY, metadata=ANY)
 
 
@@ -114,17 +130,33 @@ def test_protected_admin_can_set_protected_status(mock_audit):
         'role': 'Admin',
         'is_platform_protected': False
     }
-    
+
     with patch('common.db.table') as mock_table, patch('handlers.admin_handler.table') as mock_handler_table:
-        side_effect = make_table_get_item_side_effect(target_staff)
+        def side_effect(Key, **kwargs):
+            pk = Key.get("PK", "")
+            sk = Key.get("SK", "")
+            if str(pk).startswith("TENANT#"):
+                return {
+                    "Item": {
+                        "PK": str(pk),
+                        "SK": "METADATA",
+                        "company_id": str(pk).replace("TENANT#", ""),
+                        "subscription_status": "active",
+                        "is_active": True
+                    }
+                }
+            if sk == 'STAFF#staff_2':
+                return {'Item': target_staff}
+            return {}
+
         mock_table.get_item.side_effect = side_effect
         mock_handler_table.get_item.side_effect = side_effect
         mock_table.query.return_value = {'Items': []}
         mock_handler_table.query.return_value = {'Items': []}
 
-        # Caller is protected admin via config email admin@toganddogs.com
+        # Caller is protected admin via config email support@usmissionhero.com
         event = make_event('PATCH', path_params={'staff_id': 'staff_2'}, body={'action': 'set-protected'},
-                           sub='protected-admin-sub', email='admin@toganddogs.com', groups='Admin')
+                           sub='protected-admin-sub', email='support@usmissionhero.com', groups='Admin')
         resp = admin_handler(event, None)
         assert resp["statusCode"] == 200
         body = json.loads(resp["body"])

@@ -54,7 +54,7 @@ def mock_cognito():
         mock_client.return_value = cognito
         yield cognito
 
-def create_admin_event(method, path_params=None, body=None, sub='admin-sub', email='admin@toganddogs.com'):
+def create_admin_event(method, path_params=None, body=None, sub='admin-sub', email='support@usmissionhero.com'):
     return {
         'httpMethod': method,
         'path': '/admin/staff',
@@ -72,13 +72,13 @@ def create_admin_event(method, path_params=None, body=None, sub='admin-sub', ema
     }
 
 def test_protected_account_delete_blocked(mock_db, mock_audit, mock_cognito):
-    # Setup: Target is protected (admin@toganddogs.com)
+    # Setup: Target is protected (support@usmissionhero.com)
     protected_staff = {
         'PK': 'COMPANY#1',
         'SK': 'STAFF#protected_1',
         'staff_id': 'protected_1',
-        'email': 'admin@toganddogs.com',
-        'cognito_sub': '74b86488-1011-7029-bb6d-dad984e1463c'
+        'email': 'support@usmissionhero.com',
+        'cognito_sub': 'support-sub-123'
     }
     mock_db._target_item = protected_staff
     mock_db.get_item.return_value = {'Item': protected_staff}
@@ -117,10 +117,10 @@ def test_protected_fields_patch_ignored(mock_db, mock_audit, mock_cognito):
         'PK': 'COMPANY#1',
         'SK': 'STAFF#protected_1',
         'staff_id': 'protected_1',
-        'email': 'admin@toganddogs.com',
+        'email': 'support@usmissionhero.com',
         'role': 'owner',
         'display_name': 'Original Name',
-        'cognito_sub': '74b86488-1011-7029-bb6d-dad984e1463c'
+        'cognito_sub': 'support-sub-123'
     }
     mock_db._target_item = protected_staff
     mock_db.get_item.return_value = {'Item': protected_staff}
@@ -140,4 +140,4 @@ def test_protected_fields_patch_ignored(mock_db, mock_audit, mock_cognito):
         body = json.loads(resp["body"])
         assert body['display_name'] == 'New Name'
         assert body['role'] == 'owner'
-        assert body['email'] == 'admin@toganddogs.com'
+        assert body['email'] == 'support@usmissionhero.com'

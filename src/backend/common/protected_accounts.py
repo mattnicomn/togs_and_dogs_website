@@ -15,13 +15,9 @@ import os
 
 # Hardcoded fallback defaults — these are ALWAYS protected.
 _FALLBACK_EMAILS = [
-    "admin@toganddogs.com",
-    "mbn@usmissionhero.com",
     "support@usmissionhero.com",
 ]
-_FALLBACK_SUBS = [
-    "74b86488-1011-7029-bb6d-dad984e1463c",
-]
+_FALLBACK_SUBS = []
 
 
 def get_protected_emails():

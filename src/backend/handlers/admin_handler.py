@@ -38,7 +38,23 @@ def generate_temp_password(length=12):
 
 # Protected Accounts (US Mission Hero Platform Support)
 # Release 6H: Now uses shared configurable module with env var + hardcoded fallback.
-from common.protected_accounts import is_protected_profile, is_protected_email, is_protected_sub, is_config_protected, is_platform_protected
+import common.protected_accounts as protected_accounts_module
+
+def is_protected_profile(profile):
+    return protected_accounts_module.is_protected_profile(profile)
+
+def is_protected_email(email):
+    return protected_accounts_module.is_protected_email(email)
+
+def is_protected_sub(sub):
+    return protected_accounts_module.is_protected_sub(sub)
+
+def is_config_protected(profile):
+    return protected_accounts_module.is_config_protected(profile)
+
+def is_platform_protected(profile):
+    return protected_accounts_module.is_platform_protected(profile)
+
 PROTECTED_SUBS = None  # Deprecated — use is_protected_sub() instead
 PROTECTED_USERNAMES = None  # Deprecated — use is_protected_email() instead
 
@@ -52,6 +68,8 @@ def is_cognito_user_in_company(user, company_id, mode):
         if not user_company:
             from common.auth import DEFAULT_COMPANY_ID
             return company_id == DEFAULT_COMPANY_ID
+        return user_company == company_id
+
 def _is_caller_authorized_for_protection(event, company_id):
     """
     Returns True if the caller is Owner, Platform Admin, or already a Protected Admin.

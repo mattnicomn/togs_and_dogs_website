@@ -6,9 +6,9 @@ from handlers.admin_handler import derive_staff_identity_state
 
 
 def test_derive_staff_identity_state_protected():
-    # Profile that is protected (admin@toganddogs.com is in the fallback list)
+    # Profile that is protected (support@usmissionhero.com is in the fallback list)
     profile = {
-        "email": "admin@toganddogs.com",
+        "email": "support@usmissionhero.com",
         "cognito_sub": "unlinked"
     }
     res = derive_staff_identity_state(profile, None)
@@ -23,7 +23,7 @@ def test_derive_staff_identity_state_protected():
 def test_derive_staff_identity_state_protected_orphaned():
     # Protected profile that has a cognito_sub but no Cognito match exists
     profile = {
-        "email": "admin@toganddogs.com",
+        "email": "support@usmissionhero.com",
         "cognito_sub": "sub-1"
     }
     res = derive_staff_identity_state(profile, None)
@@ -143,8 +143,9 @@ def test_list_staff_identity_enrichment(mock_table, mock_boto):
                 "SK": "STAFF#staff_protected",
                 "staff_id": "staff_protected",
                 "display_name": "Protected Admin",
-                "email": "admin@toganddogs.com",
-                "cognito_sub": "sub-prot"
+                "email": "support@usmissionhero.com",
+                "cognito_sub": "sub-prot",
+                "is_platform_protected": True
             },
             {
                 "PK": "COMPANY#tog_and_dogs",
@@ -193,7 +194,8 @@ def test_list_staff_identity_enrichment(mock_table, mock_boto):
     }
     
     # Match group listings
-    def list_users_side_effect(UserPoolId, GroupName):
+    def list_users_side_effect(*args, **kwargs):
+        GroupName = kwargs.get("GroupName") or (args[1] if len(args) > 1 else None)
         if GroupName == "Staff":
             return {
                 "Users": [
@@ -213,11 +215,11 @@ def test_list_staff_identity_enrichment(mock_table, mock_boto):
             return {
                 "Users": [
                     {
-                        "Username": "admin@toganddogs.com",
+                        "Username": "support@usmissionhero.com",
                         "Enabled": True,
                         "UserStatus": "CONFIRMED",
                         "Attributes": [
-                            {"Name": "email", "Value": "admin@toganddogs.com"},
+                            {"Name": "email", "Value": "support@usmissionhero.com"},
                             {"Name": "sub", "Value": "sub-prot"},
                             {"Name": "custom:company_id", "Value": "tog_and_dogs"}
                         ]

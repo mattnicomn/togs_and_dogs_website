@@ -200,20 +200,21 @@ def test_protected_admin_bypass():
             'subscription_status': 'canceled'
         }
 
-        # Context: Protected root admin email
+        # Context: Protected root admin email (support@usmissionhero.com fallback)
         context_email = {'email': 'support@usmissionhero.com'}
         check_subscription_active('test_company', context=context_email)
         
-        # Context: Protected sub in claims
-        context_sub = {'sub': '74b86488-1011-7029-bb6d-dad984e1463c'}
-        check_subscription_active('test_company', context=context_sub)
+        # Context: Protected sub in claims (via environment variable configuration)
+        with patch.dict(os.environ, {'PROTECTED_ADMIN_SUBS': 'custom-protected-sub'}):
+            context_sub = {'sub': 'custom-protected-sub'}
+            check_subscription_active('test_company', context=context_sub)
 
         # Context: API Gateway Event with protected claims
         event = {
             'requestContext': {
                 'authorizer': {
                     'claims': {
-                        'email': 'mbn@usmissionhero.com',
+                        'email': 'support@usmissionhero.com',
                         'sub': 'some-sub'
                     }
                 }

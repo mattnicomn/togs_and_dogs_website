@@ -15,21 +15,20 @@ def test_fallback_defaults_when_env_empty():
     """When env vars are empty, fallback defaults are still protected."""
     with patch.dict(os.environ, {'PROTECTED_ADMIN_EMAILS': '', 'PROTECTED_ADMIN_SUBS': ''}, clear=False):
         from common.protected_accounts import get_protected_emails, get_protected_subs, is_protected_email, is_protected_sub
-        # Reload to pick up env change
         import importlib
         import common.protected_accounts as pa
         importlib.reload(pa)
         
         emails = pa.get_protected_emails()
-        assert "admin@toganddogs.com" in emails
-        assert "mbn@usmissionhero.com" in emails
         assert "support@usmissionhero.com" in emails
+        assert "admin@toganddogs.com" not in emails
+        assert "mbn@usmissionhero.com" not in emails
         
         subs = pa.get_protected_subs()
-        assert "74b86488-1011-7029-bb6d-dad984e1463c" in subs
+        assert len(subs) == 0
         
-        assert pa.is_protected_email("mbn@usmissionhero.com") == True
-        assert pa.is_protected_sub("74b86488-1011-7029-bb6d-dad984e1463c") == True
+        assert pa.is_protected_email("support@usmissionhero.com") == True
+        assert pa.is_protected_email("admin@toganddogs.com") == False
     print("PASS: test_fallback_defaults_when_env_empty")
 
 
@@ -44,7 +43,7 @@ def test_configured_env_values_are_protected():
         assert pa.is_protected_email("extra@test.com") == True
         assert pa.is_protected_sub("new-sub-123") == True
         # Fallback defaults still included
-        assert pa.is_protected_email("mbn@usmissionhero.com") == True
+        assert pa.is_protected_email("support@usmissionhero.com") == True
     print("PASS: test_configured_env_values_are_protected")
 
 
@@ -63,15 +62,15 @@ def test_non_protected_email_not_blocked():
 
 def test_is_protected_profile_checks_both():
     """is_protected_profile should check both email and sub."""
-    with patch.dict(os.environ, {'PROTECTED_ADMIN_EMAILS': '', 'PROTECTED_ADMIN_SUBS': ''}, clear=False):
+    with patch.dict(os.environ, {'PROTECTED_ADMIN_EMAILS': '', 'PROTECTED_ADMIN_SUBS': 'sub-protected-123'}, clear=False):
         import importlib
         import common.protected_accounts as pa
         importlib.reload(pa)
         
         # Protected by email
-        assert pa.is_protected_profile({"email": "mbn@usmissionhero.com", "cognito_sub": None}) == True
+        assert pa.is_protected_profile({"email": "support@usmissionhero.com", "cognito_sub": None}) == True
         # Protected by sub
-        assert pa.is_protected_profile({"email": "other@test.com", "cognito_sub": "74b86488-1011-7029-bb6d-dad984e1463c"}) == True
+        assert pa.is_protected_profile({"email": "other@test.com", "cognito_sub": "sub-protected-123"}) == True
         # Not protected
         assert pa.is_protected_profile({"email": "normal@test.com", "cognito_sub": "random"}) == False
         # None/empty
@@ -87,8 +86,8 @@ def test_case_insensitive_email():
         import common.protected_accounts as pa
         importlib.reload(pa)
         
-        assert pa.is_protected_email("MBN@USMissionHero.com") == True
-        assert pa.is_protected_email("ADMIN@TOGANDDOGS.COM") == True
+        assert pa.is_protected_email("SUPPORT@USMISSIONHERO.COM") == True
+        assert pa.is_protected_email("Support@USMissionHero.com") == True
     print("PASS: test_case_insensitive_email")
 
 
@@ -99,7 +98,7 @@ def test_client_profile_skips_protected_email():
     from unittest.mock import MagicMock
     from common.client_profile import auto_create_or_link_client_profile
     
-    request_item = {"client_email": "mbn@usmissionhero.com", "client_name": "Admin"}
+    request_item = {"client_email": "support@usmissionhero.com", "client_name": "Admin"}
     
     with patch('common.client_profile.table') as mock_table:
         mock_table.update_item = MagicMock()
@@ -139,7 +138,7 @@ def test_admin_handler_uses_shared_module():
     """admin_handler should import from common.protected_accounts."""
     from handlers.admin_handler import is_protected_profile, is_protected_email
     # These should be the shared module functions
-    assert is_protected_email("mbn@usmissionhero.com") == True
+    assert is_protected_email("support@usmissionhero.com") == True
     assert is_protected_email("random@test.com") == False
     print("PASS: test_admin_handler_uses_shared_module")
 
@@ -165,12 +164,12 @@ def test_link_cognito_blocks_protected_identities():
             'authorizer': {
                 'claims': {
                     'sub': 'admin-sub',
-                    'email': 'admin@toganddogs.com',
+                    'email': 'support@usmissionhero.com',
                     'cognito:groups': 'Admin'
                 }
             }
         },
-        'body': '{"username": "mbn@usmissionhero.com"}'
+        'body': '{"username": "support@usmissionhero.com"}'
     }
     
     # Mock admin_get_user to return a protected sub/email
@@ -178,8 +177,8 @@ def test_link_cognito_blocks_protected_identities():
     mock_cognito.admin_get_user.return_value = {
         'UserStatus': 'CONFIRMED',
         'UserAttributes': [
-            {'Name': 'sub', 'Value': '74b86488-1011-7029-bb6d-dad984e1463c'},
-            {'Name': 'email', 'Value': 'mbn@usmissionhero.com'}
+            {'Name': 'sub', 'Value': 'protected-sub-999'},
+            {'Name': 'email', 'Value': 'support@usmissionhero.com'}
         ]
     }
     
@@ -215,12 +214,12 @@ def test_patch_blocks_promotion_hijacking():
             'authorizer': {
                 'claims': {
                     'sub': 'admin-sub',
-                    'email': 'admin@toganddogs.com',
+                    'email': 'support@usmissionhero.com',
                     'cognito:groups': 'Admin'
                 }
             }
         },
-        'body': '{"email": "mbn@usmissionhero.com"}'
+        'body': '{"email": "support@usmissionhero.com"}'
     }
     
     mock_table = MagicMock()
@@ -245,12 +244,12 @@ def test_post_creation_blocks_protected_identity():
             'authorizer': {
                 'claims': {
                     'sub': 'admin-sub',
-                    'email': 'admin@toganddogs.com',
+                    'email': 'support@usmissionhero.com',
                     'cognito:groups': 'Admin'
                 }
             }
         },
-        'body': '{"email": "mbn@usmissionhero.com", "display_name": "New Admin"}'
+        'body': '{"email": "support@usmissionhero.com", "display_name": "New Admin"}'
     }
     
     mock_table = MagicMock()
