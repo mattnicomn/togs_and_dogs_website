@@ -259,7 +259,7 @@ def _is_cache_expired(entitlement):
         cached_dt = datetime.fromisoformat(entitlement.cached_at.replace('Z', '+00:00'))
         elapsed = (datetime.now(timezone.utc) - cached_dt).total_seconds()
         return elapsed > CACHE_TTL_SECONDS
-    except (ValueError, AttributeError):
+    except (ValueError, AttributeError, TypeError):
         return True
 
 

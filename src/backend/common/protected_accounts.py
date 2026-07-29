@@ -54,8 +54,8 @@ def is_protected_sub(sub):
     return sub.strip() in get_protected_subs()
 
 
-def is_protected_profile(profile):
-    """Returns True if the profile matches any protected identifier."""
+def is_config_protected(profile):
+    """Returns True if the profile matches any env/fallback config protected identifier."""
     if not profile:
         return False
     if is_protected_sub(profile.get('cognito_sub')):
@@ -63,3 +63,19 @@ def is_protected_profile(profile):
     if is_protected_email(profile.get('email')):
         return True
     return False
+
+
+def is_platform_protected(profile):
+    """Returns True if the profile record has is_platform_protected set to True in DynamoDB."""
+    if not profile:
+        return False
+    return profile.get('is_platform_protected') is True
+
+
+def is_protected_profile(profile):
+    """Returns True if the profile matches any protected identifier (data-driven DB flag or config fallback)."""
+    if not profile:
+        return False
+    if is_platform_protected(profile):
+        return True
+    return is_config_protected(profile)

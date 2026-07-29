@@ -255,6 +255,16 @@ const AdminDashboard = () => {
     if (!staff || !currentUser) return false;
     return staff.cognito_sub === currentUser.sub || staff.email === currentUser.email;
   };
+
+  const canManageProtectedStatus = () => {
+    const effectiveRole = (role || '').toLowerCase();
+    if (effectiveRole === 'owner' || effectiveRole === 'platform_admin') return true;
+    const currentUserStaff = staffList.find(s => isSelf(s));
+    if (currentUserStaff && (currentUserStaff.is_protected || currentUserStaff.is_platform_protected)) {
+      return true;
+    }
+    return false;
+  };
   
   const getStatusClass = (status = "") => {
     const s = (status || "").toUpperCase();
@@ -1498,6 +1508,12 @@ const AdminDashboard = () => {
         } else if (action === 'delete_cognito') {
           await updateStaff(id, { action: 'delete_cognito' });
           showNotification("Staff action 'delete_cognito' completed successfully", "success");
+        } else if (action === 'set-protected' || action === 'unset-protected') {
+          const updatedStaff = await updateStaff(id, { action });
+          showNotification(action === 'set-protected' ? `Protected status granted to ${confirmAction.name}.` : `Protected status removed from ${confirmAction.name}.`, "success");
+          if (selectedStaffForDrawer && selectedStaffForDrawer.staff_id === id && updatedStaff) {
+            setSelectedStaffForDrawer(updatedStaff);
+          }
         } else {
           await updateStaff(id, { action });
           showNotification(`Staff action '${action}' completed successfully`, "success");
@@ -1622,6 +1638,34 @@ const AdminDashboard = () => {
         type: 'staff', id: staffId, action: 'reset-password', name: staffName,
         message: `Send a password reset email to ${staffName}?`,
         consequence: "They will receive an email with instructions to reset their password.",
+        variant: 'confirm'
+      });
+      setConfirmTypedInput('');
+      return;
+    }
+    if (action === 'set-protected') {
+      setConfirmAction({
+        type: 'staff', id: staffId, action: 'set-protected', name: staffName,
+        message: `Mark ${staffName} as a Protected Platform Admin?`,
+        consequence: "Protected platform admins cannot be deleted, disabled, or unlinked.",
+        variant: 'confirm'
+      });
+      setConfirmTypedInput('');
+      return;
+    }
+    if (action === 'unset-protected') {
+      if (staff?.is_config_protected) {
+        showNotification(`Action blocked: ${staffName} is protected by platform configuration and cannot be unprotected via database flag.`, "error");
+        return;
+      }
+      if (isSelf(staff)) {
+        showNotification(`Action blocked: You cannot remove protected status from your own account.`, "error");
+        return;
+      }
+      setConfirmAction({
+        type: 'staff', id: staffId, action: 'unset-protected', name: staffName,
+        message: `Remove protected status from ${staffName}?`,
+        consequence: "This will remove platform protection, allowing account modification or deletion according to standard role permissions.",
         variant: 'confirm'
       });
       setConfirmTypedInput('');
@@ -3981,6 +4025,51 @@ const AdminDashboard = () => {
                             )}
                           </div>
 
+                          {/* Platform Protection */}
+                          {(canManageProtectedStatus() || selectedStaffForDrawer?.is_protected) && (
+                            <div className="drawer-section">
+                              <h4 className="drawer-section-title">Platform Protection</h4>
+                              <p className="drawer-section-helper">Protected accounts cannot be deleted, disabled, or unlinked.</p>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
+                                {canManageProtectedStatus() ? (
+                                  <label style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    cursor: (selectedStaffForDrawer?.is_config_protected || ((selectedStaffForDrawer?.is_protected || selectedStaffForDrawer?.is_platform_protected) && isSelf(selectedStaffForDrawer))) ? 'not-allowed' : 'pointer',
+                                    fontWeight: '500'
+                                  }}>
+                                    <input
+                                      type="checkbox"
+                                      id="is_platform_protected_toggle_view"
+                                      checked={!!(selectedStaffForDrawer?.is_protected || selectedStaffForDrawer?.is_platform_protected)}
+                                      disabled={selectedStaffForDrawer?.is_config_protected || ((selectedStaffForDrawer?.is_protected || selectedStaffForDrawer?.is_platform_protected) && isSelf(selectedStaffForDrawer))}
+                                      onChange={(e) => {
+                                        const nextVal = e.target.checked;
+                                        executeStaffAction(selectedStaffForDrawer.staff_id, nextVal ? 'set-protected' : 'unset-protected');
+                                      }}
+                                    />
+                                    Protected Platform Admin
+                                  </label>
+                                ) : (
+                                  <span className="access-badge status-chip--protected" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    🔒 Protected Platform Admin
+                                  </span>
+                                )}
+                                {selectedStaffForDrawer?.is_config_protected && (
+                                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                                    (Locked by system config)
+                                  </span>
+                                )}
+                                {!selectedStaffForDrawer?.is_config_protected && selectedStaffForDrawer?.is_protected && isSelf(selectedStaffForDrawer) && (
+                                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                                    (Cannot unprotect self)
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
                           {/* Danger Zone */}
                           <div className="drawer-section">
                             <div className="danger-zone-box" style={{ border: '1px solid var(--warning-color, #f44336)', padding: '12px', borderRadius: '8px' }}>
@@ -4166,6 +4255,25 @@ const AdminDashboard = () => {
                                   />
                                   <label htmlFor="is_assignable" style={{ cursor: 'pointer' }}>Assignable to Jobs</label>
                                 </div>
+
+                                {editingStaffId && canManageProtectedStatus() && (
+                                  <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                                    <input
+                                      type="checkbox"
+                                      id="edit_is_platform_protected"
+                                      checked={!!(selectedStaffForDrawer?.is_protected || selectedStaffForDrawer?.is_platform_protected)}
+                                      disabled={selectedStaffForDrawer?.is_config_protected || ((selectedStaffForDrawer?.is_protected || selectedStaffForDrawer?.is_platform_protected) && isSelf(selectedStaffForDrawer))}
+                                      onChange={(e) => {
+                                        const nextVal = e.target.checked;
+                                        executeStaffAction(selectedStaffForDrawer.staff_id, nextVal ? 'set-protected' : 'unset-protected');
+                                      }}
+                                    />
+                                    <label htmlFor="edit_is_platform_protected" style={{ cursor: (selectedStaffForDrawer?.is_config_protected || (selectedStaffForDrawer?.is_protected && isSelf(selectedStaffForDrawer))) ? 'not-allowed' : 'pointer', fontWeight: '500' }}>
+                                      Protected Platform Admin
+                                      {selectedStaffForDrawer?.is_config_protected ? ' (Locked by system config)' : selectedStaffForDrawer?.is_protected && isSelf(selectedStaffForDrawer) ? ' (Cannot unprotect self)' : ''}
+                                    </label>
+                                  </div>
+                                )}
 
                                 <div className="field">
                                   <label>Sitter Color (For calendar visualization)</label>

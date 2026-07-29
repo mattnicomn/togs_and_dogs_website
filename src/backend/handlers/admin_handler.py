@@ -38,7 +38,7 @@ def generate_temp_password(length=12):
 
 # Protected Accounts (US Mission Hero Platform Support)
 # Release 6H: Now uses shared configurable module with env var + hardcoded fallback.
-from common.protected_accounts import is_protected_profile, is_protected_email, is_protected_sub
+from common.protected_accounts import is_protected_profile, is_protected_email, is_protected_sub, is_config_protected, is_platform_protected
 PROTECTED_SUBS = None  # Deprecated — use is_protected_sub() instead
 PROTECTED_USERNAMES = None  # Deprecated — use is_protected_email() instead
 
@@ -52,7 +52,32 @@ def is_cognito_user_in_company(user, company_id, mode):
         if not user_company:
             from common.auth import DEFAULT_COMPANY_ID
             return company_id == DEFAULT_COMPANY_ID
-        return user_company == company_id
+def _is_caller_authorized_for_protection(event, company_id):
+    """
+    Returns True if the caller is Owner, Platform Admin, or already a Protected Admin.
+    Normal Admin and Staff users return False.
+    """
+    from common.auth import get_effective_role, is_platform_admin, get_claims
+    role = get_effective_role(event)
+    if role == 'owner' or is_platform_admin(event):
+        return True
+    claims = get_claims(event)
+    caller_sub = claims.get('sub')
+    caller_email = (claims.get('email') or '').lower().strip()
+    if is_protected_sub(caller_sub) or is_protected_email(caller_email):
+        return True
+    if caller_sub or caller_email:
+        from boto3.dynamodb.conditions import Key
+        resp = table.query(
+            KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("STAFF#")
+        )
+        for s in resp.get('Items', []):
+            s_sub = s.get('cognito_sub')
+            s_email = (s.get('email') or '').lower().strip()
+            if (caller_sub and s_sub == caller_sub) or (caller_email and s_email == caller_email):
+                if is_protected_profile(s):
+                    return True
+    return False
 
 
 def derive_staff_identity_state(profile, cog_match=None):
@@ -63,10 +88,14 @@ def derive_staff_identity_state(profile, cog_match=None):
       - identity_status_label
       - is_orphaned_identity
       - is_protected
+      - is_platform_protected
+      - is_config_protected
       - can_manage_identity
       - identity_warning
     """
-    is_protected = is_protected_profile(profile)
+    is_plat = is_platform_protected(profile)
+    is_config = is_config_protected(profile)
+    is_protected = is_plat or is_config
     
     # Check if orphaned first: has a cognito_sub but no Cognito match was found
     sub = profile.get('cognito_sub')
@@ -76,6 +105,8 @@ def derive_staff_identity_state(profile, cog_match=None):
             "identity_status_label": "Orphaned Login",
             "is_orphaned_identity": True,
             "is_protected": is_protected,
+            "is_platform_protected": is_plat,
+            "is_config_protected": is_config,
             "can_manage_identity": not is_protected,
             "identity_warning": "This profile references a login that no longer exists."
         }
@@ -86,6 +117,8 @@ def derive_staff_identity_state(profile, cog_match=None):
             "identity_status_label": "Protected",
             "is_orphaned_identity": False,
             "is_protected": True,
+            "is_platform_protected": is_plat,
+            "is_config_protected": is_config,
             "can_manage_identity": False,
             "identity_warning": None
         }
@@ -98,6 +131,8 @@ def derive_staff_identity_state(profile, cog_match=None):
                 "identity_status_label": "Login Disabled",
                 "is_orphaned_identity": False,
                 "is_protected": False,
+                "is_platform_protected": False,
+                "is_config_protected": False,
                 "can_manage_identity": True,
                 "identity_warning": None
             }
@@ -109,6 +144,8 @@ def derive_staff_identity_state(profile, cog_match=None):
                 "identity_status_label": "Login Active",
                 "is_orphaned_identity": False,
                 "is_protected": False,
+                "is_platform_protected": False,
+                "is_config_protected": False,
                 "can_manage_identity": True,
                 "identity_warning": None
             }
@@ -118,6 +155,8 @@ def derive_staff_identity_state(profile, cog_match=None):
                 "identity_status_label": "Invited",
                 "is_orphaned_identity": False,
                 "is_protected": False,
+                "is_platform_protected": False,
+                "is_config_protected": False,
                 "can_manage_identity": True,
                 "identity_warning": None
             }
@@ -129,6 +168,8 @@ def derive_staff_identity_state(profile, cog_match=None):
             "identity_status_label": "No Login",
             "is_orphaned_identity": False,
             "is_protected": False,
+            "is_platform_protected": False,
+            "is_config_protected": False,
             "can_manage_identity": True,
             "identity_warning": None
         }
@@ -1398,6 +1439,64 @@ def handler(event, context):
                             staff_profile['updated_at'] = datetime.utcnow().isoformat()
                             items_table.put_item(Item=staff_profile)
                         return success({"deleted_cognito": username}, event)
+
+                    elif action == 'set-protected':
+                        if not _is_caller_authorized_for_protection(event, company_id):
+                            log_action(event, "BLOCKED_PROTECTED_ACCOUNT_ACTION", f"COMPANY#{company_id}", f"STAFF#{staff_id}",
+                                       metadata={"action": action, "reason": "Insufficient permissions to manage protection", "staff_id": staff_id})
+                            return error(403, "Forbidden: Only Owner, Platform Admin, or Protected Admin users can manage protected platform status.", event)
+
+                        staff_profile['is_platform_protected'] = True
+                        staff_profile['updated_at'] = datetime.utcnow().isoformat()
+                        items_table.put_item(Item=staff_profile)
+                        log_action(event, "SET_PROTECTED_ADMIN", f"COMPANY#{company_id}", f"STAFF#{staff_id}",
+                                   metadata={"staff_id": staff_id, "email": staff_profile.get("email"), "display_name": staff_profile.get("display_name")})
+
+                        staff_profile['is_protected'] = is_protected_profile(staff_profile)
+                        staff_profile['is_platform_protected'] = True
+                        staff_profile['is_config_protected'] = is_config_protected(staff_profile)
+                        identity_info = derive_staff_identity_state(staff_profile, None)
+                        staff_profile.update(identity_info)
+                        return success(staff_profile, event)
+
+                    elif action == 'unset-protected':
+                        if not _is_caller_authorized_for_protection(event, company_id):
+                            log_action(event, "BLOCKED_PROTECTED_ACCOUNT_ACTION", f"COMPANY#{company_id}", f"STAFF#{staff_id}",
+                                       metadata={"action": action, "reason": "Insufficient permissions to manage protection", "staff_id": staff_id})
+                            return error(403, "Forbidden: Only Owner, Platform Admin, or Protected Admin users can manage protected platform status.", event)
+
+                        if is_self:
+                            log_action(event, "BLOCKED_PROTECTED_ACCOUNT_ACTION", f"COMPANY#{company_id}", f"STAFF#{staff_id}",
+                                       metadata={"action": action, "reason": "Self-unprotect blocked", "staff_id": staff_id})
+                            return error(403, "Action blocked: You cannot remove protected status from your own account.", event)
+
+                        if is_config_protected(staff_profile):
+                            log_action(event, "BLOCKED_PROTECTED_ACCOUNT_ACTION", f"COMPANY#{company_id}", f"STAFF#{staff_id}",
+                                       metadata={"action": action, "reason": "Config-protected profile unprotect blocked", "staff_id": staff_id})
+                            return error(403, "Action blocked: Config-protected accounts cannot be unprotected via database flag.", event)
+
+                        from boto3.dynamodb.conditions import Key
+                        resp_staff = items_table.query(
+                            KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("STAFF#")
+                        )
+                        protected_count = sum(1 for s in resp_staff.get('Items', []) if is_protected_profile(s))
+                        if protected_count <= 1 and is_protected_profile(staff_profile):
+                            log_action(event, "BLOCKED_PROTECTED_ACCOUNT_ACTION", f"COMPANY#{company_id}", f"STAFF#{staff_id}",
+                                       metadata={"action": action, "reason": "Last protected admin unprotect blocked", "staff_id": staff_id})
+                            return error(400, "Action blocked: Cannot remove protected status from the last protected admin in the system.", event)
+
+                        staff_profile['is_platform_protected'] = False
+                        staff_profile['updated_at'] = datetime.utcnow().isoformat()
+                        items_table.put_item(Item=staff_profile)
+                        log_action(event, "UNSET_PROTECTED_ADMIN", f"COMPANY#{company_id}", f"STAFF#{staff_id}",
+                                   metadata={"staff_id": staff_id, "email": staff_profile.get("email"), "display_name": staff_profile.get("display_name")})
+
+                        staff_profile['is_protected'] = is_protected_profile(staff_profile)
+                        staff_profile['is_platform_protected'] = False
+                        staff_profile['is_config_protected'] = is_config_protected(staff_profile)
+                        identity_info = derive_staff_identity_state(staff_profile, None)
+                        staff_profile.update(identity_info)
+                        return success(staff_profile, event)
 
                 editable_fields = [
                     'display_name', 'role', 'email', 'cognito_sub', 
