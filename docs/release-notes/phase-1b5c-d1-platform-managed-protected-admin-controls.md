@@ -60,3 +60,6 @@ This release introduces data-driven platform-managed protected admin status and 
 - **Expected Terraform Action**: **13 Lambda functions updated in-place** and API Gateway deployment stage cycle.
 - **0 resources created, 0 resources destroyed**.
 - **No Unrelated Infrastructure Changes**: Confirming no changes to AWS Budgets, Cognito User Pools, DynamoDB table schemas, IAM policies, S3 bucket configurations, CloudFront distribution settings, Stripe API, Google Calendar API, or mobile/EAS builds.
+- **Frontend Deployment Target**:
+  - S3 Hosting Bucket: `s3://togs-and-dogs-prod-toganddogs-hosting`
+  - CloudFront Distribution ID: `E35L00QPA2IRCY`
