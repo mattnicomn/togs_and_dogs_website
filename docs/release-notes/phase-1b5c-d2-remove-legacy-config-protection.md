@@ -1,7 +1,7 @@
 # Phase 1B.5C-D.2 Release Notes — Remove Legacy Config Protection for Admin_Root and USmissionhero
 
 **Release Date**: July 29, 2026  
-**Status**: 🛠️ **LOCAL IMPLEMENTATION / NOT DEPLOYED / DEPLOYMENT BLOCKED PENDING D.1 VALIDATION AND MATTHEW APPROVAL**  
+**Status**: 🛠️ **LOCAL IMPLEMENTATION / NOT DEPLOYED / AWAITING MATTHEW DEPLOYMENT APPROVAL**  
 **Implementation Commit:** `1854315` (`feat(admin): remove legacy protected admin config`)  
 **Scope**: Transition legacy system root accounts (`Admin_Root` / `admin@toganddogs.com` / `74b86488-1011-7029-bb6d-dad984e1463c` and `USmissionhero` / `mbn@usmissionhero.com`) out of legacy system config protection. Retain `support@usmissionhero.com` as the single permanent emergency fallback protected email.
 
@@ -10,7 +10,7 @@
 ### Deployment Gate
 
 D.2 deployment requires:
-1. Phase 1B.5C-D.1 production validation completed by Matthew (protected admin toggle confirmed working).
+1. ~~Phase 1B.5C-D.1 production validation completed by Matthew~~ — ✅ DONE (2026-07-30).
 2. Matthew's explicit approval for D.2 Terraform apply, S3 sync, and CloudFront invalidation.
 
 Saved Terraform plan: `infra/prod/phase-1b5c-d2-lambdas-only.tfplan`

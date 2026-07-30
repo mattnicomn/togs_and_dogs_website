@@ -1,9 +1,10 @@
 # Phase 1B.5C-D.1: Platform-Managed Protected Admin Controls & Billing Cache Hardening
 
 **Release Date:** 2026-07-29  
-**Status:** ⏳ **DEPLOYED AND SEEDED / AWAITING MATTHEW PRODUCTION VALIDATION**  
+**Status:** ✅ **VALIDATED AND CLOSED**  
 **Implementation Commit:** `ed7a01f` (`feat(admin): add platform-managed protected admin controls`)  
-**Deployment Date:** 2026-07-29 (deployment and seed performed between D.1 commit and D.2 commit)
+**Deployment Date:** 2026-07-29 (deployment and seed performed between D.1 commit and D.2 commit)  
+**Validated:** 2026-07-30 (Matthew authenticated production validation)
 
 ---
 
@@ -103,16 +104,17 @@ Later authoritative continuity records consistently document that D.1 was deploy
 
 ## ✅ Matthew Production Validation Checklist
 
-Matthew should perform the following authenticated checks in production to formally validate D.1:
+Matthew completed authenticated production validation on 2026-07-30:
 
-1. Open Platform Admin (`/platform-admin`).
-2. Open the Tog & Dogs tenant detail view.
-3. Locate Matthew's staff profile in Staff Management.
-4. Confirm the profile is shown as **protected** (Protected Platform Admin badge or indicator visible).
-5. Confirm the protected status is driven by the **data-driven `is_platform_protected` flag** rather than the legacy email-based configuration list.
-6. Verify the protected administrator **cannot** be archived, deactivated, or removed through ordinary staff-management controls.
-7. Verify an authorized Platform Admin or Protected Admin can **see** the protected-status toggle control.
-8. **Do not** toggle protection off unless Matthew separately approves a reversible mutation test.
-9. **Do not** expose raw staff IDs, DynamoDB keys, tokens, or private profile data during validation.
+1. ✅ Opened Platform Admin / Staff Management.
+2. ✅ Located Matthew's staff profile.
+3. ✅ Profile displayed **Access: Protected**.
+4. ✅ **Protected Platform Admin** control was checked (data-driven `is_platform_protected` flag active).
+5. ✅ Interface displayed "Cannot unprotect self" — self-unprotection blocked.
+6. ✅ **Turn Off Login Access** was disabled for the protected profile.
+7. ✅ **Unlink Login** was disabled for the protected profile.
+8. ✅ Ordinary destructive staff-management controls were unavailable for the protected profile.
+9. ✅ Other staff profiles were **not** incorrectly shown as protected.
+10. ✅ No raw database keys, tokens, credentials, or private authentication data were exposed.
 
-Upon successful validation, update this document's status to **VALIDATED AND CLOSED**.
+**Status: VALIDATED AND CLOSED**
