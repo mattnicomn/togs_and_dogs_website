@@ -11,13 +11,13 @@
 
 :root {
   --primary: #c28b1e;
-  --primary-hover: #f08c3a;
+  --primary-hover: #a37213;
   --page-bg: #faf7f2;
   --card-bg: #ffffff;
   --text-primary: #3c3c3b;
   --text-muted: #6a6a66;
   --border-color: #e2dfd9;
-  --border-soft: #e2dfd9;
+  --border-soft: #edf2ee;
   --success-color: #4a7c59;
   --warning-color: #d64933;
   --info-color: #3b82f6;

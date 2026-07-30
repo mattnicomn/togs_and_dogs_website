@@ -1,33 +1,23 @@
-/* Phase 24A-1B: Import generated color tokens from shared contract.
- * These values are currently identical to the declarations below.
+/* Phase 24A-1C: Authoritative color tokens imported from shared contract via generated CSS.
  * Source of truth: shared/tokens/colors.json → node shared/generate-adapters.mjs */
 @import './generated/color-tokens.css';
 
 /* System Font Stacks - Privacy & Performance Optimized */
 
 :root {
-  /* Brand Palette - Tog and Dogs Official */
-  --primary: #c28b1e; /* Gold */
-  --primary-hover: #f08c3a; /* Orange/Rust */
+  /* Brand Palette - Non-contract web-specific aliases */
   --secondary: #b8a890; /* Warm Tan */
   --accent: #e17c80; /* Warm Coral */
   --accent-soft: rgba(225, 124, 128, 0.1);
   
-  /* Standardized Theme Tokens - Light Mode */
-  --page-bg: #faf7f2; /* Soft Cream */
-  --card-bg: #ffffff;
+  /* Standardized Theme Tokens - Light Mode non-contract aliases */
   --card-bg-muted: #f3efe8; /* Slightly deeper cream */
-  --text-primary: #3c3c3b; /* Charcoal/Dark Brown */
   --text-secondary: #5a5a58; 
-  --text-muted: #6a6a66;
-  --border-color: #e2dfd9;
   --accent-color: var(--primary);
   --accent-hover: var(--primary-hover);
   --input-bg: #ffffff;
   --button-bg: var(--primary);
   --button-text: #ffffff;
-  --warning-color: #d64933; /* Soft Red */
-  --success-color: #4a7c59; /* Muted Green */
 
   /* Mapping old variables for compatibility */
   --bg-warm: var(--page-bg);
@@ -36,8 +26,8 @@
   --bg-muted: var(--card-bg-muted);
   --text-main: var(--text-primary);
   --text-heading: var(--text-primary);
-  --border-soft: var(--border-color);
   --header-bg: rgba(250, 247, 242, 0.95);
+
   
   /* UI Elements */
   --radius-lg: 40px;

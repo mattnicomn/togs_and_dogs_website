@@ -63,6 +63,13 @@
 
 ## Active Local Work / Pending Review
 
+- Phase 24A-1C: Cross-Platform Visual Token Alignment (🎨 LOCAL IMPLEMENTATION COMPLETE / NOT DEPLOYED OR DISTRIBUTED / AWAITING INDEPENDENT RE-REVIEW — 2026-07-30)
+  - Aligned 6 remaining color tokens per Matthew's explicit approval: `primaryHover` (`#a37213`), `textMuted` (`#6a6a66`), `border` (`#e2dfd9`), `borderSoft` (`#edf2ee`), `success` (`#4a7c59`), `danger` (`#d64933`).
+  - Contract `shared/tokens/colors.json` updated to 100% aligned (`"aligned": true` across all 13 tokens).
+  - Regenerated `web/src/generated/color-tokens.css` and `mobile/src/theme/generatedColors.ts`.
+  - Cleaned up duplicate manual CSS declarations in `web/src/index.css` so `@import` is authoritative.
+  - Validation: 9 contract tests, 7 adapter tests, 229 web tests, Vite production build, 31 mobile Jest tests, and `tsc --noEmit` all passed.
+  - See: `docs/release-notes/phase-24a-1c-visual-token-alignment.md`
 - Phase 24A-4: Mobile My Pets Read-Only Screen (✅ LOCALLY VALIDATED AND REVIEWED / NOT BUILT OR DISTRIBUTED — 2026-07-30)
   - Original implementation at commit `33e579c` (2026-07-25). Phase 24A-4 was reconciliation and validation only — no mobile source changes.
   - Customer-facing read-only screen using authenticated `GET /client/pets`.

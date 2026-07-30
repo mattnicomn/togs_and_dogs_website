@@ -12,10 +12,10 @@
     },
     "primaryHover": {
       "semantic": "Primary interaction state — hover on web, pressed on mobile",
-      "web": "#f08c3a",
+      "web": "#a37213",
       "mobile": "#a37213",
-      "aligned": false,
-      "decision": "requires-24A-1C"
+      "aligned": true,
+      "decision": "aligned"
     },
     "background": {
       "semantic": "Page-level background surface",
@@ -41,37 +41,37 @@
     "textMuted": {
       "semantic": "De-emphasized or secondary text (labels, captions)",
       "web": "#6a6a66",
-      "mobile": "#7f8c8d",
-      "aligned": false,
-      "decision": "requires-24A-1C"
+      "mobile": "#6a6a66",
+      "aligned": true,
+      "decision": "aligned"
     },
     "border": {
       "semantic": "Default border and divider color",
       "web": "#e2dfd9",
-      "mobile": "#e2e8f0",
-      "aligned": false,
-      "decision": "requires-24A-1C"
+      "mobile": "#e2dfd9",
+      "aligned": true,
+      "decision": "aligned"
     },
     "borderSoft": {
       "semantic": "Subtle or secondary border (card edges, section dividers)",
-      "web": "#e2dfd9",
+      "web": "#edf2ee",
       "mobile": "#edf2ee",
-      "aligned": false,
-      "decision": "requires-24A-1C"
+      "aligned": true,
+      "decision": "aligned"
     },
     "success": {
       "semantic": "Positive outcome — completed, active, paid, healthy",
       "web": "#4a7c59",
-      "mobile": "#10b981",
-      "aligned": false,
-      "decision": "requires-24A-1C"
+      "mobile": "#4a7c59",
+      "aligned": true,
+      "decision": "aligned"
     },
     "danger": {
       "semantic": "Negative outcome — error, cancelled, destructive action",
       "web": "#d64933",
-      "mobile": "#ef4444",
-      "aligned": false,
-      "decision": "requires-24A-1C"
+      "mobile": "#d64933",
+      "aligned": true,
+      "decision": "aligned"
     },
     "info": {
       "semantic": "Informational highlight — approved, in-progress, neutral alert",
