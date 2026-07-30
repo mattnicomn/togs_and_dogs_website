@@ -84,14 +84,16 @@
   - Deployed as part of Phase 1B.5C-B+C combined frontend deployment (commit `510b063`).
   - Matthew validated: editor opens with one click, correct staff member opens, existing edit behavior functional.
   - See: `docs/release-notes/phase-1b5c-c-staff-edit-double-click-correction.md`
-- Phase 1B.5C-D.1: Platform-Managed Protected Admin Controls (✅ DEPLOYED & SEEDED IN PRODUCTION — 2026-07-29)
+- Phase 1B.5C-D.1: Platform-Managed Protected Admin Controls (⏳ DEPLOYED & SEEDED / AWAITING MATTHEW PRODUCTION VALIDATION — 2026-07-29)
   - Data-driven `is_platform_protected` flag, `set-protected`/`unset-protected` actions, frontend toggle.
   - Matthew's profile seeded as Protected Platform Admin.
+  - Focused deployment record not preserved; deployment documented indirectly via continuity records.
+  - Matthew production validation pending (toggle functionality, protection enforcement, UI controls).
   - See: `docs/release-notes/phase-1b5c-d1-platform-managed-protected-admin-controls.md`
-- Phase 1B.5C-D.2: Remove Legacy Config Protection (🛠️ LOCAL IMPLEMENTATION COMPLETE / READY FOR DEPLOYMENT PREPARATION)
+- Phase 1B.5C-D.2: Remove Legacy Config Protection (🛠️ LOCAL IMPLEMENTATION / NOT DEPLOYED / BLOCKED PENDING D.1 VALIDATION)
   - Removed `Admin_Root` and `USmissionhero` from legacy fallback defaults and Terraform env vars.
   - Retained `support@usmissionhero.com` as permanent emergency fallback.
-  - Awaiting Matthew deployment approval.
+  - Deployment blocked until D.1 is validated and Matthew approves D.2 deployment.
   - See: `docs/release-notes/phase-1b5c-d2-remove-legacy-config-protection.md`
 
 ## Completed Planning / Evidence Workstreams
@@ -209,7 +211,8 @@
 **Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes. Release 22ZA implemented the mobile responsive foundation and accessible slide-out navigation drawer (pre-deploy validated). Release 22ZB implemented the full-screen Profile Editor mobile sheet layout (pre-deploy validated). Release 22ZC added keyboard-accessible stat cards, responsive filter controls stacking, and accessible data-label column labels on mobile request cards (pre-deploy validated). Phase 1B.2A backend-only Lambda package apply completed successfully, deploying the pet creation is_active hardening code to production. Phase 1B.2A ClientPetIndex GSI-only apply completed successfully, creating the global secondary database index in production (index backfilled and status ACTIVE). Phase 1B.2A ClientPetIndex query cutover deployed to production on 2026-07-20 (0 added, 13 changed, 0 destroyed). All 13 Lambda functions verified Active/Successful with expected CodeSha256. Matthew authenticated manual smoke PASSED (admin login, Client Management page, client drawer, admin pet list). Phase 1B.3 frontend deployed to production with /my-pets route, card-click drawer interaction, accessible cards, and mobile bottom-sheet. Hook-order hotfix applied. Matthew confirmed production works. Phase 1B.3 COMPLETE and CLOSED. Phase 1B.4A–E Client Drawer Editor Consolidation deployed to production. Matthew confirmed drawer View/Edit/Create experience works correctly, inline editor retired, Staff Management unaffected. Phase 1B.4A–E COMPLETE and CLOSED. Phase 1B.4F–H remain deferred. Phase 1B.5 (Pet Management and Client–Pet Association) is active. Phase 1B.5A and 1B.5A.1 deployed and validated (2026-07-22). Phase 1B.5B-A Staff Pet Editor and hotfixes deployed and validated (2026-07-23). Phase 1B.5C-A Customer Pet Editing deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-A.1 admin pet care field hotfix deployed and validated (2026-07-30). Phase 1B.5C-B (active staff count fix) and 1B.5C-C (staff edit double-click fix) deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-D.1 (platform-managed protected admin controls) deployed and seeded (2026-07-29). Phase 1B.5C-D.2 (remove legacy config protection) is local/ready for deployment preparation. Latest completed validated production release is Phase 1B.5C-B+C (2026-07-30).**
 
 **Next options:**
-- Phase 1B.5C-D.2: Remove Legacy Config Protection (local complete, awaiting Matthew deployment approval)
+- Phase 1B.5C-D.1: Matthew production validation (read-only check of protected admin toggle — no deployment required)
+- Phase 1B.5C-D.2: Remove Legacy Config Protection (blocked until D.1 is validated; then requires Matthew deployment approval)
 - Phase 24A-4: Mobile My Pets Read-Only Screen (requires Matthew approval; depends on 24A-3 ✅ complete and 1B.5C-A ✅ deployed)
 - Phase 1B.5D–E: Pet Lifecycle safeguards and booking integration (deferred)
 - Address remaining Phase 1B.4F–H staff drawer alignment (deferred, low priority)

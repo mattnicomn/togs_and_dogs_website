@@ -1,8 +1,9 @@
 # Phase 1B.5C-D.1: Platform-Managed Protected Admin Controls & Billing Cache Hardening
 
 **Release Date:** 2026-07-29  
-**Status:** 🛠️ **IMPLEMENTED LOCALLY / NOT DEPLOYED / NOT SEEDED**  
-**Approval Gates:** Awaiting Matthew's explicit approval before commit, push, Terraform plan/apply, S3 sync, CloudFront invalidation, or DynamoDB profile seed.
+**Status:** ⏳ **DEPLOYED AND SEEDED / AWAITING MATTHEW PRODUCTION VALIDATION**  
+**Implementation Commit:** `ed7a01f` (`feat(admin): add platform-managed protected admin controls`)  
+**Deployment Date:** 2026-07-29 (deployment and seed performed between D.1 commit and D.2 commit)
 
 ---
 
@@ -32,7 +33,7 @@ This release introduces data-driven platform-managed protected admin status and 
 ## 🔒 Protection & Data Safety Guarantees
 
 - **No System Protection Removed**: All system config-protected accounts (`Admin_Root`, `USmissionhero`, `admin@toganddogs.com`, `support@usmissionhero.com`, `mbn@usmissionhero.com`) remain 100% protected. Attempting `unset-protected` on system config accounts is rejected with HTTP 403 Forbidden.
-- **Matthew's Profile Unseeded**: Matthew's staff profile (`mattnicomn10@gmail.com`) has **not** been updated or seeded in production DynamoDB. The proposed seed script remains unexecuted pending explicit approval.
+- **Production Seed**: Matthew's staff profile was seeded with `is_platform_protected = true` in production DynamoDB. See Deployment Reconciliation section below for evidence classification.
 
 ---
 
@@ -63,3 +64,55 @@ This release introduces data-driven platform-managed protected admin status and 
 - **Frontend Deployment Target**:
   - S3 Hosting Bucket: `s3://togs-and-dogs-prod-toganddogs-hosting`
   - CloudFront Distribution ID: `E35L00QPA2IRCY`
+
+
+---
+
+## 📋 Deployment Reconciliation (Added 2026-07-30)
+
+This release note was originally written before deployment. The deployment and seed were performed on 2026-07-29, but this focused release note was not updated at that time. A focused command-level deployment record was not created. The following reconciliation documents what is confirmed versus what is missing.
+
+### Confirmed Repository Evidence
+
+- Implementation commit `ed7a01f` is in `main` history (authored 2026-07-29 13:03 EDT).
+- Local test results documented above (56 backend + 133 frontend pass).
+- Phase 1B.5C-D.2 release note (committed at `1854315`, authored 2026-07-29 13:58 EDT) states: "Following the successful production seeding of data-driven protection (`is_platform_protected = true`) on Matthew's profile." This presupposes D.1 deployment and seed were completed before D.2 was committed.
+- `docs/project-continuity/current-state.md` records D.1 as "DEPLOYED & SEEDED IN PRODUCTION" (present since commit `e1a62ab`, authored 2026-07-30 by Matthew).
+- `docs/release-notes/index.md` records D.1 as "✅ DEPLOYED & SEEDED IN PRODUCTION" (same commit).
+- Saved Terraform plans exist: `infra/prod/phase-1b5c-d1.tfplan` and `infra/prod/phase-1b5c-d1-lambdas-only.tfplan`.
+- Matthew-approved project history proceeded to D.2 implementation only after the recorded seed state.
+
+### Evidence Not Preserved in a Focused Record
+
+- Exact Terraform apply output
+- Exact resources changed and resource IDs
+- Backend package hash (CodeSha256) deployed
+- S3 sync output
+- CloudFront invalidation ID
+- Production seed command and parameters
+- DynamoDB post-seed verification output
+- Authenticated production validation result
+
+### Authoritative Status Determination
+
+Later authoritative continuity records consistently document that D.1 was deployed and that Matthew's existing staff profile was seeded with `is_platform_protected = true`. The original command-level deployment and seed evidence was not preserved in a focused deployment record, so those operational details remain documented but independently unverified.
+
+**Reconciled Status: DEPLOYED AND SEEDED / AWAITING MATTHEW PRODUCTION VALIDATION**
+
+---
+
+## ✅ Matthew Production Validation Checklist
+
+Matthew should perform the following authenticated checks in production to formally validate D.1:
+
+1. Open Platform Admin (`/platform-admin`).
+2. Open the Tog & Dogs tenant detail view.
+3. Locate Matthew's staff profile in Staff Management.
+4. Confirm the profile is shown as **protected** (Protected Platform Admin badge or indicator visible).
+5. Confirm the protected status is driven by the **data-driven `is_platform_protected` flag** rather than the legacy email-based configuration list.
+6. Verify the protected administrator **cannot** be archived, deactivated, or removed through ordinary staff-management controls.
+7. Verify an authorized Platform Admin or Protected Admin can **see** the protected-status toggle control.
+8. **Do not** toggle protection off unless Matthew separately approves a reversible mutation test.
+9. **Do not** expose raw staff IDs, DynamoDB keys, tokens, or private profile data during validation.
+
+Upon successful validation, update this document's status to **VALIDATED AND CLOSED**.
