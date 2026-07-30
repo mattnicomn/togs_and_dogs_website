@@ -1,8 +1,10 @@
 # Phase 1B.5C-B — Staff Limit Active-Count Entitlement Fix
 
-**Status:** LOCAL IMPLEMENTATION COMPLETE / NOT DEPLOYED / AWAITING MATTHEW DEPLOYMENT APPROVAL
+**Status:** VALIDATED AND CLOSED
 
 **Implementation Date:** 2026-07-28
+**Deployment Date:** 2026-07-28 (deployed as part of Phase 1B.5C-B+C combined deployment from commit `510b063`, backend Terraform apply + S3 sync + CloudFront invalidation `IDDXHEGTSQV9QGXDJX2V03NT4P`)
+**Validated:** 2026-07-30 (Matthew authenticated production validation)
 
 ---
 
@@ -121,3 +123,16 @@ With all 5 current production staff records still active, the limit remains 5/5 
 - `src/backend/handlers/admin_handler.py` (Modified — 2 locations)
 - `tests/backend/test_r17d_entitlement_wiring.py` (Modified — 4 new tests appended)
 - `docs/release-notes/phase-1b5c-b-staff-limit-active-count-entitlement-fix.md` (New)
+
+---
+
+## 9. Deployment & Production Validation
+
+**Deployed:** 2026-07-28 as part of the Phase 1B.5C-B+C combined deployment (commit `510b063`). Backend Terraform apply updated all 13 Lambda functions in-place (0 added, 13 changed, 0 destroyed). Frontend S3 sync and CloudFront invalidation (`IDDXHEGTSQV9QGXDJX2V03NT4P`) deployed the combined frontend bundle (artifact `index-FPO2J7dE.js`).
+
+**Matthew Authenticated Production Validation (2026-07-30):**
+- ✅ Platform Admin tenant usage displays Staff Users as 4 / 5
+- ✅ Displayed active-staff count matches the expected active staff total
+- ✅ Inactive or archived staff are not incorrectly counted toward the limit
+
+**Status: VALIDATED AND CLOSED**

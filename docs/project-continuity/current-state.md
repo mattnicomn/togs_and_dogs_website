@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-24 (Phase 23A AWS Tagging Evidence Audit Complete)
+**Last Updated:** 2026-07-30 (Phase 1B.5C-B and 1B.5C-C Production Validation Closed)
 
 ---
 
@@ -74,6 +74,25 @@
   - Added abbreviated Pet ID labels for duplicate-name disambiguation.
   - Deployed as part of Phase 1B.5C-B+C frontend deployment (commit `510b063`). Matthew authenticated validation PASSED.
   - See: `docs/release-notes/phase-1b5c-a1-admin-pet-care-field-visibility-hotfix.md`
+- Phase 1B.5C-B: Staff Limit Active-Count Entitlement Fix (✅ VALIDATED AND CLOSED — 2026-07-30)
+  - Changed `max_staff` entitlement check to count only active staff (`is_active != False`).
+  - Deployed as part of Phase 1B.5C-B+C combined deployment (commit `510b063`, backend Terraform apply + S3/CloudFront invalidation `IDDXHEGTSQV9QGXDJX2V03NT4P`).
+  - Matthew validated: Staff Users displayed as 4/5, count matched expected active total.
+  - See: `docs/release-notes/phase-1b5c-b-staff-limit-active-count-entitlement-fix.md`
+- Phase 1B.5C-C: Staff Edit Double-Click Correction (✅ VALIDATED AND CLOSED — 2026-07-30)
+  - Fixed staff profile editor requiring a second click to open.
+  - Deployed as part of Phase 1B.5C-B+C combined frontend deployment (commit `510b063`).
+  - Matthew validated: editor opens with one click, correct staff member opens, existing edit behavior functional.
+  - See: `docs/release-notes/phase-1b5c-c-staff-edit-double-click-correction.md`
+- Phase 1B.5C-D.1: Platform-Managed Protected Admin Controls (✅ DEPLOYED & SEEDED IN PRODUCTION — 2026-07-29)
+  - Data-driven `is_platform_protected` flag, `set-protected`/`unset-protected` actions, frontend toggle.
+  - Matthew's profile seeded as Protected Platform Admin.
+  - See: `docs/release-notes/phase-1b5c-d1-platform-managed-protected-admin-controls.md`
+- Phase 1B.5C-D.2: Remove Legacy Config Protection (🛠️ LOCAL IMPLEMENTATION COMPLETE / READY FOR DEPLOYMENT PREPARATION)
+  - Removed `Admin_Root` and `USmissionhero` from legacy fallback defaults and Terraform env vars.
+  - Retained `support@usmissionhero.com` as permanent emergency fallback.
+  - Awaiting Matthew deployment approval.
+  - See: `docs/release-notes/phase-1b5c-d2-remove-legacy-config-protection.md`
 
 ## Completed Planning / Evidence Workstreams
 
@@ -118,6 +137,10 @@
 
 ## Latest Completed Releases
 
+- Phase 1B.5C-C: Staff Edit Double-Click Correction (✅ VALIDATED AND CLOSED — 2026-07-30)
+- Phase 1B.5C-B: Staff Limit Active-Count Entitlement Fix (✅ VALIDATED AND CLOSED — 2026-07-30)
+- Phase 1B.5C-A.1: Admin Pet Care Field Visibility Hotfix (✅ VALIDATED AND CLOSED — 2026-07-30)
+- Phase 1B.5C-A: Customer Pet Editing Production Deployment (✅ VALIDATED AND CLOSED — 2026-07-30)
 - Phase 1B.5B-A.1: Google Calendar Integration RBAC Production Deployment (✅ VALIDATED AND CLOSED — 2026-07-23)
 - Phase 1B.5B-A.1: Google Calendar Integration RBAC Deployment Readiness (✅ PLAN PREPARED — 2026-07-23)
 - Phase 1B.5B-A.1: Google Calendar Access Control Remediation (✅ COMPLETE LOCAL — 2026-07-23)
@@ -183,12 +206,12 @@
 - 19B: Tenant provisioning script dry run
 - 18U: Post-enable strict-mode monitoring checkpoint (PASS)
 
-**Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes. Release 22ZA implemented the mobile responsive foundation and accessible slide-out navigation drawer (pre-deploy validated). Release 22ZB implemented the full-screen Profile Editor mobile sheet layout (pre-deploy validated). Release 22ZC added keyboard-accessible stat cards, responsive filter controls stacking, and accessible data-label column labels on mobile request cards (pre-deploy validated). Phase 1B.2A backend-only Lambda package apply completed successfully, deploying the pet creation is_active hardening code to production. Phase 1B.2A ClientPetIndex GSI-only apply completed successfully, creating the global secondary database index in production (index backfilled and status ACTIVE). Phase 1B.2A ClientPetIndex query cutover deployed to production on 2026-07-20 (0 added, 13 changed, 0 destroyed). All 13 Lambda functions verified Active/Successful with expected CodeSha256. Matthew authenticated manual smoke PASSED (admin login, Client Management page, client drawer, admin pet list). Phase 1B.3 frontend deployed to production with /my-pets route, card-click drawer interaction, accessible cards, and mobile bottom-sheet. Hook-order hotfix applied. Matthew confirmed production works. Phase 1B.3 COMPLETE and CLOSED. Phase 1B.4A–E Client Drawer Editor Consolidation deployed to production. Matthew confirmed drawer View/Edit/Create experience works correctly, inline editor retired, Staff Management unaffected. Phase 1B.4A–E COMPLETE and CLOSED. Phase 1B.4F–H remain deferred. Phase 1B.5 (Pet Management and Client–Pet Association) is active. Phase 1B.5A (Authoritative Client Drawer Pet Loading) deployed to production on 2026-07-21. Bundle changed from index-B-lRTVkt.js to index-B9b14KXI.js. CloudFront invalidation I5N3QUSW8OFBB5SU4UA5IJE302 completed. All 178 tests pass. Authenticated validation pending Matthew. Latest completed production release remains Phase 1B.4A–E until validation passes. Phase 1B.5A.1 (My Pets List and Status Hotfix) resolved the raw Missing petId in path error on /my-pets for unlinked/admin users and corrected the Active badge contrast in dark mode. Locally implemented and reviewed. Terraform apply completed (0 added, 13 changed, 0 destroyed) and web/dist synced to S3 with CloudFront invalidated (invalidation Completed). Authenticated validation remains pending Matthew. Phase 1B.5B and later slices have not started.**
+**Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes. Release 22ZA implemented the mobile responsive foundation and accessible slide-out navigation drawer (pre-deploy validated). Release 22ZB implemented the full-screen Profile Editor mobile sheet layout (pre-deploy validated). Release 22ZC added keyboard-accessible stat cards, responsive filter controls stacking, and accessible data-label column labels on mobile request cards (pre-deploy validated). Phase 1B.2A backend-only Lambda package apply completed successfully, deploying the pet creation is_active hardening code to production. Phase 1B.2A ClientPetIndex GSI-only apply completed successfully, creating the global secondary database index in production (index backfilled and status ACTIVE). Phase 1B.2A ClientPetIndex query cutover deployed to production on 2026-07-20 (0 added, 13 changed, 0 destroyed). All 13 Lambda functions verified Active/Successful with expected CodeSha256. Matthew authenticated manual smoke PASSED (admin login, Client Management page, client drawer, admin pet list). Phase 1B.3 frontend deployed to production with /my-pets route, card-click drawer interaction, accessible cards, and mobile bottom-sheet. Hook-order hotfix applied. Matthew confirmed production works. Phase 1B.3 COMPLETE and CLOSED. Phase 1B.4A–E Client Drawer Editor Consolidation deployed to production. Matthew confirmed drawer View/Edit/Create experience works correctly, inline editor retired, Staff Management unaffected. Phase 1B.4A–E COMPLETE and CLOSED. Phase 1B.4F–H remain deferred. Phase 1B.5 (Pet Management and Client–Pet Association) is active. Phase 1B.5A and 1B.5A.1 deployed and validated (2026-07-22). Phase 1B.5B-A Staff Pet Editor and hotfixes deployed and validated (2026-07-23). Phase 1B.5C-A Customer Pet Editing deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-A.1 admin pet care field hotfix deployed and validated (2026-07-30). Phase 1B.5C-B (active staff count fix) and 1B.5C-C (staff edit double-click fix) deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-D.1 (platform-managed protected admin controls) deployed and seeded (2026-07-29). Phase 1B.5C-D.2 (remove legacy config protection) is local/ready for deployment preparation. Latest completed validated production release is Phase 1B.5C-B+C (2026-07-30).**
 
 **Next options:**
-- Phase 1B.5B: Staff Pet Management in Client Management (planning complete, awaiting Matthew implementation policy approval)
-- Phase 1B.5C: Customer self-service pet editing (deferred)
-- Phase 1B.5D–E: Lifecycle safeguards and booking integration (deferred)
+- Phase 1B.5C-D.2: Remove Legacy Config Protection (local complete, awaiting Matthew deployment approval)
+- Phase 24A-4: Mobile My Pets Read-Only Screen (requires Matthew approval; depends on 24A-3 ✅ complete and 1B.5C-A ✅ deployed)
+- Phase 1B.5D–E: Pet Lifecycle safeguards and booking integration (deferred)
 - Address remaining Phase 1B.4F–H staff drawer alignment (deferred, low priority)
 - Begin Release 22ZD — Scheduler, Client Management, Platform Admin mobile polish (Phase 4 of 22Z plan)
 - Address 22Y remediation items (Cognito password-reset state handling, Google Calendar disconnect API Gateway fix) in a separate release.

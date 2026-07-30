@@ -62,6 +62,8 @@
 | Phase 1B.5C-A artifact reconstruction and plan reaffirmation | `docs/release-notes/phase-1b5c-a-deployment-preparation-addendum.md` |
 | Phase 1B.5C-A production deployment record | `docs/release-notes/phase-1b5c-a-customer-pet-editing-production-deployment.md` |
 | Phase 1B.5C-A.1 admin pet care field visibility hotfix | `docs/release-notes/phase-1b5c-a1-admin-pet-care-field-visibility-hotfix.md` |
+| Phase 1B.5C-B staff limit active-count entitlement fix | `docs/release-notes/phase-1b5c-b-staff-limit-active-count-entitlement-fix.md` |
+| Phase 1B.5C-C staff edit double-click correction | `docs/release-notes/phase-1b5c-c-staff-edit-double-click-correction.md` |
 | Phase 1B.5A pet loading release notes | `docs/release-notes/phase-1b5a-authoritative-client-pet-loading.md` |
 | Phase 1B.5A pet loading review | `docs/release-notes/phase-1b5a-authoritative-client-pet-loading-review.md` |
 | Phase 1B.5A production deployment | `docs/release-notes/phase-1b5a-authoritative-client-pet-loading-production-deployment.md` |
