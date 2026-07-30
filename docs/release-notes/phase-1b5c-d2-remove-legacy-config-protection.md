@@ -1,19 +1,45 @@
 # Phase 1B.5C-D.2 Release Notes — Remove Legacy Config Protection for Admin_Root and USmissionhero
 
 **Release Date**: July 29, 2026  
-**Status**: 🛠️ **LOCAL IMPLEMENTATION / NOT DEPLOYED / AWAITING MATTHEW DEPLOYMENT APPROVAL**  
+**Status**: ✅ **VALIDATED AND CLOSED**  
 **Implementation Commit:** `1854315` (`feat(admin): remove legacy protected admin config`)  
-**Scope**: Transition legacy system root accounts (`Admin_Root` / `admin@toganddogs.com` / `74b86488-1011-7029-bb6d-dad984e1463c` and `USmissionhero` / `mbn@usmissionhero.com`) out of legacy system config protection. Retain `support@usmissionhero.com` as the single permanent emergency fallback protected email.
+**Scope**: Transition legacy system root accounts (`Admin_Root` / `admin@toganddogs.com` / `74b86488-1011-7029-bb6d-dad984e1463c` and `USmissionhero` / `mbn@usmissionhero.com`) out of legacy system config protection. Retain `support@usmissionhero.com` as the single permanent emergency fallback protected email.  
+**Validated:** 2026-07-30 (production convergence confirmed via fresh Terraform refresh + Matthew authenticated validation)
 
 ---
 
-### Deployment Gate
+### Deployment Convergence
 
-D.2 deployment requires:
+Phase 1B.5C-D.2 was not deployed through a separate D.2 Terraform apply. A fresh Terraform refresh (`phase-1b5c-d2-lambdas-only-refresh-20260730.tfplan`) confirmed that production Lambda code and environment configuration were already converged to the D.2 implementation, establishing that D.2 was included in the earlier D.1 Lambda deployment.
+
+The original saved plan (`phase-1b5c-d2-lambdas-only.tfplan`) was never applied. The fresh refresh plan was also not applied (it contained only an unrelated budget notification drift item).
+
+**Production convergence evidence:**
+- Fresh Terraform plan showed 0 Lambda changes pending (all 13 Lambdas already at D.2 state)
+- Read-only AWS verification confirmed:
+  - `admin@toganddogs.com` absent from protected-admin environment configuration
+  - `mbn@usmissionhero.com` absent from protected-admin environment configuration
+  - Legacy protected-subject configuration absent
+  - `support@usmissionhero.com` remains as intentional emergency email exception
+  - Profile-level `is_platform_protected` mechanism active
+  - Matthew's seeded protected-profile attribute untouched
+- No separate D.2 deployment timestamp, CloudFront invalidation, or Terraform apply output exists
+
+**What was NOT changed:**
+- No frontend deployment (no frontend source changes in D.2)
+- No S3 sync
+- No CloudFront invalidation
+- No API Gateway deployment
+- No DynamoDB schema or data migration
+- No Cognito modification
+- No tenant, Stripe, Calendar, or mobile changes
+
+---
+
+### Deployment Gate (Completed)
+
 1. ~~Phase 1B.5C-D.1 production validation completed by Matthew~~ — ✅ DONE (2026-07-30).
-2. Matthew's explicit approval for D.2 Terraform apply, S3 sync, and CloudFront invalidation.
-
-Saved Terraform plan: `infra/prod/phase-1b5c-d2-lambdas-only.tfplan`
+2. ~~Matthew's explicit approval for D.2 deployment~~ — ✅ Convergence confirmed; no separate apply required.
 
 ---
 
@@ -52,3 +78,31 @@ Phase 1B.5C-D.2 removes their legacy identifiers from backend fallback defaults 
   - ❌ Zero staff profiles deleted or archived during release.
   - ❌ Zero Cognito user accounts modified, deleted, or disabled.
   - ❌ Zero AWS Budget configurations modified.
+
+
+---
+
+### Production Validation (2026-07-30)
+
+Matthew authenticated production validation confirmed:
+- ✅ Profile displayed Access: Protected (data-driven `is_platform_protected` active)
+- ✅ Protected Platform Admin was checked
+- ✅ Self-unprotection was blocked ("Cannot unprotect self")
+- ✅ Turn Off Login Access was disabled for the protected profile
+- ✅ Unlink Login was disabled for the protected profile
+- ✅ Ordinary destructive staff-management actions were unavailable
+- ✅ Other staff profiles were not incorrectly shown as protected
+- ✅ `admin@toganddogs.com` and `mbn@usmissionhero.com` no longer act as fallback-protected addresses
+- ✅ `support@usmissionhero.com` remains the approved permanent emergency exception
+
+**Status: VALIDATED AND CLOSED**
+
+---
+
+### Unrelated Infrastructure Discrepancy (Not D.2)
+
+The fresh Terraform refresh plan identified one unrelated change:
+- `aws_budgets_budget.project_budget` — Terraform proposes removing two manually configured budget notifications (100% actual, 80% forecasted) that were added outside Terraform in Phase 23B.
+- This change is unrelated to D.2 and was NOT applied.
+- Budget notification reconciliation remains deferred pending a separately scoped review and Matthew approval.
+- See: `docs/planning/phase-23b-aws-budget-coverage-and-cost-visibility-dashboard.md`
