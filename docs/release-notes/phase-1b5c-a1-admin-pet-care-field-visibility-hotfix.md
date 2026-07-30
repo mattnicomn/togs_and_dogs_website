@@ -1,8 +1,10 @@
 # Phase 1B.5C-A.1 — Admin Pet Care Field Visibility Hotfix Record
 
-**Status:** LOCAL HOTFIX IMPLEMENTED / NOT DEPLOYED / AWAITING KIRO RE-REVIEW
+**Status:** VALIDATED AND CLOSED
 
 **Implementation Date:** 2026-07-28
+**Deployment Date:** 2026-07-28 (deployed as part of Phase 1B.5C-B+C frontend deployment from commit `510b063`)
+**Validated:** 2026-07-30 (Matthew authenticated production validation)
 
 ---
 
@@ -87,6 +89,17 @@ Modified `web/src/components/ClientDetailDrawer.jsx`:
 
 ---
 
-## 7. Status
+## 7. Deployment & Validation
 
-**LOCAL HOTFIX IMPLEMENTED / NOT DEPLOYED / AWAITING KIRO RE-REVIEW**
+**Deployed:** 2026-07-28 as part of the Phase 1B.5C-B+C combined frontend deployment (commit `510b063`, S3 sync + CloudFront invalidation `IDDXHEGTSQV9QGXDJX2V03NT4P`). The frontend artifact `index-FPO2J7dE.js` includes this hotfix along with Phase 1B.5C-C (staff edit guard) and Phase 24A-1B color tokens (no visual change, Matthew-approved scope inclusion).
+
+**Matthew Authenticated Production Validation (2026-07-30):**
+- ✅ Duplicate-name pet distinguishable using abbreviated pet ID
+- ✅ Age rendered correctly
+- ✅ Care Instructions rendered correctly
+- ✅ Feeding Notes rendered correctly
+- ✅ Medical Notes remained correctly mapped
+- ✅ Edit mode displayed the three added fields
+- ✅ No full internal identifiers exposed
+
+**Status: VALIDATED AND CLOSED**
