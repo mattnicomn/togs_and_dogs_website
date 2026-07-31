@@ -1,6 +1,7 @@
 import { CONFIG } from './config';
 import { getIdToken, isTokenExpired } from '../auth/storage';
 import { refreshSession } from '../auth/cognito';
+import { API_PATHS } from '../contracts/generatedContracts';
 
 const request = async (path: string, method = 'GET', data: any = null, isProtected = false) => {
   const options: RequestInit = {
@@ -62,25 +63,25 @@ const request = async (path: string, method = 'GET', data: any = null, isProtect
 
 // Mirror key API mutations from the web client for future integration
 export const getAdminRequests = (status = 'PENDING_REVIEW', startKey: string | null = null, timeframe: string | null = null) => {
-  let url = `/admin/requests?status=${status}`;
+  let url = `${API_PATHS.admin.getRequests}?status=${status}`;
   if (startKey) url += `&startKey=${encodeURIComponent(startKey)}`;
   if (timeframe) url += `&timeframe=${timeframe}`;
   return request(url, 'GET', null, true);
 };
 
 // Client portal: fetch appointments for the logged-in client
-export const getClientRequests = () => request('/client/requests', 'GET', null, true);
+export const getClientRequests = () => request(API_PATHS.client.getRequests, 'GET', null, true);
 
-export const getStaff = () => request('/admin/staff', 'GET', null, true);
-export const getClients = () => request('/admin/clients', 'GET', null, true);
+export const getStaff = () => request(API_PATHS.admin.getStaff, 'GET', null, true);
+export const getClients = () => request(API_PATHS.admin.getClients, 'GET', null, true);
 
 // Public staffing options
-export const getStaffOptions = () => request('/requests', 'POST', { action: 'staff-options' });
-export const submitRequest = (data: any) => request('/requests', 'POST', data);
+export const getStaffOptions = () => request(API_PATHS.public.staffOptions, 'POST', { action: 'staff-options' });
+export const submitRequest = (data: any) => request(API_PATHS.public.submitRequest, 'POST', data);
 
 // reviewRequest mutations
 export const reviewRequest = (requestId: string, clientId: string, status: string, reason = "", visitNotes = "") => 
-  request('/admin/review', 'POST', { 
+  request(API_PATHS.admin.review, 'POST', { 
     request_id: requestId, 
     client_id: clientId, 
     status, 
@@ -89,7 +90,7 @@ export const reviewRequest = (requestId: string, clientId: string, status: strin
   }, true);
 
 export const assignWorker = (jobId: string, reqId: string, clientId: string, workerId: string, workerName: string) => 
-  request('/admin/assign', 'POST', { 
+  request(API_PATHS.admin.assign, 'POST', { 
     job_id: jobId, 
     req_id: reqId, 
     client_id: clientId,
@@ -98,13 +99,14 @@ export const assignWorker = (jobId: string, reqId: string, clientId: string, wor
   }, true);
 
 export const completeJob = (jobId: string, requestId: string, visitNotes = "") =>
-  request('/admin/job/complete', 'POST', {
+  request(API_PATHS.admin.jobComplete, 'POST', {
     job_id: jobId,
     request_id: requestId,
     visit_notes: visitNotes
   }, true);
 
 // Phase 24A-4: Client pets listing (read-only)
-export const getClientPets = () => request('/client/pets', 'GET', null, true);
+export const getClientPets = () => request(API_PATHS.client.getPets, 'GET', null, true);
+
 
 

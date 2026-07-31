@@ -1,5 +1,8 @@
 import CONFIG from './config';
 import { getIdToken } from './auth';
+import { API_PATHS, buildPath } from '../generated/contracts.js';
+
+
 
 export const request = async (path, method = 'GET', data = null, isProtected = false) => {
   const options = {
@@ -31,38 +34,39 @@ export const request = async (path, method = 'GET', data = null, isProtected = f
   return response.json();
 };
 
-export const submitRequest = (data) => request('/requests', 'POST', data);
+export const submitRequest = (data) => request(API_PATHS.public.submitRequest, 'POST', data);
 
 // Release 6F: Admin-created booking (authenticated, owner/admin only)
-export const createAdminBooking = (data) => request('/client/requests', 'POST', { ...data, source: 'admin_created' }, true);
+export const createAdminBooking = (data) => request(API_PATHS.client.submitRequest, 'POST', { ...data, source: 'admin_created' }, true);
 
 // Release 6F / 1B.5B-A: List pets for a specific client.
 // includeInactive=true returns both active and archived pets (staff/admin only).
 export const listAdminClientPets = (clientId, includeInactive = false) => {
-  const base = `/admin/pets?clientId=${encodeURIComponent(clientId)}`;
+  const base = `${API_PATHS.admin.getPets}?clientId=${encodeURIComponent(clientId)}`;
   return request(includeInactive ? `${base}&includeInactive=true` : base, 'GET', null, true);
 };
 
 // Release 2: Public staff-options endpoint for preferred sitter selection.
 // Returns only sanitized display names — no sensitive data exposed.
-export const getStaffOptions = () => request('/requests', 'POST', { action: 'staff-options' });
+export const getStaffOptions = () => request(API_PATHS.public.staffOptions, 'POST', { action: 'staff-options' });
 
 // Authenticated Client Portal Calls
-export const getClientRequests = () => request('/client/requests', 'GET', null, true);
-export const submitClientRequest = (data) => request('/client/requests', 'POST', data, true);
-export const getClientPets = () => request('/client/pets', 'GET', null, true);
-export const updateClientPet = (petId, data) => request(`/client/pets/${encodeURIComponent(petId)}`, 'PUT', data, true);
+export const getClientRequests = () => request(API_PATHS.client.getRequests, 'GET', null, true);
+export const submitClientRequest = (data) => request(API_PATHS.client.submitRequest, 'POST', data, true);
+export const getClientPets = () => request(API_PATHS.client.getPets, 'GET', null, true);
+export const updateClientPet = (petId, data) => request(buildPath(API_PATHS.client.updatePet, { petId }), 'PUT', data, true);
 
 // Protected Admin Calls
 export const getAdminRequests = (status = 'PENDING_REVIEW', startKey = null, timeframe = null) => {
-  let url = `/admin/requests?status=${status}`;
+  let url = `${API_PATHS.admin.getRequests}?status=${status}`;
   if (startKey) url += `&startKey=${encodeURIComponent(startKey)}`;
   if (timeframe) url += `&timeframe=${timeframe}`;
   return request(url, 'GET', null, true);
 };
 
+
 export const reviewRequest = (requestId, clientId, status, reason = "") => 
-  request('/admin/review', 'POST', { 
+  request(API_PATHS.admin.review, 'POST', { 
     request_id: requestId, 
     client_id: clientId, 
     status, 
@@ -70,7 +74,7 @@ export const reviewRequest = (requestId, clientId, status, reason = "") =>
   }, true);
 
 export const assignWorker = (jobId, reqId, clientId, workerId, workerName) => 
-  request('/admin/assign', 'POST', { 
+  request(API_PATHS.admin.assign, 'POST', { 
     job_id: jobId, 
     req_id: reqId, 
     client_id: clientId,
@@ -82,8 +86,8 @@ export const getGoogleStatus = () => request('/admin/auth/status', 'GET', null, 
 
 export const initiateGoogleAuth = () => request('/admin/auth/google', 'GET', null, true);
 
-export const getStaff = () => request('/admin/staff', 'GET', null, true);
-export const createStaff = (data) => request('/admin/staff', 'POST', data, true);
+export const getStaff = () => request(API_PATHS.admin.getStaff, 'GET', null, true);
+export const createStaff = (data) => request(API_PATHS.admin.getStaff, 'POST', data, true);
 export const updateStaff = (staffId, data) => request(`/admin/staff/${staffId}`, 'PATCH', data, true);
 export const disableStaff = (staffId, data = null) => request(`/admin/staff/${staffId}`, 'DELETE', data, true);
 
@@ -93,8 +97,8 @@ export const resendInvite = (staffId) => request(`/admin/staff/${staffId}/resend
 export const resetStaffPassword = (staffId) => request(`/admin/staff/${staffId}/reset-password`, 'POST', null, true);
 export const setStaffTempPassword = (staffId, password) => request(`/admin/staff/${staffId}/set-temp-password`, 'POST', { password }, true);
 
-export const getClients = () => request('/admin/clients', 'GET', null, true);
-export const createClient = (data) => request('/admin/clients', 'POST', data, true);
+export const getClients = () => request(API_PATHS.admin.getClients, 'GET', null, true);
+export const createClient = (data) => request(API_PATHS.admin.getClients, 'POST', data, true);
 export const updateClient = (clientId, data) => request(`/admin/clients/${clientId}`, 'PATCH', data, true);
 export const disableClient = (clientId) => request(`/admin/clients/${clientId}/disable`, 'POST', null, true);
 
@@ -114,20 +118,20 @@ export const completeGoogleAuth = (code, state) =>
 
 // Care Card / Pet Operations
 export const getPet = (petId, clientId) => 
-  request(`/admin/pets/${petId}?clientId=${clientId}`, 'GET', null, true);
+  request(`${buildPath(API_PATHS.admin.getPetById, { petId })}?clientId=${clientId}`, 'GET', null, true);
 
 export const updatePet = (petId, clientId, data) => 
-  request(`/admin/pets/${petId}`, 'PUT', { ...data, client_id: clientId }, true);
+  request(buildPath(API_PATHS.admin.updatePet, { petId }), 'PUT', { ...data, client_id: clientId }, true);
 
 export const createPet = (data) => 
-  request(`/admin/pets`, 'POST', data, true);
+  request(API_PATHS.admin.createPet, 'POST', data, true);
 
 // Booking Change Management
 export const requestCancellation = (requestId, clientId, reason) =>
-  request('/client/cancel', 'POST', { request_id: requestId, client_id: clientId, reason }, true);
+  request(API_PATHS.client.requestCancellation, 'POST', { request_id: requestId, client_id: clientId, reason }, true);
 
 export const processCancellationDecision = (requestId, clientId, decision, note) =>
-  request('/admin/cancel/decision', 'PUT', { request_id: requestId, client_id: clientId, decision, note }, true);
+  request(API_PATHS.admin.cancelDecision, 'PUT', { request_id: requestId, client_id: clientId, decision, note }, true);
 
 // Operational Management
 export const performAdminAction = (pk, sk, action, records = null, extraData = null) => {
@@ -138,20 +142,20 @@ export const performAdminAction = (pk, sk, action, records = null, extraData = n
     payload.PK = pk;
     payload.SK = sk;
   }
-  return request('/admin/requests', 'POST', payload, true);
+  return request(API_PATHS.admin.postAction, 'POST', payload, true);
 };
 
 // Permanent purge — backend enforces DELETED status guard before removing from DynamoDB
 export const purgeRecord = (pk, sk) =>
-  request('/admin/requests', 'POST', { PK: pk, SK: sk, action: 'PURGE' }, true);
+  request(API_PATHS.admin.postAction, 'POST', { PK: pk, SK: sk, action: 'PURGE' }, true);
 
 export const purgeRecordsBulk = (records, dryRun = false) =>
-  request('/admin/requests', 'POST', { records, action: 'PURGE', dry_run: dryRun }, true);
+  request(API_PATHS.admin.postAction, 'POST', { records, action: 'PURGE', dry_run: dryRun }, true);
 
 export const disconnectGoogle = () => 
   request('/admin/auth/google', 'DELETE', null, true);
 
-export const getExportData = () => request('/admin/export-data', 'GET', null, true);
+export const getExportData = () => request(API_PATHS.admin.exportData, 'GET', null, true);
 
 // Release 12R: Stripe Payment Session Creation / Retrieval
 export const createPaymentSession = (requestId, clientId, amountCents) =>
@@ -167,5 +171,6 @@ export const sendPaymentEmail = (requestId, clientId) =>
   }, true);
 
 // Release 19L: Fetch safe tenant display metadata
-export const getTenantInfo = () => request('/admin/tenant-info', 'GET', null, true);
+export const getTenantInfo = () => request(API_PATHS.admin.tenantInfo, 'GET', null, true);
+
 
