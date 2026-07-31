@@ -60,6 +60,8 @@
 | Phase 24A-1C cross-platform visual token alignment | `docs/release-notes/phase-24a-1c-visual-token-alignment.md` |
 | Phase 24A-2A shared contract adapter foundation & API path wiring | `docs/release-notes/phase-24a-2a-api-path-wiring.md` |
 | Phase 24A-2B pet field & validation wiring plan | `docs/planning/phase-24a-2b-pet-field-and-validation-wiring.md` |
+| Phase 24A-2B.1 web pet read allowlist wiring | `docs/release-notes/phase-24a-2b1-web-pet-read-allowlist.md` |
+
 
 
 | Phase 24A-4 mobile My Pets read-only screen | `docs/release-notes/phase-24a-4-mobile-my-pets-read-only-screen.md` |

@@ -69,7 +69,46 @@ describe('sanitizePetDetails', () => {
     assert.deepEqual(result, { name: 'Fido', species: 'Dog' });
     assert.equal('breed' in result, false);
   });
+
+  it('should preserve health.vet_name and health.vet_phone while stripping unknown health fields', () => {
+    const rawPet = {
+      pet_id: 'pet-456',
+      name: 'Rover',
+      health: {
+        vet_name: 'Dr. Smith',
+        vet_phone: '555-0199',
+        internal_vet_id: 'VET-99',
+        admin_notes: 'Do not contact without owner approval'
+      }
+    };
+
+    const result = sanitizePetDetails(rawPet);
+    assert.deepEqual(result, {
+      pet_id: 'pet-456',
+      name: 'Rover',
+      health: {
+        vet_name: 'Dr. Smith',
+        vet_phone: '555-0199'
+      }
+    });
+    assert.equal(result.health.internal_vet_id, undefined);
+    assert.equal(result.health.admin_notes, undefined);
+  });
+
+  it('should handle missing, null, empty, and non-object health values safely', () => {
+    assert.deepEqual(sanitizePetDetails({ name: 'Pet A', health: null }), { name: 'Pet A' });
+    assert.deepEqual(sanitizePetDetails({ name: 'Pet B', health: {} }), { name: 'Pet B' });
+    assert.deepEqual(sanitizePetDetails({ name: 'Pet C', health: 'invalid' }), { name: 'Pet C' });
+  });
+
+  it('should not mutate the input pet object', () => {
+    const rawPet = { name: 'Max', health: { vet_name: 'Dr. Jones', extra: 'secret' } };
+    const original = JSON.parse(JSON.stringify(rawPet));
+    sanitizePetDetails(rawPet);
+    assert.deepEqual(rawPet, original);
+  });
 });
+
 
 describe('sanitizePetsList', () => {
   it('should sanitize all pets in the list', () => {
