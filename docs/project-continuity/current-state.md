@@ -77,7 +77,8 @@
   - Split into web-only subphases (24A-2B.1 read helper wiring, 24A-2B.2 validation limit wiring). Mobile classified as `NO_MOBILE_CHANGE_REQUIRED`.
   - See: `docs/planning/phase-24a-2b-pet-field-and-validation-wiring.md`
 
-- Phase 24A-2B.1: Web Customer Pet Read-Allowlist Helper Wiring (🔗 LOCAL IMPLEMENTATION COMPLETE / WEB CUSTOMER PET READ ALLOWLIST WIRED / NOT DEPLOYED OR DISTRIBUTED / AWAITING INDEPENDENT RE-REVIEW — 2026-07-30)
+- Phase 24A-2B.1: Web Customer Pet Read-Allowlist Helper Wiring (🔗 LOCALLY VALIDATED AND REVIEWED / WEB CUSTOMER PET READ ALLOWLIST WIRED / NOT DEPLOYED OR DISTRIBUTED — 2026-07-30)
+
   - Wired `PET_FIELDS.clientReadFields` and `PET_FIELDS.clientWriteHealthSubfields` from generated contract adapter (`web/src/generated/contracts.js`) into `web/src/utils/petHelpers.js`.
   - Preserved `health.vet_name` and `health.vet_phone` via explicit helper logic while stripping internal fields and unknown health attributes.
   - Added 4 characterization unit test cases to `web/tests/phase1b3.test.js`.
