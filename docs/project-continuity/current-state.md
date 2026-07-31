@@ -63,12 +63,14 @@
 
 ## Active Local Work / Pending Review
 
-- Phase 24A-2A: Shared Contract Adapter Foundation & API Path Wiring (🔗 LOCAL IMPLEMENTATION COMPLETE / API PATHS WIRED / NOT DEPLOYED OR DISTRIBUTED / AWAITING INDEPENDENT RE-REVIEW — 2026-07-30)
+- Phase 24A-2A: Shared Contract Adapter Foundation & API Path Wiring (🔗 LOCAL IMPLEMENTATION AND BEHAVIORAL TEST CORRECTION COMPLETE / API PATHS WIRED / NOT DEPLOYED OR DISTRIBUTED / AWAITING INDEPENDENT RE-REVIEW — 2026-07-30)
   - Created deterministic generator `shared/generate-contract-adapters.mjs`, generated `web/src/generated/contracts.js` and `mobile/src/contracts/generatedContracts.ts`.
   - Wired canonical `API_PATHS` and safe `buildPath` parameter encoder into `web/src/api/client.js` and `mobile/src/api/client.ts`.
+  - Added mocked behavioral tests in `web/tests/contracts.test.jsx` (9 tests) and `mobile/__tests__/generatedContracts.test.ts` (6 tests) asserting actual `fetch()` invocation URLs, HTTP methods, headers, and payloads.
   - Deferred pet fields, request statuses, service types, and UI labels to future subphases.
-  - Validation: 17 contract tests, 5 adapter tests, 233 web tests, Vite production build, 36 mobile Jest tests, and `tsc --noEmit` clean.
+  - Validation: 17 contract tests, 5 adapter tests, 242 web tests, Vite production build, 42 mobile Jest tests, and `tsc --noEmit` clean.
   - See: `docs/release-notes/phase-24a-2a-api-path-wiring.md`
+
 - Phase 24A-1C: Cross-Platform Visual Token Alignment (🎨 LOCALLY VALIDATED AND REVIEWED / NOT DEPLOYED OR DISTRIBUTED — 2026-07-30)
   - Aligned 6 remaining color tokens per Matthew's explicit approval: `primaryHover` (`#a37213`), `textMuted` (`#6a6a66`), `border` (`#e2dfd9`), `borderSoft` (`#edf2ee`), `success` (`#4a7c59`), `danger` (`#d64933`).
   - Contract `shared/tokens/colors.json` updated to 100% aligned (`"aligned": true` across all 13 tokens).

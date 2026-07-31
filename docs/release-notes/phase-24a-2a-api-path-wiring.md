@@ -1,6 +1,6 @@
 # Phase 24A-2A — Shared Contract Adapter Foundation & API Path Wiring Release Record
 
-**Status:** 🔗 **LOCAL IMPLEMENTATION COMPLETE / API PATHS WIRED / NOT DEPLOYED OR DISTRIBUTED / AWAITING INDEPENDENT RE-REVIEW**
+**Status:** 🔗 **LOCAL IMPLEMENTATION AND BEHAVIORAL TEST CORRECTION COMPLETE / API PATHS WIRED / NOT DEPLOYED OR DISTRIBUTED / AWAITING INDEPENDENT RE-REVIEW**
 
 **Original Implementation Date:** 2026-07-30  
 **Matthew Explicit Approval:** 2026-07-30  
@@ -11,9 +11,11 @@
 
 Phase 24A-2A implements the foundational shared contract adapters and wires canonical API path constants (`shared/contracts/api-paths.json`) into the web HTTP client (`web/src/api/client.js`) and mobile HTTP client (`mobile/src/api/client.ts`).
 
-Following Matthew's explicit approval for Phase 24A-2A local implementation, a deterministic Node.js generator script (`shared/generate-contract-adapters.mjs`) was created to output platform adapters (`web/src/generated/contracts.js` and `mobile/src/contracts/generatedContracts.ts`). Both adapters export `API_PATHS`, `PET_FIELDS`, `REQUEST_STATUSES`, `SERVICE_TYPES`, and a safe parameter replacement helper (`buildPath`).
+Following Matthew's explicit approval for Phase 24A-2A local implementation and bounded test correction, a deterministic Node.js generator script (`shared/generate-contract-adapters.mjs`) was created to output platform adapters (`web/src/generated/contracts.js` and `mobile/src/contracts/generatedContracts.ts`). Both adapters export `API_PATHS`, `PET_FIELDS`, `REQUEST_STATUSES`, `SERVICE_TYPES`, and a safe parameter replacement helper (`buildPath`).
 
 All hardcoded endpoint strings in `web/src/api/client.js` and `mobile/src/api/client.ts` were wired to `API_PATHS`. Parameterized route parameters (e.g. `{petId}`) are safely substituted and URL-encoded via `buildPath()`.
+
+Mocked behavioral unit tests were added to `web/tests/contracts.test.jsx` (9 behavioral tests) and `mobile/__tests__/generatedContracts.test.ts` (6 behavioral tests) asserting actual `fetch()` invocation URLs, HTTP methods, authorization headers, payloads, and query parameters.
 
 No pet fields, request statuses, service types, UI components, forms, labels, or backend routes were wired or modified.
 
@@ -73,13 +75,13 @@ No pet fields, request statuses, service types, UI components, forms, labels, or
 - **Shared Adapter Generator (`node shared/generate-contract-adapters.mjs`):** **SUCCESS**
 - **Shared Adapter Validator (`node shared/validate-contract-adapters.mjs`):** **5 passed, 0 failed**
 - **Generator Determinism:** Rerunning generator produces 0 git diff.
-- **Web Contract Unit Tests (`web/tests/contracts.test.jsx`):** **4 passed, 0 failed**
+- **Web Contract & API Behavioral Tests (`web/tests/contracts.test.jsx`):** **13 passed, 0 failed** (4 adapter tests + 9 mock-fetch behavioral tests)
 - **Web Legacy Tests (`npm run test:legacy`):** **96 passed, 0 failed**
-- **Web Component Tests (`npx vitest run`):** **137 passed, 0 failed (across 13 test files)**
-- **Unique Combined Web Total:** **233 passed, 0 failed**
-- **Web Production Build (`npm run build`):** **SUCCESS** (`dist/index.html`, `dist/assets/index-bVFIMo3n.css`, `dist/assets/index-HA9-_Tl5.js` built in 481ms)
-- **Mobile Contract Unit Tests (`mobile/__tests__/generatedContracts.test.ts`):** **4 passed, 0 failed**
-- **Mobile Complete Suite (`npm test`):** **6 suites passed, 36 tests passed out of 36 total (0 failed)**
+- **Web Component Tests (`npx vitest run`):** **146 passed, 0 failed (across 13 test files)**
+- **Unique Combined Web Total:** **242 passed, 0 failed**
+- **Web Production Build (`npm run build`):** **SUCCESS** (`dist/index.html`, `dist/assets/index-bVFIMo3n.css`, `dist/assets/index-HA9-_Tl5.js` built in 501ms)
+- **Mobile Contract & API Behavioral Tests (`mobile/__tests__/generatedContracts.test.ts`):** **10 passed, 0 failed** (4 adapter tests + 6 mock-fetch behavioral tests)
+- **Mobile Complete Suite (`npm test`):** **6 suites passed, 42 tests passed out of 42 total (0 failed)**
 - **Mobile TypeScript (`npm run typecheck` / `tsc --noEmit`):** **0 errors** (Clean)
 
 ---
@@ -95,4 +97,5 @@ No pet fields, request statuses, service types, UI components, forms, labels, or
 
 ## 7. Status Statement
 
-**LOCAL IMPLEMENTATION COMPLETE / API PATHS WIRED / NOT DEPLOYED OR DISTRIBUTED / AWAITING INDEPENDENT RE-REVIEW**
+**LOCAL IMPLEMENTATION AND BEHAVIORAL TEST CORRECTION COMPLETE / API PATHS WIRED / NOT DEPLOYED OR DISTRIBUTED / AWAITING INDEPENDENT RE-REVIEW**
+
