@@ -71,6 +71,13 @@
   - Validation: 17 contract tests, 5 adapter tests, 242 web tests, Vite production build, 42 mobile Jest tests, and `tsc --noEmit` clean. Changed files lint cleanly; full web lint retains 51 errors and 9 warnings in pre-existing unrelated files.
   - See: `docs/release-notes/phase-24a-2a-api-path-wiring.md`
 
+- Phase 24A-2B: Shared Pet-Field & Validation-Limit Wiring Plan (📋 PLANNING COMPLETE / IMPLEMENTATION NOT APPROVED — 2026-07-30)
+  - Detailed contract field matrix and safety rules for client read/write allowlists and validation limits.
+  - Documented health nested structure (`vet_name`, `vet_phone`).
+  - Split into web-only subphases (24A-2B.1 read helper wiring, 24A-2B.2 validation limit wiring). Mobile classified as `NO_MOBILE_CHANGE_REQUIRED`.
+  - See: `docs/planning/phase-24a-2b-pet-field-and-validation-wiring.md`
+
+
 
 - Phase 24A-1C: Cross-Platform Visual Token Alignment (🎨 LOCALLY VALIDATED AND REVIEWED / NOT DEPLOYED OR DISTRIBUTED — 2026-07-30)
   - Aligned 6 remaining color tokens per Matthew's explicit approval: `primaryHover` (`#a37213`), `textMuted` (`#6a6a66`), `border` (`#e2dfd9`), `borderSoft` (`#edf2ee`), `success` (`#4a7c59`), `danger` (`#d64933`).

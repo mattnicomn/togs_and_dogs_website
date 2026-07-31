@@ -59,6 +59,8 @@
 | Phase 1B.5C-A customer pet editing audit | `docs/release-notes/phase-1b5c-a-customer-pet-editing-audit.md` |
 | Phase 24A-1C cross-platform visual token alignment | `docs/release-notes/phase-24a-1c-visual-token-alignment.md` |
 | Phase 24A-2A shared contract adapter foundation & API path wiring | `docs/release-notes/phase-24a-2a-api-path-wiring.md` |
+| Phase 24A-2B pet field & validation wiring plan | `docs/planning/phase-24a-2b-pet-field-and-validation-wiring.md` |
+
 
 | Phase 24A-4 mobile My Pets read-only screen | `docs/release-notes/phase-24a-4-mobile-my-pets-read-only-screen.md` |
 | Phase 24A-4.1 mobile My Pets session-expiration test hardening | `docs/release-notes/phase-24a-41-mobile-my-pets-session-expiration-test-hardening.md` |
