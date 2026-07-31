@@ -59,6 +59,7 @@
 | Phase 1B.5C-A customer pet editing audit | `docs/release-notes/phase-1b5c-a-customer-pet-editing-audit.md` |
 | Phase 24A-1C cross-platform visual token alignment | `docs/release-notes/phase-24a-1c-visual-token-alignment.md` |
 | Phase 24A-4 mobile My Pets read-only screen | `docs/release-notes/phase-24a-4-mobile-my-pets-read-only-screen.md` |
+| Phase 24A-4.1 mobile My Pets session-expiration test hardening | `docs/release-notes/phase-24a-41-mobile-my-pets-session-expiration-test-hardening.md` |
 | Phase 1B.5C-A customer pet editing re-review | `docs/release-notes/phase-1b5c-a-bounded-correction-rereview.md` |
 | Phase 1B.5C-A customer pet editing deployment readiness | `docs/release-notes/phase-1b5c-a-customer-pet-editing-deployment-readiness.md` |
 | Phase 1B.5C-A artifact reconstruction and plan reaffirmation | `docs/release-notes/phase-1b5c-a-deployment-preparation-addendum.md` |

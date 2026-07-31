@@ -8,10 +8,11 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 
 // Mock auth
+const mockLogout = jest.fn();
 jest.mock('../src/auth/useAuth', () => ({
   useAuth: () => ({
     login: jest.fn(),
-    logout: jest.fn(),
+    logout: mockLogout,
     user: 'client@example.com',
     role: 'client',
     isAuthenticated: true,
@@ -30,6 +31,7 @@ import { MyPetsScreen } from '../src/screens/MyPetsScreen';
 beforeEach(() => {
   jest.clearAllMocks();
 });
+
 
 const MOCK_PETS = [
   {
@@ -202,3 +204,18 @@ describe('MyPetsScreen - API Contract', () => {
     expect(mockGetClientPets).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('MyPetsScreen - Session Expiration', () => {
+  it('invokes logout and suppresses error display on session expiration error', async () => {
+    mockGetClientPets.mockRejectedValue(new Error('Your session expired. Please sign in again.'));
+    await render(<MyPetsScreen />);
+    await waitFor(() => {
+      expect(mockLogout).toHaveBeenCalledTimes(1);
+    });
+    // Verifies raw backend errors, tokens, and retry UI are suppressed during logout
+    expect(screen.queryByText(/Your session expired/)).toBeNull();
+    expect(screen.queryByText('Retry')).toBeNull();
+    expect(mockGetClientPets).toHaveBeenCalledTimes(1);
+  });
+});
+
