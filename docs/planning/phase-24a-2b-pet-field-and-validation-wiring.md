@@ -1,9 +1,9 @@
 # Phase 24A-2B — Shared Pet-Field and Validation-Limit Wiring Implementation Plan
 
-**Status:** 📋 **PLANNING COMPLETE / IMPLEMENTATION NOT APPROVED**
+**Status:** 🔗 **LOCALLY VALIDATED AND REVIEWED / ALL PLANNED PHASE 24A-2B CUSTOMER PET FIELD AND VALIDATION WIRING COMPLETE / NOT DEPLOYED OR DISTRIBUTED**
 
 **Planning Date:** 2026-07-30  
-**Matthew Explicit Approval:** Documentation-only planning approved on 2026-07-30. Implementation requires separate approval.  
+**Matthew Explicit Approval:** Documentation-only planning was approved on 2026-07-30. The three bounded implementation subphases were subsequently approved, implemented, validated, and independently reviewed.
 **Prerequisites:** Phase 24A-2A completed & closed (`863385b`).  
 
 ---
@@ -22,7 +22,7 @@ During Phase 24A-2A, contract adapters (`web/src/generated/contracts.js` and `mo
 - **Latest Completed Shared-Contract Phase:** Phase 24A-2A (`863385b`)
 - **Phase 1B.5C-A Status:** Deployed and customer-validated.
 - **Mobile My Pets Status:** Read-only (`MyPetsScreen.tsx`). Mobile pet editing and creation remain blocked without separate explicit Matthew approval.
-- **Phase 24A-2B Status:** Documentation-only planning complete. **No source code implementation is authorized or performed by this document.**
+- **Phase 24A-2B Status:** Locally validated and independently reviewed. All three planned customer pet-field and validation-wiring subphases are complete; no deployment or distribution occurred.
 
 ---
 
@@ -43,8 +43,8 @@ The canonical contract `shared/constants/pet-fields.json` models client-facing p
 | `feeding_notes` | ✅ Yes | ✅ Yes (2000) | ✅ Yes | ✅ Yes (2000) | `PET_FIELDS.clientReadFields`, `clientWriteFields`, `fieldLimits` |
 | `medication_notes` | ✅ Yes | ✅ Yes (2000) | ✅ Yes | ✅ Yes (2000) | `PET_FIELDS.clientReadFields`, `clientWriteFields`, `fieldLimits` |
 | `behavior_notes` | ✅ Yes | ✅ Yes (2000) | ✅ Yes | ✅ Yes (2000) | `PET_FIELDS.clientReadFields`, `clientWriteFields`, `fieldLimits` |
-| `health.vet_name` | ✅ Yes | ✅ Yes (100) | ✅ Yes | ✅ Yes (100) | `PET_FIELDS.clientWriteHealthSubfields` |
-| `health.vet_phone` | ✅ Yes | ✅ Yes (100) | ✅ Yes | ✅ Yes (100) | `PET_FIELDS.clientWriteHealthSubfields` |
+| `health.vet_name` | ✅ Yes | ✅ Yes (100) | ✅ Yes | ✅ Yes (100) | `PET_FIELDS.clientWriteHealthSubfields`, `clientWriteHealthFieldLimits` |
+| `health.vet_phone` | ✅ Yes | ✅ Yes (100) | ✅ Yes | ✅ Yes (100) | `PET_FIELDS.clientWriteHealthSubfields`, `clientWriteHealthFieldLimits` |
 | `vet_notes` | ❌ Stripped | ❌ Rejected | ✅ Yes | ✅ Yes | Staff-Only Field (Unwired) |
 | `emergency_notes` | ❌ Stripped | ❌ Rejected | ✅ Yes | ✅ Yes | Staff-Only Field (Unwired) |
 | `is_active` | ✅ Yes | ❌ Read-only | ✅ Yes | ✅ Yes | `PET_FIELDS.clientReadFields` |
@@ -61,6 +61,7 @@ The canonical contract `shared/constants/pet-fields.json` models client-facing p
 Phase 24A-2B uses a bounded web read-wiring subphase and two customer validation-limit slices:
 
 ### Subphase 24A-2B.1 — Web Customer Pet Read-Allowlist Helper Wiring
+- **Status:** Locally validated and reviewed on 2026-07-30.
 - **Scope:** Replace hardcoded `CLIENT_SAFE_PET_FIELDS` array in `web/src/utils/petHelpers.js` with `PET_FIELDS.clientReadFields` imported from `web/src/generated/contracts.js`. Update `sanitizePetDetails` to preserve `health` nested subfields (`vet_name`, `vet_phone`).
 - **Files Affected:** `web/src/utils/petHelpers.js`, `web/tests/petHelpers.test.jsx`.
 - **Targeted Validation:** `npx vitest run tests/petHelpers.test.jsx`, `npx eslint src/utils/petHelpers.js`.
@@ -74,7 +75,7 @@ Phase 24A-2B uses a bounded web read-wiring subphase and two customer validation
 - **Risk:** Low.
 
 ### Subphase 24A-2B.2B — Customer Veterinarian-Field Contract Limits and Web Wiring
-- **Status:** Local implementation complete and awaiting independent re-review on 2026-08-03.
+- **Status:** Locally validated and reviewed on 2026-08-03.
 - **Scope:** Add customer-write-specific `PET_FIELDS.clientWriteHealthFieldLimits` for `vet_name` and `vet_phone`, regenerate existing adapters, validate complete adapter parity, and wire `maxLength` into the two existing MyPets veterinarian controls.
 - **Files Affected:** Canonical pet contract, necessary shared validators, generated adapters, focused adapter tests, `web/src/components/MyPets.jsx`, and `web/tests/MyPets.test.jsx`.
 - **Non-Goals:** No staff contract or behavior change, mobile application feature change, backend change, payload change, runtime validator, or validation message.
@@ -96,7 +97,7 @@ Mobile `MyPetsScreen.tsx` is read-only and displays basic pet properties (`name`
   - `node shared/validate-constants.mjs`
   - `node shared/validate-contract-adapters.mjs`
 - **Web Verification:**
-  - `npm run test:legacy` (99 tests at Phase 24A-2B.2B implementation)
+  - `npm run test:legacy` (96 tests at Phase 24A-2B.2B independent closeout recount)
   - `npx vitest run` (147 tests at Phase 24A-2B.2B implementation)
   - `npm run build` (Vite production build)
   - `npx eslint src/utils/petHelpers.js`
@@ -113,3 +114,9 @@ Mobile `MyPetsScreen.tsx` is read-only and displays basic pet properties (`name`
 - ❌ **No Web Deployment:** Web dist assets will NOT be deployed to S3 or CloudFront.
 - ❌ **No EAS Build:** No mobile build or distribution.
 - **Rollback Boundary:** Each subphase remains isolated. Phase 24A-2B.2B can be reverted by reverting its canonical contract, validator, regenerated-adapter, focused-test, and MyPets changes together.
+
+## 8. Completion Semantics
+
+Phase 24A-2B consists of exactly Phase 24A-2B.1, Phase 24A-2B.2A, and Phase 24A-2B.2B. All three are locally validated and independently reviewed, so all planned Phase 24A-2B work is complete.
+
+Staff pet-contract work, mobile pet creation or editing, Phase 24A-2C request-status wiring, and Phase 24A-2C service-type wiring are separately scoped work. They are not unfinished Phase 24A-2B subphases. Production deployment, mobile distribution, and Ryan testing also remain separately deferred.

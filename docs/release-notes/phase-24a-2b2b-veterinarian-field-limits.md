@@ -1,6 +1,6 @@
 # Phase 24A-2B.2B — Customer Veterinarian-Field Contract Limits and Web Wiring
 
-**Status:** 🔗 **LOCAL IMPLEMENTATION COMPLETE / CUSTOMER VETERINARIAN FIELD LIMIT CONTRACT AND WEB WIRING COMPLETE / NOT DEPLOYED OR DISTRIBUTED / AWAITING INDEPENDENT RE-REVIEW**
+**Status:** 🔗 **LOCALLY VALIDATED AND REVIEWED / CUSTOMER VETERINARIAN FIELD LIMIT CONTRACT AND WEB WIRING COMPLETE / NOT DEPLOYED OR DISTRIBUTED**
 
 **Implementation Date:** 2026-08-03
 **Approval:** Matthew explicitly approved the bounded customer veterinarian-field contract enhancement and web wiring only.
@@ -29,11 +29,11 @@ The existing `shared/generate-contract-adapters.mjs` generator already serialize
 - `web/src/generated/contracts.js`
 - `mobile/src/contracts/generatedContracts.ts`
 
-A second generation produced byte-identical adapters, confirming deterministic output.
+A second generation produced byte-identical adapters, confirming deterministic output. Both generated adapters contain the new `clientWriteHealthFieldLimits` property with the canonical `vet_name: 100` and `vet_phone: 100` values.
 
-`shared/validate-constants.mjs` now proves that `clientWriteHealthFieldLimits` contains exactly `vet_name` and `vet_phone`, that both limits are positive integers, that the keys match `clientWriteHealthSubfields`, and that both values equal the existing backend customer PUT limit of 100.
+`shared/validate-constants.mjs` was extended in a bounded manner and now proves that `clientWriteHealthFieldLimits` contains exactly `vet_name` and `vet_phone`, that both limits are positive integers, that the keys match `clientWriteHealthSubfields`, and that both values equal the existing backend customer PUT limit of 100.
 
-`shared/validate-contract-adapters.mjs` now compares the complete generated web and mobile `PET_FIELDS` objects recursively with the canonical contract. This closes the prior gap where adapter validation did not prove complete-object equality.
+`shared/validate-contract-adapters.mjs` was extended in a bounded manner and now compares the complete generated web and mobile `PET_FIELDS` objects recursively with the canonical contract. This closes the prior gap where adapter validation did not prove complete-object equality.
 
 ## 3. Web Customer Wiring
 
@@ -51,19 +51,19 @@ Only `maxLength` attributes were added. Labels, input types, values, handlers, a
 - Focused web contracts: **13 passed, 0 failed**.
 - Focused MyPets: **24 passed, 0 failed**.
 - Focused phase1b3: **20 passed, 0 failed**.
-- Web legacy: **99 passed, 0 failed**.
+- Web legacy: **96 passed, 0 failed**.
 - Complete Vitest: **147 passed, 0 failed across 13 files**.
-- Unique complete web total: **246 passed, 0 failed**.
+- Unique complete web total: **243 passed, 0 failed** (96 legacy plus 147 Vitest).
 - Focused mobile generated contracts: **10 passed, 0 failed**.
 - Complete mobile: **6 suites and 42 tests passed, 0 failed**.
 - Mobile TypeScript: **0 errors**.
-- Focused backend customer pet editing: **16 passed, 0 failed**.
+- Focused backend customer pet editing: **16 passed, 0 failed, 0 skipped**.
 - Web production build: **SUCCESS** — `dist/index.html`, `dist/assets/usmh-logo-CrRnxp7-.png`, `dist/assets/index-bVFIMo3n.css`, and `dist/assets/index-BmaOL8BM.js`.
 - Targeted lint for changed web source/tests: **0 errors, 0 warnings**.
 - Complete web lint: **51 errors and 9 warnings in unrelated pre-existing files**; no finding was introduced, changed, or remediated by this phase.
 - Mobile lint: **NO MOBILE LINT SCRIPT CONFIGURED**.
 
-Vitest emitted the existing JSDOM navigation notice. Vite emitted the existing `optimizeDeps.esbuildOptions` deprecation and large-chunk warnings. The focused backend suite emitted five existing `datetime.utcnow()` deprecation warnings and one local pytest-cache permission warning. No open handles or asynchronous leaks were reported.
+Vitest emitted the existing JSDOM navigation notice. Vite emitted the existing `optimizeDeps.esbuildOptions` deprecation and large-chunk warnings. The focused backend suite emitted five existing `datetime.utcnow()` deprecation warnings. No open-handle or asynchronous-leak failures were reported.
 
 ## 5. Explicit Non-Changes
 
@@ -79,6 +79,10 @@ Vitest emitted the existing JSDOM navigation notice. Vite emitted the existing `
 
 ## 6. Phase Status
 
-Phase 24A-2B.2B is locally implemented and awaits independent re-review. Phase 24A-2B overall remains **PARTIALLY COMPLETE**; staff pet contract work and mobile pet editing/creation remain separately scoped, and Phase 24A-2C status/service-type wiring remains deferred.
+Phase 24A-2B.2B is locally validated and independently reviewed. Together with the previously reviewed Phase 24A-2B.1 and Phase 24A-2B.2A subphases, it completes all planned Phase 24A-2B customer pet field and validation wiring.
 
-**LOCAL IMPLEMENTATION COMPLETE / CUSTOMER VETERINARIAN FIELD LIMIT CONTRACT AND WEB WIRING COMPLETE / NOT DEPLOYED OR DISTRIBUTED / AWAITING INDEPENDENT RE-REVIEW**
+Staff pet-contract work, mobile pet creation and editing, Phase 24A-2C request-status and service-type wiring, production deployment, mobile distribution, and Ryan testing remain separate deferred scopes; none is an unfinished Phase 24A-2B subphase.
+
+**LOCALLY VALIDATED AND REVIEWED / CUSTOMER VETERINARIAN FIELD LIMIT CONTRACT AND WEB WIRING COMPLETE / NOT DEPLOYED OR DISTRIBUTED**
+
+**PHASE 24A-2B: LOCALLY VALIDATED AND REVIEWED / ALL PLANNED PHASE 24A-2B CUSTOMER PET FIELD AND VALIDATION WIRING COMPLETE / NOT DEPLOYED OR DISTRIBUTED**

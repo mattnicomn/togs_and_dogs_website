@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-03 (Phase 24A-2B.2B Local Implementation)
+**Last Updated:** 2026-08-03 (Phase 24A-2B.2B Documentation Reconciliation and Local Closeout)
 
 ---
 
@@ -71,12 +71,12 @@
   - Validation: 17 contract tests, 5 adapter tests, 242 web tests, Vite production build, 42 mobile Jest tests, and `tsc --noEmit` clean. Changed files lint cleanly; full web lint retains 51 errors and 9 warnings in pre-existing unrelated files.
   - See: `docs/release-notes/phase-24a-2a-api-path-wiring.md`
 
-- Phase 24A-2B: Shared Pet-Field & Validation-Limit Wiring (🔗 PARTIALLY COMPLETE / 2B.2B LOCAL IMPLEMENTATION AWAITING INDEPENDENT RE-REVIEW / NOT DEPLOYED OR DISTRIBUTED — 2026-08-03)
+- Phase 24A-2B: Shared Pet-Field & Validation-Limit Wiring (🔗 LOCALLY VALIDATED AND REVIEWED / ALL PLANNED PHASE 24A-2B CUSTOMER PET FIELD AND VALIDATION WIRING COMPLETE / NOT DEPLOYED OR DISTRIBUTED — 2026-08-03)
   - Detailed contract field matrix and safety rules for client read/write allowlists and validation limits.
   - Documented health nested structure (`vet_name`, `vet_phone`).
-  - Locally validated subphases: 24A-2B.1 read-helper wiring and 24A-2B.2A top-level customer validation-limit wiring.
-  - Phase 24A-2B.2B customer veterinarian-field contract limits and web wiring are locally implemented and awaiting independent re-review.
-  - Deferred: staff pet contract work, mobile pet editing or creation, and Phase 24A-2C status/service-type wiring.
+  - Completed subphases: 24A-2B.1 read-helper wiring, 24A-2B.2A top-level customer validation-limit wiring, and 24A-2B.2B customer veterinarian-field contract limits and web wiring.
+  - Independent review passed implementation, contract design, deterministic generation, validators, component wiring, tests, backend parity, and security scope.
+  - Separately deferred scopes—not unfinished Phase 24A-2B work—are staff pet-contract work, mobile pet editing or creation, and Phase 24A-2C request-status/service-type wiring.
   - See: `docs/planning/phase-24a-2b-pet-field-and-validation-wiring.md`
 
 - Phase 24A-2B.1: Web Customer Pet Read-Allowlist Helper Wiring (🔗 LOCALLY VALIDATED AND REVIEWED / WEB CUSTOMER PET READ ALLOWLIST WIRED / NOT DEPLOYED OR DISTRIBUTED — 2026-07-30)
@@ -89,27 +89,26 @@
 
 - Phase 24A-2B.2A: Web Customer Top-Level Validation-Limit Wiring (🔗 LOCALLY VALIDATED AND REVIEWED / WEB CUSTOMER TOP-LEVEL PET LIMITS WIRED / NOT DEPLOYED OR DISTRIBUTED — 2026-08-03)
   - The eight existing customer controls previously had no frontend `maxLength` attributes. Applied `PET_FIELDS.fieldLimits` directly from the generated contract adapter (`web/src/generated/contracts.js`) as `maxLength` attributes to those top-level fields in `web/src/components/MyPets.jsx`.
-  - Frontend limits for nested health fields (`health.vet_name`, `health.vet_phone`) are **DEFERRED TO A SEPARATE SHARED-CONTRACT ENHANCEMENT**; both controls remain without `maxLength` attributes.
+  - At the historical 2B.2A checkpoint, frontend limits for nested health fields (`health.vet_name`, `health.vet_phone`) were deferred to the separately approved 2B.2B shared-contract enhancement; 2B.2B subsequently completed that wiring.
   - Strengthened existing MyPets tests to use `PET_FIELDS.fieldLimits` and assert the exact unchanged update payload for all eight top-level fields plus nested veterinarian values; the suite remains 24 tests.
   - Independent review: `EXACT_BOUNDED_LIMIT_WIRING`; `STRONG_COMPONENT_AND_PAYLOAD_PARITY_COVERAGE`; `READY_FOR_LOCAL_PHASE_CLOSEOUT_WITH_KNOWN_PREEXISTING_LINT`.
-  - Validation: 17 contract tests, 5 adapter tests, 24 focused MyPets tests, 20 phase1b3 tests, 99 legacy tests, 147 Vitest tests, 246 unique web tests, Vite production build, 6 mobile suites / 42 mobile tests, and `tsc --noEmit` clean. Phase 24A-2B.2A changed files lint cleanly; full web lint remains 51 errors and 9 warnings in unrelated pre-existing files. These findings were not introduced, modified, or remediated by this phase. No mobile lint script is configured.
+  - Validation: 17 contract tests, 5 adapter tests, 24 focused MyPets tests, 20 phase1b3 tests, 96 legacy tests, 147 Vitest tests, 243 unique web tests, Vite production build, 6 mobile suites / 42 mobile tests, and `tsc --noEmit` clean. A subsequent independent recount confirmed 96 legacy tests rather than the originally recorded 99, correcting the unique total from 246 to 243. Phase 24A-2B.2A changed files lint cleanly; full web lint remains 51 errors and 9 warnings in unrelated pre-existing files. These findings were not introduced, modified, or remediated by this phase. No mobile lint script is configured.
   - See: `docs/release-notes/phase-24a-2b2a-web-pet-top-level-limits.md`
 
-- Phase 24A-2B.2B: Customer Veterinarian-Field Contract Limits and Web Wiring (🔗 LOCAL IMPLEMENTATION COMPLETE / CUSTOMER VETERINARIAN FIELD LIMIT CONTRACT AND WEB WIRING COMPLETE / NOT DEPLOYED OR DISTRIBUTED / AWAITING INDEPENDENT RE-REVIEW — 2026-08-03)
+- Phase 24A-2B.2B: Customer Veterinarian-Field Contract Limits and Web Wiring (🔗 LOCALLY VALIDATED AND REVIEWED / CUSTOMER VETERINARIAN FIELD LIMIT CONTRACT AND WEB WIRING COMPLETE / NOT DEPLOYED OR DISTRIBUTED — 2026-08-03)
   - Added customer-write-specific `PET_FIELDS.clientWriteHealthFieldLimits` with exact `vet_name: 100` and `vet_phone: 100` values matching unchanged backend customer PUT validation.
   - Regenerated web and mobile adapters deterministically without changing generator source; added exact canonical/adaptor validator coverage.
   - Wired the two existing MyPets veterinarian inputs to the generated limits using `maxLength` only; payload, health nesting, API behavior, messages, staff behavior, mobile application behavior, and backend behavior remain unchanged.
-  - Validation: 18 shared constants, 6 adapter checks, 13 focused web contracts, 24 focused MyPets, 20 phase1b3, 99 legacy, 147 Vitest / 246 unique web, successful Vite build, 10 focused mobile contracts, 6 mobile suites / 42 tests, 0 TypeScript errors, and 16 focused backend tests. Changed web source/tests lint cleanly; full web lint remains the unrelated 51-error/9-warning baseline. No mobile lint script is configured.
+  - Validation: 18 shared constants, 6 adapter checks, 13 focused web contracts, 24 focused MyPets, 20 phase1b3, 96 legacy, 147 Vitest across 13 files / 243 unique web, successful Vite build, 10 focused mobile contracts, 6 mobile suites / 42 tests, 0 TypeScript errors, and 16 focused backend tests with 0 failed and 0 skipped. Changed Phase 24A-2B.2B web files lint cleanly; full web lint remains 51 errors and 9 warnings in unrelated pre-existing files. These findings were not introduced, modified, or remediated by this phase. No mobile lint script is configured.
   - See: `docs/release-notes/phase-24a-2b2b-veterinarian-field-limits.md`
 
 ### Phase 24A Completion Boundaries
 
 - Latest completed validated production release: **Phase 1B.5C-D.2**.
 - Latest completed locally validated shared-contract phase: **Phase 24A-2A**.
-- Latest completed locally validated pet-contract subphase: **Phase 24A-2B.1**.
-- Latest completed locally validated pet-limit subphase: **Phase 24A-2B.2A**.
-- Current pet-limit candidate awaiting independent re-review: **Phase 24A-2B.2B**.
-- Phase 24A-2B overall: **PARTIALLY COMPLETE**.
+- Completed Phase 24A-2B subphases: **Phase 24A-2B.1**, **Phase 24A-2B.2A**, and **Phase 24A-2B.2B**.
+- Phase 24A-2B overall: **LOCALLY VALIDATED AND REVIEWED / ALL PLANNED PHASE 24A-2B CUSTOMER PET FIELD AND VALIDATION WIRING COMPLETE / NOT DEPLOYED OR DISTRIBUTED**.
+- Separate deferred scopes: staff pet-contract work, mobile pet creation and editing, Phase 24A-2C request-status and service-type planning/wiring, production deployment, mobile distribution, and Ryan testing.
 
 
 
