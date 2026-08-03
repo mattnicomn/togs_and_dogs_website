@@ -578,4 +578,44 @@ describe('MyPets Component Tests', () => {
       expect(screen.getByText('Pet "Buddy Saved" updated successfully.')).toBeInTheDocument();
     });
   });
+
+  it('24. applies PET_FIELDS.fieldLimits maxLength attributes to top-level customer pet inputs while leaving nested health fields unconstrained', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'client@example.com' } } });
+    getEffectiveRole.mockReturnValue('client');
+    getClientPets.mockResolvedValue({
+      pets: [{ pet_id: 'pet-1', name: 'Buddy', species: 'Dog', breed: 'Golden', age: '3' }]
+    });
+
+    render(<MyPets />);
+    await screen.findByText('Buddy');
+
+    fireEvent.click(screen.getByRole('button', { name: /edit pet/i }));
+
+    const nameInput = screen.getByLabelText(/name \*/i);
+    const speciesInput = screen.getByLabelText(/species/i);
+    const breedInput = screen.getByLabelText(/breed/i);
+    const ageInput = screen.getByLabelText(/age/i);
+    const careInstructionsInput = screen.getByLabelText(/care instructions/i);
+    const feedingNotesInput = screen.getByLabelText(/feeding notes/i);
+    const medicationNotesInput = screen.getByLabelText(/medication notes/i);
+    const behaviorNotesInput = screen.getByLabelText(/behavior notes/i);
+
+    const vetNameInput = screen.getByLabelText(/vet name/i);
+    const vetPhoneInput = screen.getByLabelText(/vet phone/i);
+
+    expect(nameInput).toHaveAttribute('maxLength', '100');
+    expect(speciesInput).toHaveAttribute('maxLength', '100');
+    expect(breedInput).toHaveAttribute('maxLength', '100');
+    expect(ageInput).toHaveAttribute('maxLength', '100');
+    expect(ageInput).toHaveAttribute('type', 'text');
+    expect(careInstructionsInput).toHaveAttribute('maxLength', '2000');
+    expect(feedingNotesInput).toHaveAttribute('maxLength', '2000');
+    expect(medicationNotesInput).toHaveAttribute('maxLength', '2000');
+    expect(behaviorNotesInput).toHaveAttribute('maxLength', '2000');
+
+    // Confirm nested health fields do not have a contract-driven maxLength attribute
+    expect(vetNameInput).not.toHaveAttribute('maxLength');
+    expect(vetPhoneInput).not.toHaveAttribute('maxLength');
+  });
 });
+

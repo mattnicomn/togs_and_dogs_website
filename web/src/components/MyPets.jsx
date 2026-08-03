@@ -3,8 +3,10 @@ import { getSession, signIn, getEffectiveRole } from '../api/auth';
 import { getClientPets, updateClientPet } from '../api/client';
 import UserProfile from './UserProfile';
 import { sanitizePetsList } from '../utils/petHelpers';
+import { PET_FIELDS } from '../generated/contracts';
 import { useBlocker } from 'react-router-dom';
 import '../Portal.css';
+
 
 const MyPets = () => {
   const [pets, setPets] = useState([]);
@@ -398,6 +400,7 @@ const MyPets = () => {
                           value={editForm.name}
                           onChange={e => setEditForm({ ...editForm, name: e.target.value })}
                           required
+                          maxLength={PET_FIELDS.fieldLimits.name}
                           style={{ padding: '8px', fontSize: '0.9rem', width: '100%', boxSizing: 'border-box' }}
                         />
                       </div>
@@ -409,6 +412,7 @@ const MyPets = () => {
                           type="text"
                           value={editForm.species}
                           onChange={e => setEditForm({ ...editForm, species: e.target.value })}
+                          maxLength={PET_FIELDS.fieldLimits.species}
                           style={{ padding: '8px', fontSize: '0.9rem', width: '100%', boxSizing: 'border-box' }}
                         />
                       </div>
@@ -420,6 +424,7 @@ const MyPets = () => {
                           type="text"
                           value={editForm.breed}
                           onChange={e => setEditForm({ ...editForm, breed: e.target.value })}
+                          maxLength={PET_FIELDS.fieldLimits.breed}
                           style={{ padding: '8px', fontSize: '0.9rem', width: '100%', boxSizing: 'border-box' }}
                         />
                       </div>
@@ -431,6 +436,7 @@ const MyPets = () => {
                           type="text"
                           value={editForm.age}
                           onChange={e => setEditForm({ ...editForm, age: e.target.value })}
+                          maxLength={PET_FIELDS.fieldLimits.age}
                           style={{ padding: '8px', fontSize: '0.9rem', width: '100%', boxSizing: 'border-box' }}
                         />
                       </div>
@@ -441,6 +447,7 @@ const MyPets = () => {
                           id={`edit-pet-care-instructions-${pet.pet_id}`}
                           value={editForm.care_instructions}
                           onChange={e => setEditForm({ ...editForm, care_instructions: e.target.value })}
+                          maxLength={PET_FIELDS.fieldLimits.care_instructions}
                           style={{ padding: '8px', fontSize: '0.9rem', width: '100%', boxSizing: 'border-box', minHeight: '60px' }}
                         />
                       </div>
@@ -451,6 +458,7 @@ const MyPets = () => {
                           id={`edit-pet-feeding-notes-${pet.pet_id}`}
                           value={editForm.feeding_notes}
                           onChange={e => setEditForm({ ...editForm, feeding_notes: e.target.value })}
+                          maxLength={PET_FIELDS.fieldLimits.feeding_notes}
                           style={{ padding: '8px', fontSize: '0.9rem', width: '100%', boxSizing: 'border-box', minHeight: '60px' }}
                         />
                       </div>
@@ -461,6 +469,7 @@ const MyPets = () => {
                           id={`edit-pet-medication-notes-${pet.pet_id}`}
                           value={editForm.medication_notes}
                           onChange={e => setEditForm({ ...editForm, medication_notes: e.target.value })}
+                          maxLength={PET_FIELDS.fieldLimits.medication_notes}
                           style={{ padding: '8px', fontSize: '0.9rem', width: '100%', boxSizing: 'border-box', minHeight: '60px' }}
                         />
                       </div>
@@ -471,9 +480,11 @@ const MyPets = () => {
                           id={`edit-pet-behavior-notes-${pet.pet_id}`}
                           value={editForm.behavior_notes}
                           onChange={e => setEditForm({ ...editForm, behavior_notes: e.target.value })}
+                          maxLength={PET_FIELDS.fieldLimits.behavior_notes}
                           style={{ padding: '8px', fontSize: '0.9rem', width: '100%', boxSizing: 'border-box', minHeight: '60px' }}
                         />
                       </div>
+
 
                       <div className="field">
                         <label htmlFor={`edit-pet-vet-name-${pet.pet_id}`} style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>Vet Name</label>

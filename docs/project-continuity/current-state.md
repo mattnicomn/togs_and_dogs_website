@@ -85,6 +85,14 @@
   - Validation: 17 contract tests, 5 adapter tests, 20 focused helper tests, 242 web tests, Vite production build, 42 mobile Jest tests, `tsc --noEmit` clean. Changed files lint cleanly (`0 errors, 0 warnings`).
   - See: `docs/release-notes/phase-24a-2b1-web-pet-read-allowlist.md`
 
+- Phase 24A-2B.2A: Web Customer Top-Level Validation-Limit Wiring (🔗 LOCAL IMPLEMENTATION COMPLETE / WEB CUSTOMER TOP-LEVEL PET LIMITS WIRED / NOT DEPLOYED OR DISTRIBUTED / AWAITING INDEPENDENT RE-REVIEW — 2026-08-03)
+  - Applied `PET_FIELDS.fieldLimits` from generated contract adapter (`web/src/generated/contracts.js`) as `maxLength` attributes to eight top-level customer pet fields in `web/src/components/MyPets.jsx`.
+  - Nested health fields (`health.vet_name`, `health.vet_phone`) remain unconstrained as their limits are not modeled in the contract.
+  - Added unit test 24 to `web/tests/MyPets.test.jsx`.
+  - Validation: 17 contract tests, 5 adapter tests, 24 focused MyPets tests, 243 web tests, Vite production build, 42 mobile Jest tests, `tsc --noEmit` clean. Changed files lint cleanly (`0 errors, 0 warnings`).
+  - See: `docs/release-notes/phase-24a-2b2a-web-pet-top-level-limits.md`
+
+
 
 
 
