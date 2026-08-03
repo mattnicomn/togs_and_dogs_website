@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import MyPets from '../src/components/MyPets';
 import { getSession, getEffectiveRole } from '../src/api/auth';
 import { getClientPets, updateClientPet } from '../src/api/client';
+import { PET_FIELDS } from '../src/generated/contracts';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 // Mock auth API
@@ -345,7 +346,24 @@ describe('MyPets Component Tests', () => {
     getSession.mockResolvedValue({ idToken: { payload: { email: 'client@example.com' } } });
     getEffectiveRole.mockReturnValue('client');
     getClientPets.mockResolvedValue({
-      pets: [{ pet_id: 'pet-1', name: 'Buddy', species: 'Dog' }]
+      pets: [{
+        pet_id: 'pet-1',
+        name: 'Buddy',
+        species: 'Dog',
+        breed: 'Golden Retriever',
+        age: '3 years',
+        care_instructions: 'Use the back-door leash.',
+        feeding_notes: 'One cup twice daily.',
+        medication_notes: '',
+        behavior_notes: 'Friendly with familiar dogs.',
+        health: {
+          vet_name: 'Northside Vet',
+          vet_phone: '555-0100'
+        },
+        internal_pricing_notes: 'staff-only fixture value',
+        quote_amount: 125,
+        is_active: true
+      }]
     });
     updateClientPet.mockResolvedValue({
       pet_id: 'pet-1',
@@ -366,7 +384,21 @@ describe('MyPets Component Tests', () => {
     fireEvent.click(screen.getByRole('button', { name: /save/i }));
 
     await waitFor(() => {
-      expect(updateClientPet).toHaveBeenCalledWith('pet-1', expect.objectContaining({ name: 'Buddy Jr.' }));
+      expect(updateClientPet).toHaveBeenCalledTimes(1);
+      expect(updateClientPet).toHaveBeenCalledWith('pet-1', {
+        name: 'Buddy Jr.',
+        species: 'Dog',
+        breed: 'Golden Retriever',
+        age: '3 years',
+        care_instructions: 'Use the back-door leash.',
+        feeding_notes: 'One cup twice daily.',
+        medication_notes: '',
+        behavior_notes: 'Friendly with familiar dogs.',
+        health: {
+          vet_name: 'Northside Vet',
+          vet_phone: '555-0100'
+        }
+      });
       expect(screen.getByText('Pet "Buddy Jr." updated successfully.')).toBeInTheDocument();
     });
   });
@@ -603,19 +635,18 @@ describe('MyPets Component Tests', () => {
     const vetNameInput = screen.getByLabelText(/vet name/i);
     const vetPhoneInput = screen.getByLabelText(/vet phone/i);
 
-    expect(nameInput).toHaveAttribute('maxLength', '100');
-    expect(speciesInput).toHaveAttribute('maxLength', '100');
-    expect(breedInput).toHaveAttribute('maxLength', '100');
-    expect(ageInput).toHaveAttribute('maxLength', '100');
+    expect(nameInput).toHaveAttribute('maxLength', String(PET_FIELDS.fieldLimits.name));
+    expect(speciesInput).toHaveAttribute('maxLength', String(PET_FIELDS.fieldLimits.species));
+    expect(breedInput).toHaveAttribute('maxLength', String(PET_FIELDS.fieldLimits.breed));
+    expect(ageInput).toHaveAttribute('maxLength', String(PET_FIELDS.fieldLimits.age));
     expect(ageInput).toHaveAttribute('type', 'text');
-    expect(careInstructionsInput).toHaveAttribute('maxLength', '2000');
-    expect(feedingNotesInput).toHaveAttribute('maxLength', '2000');
-    expect(medicationNotesInput).toHaveAttribute('maxLength', '2000');
-    expect(behaviorNotesInput).toHaveAttribute('maxLength', '2000');
+    expect(careInstructionsInput).toHaveAttribute('maxLength', String(PET_FIELDS.fieldLimits.care_instructions));
+    expect(feedingNotesInput).toHaveAttribute('maxLength', String(PET_FIELDS.fieldLimits.feeding_notes));
+    expect(medicationNotesInput).toHaveAttribute('maxLength', String(PET_FIELDS.fieldLimits.medication_notes));
+    expect(behaviorNotesInput).toHaveAttribute('maxLength', String(PET_FIELDS.fieldLimits.behavior_notes));
 
     // Confirm nested health fields do not have a contract-driven maxLength attribute
     expect(vetNameInput).not.toHaveAttribute('maxLength');
     expect(vetPhoneInput).not.toHaveAttribute('maxLength');
   });
 });
-
