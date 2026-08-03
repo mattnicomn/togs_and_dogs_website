@@ -24,6 +24,10 @@ const VALID_CATEGORIES = ['neutral', 'informational', 'success', 'warning', 'dan
 const STATUS_ID_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 const SERVICE_ID_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 const API_PATH_PATTERN = /^\/[a-z][a-z0-9/_{}?=-]*$/;
+const EXPECTED_CLIENT_WRITE_HEALTH_FIELD_LIMITS = {
+  vet_name: 100,
+  vet_phone: 100,
+};
 
 let statuses, services, petFields, apiPaths;
 
@@ -122,6 +126,22 @@ test('pet field limits reference valid write fields', () => {
   const writeFields = new Set(petFields.clientWriteFields);
   for (const field of Object.keys(petFields.fieldLimits)) {
     assert.ok(writeFields.has(field), `Field limit "${field}" not in clientWriteFields`);
+  }
+});
+
+test('customer health field limits match exact backend client PUT limits', () => {
+  assert.deepEqual(
+    petFields.clientWriteHealthFieldLimits,
+    EXPECTED_CLIENT_WRITE_HEALTH_FIELD_LIMITS,
+    'clientWriteHealthFieldLimits must contain exactly vet_name and vet_phone at backend limit 100'
+  );
+  assert.deepEqual(
+    Object.keys(petFields.clientWriteHealthFieldLimits).sort(),
+    [...petFields.clientWriteHealthSubfields].sort(),
+    'clientWriteHealthFieldLimits keys must match clientWriteHealthSubfields'
+  );
+  for (const [field, limit] of Object.entries(petFields.clientWriteHealthFieldLimits)) {
+    assert.ok(Number.isInteger(limit) && limit > 0, `Health field limit "${field}" must be a positive integer`);
   }
 });
 

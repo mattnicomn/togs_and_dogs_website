@@ -611,7 +611,7 @@ describe('MyPets Component Tests', () => {
     });
   });
 
-  it('24. applies PET_FIELDS.fieldLimits maxLength attributes to top-level customer pet inputs while leaving nested health fields unconstrained', async () => {
+  it('24. applies contract-driven maxLength attributes to top-level and nested health customer pet inputs', async () => {
     getSession.mockResolvedValue({ idToken: { payload: { email: 'client@example.com' } } });
     getEffectiveRole.mockReturnValue('client');
     getClientPets.mockResolvedValue({
@@ -645,8 +645,7 @@ describe('MyPets Component Tests', () => {
     expect(medicationNotesInput).toHaveAttribute('maxLength', String(PET_FIELDS.fieldLimits.medication_notes));
     expect(behaviorNotesInput).toHaveAttribute('maxLength', String(PET_FIELDS.fieldLimits.behavior_notes));
 
-    // Confirm nested health fields do not have a contract-driven maxLength attribute
-    expect(vetNameInput).not.toHaveAttribute('maxLength');
-    expect(vetPhoneInput).not.toHaveAttribute('maxLength');
+    expect(vetNameInput).toHaveAttribute('maxLength', String(PET_FIELDS.clientWriteHealthFieldLimits.vet_name));
+    expect(vetPhoneInput).toHaveAttribute('maxLength', String(PET_FIELDS.clientWriteHealthFieldLimits.vet_phone));
   });
 });

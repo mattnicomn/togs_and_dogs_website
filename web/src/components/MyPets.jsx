@@ -496,6 +496,7 @@ const MyPets = () => {
                             ...editForm,
                             health: { ...(editForm.health || {}), vet_name: e.target.value }
                           })}
+                          maxLength={PET_FIELDS.clientWriteHealthFieldLimits.vet_name}
                           style={{ padding: '8px', fontSize: '0.9rem', width: '100%', boxSizing: 'border-box' }}
                         />
                       </div>
@@ -510,6 +511,7 @@ const MyPets = () => {
                             ...editForm,
                             health: { ...(editForm.health || {}), vet_phone: e.target.value }
                           })}
+                          maxLength={PET_FIELDS.clientWriteHealthFieldLimits.vet_phone}
                           style={{ padding: '8px', fontSize: '0.9rem', width: '100%', boxSizing: 'border-box' }}
                         />
                       </div>

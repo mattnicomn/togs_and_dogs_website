@@ -47,6 +47,10 @@ describe('Phase 24A-2A Contract Adapters', () => {
   it('exports PET_FIELDS, REQUEST_STATUSES, and SERVICE_TYPES for future use', () => {
     expect(Array.isArray(PET_FIELDS.clientReadFields)).toBe(true);
     expect(PET_FIELDS.clientReadFields).toContain('name');
+    expect(PET_FIELDS.clientWriteHealthFieldLimits).toEqual({
+      vet_name: 100,
+      vet_phone: 100,
+    });
     expect(REQUEST_STATUSES.statuses.PENDING_REVIEW).toBeDefined();
     expect(SERVICE_TYPES.services.WALK_30MIN).toBeDefined();
   });
@@ -199,4 +203,3 @@ describe('Phase 24A-2A Mobile API Client Behavioral Execution', () => {
     );
   });
 });
-

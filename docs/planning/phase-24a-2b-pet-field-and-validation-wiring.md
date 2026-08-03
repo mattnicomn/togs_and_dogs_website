@@ -58,7 +58,7 @@ The canonical contract `shared/constants/pet-fields.json` models client-facing p
 
 ## 4. Subphase Breakdown & Bounded Implementation Plan
 
-Phase 24A-2B is divided into two small, independent, web-only subphases:
+Phase 24A-2B uses a bounded web read-wiring subphase and two customer validation-limit slices:
 
 ### Subphase 24A-2B.1 — Web Customer Pet Read-Allowlist Helper Wiring
 - **Scope:** Replace hardcoded `CLIENT_SAFE_PET_FIELDS` array in `web/src/utils/petHelpers.js` with `PET_FIELDS.clientReadFields` imported from `web/src/generated/contracts.js`. Update `sanitizePetDetails` to preserve `health` nested subfields (`vet_name`, `vet_phone`).
@@ -66,10 +66,18 @@ Phase 24A-2B is divided into two small, independent, web-only subphases:
 - **Targeted Validation:** `npx vitest run tests/petHelpers.test.jsx`, `npx eslint src/utils/petHelpers.js`.
 - **Risk:** Extremely Low.
 
-### Subphase 24A-2B.2 — Web Customer Pet Validation-Limit Wiring
-- **Scope:** Wire `PET_FIELDS.fieldLimits` from `web/src/generated/contracts.js` into customer pet form validation in `web/src/components/MyPets.jsx`.
+### Subphase 24A-2B.2A — Web Customer Top-Level Validation-Limit Wiring
+- **Status:** Locally validated and reviewed on 2026-08-03.
+- **Scope:** Wire `PET_FIELDS.fieldLimits` from `web/src/generated/contracts.js` into the eight top-level customer pet controls in `web/src/components/MyPets.jsx`.
 - **Files Affected:** `web/src/components/MyPets.jsx`, `web/tests/MyPets.test.jsx`.
 - **Targeted Validation:** `npx vitest run tests/MyPets.test.jsx`, `npm run build`.
+- **Risk:** Low.
+
+### Subphase 24A-2B.2B — Customer Veterinarian-Field Contract Limits and Web Wiring
+- **Status:** Local implementation complete and awaiting independent re-review on 2026-08-03.
+- **Scope:** Add customer-write-specific `PET_FIELDS.clientWriteHealthFieldLimits` for `vet_name` and `vet_phone`, regenerate existing adapters, validate complete adapter parity, and wire `maxLength` into the two existing MyPets veterinarian controls.
+- **Files Affected:** Canonical pet contract, necessary shared validators, generated adapters, focused adapter tests, `web/src/components/MyPets.jsx`, and `web/tests/MyPets.test.jsx`.
+- **Non-Goals:** No staff contract or behavior change, mobile application feature change, backend change, payload change, runtime validator, or validation message.
 - **Risk:** Low.
 
 ---
@@ -88,8 +96,8 @@ Mobile `MyPetsScreen.tsx` is read-only and displays basic pet properties (`name`
   - `node shared/validate-constants.mjs`
   - `node shared/validate-contract-adapters.mjs`
 - **Web Verification:**
-  - `npm run test:legacy` (96 tests)
-  - `npx vitest run` (146 tests)
+  - `npm run test:legacy` (99 tests at Phase 24A-2B.2B implementation)
+  - `npx vitest run` (147 tests at Phase 24A-2B.2B implementation)
   - `npm run build` (Vite production build)
   - `npx eslint src/utils/petHelpers.js`
 - **Mobile Regression Checks:**
@@ -104,4 +112,4 @@ Mobile `MyPetsScreen.tsx` is read-only and displays basic pet properties (`name`
 - ❌ **No Backend Changes:** Backend handlers (`pet_handler.py`) remain untouched.
 - ❌ **No Web Deployment:** Web dist assets will NOT be deployed to S3 or CloudFront.
 - ❌ **No EAS Build:** No mobile build or distribution.
-- **Rollback Boundary:** Each subphase is isolated and can be reverted cleanly by reverting its target file (`web/src/utils/petHelpers.js` or `web/src/components/MyPets.jsx`).
+- **Rollback Boundary:** Each subphase remains isolated. Phase 24A-2B.2B can be reverted by reverting its canonical contract, validator, regenerated-adapter, focused-test, and MyPets changes together.

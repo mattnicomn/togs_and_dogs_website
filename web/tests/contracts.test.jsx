@@ -38,6 +38,10 @@ describe('Phase 24A-2A Web Contract Adapters', () => {
 
   it('exports PET_FIELDS, REQUEST_STATUSES, and SERVICE_TYPES for future subphases', () => {
     expect(PET_FIELDS.clientReadFields).toContain('name');
+    expect(PET_FIELDS.clientWriteHealthFieldLimits).toEqual({
+      vet_name: 100,
+      vet_phone: 100,
+    });
     expect(REQUEST_STATUSES.statuses.APPROVED).toBeDefined();
     expect(SERVICE_TYPES.services.WALK_60MIN).toBeDefined();
   });
@@ -182,4 +186,3 @@ describe('Phase 24A-2A Web API Client Behavioral Execution', () => {
     );
   });
 });
-

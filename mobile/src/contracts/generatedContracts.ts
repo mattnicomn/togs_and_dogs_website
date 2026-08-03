@@ -60,6 +60,10 @@ export const PET_FIELDS = {
     "vet_name",
     "vet_phone"
   ],
+  "clientWriteHealthFieldLimits": {
+    "vet_name": 100,
+    "vet_phone": 100
+  },
   "fieldLimits": {
     "name": 100,
     "species": 100,

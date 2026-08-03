@@ -62,6 +62,7 @@
 | Phase 24A-2B pet field & validation wiring plan | `docs/planning/phase-24a-2b-pet-field-and-validation-wiring.md` |
 | Phase 24A-2B.1 web pet read allowlist wiring | `docs/release-notes/phase-24a-2b1-web-pet-read-allowlist.md` |
 | Phase 24A-2B.2A web pet top-level validation limits | `docs/release-notes/phase-24a-2b2a-web-pet-top-level-limits.md` |
+| Phase 24A-2B.2B customer veterinarian-field limits | `docs/release-notes/phase-24a-2b2b-veterinarian-field-limits.md` |
 
 
 
