@@ -63,6 +63,7 @@
 | Phase 24A-2B.1 web pet read allowlist wiring | `docs/release-notes/phase-24a-2b1-web-pet-read-allowlist.md` |
 | Phase 24A-2B.2A web pet top-level validation limits | `docs/release-notes/phase-24a-2b2a-web-pet-top-level-limits.md` |
 | Phase 24A-2B.2B customer veterinarian-field limits | `docs/release-notes/phase-24a-2b2b-veterinarian-field-limits.md` |
+| Phase 24A-2C.2 cross-platform service-type contract wiring plan | `docs/planning/phase-24a-2c2-service-type-contract-wiring.md` |
 
 
 

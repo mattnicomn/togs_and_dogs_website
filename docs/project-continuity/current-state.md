@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-03 (Phase 24A-2B.2B Documentation Reconciliation and Local Closeout)
+**Last Updated:** 2026-08-03 (Phase 24A-2C.2 Service-Type Contract Wiring Planning)
 
 ---
 
@@ -102,13 +102,23 @@
   - Validation: 18 shared constants, 6 adapter checks, 13 focused web contracts, 24 focused MyPets, 20 phase1b3, 96 legacy, 147 Vitest across 13 files / 243 unique web, successful Vite build, 10 focused mobile contracts, 6 mobile suites / 42 tests, 0 TypeScript errors, and 16 focused backend tests with 0 failed and 0 skipped. Changed Phase 24A-2B.2B web files lint cleanly; full web lint remains 51 errors and 9 warnings in unrelated pre-existing files. These findings were not introduced, modified, or remediated by this phase. No mobile lint script is configured.
   - See: `docs/release-notes/phase-24a-2b2b-veterinarian-field-limits.md`
 
+- Phase 24A-2C.2: Cross-Platform Service-Type Contract Wiring (📋 PLANNING COMPLETE / IMPLEMENTATION NOT APPROVED — 2026-08-03)
+  - Static repository review inventoried the canonical seven-service `SERVICE_TYPES` contract and all current web, mobile, backend, scheduling, notification, and test usage.
+  - Recommended first implementation is Phase 24A-2C.2A: behavior-preserving AdminDashboard display-label wiring only, using `labelLong` for current long-label/static-selector contexts and `label` for the dispatch-friendly export context.
+  - Phase 24A-2C.2A must preserve current unknown/null/undefined/blank fallbacks, selector identifiers/membership/order, `PET_SITTING` default, payloads, workflow classification, durations, availability behavior, calendar behavior, and notification wording.
+  - Noncanonical `DOG_WALKING`, `WALKING`, and `OTHER` may be stored because current frontend workflows can submit them and the backend has no canonical fixed allowlist. Their presence in production was not verified; no production-data inspection or migration occurred.
+  - Selector/availability normalization (2C.2B), mobile label wiring (2C.2C), and duration/scheduling metadata (2C.2D) remain deferred and not approved.
+  - See: `docs/planning/phase-24a-2c2-service-type-contract-wiring.md`
+
 ### Phase 24A Completion Boundaries
 
 - Latest completed validated production release: **Phase 1B.5C-D.2**.
 - Latest completed locally validated shared-contract phase: **Phase 24A-2A**.
 - Completed Phase 24A-2B subphases: **Phase 24A-2B.1**, **Phase 24A-2B.2A**, and **Phase 24A-2B.2B**.
 - Phase 24A-2B overall: **LOCALLY VALIDATED AND REVIEWED / ALL PLANNED PHASE 24A-2B CUSTOMER PET FIELD AND VALIDATION WIRING COMPLETE / NOT DEPLOYED OR DISTRIBUTED**.
-- Separate deferred scopes: staff pet-contract work, mobile pet creation and editing, Phase 24A-2C request-status and service-type planning/wiring, production deployment, mobile distribution, and Ryan testing.
+- Phase 24A-2C.2 service-type planning: **PLANNING COMPLETE / IMPLEMENTATION NOT APPROVED**. Recommended first implementation is 2C.2A AdminDashboard display-label wiring, pending separate explicit approval.
+- Phase 24A-2C implementation has not started. Request-status wiring and service-type subphases 2C.2A–2C.2D remain unimplemented.
+- Separate deferred scopes: staff pet-contract work, mobile pet creation and editing, production deployment, mobile distribution, and Ryan testing.
 
 
 
