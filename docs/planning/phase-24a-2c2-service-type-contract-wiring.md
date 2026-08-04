@@ -205,7 +205,9 @@ Explicit 2C.2A exclusions:
 
 ### Phase 24A-2C.2B — Selector Membership and Availability Normalization
 
-**Approval:** `NOT APPROVED` — deferred.
+**Status:** `PLANNING COMPLETE / IMPLEMENTATION NOT APPROVED`.
+
+**Current reconciliation (2026-08-03):** Documentation-only planning subsequently completed in `docs/planning/phase-24a-2c2b-selector-normalization-design.md`. Implementation, production-data assessment, aliases, normalization, backend enforcement, migration, and deployment remain not approved.
 
 This phase must separately decide how to handle `DOG_WALKING`, `WALKING`, `OTHER`, canonical `availableInIntake`, current selector memberships/orders, legacy-value display, future backend validation, and possible data normalization. It must not presume that a production migration is needed.
 
@@ -292,7 +294,7 @@ No backend command should be added merely for symmetry. Report the existing full
 |---|---|
 | Phase 24A-2C.2 documentation planning | `APPROVED FOR DOCUMENTATION ONLY` |
 | Phase 24A-2C.2A implementation | `ROADMAP_ONLY_NO_EXPLICIT_APPROVAL` |
-| Phase 24A-2C.2B | `NOT APPROVED` |
+| Phase 24A-2C.2B | `DOCUMENTATION PLANNING COMPLETE / IMPLEMENTATION NOT APPROVED` |
 | Phase 24A-2C.2C | `NOT APPROVED` |
 | Phase 24A-2C.2D | `NOT APPROVED` |
 | Production deployment | `NOT APPROVED` |
