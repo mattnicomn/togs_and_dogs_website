@@ -66,6 +66,7 @@
 | Phase 24A-2C.2 cross-platform service-type contract wiring plan | `docs/planning/phase-24a-2c2-service-type-contract-wiring.md` |
 | Phase 24A-2C.2A web admin service-type display labels | `docs/release-notes/phase-24a-2c2a-web-admin-service-labels.md` |
 | Phase 24A-2C.2B selector membership and noncanonical compatibility plan | `docs/planning/phase-24a-2c2b-selector-normalization-design.md` |
+| Phase 24A-2C.2B.1 web service-type display compatibility (locally validated and independently reviewed) | `docs/release-notes/phase-24a-2c2b1-web-display-compatibility.md` |
 | Phase 24A-2C.2B.2A customer intake canonical service options | `docs/release-notes/phase-24a-2c2b2a-intake-canonical-service-options.md` |
 | Phase 24A-2C.2C mobile service-type display-label wiring plan | `docs/planning/phase-24a-2c2c-mobile-service-label-wiring.md` |
 | Phase 24A-2C.2C mobile service-type display labels | `docs/release-notes/phase-24a-2c2c-mobile-service-labels.md` |

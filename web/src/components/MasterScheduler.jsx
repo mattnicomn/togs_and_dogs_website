@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getKnownServiceTypeLabel } from '../utils/serviceLabels.js';
 import '../Admin.css';
 
 const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [] }) => {
@@ -235,7 +236,11 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
                   >
                     <div className="visit-main">
                       <span className="visit-pet">{job.pet_name || job.client_name}</span>
-                      <span className="visit-type">{job.window_type || job.service_type}</span>
+                      <span className="visit-type">
+                        {job.window_type
+                          ? job.window_type
+                          : getKnownServiceTypeLabel(job.service_type) ?? job.service_type}
+                      </span>
                     </div>
                     <div className="visit-meta">
                       <span className="visit-time">{job.start_date}</span>
@@ -286,7 +291,7 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
                 <div key={req.PK} className="queue-item" onClick={() => onSelectPet(req)}>
                   <div className="queue-info">
                     <strong>{req.client_name}</strong>
-                    <span>{req.service_type}</span>
+                    <span>{getKnownServiceTypeLabel(req.service_type) ?? req.service_type}</span>
                     <span className={`status-pill ${req.status}`}>{req.status.replace(/_/g, ' ')}</span>
                   </div>
                   <button onClick={(e) => { e.stopPropagation(); onReview(req); }} className="btn-small">Process</button>

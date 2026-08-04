@@ -1,10 +1,10 @@
 # Phase 24A-2C.2B — Selector Membership and Noncanonical Service-Type Compatibility Design
 
-**Status:** **PARTIALLY IMPLEMENTED LOCALLY / PLANNING COMPLETE / CUSTOMER INTAKE CANONICAL SELECTION COMPLETE / OTHER SUBPHASES DEFERRED / NOT DEPLOYED / PRODUCTION PRESENCE OF NONCANONICAL IDENTIFIERS UNVERIFIED**
+**Status:** **PARTIALLY IMPLEMENTED LOCALLY / PLANNING COMPLETE / 2B.1 LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / WEB DISPLAY COMPATIBILITY COMPLETE / NOT DEPLOYED / 2B.2A CUSTOMER INTAKE CANONICAL SELECTION COMPLETE / OTHER SUBPHASES DEFERRED / PRODUCTION PRESENCE OF NONCANONICAL IDENTIFIERS UNVERIFIED**
 
 **Planning date:** 2026-08-03
 **Planning checkpoint:** `ca477be3b79f54466b99339a932e66c218583f55`
-**Authorization at planning checkpoint:** Documentation-only planning approved by Matthew. A later explicit approval authorized only Phase 24A-2C.2B.2A customer IntakeForm canonical selection; all other implementation, production-data inspection, migration, deployment, and distribution remain unapproved.
+**Authorization at planning checkpoint:** Documentation-only planning approved by Matthew. Later explicit approvals separately authorized Phase 24A-2C.2B.2A customer IntakeForm canonical selection and the bounded local Phase 24A-2C.2B.1 ClientPortal/MasterScheduler display-compatibility candidate. Production-data inspection, migration, deployment, distribution, and all other implementation remain unapproved.
 
 ---
 
@@ -20,13 +20,14 @@ This plan does not decide that every selector should have identical membership. 
 - Phase 24A-2C.2C is locally validated and reviewed. Four mobile display paths use one type-safe helper for exact canonical keys and preserve the exact legacy fallback for every other value.
 - Phase 24A-2C.2 remains partially complete locally.
 - Phase 24A-2C.2B.2A subsequently implemented only the approved customer IntakeForm membership: the six canonical `availableInIntake: true` identifiers in contract order, with contract `labelLong` labels and the existing `PET_SITTING` default. It is locally validated and reviewed, complete locally, and not deployed.
-- Remaining selector/filter changes, CareCard cleanup, aliases, normalization, backend enforcement, production-data assessment, migration, deployment, and distribution are not approved.
+- Phase 24A-2C.2B.1 is locally validated and independently reviewed: exact canonical identifiers use generated `labelLong`; exact `DOG_WALKING`, `WALKING`, and `OTHER` values display as `Daily Dog Walking`, `Dog Walking`, and `Other` in ClientPortal, MasterScheduler desktop service-only visit cards, and MasterScheduler pending-intake cards. Raw `window_type`, owner-specific unknown/nullish/blank fallbacks, identifiers, filters, callbacks, navigation, payloads, persistence, exports, scheduling, and backend behavior remain unchanged. Kiro returned `READY_FOR_LOCAL_PHASE_24A_2C_2B_1_CLOSEOUT`; no correction was required. It is not deployed.
+- Remaining selector/filter changes, CareCard cleanup, normalization, backend enforcement, production-data assessment, migration, deployment, and distribution are not approved.
 - Phase 24A-2C.2D duration/scheduling metadata and Phase 24A-2C.1 request-status wiring remain deferred and were not started.
 - The latest completed validated production release remains Phase 1B.5C-D.2. No Phase 24A work described here has been deployed or distributed.
 
 At the planning checkpoint, static repository evidence confirmed three noncanonical values in active frontend option lists: `DOG_WALKING`, `WALKING`, and `OTHER`. Phase 2C.2B.2A subsequently removed `DOG_WALKING` from new customer intake without mapping or record rewriting; `WALKING` and `OTHER` remain in unchanged CareCard. Request creation still passes through arbitrary values without a canonical allowlist. None of this evidence confirms current production contents.
 
-Implementation record: `docs/release-notes/phase-24a-2c2b2a-intake-canonical-service-options.md`.
+Implementation records: `docs/release-notes/phase-24a-2c2b1-web-display-compatibility.md` and `docs/release-notes/phase-24a-2c2b2a-intake-canonical-service-options.md`.
 
 ## 3. Canonical contract inventory
 
@@ -68,9 +69,9 @@ The metadata flags are descriptive contract fields, not authorization to generat
 | `AdminDashboard.jsx` — `getFriendlyService` / Daily Dispatch export | Displays/exports canonical short labels using an uppercase lookup; unknown nonblank values remain byte-for-byte raw; blank-like values become empty. | Seven canonical contract labels plus raw fallback. | Canonical lookup plus generic compatibility. | Yes, in generated workbook. | Export formatting only; does not change records. | `AdminDashboardServiceTypes.test.jsx`. | A friendly legacy alias in this context would intentionally change exported display output. |
 | `AdminDashboard.jsx` — All Requests backup export | Exports `request.service_type` raw. | Any stored string or blank. | Pass-through. | Yes, operational export. | No mutation; raw audit/backup fidelity. | `AdminDashboardServiceTypes.test.jsx`. | Must remain raw even if separate display compatibility is introduced. |
 | `AdminDashboard.jsx` — `getWorkflowType` | Classifies a record with a start date and one of `WALK_30MIN`, `DROPIN_1HR`, `DROPIN_3HR`, `OVERNIGHT` as `VISIT_BOOKING` when stronger signals are absent. | Four canonical identifiers. | Canonical subset. | Indirectly; changes workflow grouping/labels. | No stored mutation, but behavior can alter UI classification. | Covered indirectly by dashboard suites. | Noncanonical aliases here could reclassify records and are not display-only. |
-| `web/src/components/MasterScheduler.jsx` — Service filter | Filters by exact equality. | `ALL` sentinel / `All Services`, then `WALK_30MIN` / `30m Walk`, `DROPIN_1HR` / `1hr Drop-in`, `DROPIN_3HR` / `3hr Drop-in`, `OVERNIGHT` / `Overnight`; default `ALL`. Static, unconditional, no contract or flags. `ALL` is a filter sentinel, not a service identifier. | Four canonical filter values. | Yes. | No payload/storage mutation; membership controls which exact identifiers can be selected for filtering. | No focused selector-membership test identified. | `WALK_60MIN`, `PET_SITTING`, `MEET_GREET`, and every noncanonical value can display in the scheduler but cannot be selected as an exact service filter. |
-| `MasterScheduler.jsx` — visit and pending-intake cards | Displays `job.window_type || job.service_type` and `req.service_type` raw. | Any string. | Pass-through. | Yes. | Display only. | No focused legacy-value coverage identified. | Exact raw output differs from AdminDashboard, ClientPortal, mobile, and notification formatting. |
-| `web/src/components/ClientPortal.jsx` — booking heading | Displays underscores as spaces; blank-like values become `Pet Care Visit`. | Any string. | Generic compatibility. | Yes, customer-facing. | Display only. | Portal tests do not characterize all service fallbacks. | A new alias must preserve null/unknown behavior unless an intentional label change is approved. |
+| `web/src/components/MasterScheduler.jsx` — Service filter | Filters by exact equality. | `ALL` sentinel / `All Services`, then `WALK_30MIN` / `30m Walk`, `DROPIN_1HR` / `1hr Drop-in`, `DROPIN_3HR` / `3hr Drop-in`, `OVERNIGHT` / `Overnight`; default `ALL`. Static, unconditional, no contract or flags. `ALL` is a filter sentinel, not a service identifier. | Four canonical filter values. | Yes. | No payload/storage mutation; membership controls which exact identifiers can be selected for filtering. | `ServiceTypeDisplayOwners.test.jsx` proves exact, case-sensitive identifier filtering remains independent of visible labels. | `WALK_60MIN`, `PET_SITTING`, `MEET_GREET`, and every noncanonical value can display in the scheduler but cannot be selected as an exact service filter. |
+| `MasterScheduler.jsx` — visit and pending-intake cards | Phase 2C.2B.1 uses the shared exact-known-label resolver only when the desktop visit value originates from `service_type` and for pending-intake `service_type`. Truthy `window_type` remains raw and never enters the helper. Canonical values use `labelLong`; the three approved legacy values use explicit aliases; unresolved values remain raw. Mobile visit-card/time behavior is unchanged. | Canonical lookup plus three exact display aliases and raw compatibility. | Yes. | Display only. | `ServiceTypeDisplayOwners.test.jsx` covers desktop/pending owners, raw window precedence, fallbacks, exact filtering, callback identity, mobile non-regression, and object immutability. | Filter membership/equality, `window_type`, callbacks, scheduling, grouping, and raw identifiers remain independent of display labels. |
+| `web/src/components/ClientPortal.jsx` — booking heading | Phase 2C.2B.1 uses generated canonical `labelLong` and the three exact approved aliases. Every unresolved value retains the original underscore-only replacement expression; nullish/empty values remain `Pet Care Visit`, case remains unchanged, and whitespace remains whitespace. | Canonical lookup plus three exact display aliases and generic compatibility. | Yes, customer-facing. | Display only. | `ServiceTypeDisplayOwners.test.jsx` covers the real component, all canonical/legacy/fallback classes, cancellation identifiers, and object immutability. | No identifier, request object, cancellation input, fetch/state contract, or navigation behavior changes. |
 | `web/src/api/client.js` — request wrappers | Sends submitted objects without service transformation. | `submitRequest`, `submitClientRequest`, and `createAdminBooking` pass the raw field; `updatePet` spreads the raw body. | Pass-through. | Not directly. | Any upstream change reaches the corresponding API payload. | Existing contract/API tests cover request mechanics, not the full selector matrix. | Centralizing here would affect multiple workflows and is not a display-only option. |
 
 `web/src/Admin.css` and `web/src/constants/policy.js` contain incidental text matches only; they do not emit, consume, validate, filter, classify, export, persist, or schedule service identifiers.
@@ -177,14 +178,14 @@ Consequently:
 
 | Dimension | Design |
 |---|---|
-| User value | Consistent, friendly display for specifically approved legacy values while preserving submitted/stored identifiers. |
-| Behavior change | Intentional display/export wording changes only in selected contexts. Raw All Requests export should remain unchanged. |
-| Systems / likely files | Candidate web scope: `CareCard.jsx`, `ClientPortal.jsx`, `MasterScheduler.jsx`, and a shared web helper if approved; AdminDashboard/mobile already have safe generic fallbacks. Notification/calendar changes are excluded. |
-| Test burden | Characterize exact current outputs first; add real render coverage for each changed owner, canonical/noncanonical/unknown/case/blank inputs, search/export parity where applicable. |
+| User value | Consistent generated canonical long labels plus friendly display for specifically approved legacy values while preserving submitted/stored identifiers. |
+| Behavior change | Intentional display wording changes only in the approved ClientPortal and MasterScheduler service-only contexts. Exports remain unchanged. |
+| Systems / likely files | Implemented candidate scope: `web/src/utils/serviceLabels.js`, `ClientPortal.jsx`, `MasterScheduler.jsx`, two focused tests, and applicable records. CareCard, AdminDashboard, mobile, notifications, and calendar are excluded. |
+| Test burden | Completed real render coverage for both changed owners plus canonical/noncanonical/unknown/case/blank inputs, raw window precedence, filtering, callbacks, mobile non-regression, and immutability. |
 | Deployment / data | Web deployment required to expose a web UI change; no backend deployment or production-data access. |
 | Risk | Low to moderate: visible wording and operational export/display differences can surprise users; aliases can imply an unapproved meaning. |
 | Rollback | Revert the display helper/owner calls and redeploy the same web artifact boundary; records remain untouched. |
-| Approval / blockers | Explicit Matthew approval for the exact values, labels, and contexts. No semantic mapping to a canonical duration is required if the legacy identifier is preserved. |
+| Approval / blockers | Matthew approved the exact values, labels, and contexts. Independent review passed with no correction required; deployment remains separately gated and no semantic mapping to a canonical duration exists. |
 
 Limitation: display compatibility does not stop new noncanonical emission, expand filters, enforce backend policy, or resolve duration semantics.
 
@@ -260,7 +261,7 @@ No `SAFE_CANONICAL_EQUIVALENT_IDENTIFIED` conclusion is supported for these thre
 
 | Subphase | Exact scope and prerequisite | Behavior changed | Local validation / deployment / data | Approval and rollback boundary |
 |---|---|---|---|---|
-| 24A-2C.2B.1 — Display compatibility | Characterize approved web display owners; preserve raw values and payloads. Requires exact label/context approval. | Visible legacy labels only. | Fully locally testable; web deployment later; no production data. | Separate local implementation approval and later deployment approval. Roll back web display changes only. |
+| 24A-2C.2B.1 — Display compatibility | **Locally validated and independently reviewed; web display compatibility complete; not deployed.** One exact-known-label resolver serves ClientPortal and selected MasterScheduler `service_type`-only paths. Canonical values use `labelLong`; `DOG_WALKING`, `WALKING`, and `OTHER` use the approved aliases; raw values and payloads remain preserved. | Intentional canonical and three legacy visible labels only. | 37/37 focused tests, 202/202 complete Vitest, 99/99 legacy, successful build; no production data or deployment. | Kiro returned `READY_FOR_LOCAL_PHASE_24A_2C_2B_1_CLOSEOUT` with no correction required. Later deployment approval remains separate. Roll back the helper, two owner calls, focused tests, and documentation only. |
 | 24A-2C.2B.2 — Selector emission and membership decisions | Decide IntakeForm, CareCard, and any scheduler-filter changes independently. Requires business meaning for every replacement and a decision on CareCard's ignored field. | New selectable values, raw payloads, and/or filter capabilities. | Locally testable; web deployment later; no data required to stop future emission. | Separate approval per selector/context. Roll back static membership while retaining legacy reads. |
 | 24A-2C.2B.3 — Backend accepted-identifier policy | Define missing/blank/canonical/legacy/unknown handling and compatibility window after supported clients are understood. | API acceptance, persistence, errors, and possibly normalization. | Locally testable with synthetic API fixtures; backend deployment required; no production query inherently required. | Separate implementation and deployment approval. Prefer a reversible compatibility flag/version. |
 | 24A-2C.2B.4 — Optional production-data assessment | Execute only the minimum approved aggregate read described in section 16. | No application behavior. | Query can be rehearsed locally; production read approval required; no deployment. | Separate data-access approval. Stop without modifying data; control aggregate artifact retention. |
@@ -277,8 +278,8 @@ All future tests must use synthetic fixtures, mock API/authentication/browser bo
 1. IntakeForm: exact three values, labels, order, `PET_SITTING` default, no conditional filtering, and exact raw identifiers sent through public and authenticated-client calls.
 2. CareCard: exact four values/labels/order; inherited/blank current value; exact body sent to `updatePet`; backend staff/admin success-with-field-ignored behavior; customer rejection if the field is sent to the client endpoint.
 3. AdminDashboard: retain the existing four tests for seven canonical labels, fallbacks, exact selector/default/raw payload, search, Daily Dispatch friendly output, and raw request export.
-4. MasterScheduler: exact `ALL` sentinel plus four values/labels/order/default; exact-equality behavior for canonical, noncanonical, unknown, and blank records; raw card rendering.
-5. ClientPortal: canonical, `DOG_WALKING`, `WALKING`, `OTHER`, arbitrary unknown, case variants, null, undefined, and blank display outputs.
+4. MasterScheduler: 2B.1 real-owner coverage now proves exact `ALL` sentinel behavior, case-sensitive exact-equality filtering, canonical and approved aliases, unknown/case/nullish/blank fallbacks, raw `window_type` precedence including `EXACT_TIME` and overlapping keys, unchanged mobile time behavior, callback identity, and object immutability.
+5. ClientPortal: 2B.1 real-owner coverage now proves all canonical `labelLong` values, the three approved aliases, arbitrary unknown and case fallbacks, null/undefined/empty `Pet Care Visit`, whitespace preservation, cancellation identifier parity, and object immutability.
 6. Mobile: retain helper and all four real-owner tests; prove display-only formatting never changes raw navigation/input data.
 7. Backend intake: missing key, explicit blank/null, all seven canonical identifiers, three known noncanonical identifiers, and arbitrary unknown value across public/client/admin paths.
 8. Job creation: exact raw copying for canonical, known noncanonical, unknown, blank, and null fixtures.
@@ -297,7 +298,7 @@ All future tests must use synthetic fixtures, mock API/authentication/browser bo
 
 ## 13. Validation strategy
 
-No application tests or builds were run during this documentation-only phase. Discoverable future commands are:
+The original documentation-only planning pass ran no application tests or builds. The approved 2B.1 implementation subsequently used these validation surfaces:
 
 ### Shared
 
@@ -329,7 +330,11 @@ npm run typecheck
 python -m pytest tests/backend/test_intake_validation.py tests/backend/test_r6f_offline_booking.py tests/backend/test_r7e_multi_day_jobs.py tests/backend/test_r7d_calendar_hardening.py tests/backend/test_r6a_templates.py tests/backend/test_r6b_templates.py
 ```
 
-An implementation review should also run `git diff --check`, confirm generated adapters remain deterministic when they are in scope, and audit that no fixture or command touches production. Build/deployment validation is a later approval boundary, not part of local planning.
+Phase 2C.2B.1 local validation completed with synthetic fixtures and mocked external boundaries: 37/37 new focused tests, 11/11 existing AdminDashboard/IntakeForm exclusion regressions, 202/202 complete Vitest tests across 18 files, 99/99 legacy tests / 301 unique web tests, 18/18 shared constants, 6/6 adapter checks including deterministic zero second diff, and a successful Vite 8.0.8 build with 109 modules transformed (`index-mPUri6lj.js`, `index-bVFIMo3n.css`, `usmh-logo-CrRnxp7-.png`). The complete Vitest run retained the existing jsdom navigation notice; the build retained the existing `optimizeDeps.esbuildOptions` deprecation and large-chunk warnings.
+
+The helper and both new tests lint with 0 errors and 0 warnings. Comparison against `HEAD` proves ClientPortal retains its exact pre-change 2-error/1-warning baseline and MasterScheduler retains its exact pre-change 1-error/0-warning baseline. Complete web lint remains the established 51-error/9-warning baseline. Candidate-introduced lint is zero. No applicable pre-existing ClientPortal-focused suite exists beyond the new rendered-owner coverage.
+
+Kiro independently reproduced 18 shared-constant tests, 6 adapter checks, 37 focused tests, 99 legacy tests, 202 complete Vitest tests / 301 unique web tests, the successful build, and zero candidate-introduced lint findings. It confirmed raw truthy `window_type`, exact owner fallbacks, and the bounded scope, returning `READY_FOR_LOCAL_PHASE_24A_2C_2B_1_CLOSEOUT` with no blocking or non-blocking correction. Deployment validation remains a later approval boundary.
 
 ## 14. Risk and rollback
 
@@ -346,8 +351,8 @@ An implementation review should also run `git diff --check`, confirm generated a
 
 ## 15. Approval gates
 
-1. This planning commit authorizes no implementation.
-2. 2B.1 requires Matthew to approve exact legacy display mappings and exact components/exports that may visibly change.
+1. Matthew explicitly approved the bounded 2B.1 local candidate using generated canonical `labelLong`, the three exact aliases, ClientPortal, and selected MasterScheduler service-only display paths.
+2. Phase 2B.1 independent review and local closeout passed; passing tests and local closeout do not authorize deployment.
 3. 2B.2 requires Matthew to approve each selector/filter's membership, values, labels, order, default, availability rules, and raw payload effects. `DOG_WALKING`, `WALKING`, and `OTHER` require explicit business decisions.
 4. 2B.3 requires separate approval of the accepted identifier set; missing/blank/unknown behavior; legacy compatibility duration; normalization versus rejection; API rollout; and backend implementation.
 5. Any web or backend deployment requires a later explicit deployment approval after independent validation.
@@ -371,10 +376,10 @@ No such access was performed or requested in this phase.
 
 ## 17. Explicit exclusions
 
-This phase does not:
+Beyond the explicitly approved 2B.1 helper, two display-owner calls, focused tests, and documentation, this phase does not:
 
-- modify application source, tests, contracts, generated adapters, generators, validators, dependencies, or lockfiles;
-- normalize an identifier, implement an alias, alter a selector/filter, or change labels, membership, order, defaults, availability, payloads, validation, persistence, workflow classification, duration, calendar, notifications, or exports;
+- modify contracts, generated adapters, generators, validators, dependencies, lockfiles, AdminDashboard, CareCard, IntakeForm, API clients, backend, or mobile code;
+- normalize an identifier, alter a selector/filter, or change membership, order, defaults, availability, payloads, validation, persistence, workflow classification, duration, calendar, notifications, navigation, scheduling, or exports;
 - inspect, export, migrate, or modify production data;
 - build web/mobile artifacts; deploy; sync S3; invalidate CloudFront; run Terraform; generate APK/AAB/IPA files; or change TestFlight, Google Play, App Store, testers, or Ryan testing;
 - change Cognito, tenants, `TENANT_RESOLUTION_MODE`, Stripe, Google Calendar, infrastructure, or production systems;
@@ -382,7 +387,7 @@ This phase does not:
 
 ## 18. Recommended next decision
 
-If Matthew wants to proceed, the lowest-risk next decision is whether to approve a narrowly enumerated 24A-2C.2B.1 display-compatibility implementation for selected web owners, with the original identifiers preserved everywhere. In parallel, business policy should answer these questions before 2B.2:
+Phase 2B.1 is locally closed after independent review. Any deployment requires a separate explicit decision. In parallel, business policy should answer these questions before further 2B.2 work:
 
 1. Does public Daily Dog Walking mean 30 minutes, 60 minutes, a configurable duration, or a separate product?
 2. Should CareCard edit a request's service type, stop presenting the currently ignored PET field, or serve another purpose?
@@ -393,4 +398,4 @@ Do not approve backend enforcement, production assessment, or migration until th
 
 ---
 
-**Final phase status:** **PARTIALLY IMPLEMENTED LOCALLY / PLANNING COMPLETE / CUSTOMER INTAKE CANONICAL SELECTION COMPLETE / OTHER SUBPHASES DEFERRED / NOT DEPLOYED / PRODUCTION PRESENCE OF NONCANONICAL IDENTIFIERS UNVERIFIED**
+**Final phase status:** **PARTIALLY IMPLEMENTED LOCALLY / PLANNING COMPLETE / 2B.1 LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / WEB DISPLAY COMPATIBILITY COMPLETE / NOT DEPLOYED / 2B.2A CUSTOMER INTAKE CANONICAL SELECTION COMPLETE / OTHER SUBPHASES DEFERRED / PRODUCTION PRESENCE OF NONCANONICAL IDENTIFIERS UNVERIFIED**

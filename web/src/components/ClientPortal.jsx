@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getSession, signIn, getEffectiveRole } from '../api/auth';
 import { getClientRequests, requestCancellation } from '../api/client';
 import UserProfile from './UserProfile';
+import { getKnownServiceTypeLabel } from '../utils/serviceLabels.js';
 import '../Portal.css';
 
 // Date and Visit Window display helper utilities
@@ -353,7 +354,9 @@ const ClientPortal = () => {
                     
                     <div className="booking-main-details">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <h4 style={{ margin: 0 }}>{req.service_type?.replace(/_/g, ' ') || 'Pet Care Visit'}</h4>
+                        <h4 style={{ margin: 0 }}>
+                          {getKnownServiceTypeLabel(req.service_type) ?? (req.service_type?.replace(/_/g, ' ') || 'Pet Care Visit')}
+                        </h4>
                         {(req.is_multi_day || (req.selected_dates && req.selected_dates.length > 1) || (req.end_date && req.start_date && req.end_date !== req.start_date)) && (
                           <span className="multi-day-badge" style={{
                             fontSize: '0.65rem', fontWeight: 700,
