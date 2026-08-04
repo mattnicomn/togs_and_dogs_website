@@ -3980,8 +3980,8 @@ const AdminDashboard = () => {
                                   type="button"
                                   className="button-secondary btn-small"
                                   onClick={() => executeStaffAction(selectedStaffForDrawer.staff_id, 'reset-password')}
-                                  disabled={selectedStaffForDrawer.is_protected || isSelf(selectedStaffForDrawer) || selectedStaffForDrawer.is_orphaned_identity}
-                                  title={selectedStaffForDrawer.is_protected ? 'This account is protected and cannot be modified' : isSelf(selectedStaffForDrawer) ? 'You cannot modify your own account security settings' : selectedStaffForDrawer.is_orphaned_identity ? 'This login is orphaned' : undefined}
+                                  disabled={selectedStaffForDrawer.is_protected || isSelf(selectedStaffForDrawer) || selectedStaffForDrawer.is_orphaned_identity || selectedStaffForDrawer.cognito_status === 'FORCE_CHANGE_PASSWORD' || selectedStaffForDrawer.identity_state === 'linked_invited'}
+                                  title={selectedStaffForDrawer.is_protected ? 'This account is protected and cannot be modified' : isSelf(selectedStaffForDrawer) ? 'You cannot modify your own account security settings' : selectedStaffForDrawer.is_orphaned_identity ? 'This login is orphaned' : selectedStaffForDrawer.cognito_status === 'FORCE_CHANGE_PASSWORD' || selectedStaffForDrawer.identity_state === 'linked_invited' ? ['FORCE_CHANGE_PASSWORD', 'UNCONFIRMED'].includes(selectedStaffForDrawer.cognito_status) ? 'This user has not completed their initial login. Use Resend Invite or Set Temporary Password instead.' : 'This user has not completed their initial login. Use Set Temporary Password instead.' : undefined}
                                 >
                                   Send Password Reset Email
                                 </button>

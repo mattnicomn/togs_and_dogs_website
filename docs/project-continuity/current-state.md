@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-04 (Phase 24A-2C.2B.2A Customer Intake Canonical Service Selection Closeout)
+**Last Updated:** 2026-08-04 (Release 22Y Finding 2 Staff Password-Reset State Awareness Local Closeout)
 
 ---
 
@@ -62,6 +62,14 @@
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
 
 ## Active Local Work / Pending Review
+
+- Release 22Y Finding 2: Staff Password-Reset State Awareness (🔗 LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / STAFF PASSWORD RESET STATE AWARENESS COMPLETE / NOT DEPLOYED — 2026-08-04)
+  - The real AdminDashboard staff drawer now preserves protected, self, and orphaned reset guards while also disabling normal password reset for the existing direct `cognito_status: FORCE_CHANGE_PASSWORD` and backend-derived `identity_state: linked_invited` invitation states. `linked_invited` covers enabled Cognito users whose status is not `CONFIRMED`, including `FORCE_CHANGE_PASSWORD`, `UNCONFIRMED`, and `RESET_REQUIRED`; `invitation_sent` is not a staff response value and no frontend or backend contract was invented.
+  - Eligible confirmed staff retain the unchanged confirmation and `resetStaffPassword(staff_id)` path. Explanation precedence remains protected → self → orphaned → initial login; invitation-state copy names only alternatives whose existing controls remain available. Resend Invite and Set Temporary Password behavior is unchanged.
+  - Validation: 7 focused rendered tests, 38 existing drawer tests, 165 complete Vitest tests across 16 files, 99 legacy tests / 264 unique web tests, and successful Vite build with 108 modules transformed (`index-D53dI4qG.js`, `index-bVFIMo3n.css`, `usmh-logo-CrRnxp7-.png`). The new test is lint-clean; AdminDashboard retains its exact pre-change 18-error/5-warning baseline, with zero candidate-introduced lint findings.
+  - Independent Kiro review returned `READY_FOR_LOCAL_RELEASE_22Y_FINDING_2_CLOSEOUT` and classified the tests as `STRONG_RENDERED_BEHAVIORAL_COVERAGE`; no correction was required.
+  - No backend exception handling, API client, Cognito, Terraform, API Gateway, production-data, deployment, mobile, tester, Ryan, Stripe, tenant, or Google Calendar action occurred. Findings 1 and 3 remain outside this closeout. Passing local validation and local closeout do not authorize deployment.
+  - See: `docs/planning/release-22y-smoke-test-identity-actions-and-google-calendar-disconnect-triage.md`
 
 - Phase 24A-2A: Shared Contract Adapter Foundation & API Path Wiring (🔗 LOCALLY VALIDATED AND REVIEWED / API PATHS WIRED / NOT DEPLOYED OR DISTRIBUTED — 2026-07-30)
   - Created deterministic generator `shared/generate-contract-adapters.mjs`, generated `web/src/generated/contracts.js` and `mobile/src/contracts/generatedContracts.ts`.
@@ -309,6 +317,6 @@
 - Phase 1B.5D–E: Pet Lifecycle safeguards and booking integration (deferred)
 - Address remaining Phase 1B.4F–H staff drawer alignment (deferred, low priority)
 - Begin Release 22ZD — Scheduler, Client Management, Platform Admin mobile polish (Phase 4 of 22Z plan)
-- Address 22Y remediation items (Cognito password-reset state handling, Google Calendar disconnect API Gateway fix) in a separate release.
+- A later explicit deployment decision is required for the independently reviewed Release 22Y Finding 2 frontend fix; Google Calendar disconnect/API Gateway remediation remains separate and unapproved.
 - Budget notification Terraform drift reconciliation (deferred, requires separate review and Matthew approval)
 - Continue SaaS maturity priorities (blocked on EIN for Stripe live).

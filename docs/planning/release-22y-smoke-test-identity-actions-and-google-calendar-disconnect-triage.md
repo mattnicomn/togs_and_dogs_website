@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-11
 **Type:** Planning / Triage (Read-Only)
-**Status:** ✅ **Triage Complete** — Root causes identified, fix sequence proposed.
+**Status:** ✅ **TRIAGE COMPLETE / FINDING 2 LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / STAFF PASSWORD RESET STATE AWARENESS COMPLETE / NOT DEPLOYED**
 
 ---
 
@@ -74,6 +74,37 @@ Matthew clicked “Send Password Reset Email” on a user and saw:
    except cognito.exceptions.NotAuthorizedException:
        return bad_request("Password reset is not available for this user's current login state. If they have not logged in yet, please use Resend Invite or Set Temporary Password.", event)
    ```
+
+#### Bounded local frontend implementation — 2026-08-04
+
+Matthew separately approved a frontend-only correction for Finding 2. The local candidate uses the existing `GET /admin/staff` response without changing `web/src/api/client.js` or inventing a new field. That response already carries raw `cognito_status` plus the Release 22H-derived staff `identity_state`; the actual invitation value is `linked_invited`, not `invitation_sent`.
+
+The real AdminDashboard staff drawer now disables **Send Password Reset Email** when any existing guard applies—protected account, signed-in administrator's own account, or orphaned identity—or when `cognito_status === 'FORCE_CHANGE_PASSWORD'` or `identity_state === 'linked_invited'`. Eligible `CONFIRMED` / `linked_active` staff remain enabled. The existing explanation precedence remains protected → self → orphaned → initial-login state. A normal pending invitation explains that the user must complete initial login and points to both existing alternatives; when Resend Invite is independently disabled, the explanation names only Set Temporary Password. Resend Invite, Set Temporary Password, the reset confirmation modal, and confirmed-user `resetStaffPassword(staff_id)` dispatch remain otherwise unchanged.
+
+Rendered coverage in `web/tests/AdminDashboardStaffPasswordReset.test.jsx` uses the real AdminDashboard staff-list and drawer path and proves:
+
+- `FORCE_CHANGE_PASSWORD` and `linked_invited` disable normal reset;
+- disabled interaction does not open the reset confirmation or dispatch `resetStaffPassword`;
+- a confirmed user remains enabled and confirmation preserves the exact existing reset dispatch;
+- protected, self, and orphaned guards remain disabled with their existing explanation precedence;
+- Resend Invite and Set Temporary Password retain their existing behavior and exact API calls.
+
+Local validation:
+
+- focused password-reset state coverage: 7/7 passed;
+- existing ClientDrawerEditorConsolidation rendered coverage: 38/38 passed;
+- complete Vitest: 165/165 passed across 16 files;
+- legacy web: 99/99 passed; 264 unique web tests passed across complete Vitest plus legacy suites;
+- Vite production build: passed, 108 modules transformed; generated `index-D53dI4qG.js`, `index-bVFIMo3n.css`, and `usmh-logo-CrRnxp7-.png`;
+- focused test lint: 0 errors and 0 warnings;
+- AdminDashboard lint: 18 errors and 5 warnings, exactly matching the pre-change file baseline;
+- candidate-introduced lint: 0 errors and 0 warnings.
+
+The complete Vitest run retained the existing jsdom navigation notice. The build retained the existing Vite `optimizeDeps` deprecation notice and large-chunk warning. No backend, API client, Cognito, Terraform, API Gateway, production-data, deployment, mobile, tester, Ryan, Stripe, tenant, or Google Calendar action occurred. The separately proposed backend exception handling remains deferred and was not implemented. Findings 1 and 3 remain unchanged. Passing local tests and this local closeout do not authorize deployment.
+
+Independent Kiro review returned `READY_FOR_LOCAL_RELEASE_22Y_FINDING_2_CLOSEOUT` with `STRONG_RENDERED_BEHAVIORAL_COVERAGE`. It confirmed that backend-derived `linked_invited` covers enabled Cognito users whose status is not `CONFIRMED`, including `FORCE_CHANGE_PASSWORD`, `UNCONFIRMED`, and `RESET_REQUIRED`; that the direct and derived guards, protected/self/orphaned precedence, confirmed-user flow, tooltips, neighboring actions, validation evidence, and scope boundaries are correct; and that no correction is required.
+
+**Finding 2 local status:** **LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / STAFF PASSWORD RESET STATE AWARENESS COMPLETE / NOT DEPLOYED**
 
 ---
 
