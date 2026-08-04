@@ -1,7 +1,7 @@
 # Phase 24A-2C.2A — Web Admin Service-Type Display-Label Contract Wiring
 
 **Date:** 2026-08-03
-**Status:** LOCAL IMPLEMENTATION COMPLETE / WEB ADMIN SERVICE-TYPE DISPLAY LABELS WIRED / NOT DEPLOYED OR DISTRIBUTED / AWAITING INDEPENDENT RE-REVIEW
+**Status:** LOCALLY VALIDATED AND REVIEWED / WEB ADMIN SERVICE-TYPE DISPLAY LABELS WIRED / NOT DEPLOYED OR DISTRIBUTED
 
 ## Approval and Scope
 
@@ -30,7 +30,9 @@ Before the source change, the focused real-component suite passed 4/4 after two 
 
 Search expressions, raw request mapping, payload construction, workflow-classification arrays, dispatch row structure, and runtime messages were not changed.
 
-## Validation
+## Independent Review and Validation
+
+Kiro independently confirmed that the candidate delta contains exactly the expected six implementation files, the scope is correctly bounded, the long-label and short-label behavior is preserved, and the selector values, order, membership, labels, and default are unchanged. AG independently completed the remaining build, lint, mobile, TypeScript, and backend regression validation. No correction was required.
 
 - Shared constants: 18/18 passed.
 - Generated adapter validation: 6/6 passed, including deterministic zero second diff.
@@ -40,14 +42,15 @@ Search expressions, raw request mapping, payload construction, workflow-classifi
 - Complete legacy: 99/99 passed.
 - Complete Vitest: 151/151 passed across 14 files.
 - Unique complete web total: 250 passed (99 legacy + 151 Vitest; focused runs are not double-counted).
-- Vite 8.0.8 build: passed; assets `dist/assets/index-Cx6dFo6i.js`, `dist/assets/index-bVFIMo3n.css`, and `dist/assets/usmh-logo-CrRnxp7-.png`.
+- Vite 8.0.8 build: passed; assets `dist/index.html`, `dist/assets/index-D7UoV5fJ.js`, `dist/assets/index-bVFIMo3n.css`, and `dist/assets/usmh-logo-CrRnxp7-.png`.
 - Focused test lint: 0 errors, 0 warnings.
-- `AdminDashboard.jsx` lint: 18 errors, 5 warnings, all pre-existing and unrelated to the new import/lookups.
-- Complete web lint: known unrelated baseline of 51 errors and 9 warnings; no candidate-related finding.
+- Candidate-introduced lint: 0 errors, 0 warnings.
+- `AdminDashboard.jsx` retains 18 errors and 5 warnings that existed before this candidate.
+- Complete web lint retains 51 errors and 9 warnings in unrelated pre-existing code. These findings were not introduced, modified, or remediated by this phase.
 - Mobile: 6/6 suites and 42/42 tests passed; TypeScript reported 0 errors. `mobile/package.json` has no lint script.
 - Documented backend calendar regression: 30/30 passed with 0 failed and 0 skipped.
 
-The complete Vitest run emitted the existing JSDOM `Not implemented: navigation to another Document` notice. The build emitted an `optimizeDeps.esbuildOptions` deprecation warning and the existing greater-than-500-kB chunk warning. Pytest emitted one cache-path permission warning. Successful required runs reported no open handles or asynchronous leaks. An intermediate combined three-file Vitest invocation had one export interaction race plus React `act(...)` notices; the required focused file passed independently and the two existing AdminDashboard files passed independently without expectation changes.
+The complete Vitest run emitted the existing JSDOM `Not implemented: navigation to another Document` notice. The build emitted the existing `optimizeDeps.esbuildOptions` deprecation notice and greater-than-500-kB chunk warning. Successful required runs reported no open-handle or asynchronous-leak failures.
 
 Validation did not modify tracked contracts or adapters. Build output remained ignored and was not staged.
 
@@ -59,11 +62,13 @@ No production data was inspected or modified. No production API call, deployment
 
 ## Deferred Work
 
-Phase 24A-2C.2 remains partially complete:
+Phase 24A-2C.2 overall is **PARTIALLY COMPLETE LOCALLY / PHASE 24A-2C.2A COMPLETE / PHASES 24A-2C.2B, 24A-2C.2C, AND 24A-2C.2D DEFERRED / NOT DEPLOYED OR DISTRIBUTED**:
 
-- 2C.2A: implemented locally, awaiting independent re-review;
+- 2C.2A: locally validated and reviewed; Web Admin service-type display labels wired; not deployed or distributed;
 - 2C.2B: selector membership/availability normalization deferred and not approved;
 - 2C.2C: mobile service-label wiring deferred and not approved;
 - 2C.2D: duration/scheduling metadata deferred and not approved.
+
+Normalization of `DOG_WALKING`, `WALKING`, and `OTHER`; production-data inspection or migration; production deployment; mobile build or distribution; Ryan testing; and unrelated lint remediation remain separate, deferred, and unapproved.
 
 This record does not claim full Phase 24A-2C.2 completion, production deployment, production validation, mobile distribution, Ryan testing, or unrelated lint remediation.
