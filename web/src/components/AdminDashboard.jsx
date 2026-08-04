@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { signIn, getSession, getEffectiveRole } from '../api/auth';
 
 import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData, createAdminBooking, listAdminClientPets, getTenantInfo } from '../api/client';
+import { SERVICE_TYPES } from '../generated/contracts';
 import * as XLSX from 'xlsx';
 
 import { accountStatusLabel, accountStatusClass, profileStatusLabel, profileStatusClass, getVisibleClients, CLIENT_FILTERS } from '../utils/clientManagement';
@@ -465,16 +466,7 @@ const AdminDashboard = () => {
 
   const getServiceLabel = (serviceType) => {
     if (!serviceType) return 'UNKNOWN SERVICE';
-    const friendly = {
-      'WALK_30MIN': '30-Minute Walk',
-      'WALK_60MIN': '60-Minute Walk',
-      'DROPIN_1HR': '1-Hour Drop-in',
-      'DROPIN_3HR': '3-Hour Drop-in',
-      'OVERNIGHT': 'Overnight Care',
-      'PET_SITTING': 'Pet Sitting',
-      'MEET_GREET': 'Meet & Greet'
-    };
-    return friendly[serviceType] || serviceType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return SERVICE_TYPES.services[serviceType]?.labelLong || serviceType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   };
 
   const getVisitWindowLabel = (windowVal) => {
@@ -1967,8 +1959,6 @@ const AdminDashboard = () => {
       // A. Daily Sitter Dispatch Sheet (Release 9D)
       const WINDOW_ORDER = { 'MORNING': 1, 'MIDDAY': 2, 'AFTERNOON': 3, 'EVENING': 4, 'ANYTIME': 5 };
       const FRIENDLY_WINDOWS = { 'MORNING': 'Morning (7-10 AM)', 'MIDDAY': 'Midday (10 AM-2 PM)', 'AFTERNOON': 'Afternoon (2-5 PM)', 'EVENING': 'Evening (5-8 PM)', 'ANYTIME': 'Anytime' };
-      const FRIENDLY_SERVICES = { 'WALK_30MIN': '30-Min Walk', 'WALK_60MIN': '60-Min Walk', 'DROPIN_1HR': '1-Hour Drop-in', 'DROPIN_3HR': '3-Hour Drop-in', 'OVERNIGHT': 'Overnight Care', 'PET_SITTING': 'Pet Sitting', 'MEET_GREET': 'Meet & Greet' };
-
       const getWindowOrder = (win) => {
         const key = (win || '').toUpperCase();
         return WINDOW_ORDER[key] || 99;
@@ -1979,7 +1969,7 @@ const AdminDashboard = () => {
       };
       const getFriendlyService = (svc) => {
         const key = (svc || '').toUpperCase();
-        return FRIENDLY_SERVICES[key] || svc || '';
+        return SERVICE_TYPES.services[key]?.label || svc || '';
       };
       const formatDateFriendly = (dateStr) => {
         if (!dateStr) return '';
@@ -5695,13 +5685,13 @@ const AdminDashboard = () => {
                   onChange={(e) => setNewVisitForm(prev => ({ ...prev, service_type: e.target.value }))}
                   style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
                 >
-                  <option value="PET_SITTING">Pet Sitting</option>
-                  <option value="WALK_30MIN">30-Minute Walk</option>
-                  <option value="WALK_60MIN">60-Minute Walk</option>
-                  <option value="DROPIN_1HR">1-Hour Drop-in</option>
-                  <option value="DROPIN_3HR">3-Hour Drop-in</option>
-                  <option value="OVERNIGHT">Overnight Care</option>
-                  <option value="MEET_GREET">Meet & Greet</option>
+                  <option value="PET_SITTING">{SERVICE_TYPES.services.PET_SITTING.labelLong}</option>
+                  <option value="WALK_30MIN">{SERVICE_TYPES.services.WALK_30MIN.labelLong}</option>
+                  <option value="WALK_60MIN">{SERVICE_TYPES.services.WALK_60MIN.labelLong}</option>
+                  <option value="DROPIN_1HR">{SERVICE_TYPES.services.DROPIN_1HR.labelLong}</option>
+                  <option value="DROPIN_3HR">{SERVICE_TYPES.services.DROPIN_3HR.labelLong}</option>
+                  <option value="OVERNIGHT">{SERVICE_TYPES.services.OVERNIGHT.labelLong}</option>
+                  <option value="MEET_GREET">{SERVICE_TYPES.services.MEET_GREET.labelLong}</option>
                 </select>
               </div>
 
