@@ -19,6 +19,7 @@ import { reviewRequest, assignWorker, completeJob } from '../api/client';
 import { useAuth } from '../auth/useAuth';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { StaffPickerSheet } from '../components/StaffPickerSheet';
+import { getServiceTypeLabel } from '../utils/serviceLabels';
 
 export const RequestDetailScreen = ({ route, navigation }: any) => {
   const { logout, role, user } = useAuth();
@@ -189,13 +190,6 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
     Linking.openURL(`mailto:${email}`).catch((err) => console.warn('Failed to open email client', err));
   };
 
-  const formatServiceType = (service: string) => {
-    return (service || '')
-      .split('_')
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
-  };
-
   const formatDateRange = (dates: string[]) => {
     if (!dates || dates.length === 0) return 'No dates selected';
     if (dates.length === 1) return dates[0];
@@ -305,7 +299,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
             <View style={styles.detailGrid}>
               <View style={styles.detailCol}>
                 <Text style={styles.metaLabel}>Service</Text>
-                <Text style={styles.metaValue}>{formatServiceType(request.service_type)}</Text>
+                <Text style={styles.metaValue}>{getServiceTypeLabel(request.service_type)}</Text>
               </View>
               <View style={styles.detailCol}>
                 <Text style={styles.metaLabel}>Window</Text>

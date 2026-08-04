@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-03 (Phase 24A-2C.2C Mobile Service-Type Display-Label Planning)
+**Last Updated:** 2026-08-03 (Phase 24A-2C.2C Mobile Service-Type Display Labels)
 
 ---
 
@@ -102,14 +102,17 @@
   - Validation: 18 shared constants, 6 adapter checks, 13 focused web contracts, 24 focused MyPets, 20 phase1b3, 96 legacy, 147 Vitest across 13 files / 243 unique web, successful Vite build, 10 focused mobile contracts, 6 mobile suites / 42 tests, 0 TypeScript errors, and 16 focused backend tests with 0 failed and 0 skipped. Changed Phase 24A-2B.2B web files lint cleanly; full web lint remains 51 errors and 9 warnings in unrelated pre-existing files. These findings were not introduced, modified, or remediated by this phase. No mobile lint script is configured.
   - See: `docs/release-notes/phase-24a-2b2b-veterinarian-field-limits.md`
 
-- Phase 24A-2C.2: Cross-Platform Service-Type Contract Wiring (🔗 PARTIALLY COMPLETE LOCALLY / PHASE 24A-2C.2A COMPLETE / PHASE 24A-2C.2C PLANNING COMPLETE BUT IMPLEMENTATION NOT APPROVED / PHASES 24A-2C.2B AND 24A-2C.2D DEFERRED / NOT DEPLOYED OR DISTRIBUTED — 2026-08-03)
+- Phase 24A-2C.2: Cross-Platform Service-Type Contract Wiring (🔗 PARTIALLY COMPLETE LOCALLY / PHASE 24A-2C.2A COMPLETE / PHASE 24A-2C.2C LOCALLY IMPLEMENTED AND AWAITING REVIEW / PHASES 24A-2C.2B AND 24A-2C.2D DEFERRED / NOT BUILT, DEPLOYED, OR DISTRIBUTED — 2026-08-03)
   - Phase 24A-2C.2A imported the generated `SERVICE_TYPES` contract into `AdminDashboard.jsx`, replaced duplicated long/short label maps, and sourced the seven explicit selector text nodes from `labelLong` without changing values, order, membership, or the `PET_SITTING` default.
   - Focused behavioral coverage preserves canonical labels, long case-sensitive fallbacks, short case-normalized recognition/original-value fallback, search, raw export, dispatch output, and the exact raw new-visit payload.
   - Independent review confirmed the exact six-file candidate, bounded scope, label/fallback parity, and selector parity with no correction required. Validation: 18 shared constants, 6 adapter checks, 4 focused tests, 99 legacy, 151 Vitest across 14 files / 250 unique web, successful Vite build (`index-D7UoV5fJ.js`, `index-bVFIMo3n.css`), 6 mobile suites / 42 tests, 0 TypeScript errors, and 30 focused backend calendar tests. Phase 2C.2A introduced no lint findings; the new test is lint-clean, `AdminDashboard.jsx` retains its pre-existing 18 errors/5 warnings, and full web lint retains 51 errors/9 warnings in unrelated pre-existing code.
   - Noncanonical `DOG_WALKING`, `WALKING`, and `OTHER` may be stored because current frontend workflows can submit them and the backend has no canonical fixed allowlist. Their presence in production was not verified; no production-data inspection or migration occurred.
-  - Phase 2C.2A is locally validated and reviewed. Phase 2C.2C documentation planning is complete: a future shared mobile helper would intentionally replace the seven canonical uppercase displays with contract `label` values while preserving exact legacy fallback output for every noncanonical, unknown, case-variant, nullish, or blank value. The visible canonical changes require explicit Matthew approval; no mobile implementation, build, or distribution has started or is approved.
+  - Phase 2C.2A is locally validated and reviewed. With Matthew's explicit approval, Phase 2C.2C added one type-safe shared mobile display helper and migrated BookingsScreen, ScheduleScreen, RequestDetailScreen, and RequestCard. Exact canonical identifiers now use generated short `label` values; noncanonical, unknown, case-variant, nullish, and blank values preserve exact legacy output.
+  - Phase 2C.2C validation: 18 shared constants, 6 adapter checks, 23 focused helper tests, 8 focused owner tests, 8 complete mobile suites / 69 tests, and 0 TypeScript errors. All four render paths use the real helper; API inputs and raw navigation values remain unchanged. No mobile lint script is configured.
+  - Phase 2C.2C is locally implemented and awaiting independent re-review. No EAS build, APK/AAB/IPA generation, distribution, tester change, deployment, or production-data action occurred or is approved.
   - Selector/availability normalization (2C.2B) and duration/scheduling metadata (2C.2D) remain deferred and not approved.
   - See: `docs/planning/phase-24a-2c2c-mobile-service-label-wiring.md`
+  - See: `docs/release-notes/phase-24a-2c2c-mobile-service-labels.md`
   - See: `docs/release-notes/phase-24a-2c2a-web-admin-service-labels.md`
 
 ### Phase 24A Completion Boundaries
@@ -118,7 +121,7 @@
 - Latest completed locally validated shared-contract phase: **Phase 24A-2A**.
 - Completed Phase 24A-2B subphases: **Phase 24A-2B.1**, **Phase 24A-2B.2A**, and **Phase 24A-2B.2B**.
 - Phase 24A-2B overall: **LOCALLY VALIDATED AND REVIEWED / ALL PLANNED PHASE 24A-2B CUSTOMER PET FIELD AND VALIDATION WIRING COMPLETE / NOT DEPLOYED OR DISTRIBUTED**.
-- Phase 24A-2C.2 service-type work: **PARTIALLY COMPLETE LOCALLY / PHASE 24A-2C.2A COMPLETE / PHASE 24A-2C.2C PLANNING COMPLETE BUT IMPLEMENTATION NOT APPROVED / PHASES 24A-2C.2B AND 24A-2C.2D DEFERRED / NOT DEPLOYED OR DISTRIBUTED**. Phase 2C.2A is locally validated and reviewed. Phase 2C.2C has an implementation-ready documentation plan, but its intentional visible canonical-label changes require explicit Matthew approval; no source implementation has started. Phase 2C.2B and 2C.2D remain deferred and not approved.
+- Phase 24A-2C.2 service-type work: **PARTIALLY COMPLETE LOCALLY / PHASE 24A-2C.2A COMPLETE / PHASE 24A-2C.2C LOCALLY IMPLEMENTED AND AWAITING REVIEW / PHASES 24A-2C.2B AND 24A-2C.2D DEFERRED / NOT BUILT, DEPLOYED, OR DISTRIBUTED**. Phase 2C.2A is locally validated and reviewed. Phase 2C.2C completed the explicitly approved local implementation of intentional canonical mobile label improvements while preserving exact legacy fallback behavior; it awaits independent re-review. Phase 2C.2B and 2C.2D remain deferred and not approved.
 - Phase 24A-2C request-status wiring remains outside this implementation and has not started.
 - Separate deferred scopes: staff pet-contract work, mobile pet creation and editing, production deployment, mobile distribution, and Ryan testing.
 

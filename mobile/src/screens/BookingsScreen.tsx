@@ -14,9 +14,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getClientRequests } from '../api/client';
 import { COLORS } from '../theme/colors';
 import { PetRequest } from '../types';
-
-const formatServiceType = (service: string) =>
-  (service || '').split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+import { getServiceTypeLabel } from '../utils/serviceLabels';
 
 const formatDate = (dateStr: string) => {
   if (!dateStr) return '';
@@ -124,7 +122,7 @@ export const BookingsScreen = () => {
 
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Service:</Text>
-          <Text style={styles.detailValue}>{formatServiceType(item.service_type)}</Text>
+          <Text style={styles.detailValue}>{getServiceTypeLabel(item.service_type)}</Text>
         </View>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Date(s):</Text>

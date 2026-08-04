@@ -17,6 +17,7 @@ import { PetRequest } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
 import { COLORS } from '../theme/colors';
 import { ContentContainer } from '../components/ContentContainer';
+import { getServiceTypeLabel } from '../utils/serviceLabels';
 
 interface ExpandedVisit {
   request_id: string;
@@ -42,13 +43,6 @@ export const ScheduleScreen = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'today' | 'upcoming'>('today');
-
-  const formatServiceType = (service: string) => {
-    return (service || '')
-      .split('_')
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
-  };
 
   const formatDisplayDate = (dateStr: string) => {
     if (!dateStr) return '';
@@ -260,7 +254,7 @@ export const ScheduleScreen = () => {
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Service:</Text>
-              <Text style={styles.detailValue}>{formatServiceType(item.service_type)}</Text>
+              <Text style={styles.detailValue}>{getServiceTypeLabel(item.service_type)}</Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Window:</Text>

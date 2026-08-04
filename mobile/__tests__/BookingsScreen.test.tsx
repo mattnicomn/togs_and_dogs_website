@@ -54,7 +54,9 @@ describe('BookingsScreen', () => {
     await render(<BookingsScreen />);
     await waitFor(() => {
       expect(screen.getByText(/Buddy/)).toBeTruthy();
+      expect(screen.getByText('Pet Sitting')).toBeTruthy();
     });
+    expect(mockGetClientRequests).toHaveBeenCalledWith();
   });
 
   it('shows error state on API failure', async () => {

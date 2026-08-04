@@ -66,6 +66,7 @@
 | Phase 24A-2C.2 cross-platform service-type contract wiring plan | `docs/planning/phase-24a-2c2-service-type-contract-wiring.md` |
 | Phase 24A-2C.2A web admin service-type display labels | `docs/release-notes/phase-24a-2c2a-web-admin-service-labels.md` |
 | Phase 24A-2C.2C mobile service-type display-label wiring plan | `docs/planning/phase-24a-2c2c-mobile-service-label-wiring.md` |
+| Phase 24A-2C.2C mobile service-type display labels | `docs/release-notes/phase-24a-2c2c-mobile-service-labels.md` |
 
 
 

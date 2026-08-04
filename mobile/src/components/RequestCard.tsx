@@ -8,6 +8,7 @@ import { reviewRequest, assignWorker } from '../api/client';
 import { useAuth } from '../auth/useAuth';
 import { COLORS } from '../theme/colors';
 import { StaffPickerSheet } from './StaffPickerSheet';
+import { getServiceTypeLabel } from '../utils/serviceLabels';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -54,13 +55,6 @@ export const RequestCard: React.FC<RequestCardProps> = ({
   const toggleExpand = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded(!expanded);
-  };
-
-  const formatServiceType = (service: string) => {
-    return (service || '')
-      .split('_')
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
   };
 
   const formatDateRange = (dates: string[]) => {
@@ -175,7 +169,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
         <View style={styles.details}>
           <View style={styles.row}>
             <Text style={styles.label}>Service:</Text>
-            <Text style={styles.value}>{formatServiceType(request.service_type)}</Text>
+            <Text style={styles.value}>{getServiceTypeLabel(request.service_type)}</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Dates:</Text>
