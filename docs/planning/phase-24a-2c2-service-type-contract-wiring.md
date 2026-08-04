@@ -1,6 +1,6 @@
 # Phase 24A-2C.2 — Cross-Platform Service-Type Contract Wiring Plan
 
-**Status:** 📋 **PLANNING COMPLETE / IMPLEMENTATION NOT APPROVED**
+**Status:** 📋 **PLANNING COMPLETE / PARTIALLY IMPLEMENTED LOCALLY / REMAINING IMPLEMENTATION NOT APPROVED**
 
 **Planning Date:** 2026-08-03
 **Planning Checkpoint:** `40620cff8cd1cc18e338c62a8b9abd2e991b7f7b`
@@ -57,7 +57,7 @@ The generator already serializes the entire service contract into both adapters.
 | `AdminDashboard.jsx` — workflow classification (current line 295) | Local array classifies four identifiers as visit bookings when other metadata matches. | Excluded; classification is behavior, not display-label wiring. |
 | `AdminDashboard.jsx` — raw request backup export (current line 2110) | Writes raw `service_type` to the requests worksheet. | Excluded; preserve raw export value. |
 | `web/src/components/MasterScheduler.jsx` | Static four-option service filter uses local abbreviations (`30m Walk`, `1hr Drop-in`, `3hr Drop-in`, `Overnight`) and renders other service fields raw. | Keep local and unchanged in 2C.2A. Abbreviations are context-specific. |
-| `web/src/components/IntakeForm.jsx` | Default `PET_SITTING`; static options `PET_SITTING`, `DOG_WALKING`, `OVERNIGHT`; submits `formData.service_type` unchanged. | Deferred to 2C.2B. `DOG_WALKING` is noncanonical. |
+| `web/src/components/IntakeForm.jsx` | Phase 2C.2B.2A now derives six canonical options from generated `SERVICE_TYPES` where `availableInIntake === true`, keeps contract order and the `PET_SITTING` default, and submits `formData.service_type` unchanged. | Locally implemented and awaiting independent re-review; legacy `DOG_WALKING` remains read-compatible and unmapped. |
 | `web/src/components/CareCard.jsx` | Static options `PET_SITTING`, `WALKING`, `OVERNIGHT`, `OTHER`; saves the selected raw value through the existing update path and displays raw stored values. | Deferred to 2C.2B. `WALKING` and `OTHER` are noncanonical. |
 | `web/src/components/ClientPortal.jsx` | Generic underscore replacement; blank-like values display `Pet Care Visit`. | Deferred; no 2C.2A change. |
 
@@ -109,7 +109,7 @@ The selector order is intentionally different from canonical JSON object order. 
 
 ## 5. Noncanonical Identifier Findings
 
-- `IntakeForm.jsx` can submit `DOG_WALKING`.
+- At this plan's original checkpoint, `IntakeForm.jsx` could submit `DOG_WALKING`; Phase 2C.2B.2A subsequently stopped new customer-intake emission without mapping legacy values.
 - `CareCard.jsx` can submit `WALKING` and `OTHER`.
 - The intake backend stores the supplied value without a canonical fixed allowlist.
 - Job creation propagates the stored value unchanged.
@@ -155,7 +155,7 @@ Phase 24A-2C.2A must not import duration metadata, change `scheduled_duration`, 
 `availableInIntake` is contract metadata, not an authorization to alter existing selectors:
 
 - `MEET_GREET` is `false` but is present in the AdminDashboard New Visit selector.
-- The public `IntakeForm` includes `PET_SITTING`, `DOG_WALKING`, and `OVERNIGHT` rather than the canonical available-in-intake set.
+- The public `IntakeForm` now includes the six canonical `availableInIntake: true` services in contract order after the separately approved Phase 2C.2B.2A implementation.
 - The CareCard selector has a different membership again.
 
 ### Static label sourcing — eligible for 2C.2A
@@ -205,9 +205,9 @@ Explicit 2C.2A exclusions:
 
 ### Phase 24A-2C.2B — Selector Membership and Availability Normalization
 
-**Status:** `PLANNING COMPLETE / IMPLEMENTATION NOT APPROVED`.
+**Status:** `PLANNING COMPLETE / PARTIALLY IMPLEMENTED LOCALLY / REMAINING IMPLEMENTATION NOT APPROVED`.
 
-**Current reconciliation (2026-08-03):** Documentation-only planning subsequently completed in `docs/planning/phase-24a-2c2b-selector-normalization-design.md`. Implementation, production-data assessment, aliases, normalization, backend enforcement, migration, and deployment remain not approved.
+**Current reconciliation (2026-08-04):** Documentation-only planning completed in `docs/planning/phase-24a-2c2b-selector-normalization-design.md`. Phase 24A-2C.2B.2A subsequently implemented only the approved customer IntakeForm canonical membership and is awaiting independent re-review. CareCard cleanup, display compatibility, backend policy, production-data assessment, aliases, normalization, migration, and deployment remain not approved or deferred.
 
 This phase must separately decide how to handle `DOG_WALKING`, `WALKING`, `OTHER`, canonical `availableInIntake`, current selector memberships/orders, legacy-value display, future backend validation, and possible data normalization. It must not presume that a production migration is needed.
 
@@ -294,7 +294,7 @@ No backend command should be added merely for symmetry. Report the existing full
 |---|---|
 | Phase 24A-2C.2 documentation planning | `APPROVED FOR DOCUMENTATION ONLY` |
 | Phase 24A-2C.2A implementation | `ROADMAP_ONLY_NO_EXPLICIT_APPROVAL` |
-| Phase 24A-2C.2B | `DOCUMENTATION PLANNING COMPLETE / IMPLEMENTATION NOT APPROVED` |
+| Phase 24A-2C.2B | `PLANNING COMPLETE / 2B.2A PARTIALLY IMPLEMENTED LOCALLY / REMAINING IMPLEMENTATION NOT APPROVED` |
 | Phase 24A-2C.2C | `NOT APPROVED` |
 | Phase 24A-2C.2D | `NOT APPROVED` |
 | Production deployment | `NOT APPROVED` |
@@ -333,4 +333,4 @@ This planning phase does not authorize or perform application source changes, te
 
 ---
 
-**PLANNING COMPLETE / PHASE 24A-2C.2 IMPLEMENTATION NOT APPROVED**
+**PLANNING COMPLETE / PHASE 24A-2C.2 PARTIALLY IMPLEMENTED LOCALLY / REMAINING IMPLEMENTATION NOT APPROVED**

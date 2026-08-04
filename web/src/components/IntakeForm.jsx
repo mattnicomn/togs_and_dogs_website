@@ -3,8 +3,12 @@ import { Link } from 'react-router-dom';
 import { submitRequest, submitClientRequest, getStaffOptions } from '../api/client';
 import { getSession, getEffectiveRole } from '../api/auth';
 import { TERMS_VERSION, PRIVACY_VERSION } from '../constants/policy';
+import { SERVICE_TYPES } from '../generated/contracts';
 import DatePickerGrid from './DatePickerGrid';
 import './IntakeForm.css';
+
+const intakeServiceTypes = Object.entries(SERVICE_TYPES.services)
+  .filter(([, service]) => service.availableInIntake === true);
 
 const IntakeForm = () => {
   const [step, setStep] = useState(1);
@@ -291,9 +295,9 @@ const IntakeForm = () => {
                       if (validationErrors.service_type) setValidationErrors(prev => ({ ...prev, service_type: null }));
                     }}
                   >
-                    <option value="PET_SITTING">Pet Sitting (Check-ins)</option>
-                    <option value="DOG_WALKING">Daily Dog Walking</option>
-                    <option value="OVERNIGHT">Overnight Care</option>
+                    {intakeServiceTypes.map(([identifier, service]) => (
+                      <option key={identifier} value={identifier}>{service.labelLong}</option>
+                    ))}
                   </select>
                   {validationErrors.service_type && <span className="error-text" style={{ color: 'var(--accent-red, #f44336)', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>{validationErrors.service_type}</span>}
                 </div>
