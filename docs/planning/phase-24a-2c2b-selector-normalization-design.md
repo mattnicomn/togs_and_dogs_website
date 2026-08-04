@@ -1,6 +1,6 @@
 # Phase 24A-2C.2B — Selector Membership and Noncanonical Service-Type Compatibility Design
 
-**Status:** **PLANNING COMPLETE / PARTIALLY IMPLEMENTED LOCALLY / REMAINING IMPLEMENTATION NOT APPROVED / PRODUCTION PRESENCE OF NONCANONICAL IDENTIFIERS UNVERIFIED**
+**Status:** **PARTIALLY IMPLEMENTED LOCALLY / PLANNING COMPLETE / CUSTOMER INTAKE CANONICAL SELECTION COMPLETE / OTHER SUBPHASES DEFERRED / NOT DEPLOYED / PRODUCTION PRESENCE OF NONCANONICAL IDENTIFIERS UNVERIFIED**
 
 **Planning date:** 2026-08-03
 **Planning checkpoint:** `ca477be3b79f54466b99339a932e66c218583f55`
@@ -19,7 +19,7 @@ This plan does not decide that every selector should have identical membership. 
 - Phase 24A-2C.2A is locally validated and reviewed. AdminDashboard display labels use generated contract values while retaining its exact selector, payload, search, export, and fallback behavior.
 - Phase 24A-2C.2C is locally validated and reviewed. Four mobile display paths use one type-safe helper for exact canonical keys and preserve the exact legacy fallback for every other value.
 - Phase 24A-2C.2 remains partially complete locally.
-- Phase 24A-2C.2B.2A subsequently implemented only the approved customer IntakeForm membership: the six canonical `availableInIntake: true` identifiers in contract order, with contract `labelLong` labels and the existing `PET_SITTING` default. It is local, not deployed, and awaiting independent re-review.
+- Phase 24A-2C.2B.2A subsequently implemented only the approved customer IntakeForm membership: the six canonical `availableInIntake: true` identifiers in contract order, with contract `labelLong` labels and the existing `PET_SITTING` default. It is locally validated and reviewed, complete locally, and not deployed.
 - Remaining selector/filter changes, CareCard cleanup, aliases, normalization, backend enforcement, production-data assessment, migration, deployment, and distribution are not approved.
 - Phase 24A-2C.2D duration/scheduling metadata and Phase 24A-2C.1 request-status wiring remain deferred and were not started.
 - The latest completed validated production release remains Phase 1B.5C-D.2. No Phase 24A work described here has been deployed or distributed.
@@ -393,4 +393,4 @@ Do not approve backend enforcement, production assessment, or migration until th
 
 ---
 
-**Final phase status:** **PLANNING COMPLETE / PARTIALLY IMPLEMENTED LOCALLY / REMAINING IMPLEMENTATION NOT APPROVED / PRODUCTION PRESENCE OF NONCANONICAL IDENTIFIERS UNVERIFIED**
+**Final phase status:** **PARTIALLY IMPLEMENTED LOCALLY / PLANNING COMPLETE / CUSTOMER INTAKE CANONICAL SELECTION COMPLETE / OTHER SUBPHASES DEFERRED / NOT DEPLOYED / PRODUCTION PRESENCE OF NONCANONICAL IDENTIFIERS UNVERIFIED**

@@ -1,6 +1,6 @@
 # Phase 24A-2C.2 — Cross-Platform Service-Type Contract Wiring Plan
 
-**Status:** 📋 **PLANNING COMPLETE / PARTIALLY IMPLEMENTED LOCALLY / REMAINING IMPLEMENTATION NOT APPROVED**
+**Status:** 📋 **PARTIALLY COMPLETE LOCALLY / PHASE 24A-2C.2A COMPLETE / PHASE 24A-2C.2B PARTIALLY IMPLEMENTED / PHASE 24A-2C.2C COMPLETE / PHASE 24A-2C.2D DEFERRED / NOT DEPLOYED OR DISTRIBUTED**
 
 **Planning Date:** 2026-08-03
 **Planning Checkpoint:** `40620cff8cd1cc18e338c62a8b9abd2e991b7f7b`
@@ -12,9 +12,9 @@
 
 Phase 24A-2 created the canonical `shared/constants/service-types.json` reference contract. Phase 24A-2A generated `SERVICE_TYPES` into the existing web and mobile adapters but deliberately did not wire service identifiers, labels, selectors, durations, or availability into application behavior.
 
-Phase 24A-2B is complete locally and independently reviewed. Phase 24A-2C has not entered implementation. This document plans only Phase 24A-2C.2 service-type wiring and separates behavior-preserving label sourcing from higher-risk membership, mobile, duration, backend, and data-normalization decisions.
+Phase 24A-2B is complete locally and independently reviewed. At this plan's original checkpoint, Phase 24A-2C had not entered implementation. This document plans only Phase 24A-2C.2 service-type wiring and separates behavior-preserving label sourcing from higher-risk membership, mobile, duration, backend, and data-normalization decisions.
 
-The recommended first implementation is Phase 24A-2C.2A: a bounded AdminDashboard-only display-label substitution that preserves every identifier, option, payload, fallback, and backend behavior.
+The original recommended first implementation was Phase 24A-2C.2A: a bounded AdminDashboard-only display-label substitution that preserves every identifier, option, payload, fallback, and backend behavior.
 
 ## 2. Current Canonical `SERVICE_TYPES` Inventory
 
@@ -57,7 +57,7 @@ The generator already serializes the entire service contract into both adapters.
 | `AdminDashboard.jsx` — workflow classification (current line 295) | Local array classifies four identifiers as visit bookings when other metadata matches. | Excluded; classification is behavior, not display-label wiring. |
 | `AdminDashboard.jsx` — raw request backup export (current line 2110) | Writes raw `service_type` to the requests worksheet. | Excluded; preserve raw export value. |
 | `web/src/components/MasterScheduler.jsx` | Static four-option service filter uses local abbreviations (`30m Walk`, `1hr Drop-in`, `3hr Drop-in`, `Overnight`) and renders other service fields raw. | Keep local and unchanged in 2C.2A. Abbreviations are context-specific. |
-| `web/src/components/IntakeForm.jsx` | Phase 2C.2B.2A now derives six canonical options from generated `SERVICE_TYPES` where `availableInIntake === true`, keeps contract order and the `PET_SITTING` default, and submits `formData.service_type` unchanged. | Locally implemented and awaiting independent re-review; legacy `DOG_WALKING` remains read-compatible and unmapped. |
+| `web/src/components/IntakeForm.jsx` | Phase 2C.2B.2A now derives six canonical options from generated `SERVICE_TYPES` where `availableInIntake === true`, keeps contract order and the `PET_SITTING` default, and submits `formData.service_type` unchanged. | Locally validated and reviewed, complete locally, and not deployed; legacy `DOG_WALKING` remains read-compatible and unmapped. |
 | `web/src/components/CareCard.jsx` | Static options `PET_SITTING`, `WALKING`, `OVERNIGHT`, `OTHER`; saves the selected raw value through the existing update path and displays raw stored values. | Deferred to 2C.2B. `WALKING` and `OTHER` are noncanonical. |
 | `web/src/components/ClientPortal.jsx` | Generic underscore replacement; blank-like values display `Pet Care Visit`. | Deferred; no 2C.2A change. |
 
@@ -205,9 +205,9 @@ Explicit 2C.2A exclusions:
 
 ### Phase 24A-2C.2B — Selector Membership and Availability Normalization
 
-**Status:** `PLANNING COMPLETE / PARTIALLY IMPLEMENTED LOCALLY / REMAINING IMPLEMENTATION NOT APPROVED`.
+**Status:** `PARTIALLY IMPLEMENTED LOCALLY / PLANNING COMPLETE / CUSTOMER INTAKE CANONICAL SELECTION COMPLETE / OTHER SUBPHASES DEFERRED / NOT DEPLOYED`.
 
-**Current reconciliation (2026-08-04):** Documentation-only planning completed in `docs/planning/phase-24a-2c2b-selector-normalization-design.md`. Phase 24A-2C.2B.2A subsequently implemented only the approved customer IntakeForm canonical membership and is awaiting independent re-review. CareCard cleanup, display compatibility, backend policy, production-data assessment, aliases, normalization, migration, and deployment remain not approved or deferred.
+**Current reconciliation (2026-08-04):** Documentation-only planning completed in `docs/planning/phase-24a-2c2b-selector-normalization-design.md`. Phase 24A-2C.2B.2A subsequently implemented only the approved customer IntakeForm canonical membership and is locally validated and reviewed. CareCard cleanup, friendly display compatibility for legacy identifiers, additional selector membership decisions, backend accepted-identifier policy, backend allowlisting or normalization, production-data assessment, aliases, migration or deprecation, and deployment remain not approved or deferred.
 
 This phase must separately decide how to handle `DOG_WALKING`, `WALKING`, `OTHER`, canonical `availableInIntake`, current selector memberships/orders, legacy-value display, future backend validation, and possible data normalization. It must not presume that a production migration is needed.
 
@@ -288,20 +288,20 @@ python -m pytest tests/backend/test_r7d_calendar_hardening.py tests/backend/test
 
 No backend command should be added merely for symmetry. Report the existing full-web lint baseline separately and do not remediate unrelated findings.
 
-## 13. Approval Gates
+## 13. Current Approval and Completion Gates
 
 | Scope | Classification |
 |---|---|
 | Phase 24A-2C.2 documentation planning | `APPROVED FOR DOCUMENTATION ONLY` |
-| Phase 24A-2C.2A implementation | `ROADMAP_ONLY_NO_EXPLICIT_APPROVAL` |
-| Phase 24A-2C.2B | `PLANNING COMPLETE / 2B.2A PARTIALLY IMPLEMENTED LOCALLY / REMAINING IMPLEMENTATION NOT APPROVED` |
-| Phase 24A-2C.2C | `NOT APPROVED` |
+| Phase 24A-2C.2A implementation | `LOCALLY VALIDATED AND REVIEWED / NOT DEPLOYED` |
+| Phase 24A-2C.2B | `PARTIALLY IMPLEMENTED LOCALLY / PLANNING COMPLETE / 2B.2A CUSTOMER INTAKE CANONICAL SELECTION LOCALLY VALIDATED AND REVIEWED / OTHER SUBPHASES DEFERRED / NOT DEPLOYED` |
+| Phase 24A-2C.2C | `LOCALLY VALIDATED AND REVIEWED / NOT BUILT OR DISTRIBUTED` |
 | Phase 24A-2C.2D | `NOT APPROVED` |
 | Production deployment | `NOT APPROVED` |
 | Mobile build or distribution | `NOT APPROVED` |
 | Production-data inspection or migration | `NOT APPROVED` |
 
-Implementation must begin from a separately verified clean checkpoint and only after Matthew gives explicit approval for the selected subphase.
+Any remaining implementation must begin from a separately verified clean checkpoint and only after Matthew gives explicit approval for the selected subphase.
 
 ## 14. Risk and Rollback Boundaries
 
@@ -322,8 +322,7 @@ Higher-risk deferred areas are selector membership, availability filtering, back
 Deferred work:
 
 - request-status planning/wiring outside this service-type plan;
-- 2C.2B selector/availability/noncanonical normalization decisions;
-- 2C.2C mobile label wiring;
+- remaining 2C.2B selector, availability, display-compatibility, backend-policy, and noncanonical normalization decisions beyond completed 2B.2A;
 - 2C.2D duration/calendar metadata centralization;
 - staff/mobile feature changes unrelated to label display;
 - production inspection or migration design;
@@ -333,4 +332,4 @@ This planning phase does not authorize or perform application source changes, te
 
 ---
 
-**PLANNING COMPLETE / PHASE 24A-2C.2 PARTIALLY IMPLEMENTED LOCALLY / REMAINING IMPLEMENTATION NOT APPROVED**
+**PARTIALLY COMPLETE LOCALLY / PHASE 24A-2C.2A COMPLETE / PHASE 24A-2C.2B PARTIALLY IMPLEMENTED / PHASE 24A-2C.2C COMPLETE / PHASE 24A-2C.2D DEFERRED / NOT DEPLOYED OR DISTRIBUTED**

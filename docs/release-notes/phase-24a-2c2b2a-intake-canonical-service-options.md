@@ -1,9 +1,11 @@
 # Phase 24A-2C.2B.2A — Customer Intake Canonical Service Selection
 
-**Status:** **LOCAL IMPLEMENTATION COMPLETE / CUSTOMER INTAKE EMITS SIX CANONICAL AVAILABLE-IN-INTAKE SERVICE TYPES / LEGACY IDENTIFIERS REMAIN READ-COMPATIBLE / NOT DEPLOYED / AWAITING INDEPENDENT RE-REVIEW**
+**Status:** **LOCALLY VALIDATED AND REVIEWED / CUSTOMER INTAKE EMITS SIX CANONICAL AVAILABLE-IN-INTAKE SERVICE TYPES / LEGACY IDENTIFIERS REMAIN READ-COMPATIBLE / NOT DEPLOYED**
 
 **Implementation date:** 2026-08-04
+**Independent validation and closeout date:** 2026-08-04
 **Starting checkpoint:** `14cb6ec1519733b36a88e1dfc12b20be6c997531`
+**Validated implementation checkpoint:** `a9920e868159d509e2facb533dce06e9f0b56d2e`
 
 ## Authorization and business policy
 
@@ -45,10 +47,9 @@ The implementation imports generated `SERVICE_TYPES` from `../generated/contract
 
 ## Preserved behavior
 
-- The initial/default `service_type` remains `PET_SITTING`; no placeholder or implicit default was invented.
-- The selected canonical identifier remains the exact raw `service_type` placed in the existing payload spread.
+- The controlled initial/default `service_type` and reset behavior remain `PET_SITTING`; no placeholder or implicit default was invented.
+- The selected canonical identifier remains the exact raw `service_type` placed in the existing payload spread, with no mapping, aliasing, trimming, or normalization.
 - Focused tests prove unchanged submission for `WALK_30MIN`, `WALK_60MIN`, `DROPIN_3HR`, and authenticated-client `OVERNIGHT`.
-- No mapping or normalization function was added.
 - Public and authenticated-client API endpoints, authentication branching, request structure, consent metadata, non-service fields, loading, success, error, and retry behavior remain unchanged.
 - Required-service validation still rejects an empty selection.
 - Styles and accessibility structure remain unchanged.
@@ -67,7 +68,7 @@ The implementation imports generated `SERVICE_TYPES` from `../generated/contract
 - authenticated-client endpoint and payload behavior;
 - loading, error, and retry behavior without any real API call.
 
-Pre-change characterization passed 5/5 before the source modification. Post-change focused coverage passes 7/7.
+Pre-change characterization passed 5/5 before the source modification. Independent post-change review confirmed focused coverage passes 7/7.
 
 ## Validation results
 
@@ -86,7 +87,9 @@ Pre-change characterization passed 5/5 before the source modification. Post-chan
 | Complete web lint | 51 errors, 9 warnings; exact known pre-change baseline |
 | Candidate-introduced lint | 0 errors, 0 warnings |
 
-The complete Vitest run emitted one jsdom `Not implemented: navigation to another Document` message not reproduced by the focused suite. The build retained the existing Vite deprecated-option and large-chunk warnings. All test/build commands exited without open-handle or asynchronous-leak findings.
+The complete Vitest run emitted the existing jsdom `Not implemented: navigation to another Document` notice, which was not reproduced by the focused suite. The build retained the existing Vite `optimizeDeps` deprecation notice and large-chunk warning. All test/build commands exited without open-handle or asynchronous-leak findings.
+
+Independent review confirmed the exact expected eight-file implementation candidate, including the bounded IntakeForm source and focused test changes plus their six documentation records. It verified the contract-derived membership, labels, order, default/reset parity, unchanged payload and API behavior, and all validation evidence above; no documentation or implementation correction was required.
 
 No existing bounded backend test proves all six identifiers in one request-creation matrix, and no backend source changed: `NO_BACKEND_REGRESSION_REQUIRED_FOR_FRONTEND_SELECTOR_ONLY_SCOPE`.
 
@@ -105,11 +108,12 @@ No stored record was modified. No production API/data inspection, migration, dep
 Phase 24A-2C.2B is only partially implemented:
 
 - planning: complete;
-- 2B.2A customer IntakeForm canonical selection: locally implemented, awaiting independent review;
+- 2B.2A customer IntakeForm canonical selection: locally validated and reviewed, complete locally, and not deployed;
 - CareCard cleanup: not approved;
 - display compatibility: deferred;
-- backend accepted-identifier policy: deferred;
+- additional selector membership decisions: deferred;
+- backend accepted-identifier policy, allowlisting, and normalization: deferred;
 - production assessment: not approved;
 - migration/deprecation: not approved.
 
-**Final status:** **LOCAL IMPLEMENTATION COMPLETE / CUSTOMER INTAKE EMITS SIX CANONICAL AVAILABLE-IN-INTAKE SERVICE TYPES / LEGACY IDENTIFIERS REMAIN READ-COMPATIBLE / NOT DEPLOYED / AWAITING INDEPENDENT RE-REVIEW**
+**Final status:** **LOCALLY VALIDATED AND REVIEWED / CUSTOMER INTAKE EMITS SIX CANONICAL AVAILABLE-IN-INTAKE SERVICE TYPES / LEGACY IDENTIFIERS REMAIN READ-COMPATIBLE / NOT DEPLOYED**
