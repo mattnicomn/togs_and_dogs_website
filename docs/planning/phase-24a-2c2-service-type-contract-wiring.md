@@ -1,10 +1,10 @@
 # Phase 24A-2C.2 — Cross-Platform Service-Type Contract Wiring Plan
 
-**Status:** 📋 **PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D.1 COMPLETE / 2C.2D.2–2C.2D.4 DEFERRED / NOT DEPLOYED OR DISTRIBUTED**
+**Status:** 📋 **PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D.1 COMPLETE / 2C.2D.2 COMPLETE / 2C.2D.3–2C.2D.4 DEFERRED / NOT DEPLOYED OR DISTRIBUTED**
 
 **Planning Date:** 2026-08-03
 **Planning Checkpoint:** `40620cff8cd1cc18e338c62a8b9abd2e991b7f7b`
-**Authorization:** Matthew originally approved documentation-only planning, then separately approved bounded local implementations for 2C.2A, the approved 2C.2B frontend slices, 2C.2C, and the validation-only 2C.2D.1 candidate. Phase 2C.2D.1 is locally validated and independently reviewed; Kiro returned `READY_FOR_PHASE_24A_2C_2D_1_DOCUMENTATION_AND_LOCAL_CLOSEOUT`. Runtime duration/friendly-name wiring, generated backend metadata, optional color metadata, production-data inspection, deployment, mobile build, and distribution remain unapproved.
+**Authorization:** Matthew originally approved documentation-only planning, then separately approved bounded local implementations for 2C.2A, the approved 2C.2B frontend slices, 2C.2C, the validation-only 2C.2D.1 candidate, and the no-runtime-consumption 2C.2D.2 generated backend metadata candidate. Phases 2C.2D.1 and 2C.2D.2 are locally validated and independently reviewed; Kiro returned `READY_FOR_PHASE_24A_2C_2D_2_DOCUMENTATION_AND_LOCAL_CLOSEOUT` for the exact four-file 2D.2 candidate. Runtime duration/friendly-name wiring, optional color metadata, production-data inspection, deployment, mobile build, and distribution remain unapproved.
 
 ---
 
@@ -18,7 +18,7 @@ The original recommended first implementation was Phase 24A-2C.2A: a bounded Adm
 
 ## 2. Current Canonical `SERVICE_TYPES` Inventory
 
-Canonical source: `shared/constants/service-types.json`. Generated copies already exist in `web/src/generated/contracts.js` and `mobile/src/contracts/generatedContracts.ts`.
+Canonical source: `shared/constants/service-types.json`. Deterministic generated copies now exist in `web/src/generated/contracts.js`, `mobile/src/contracts/generatedContracts.ts`, and the no-runtime-consumption backend module `src/backend/common/generated_service_types.py`.
 
 | Identifier | `label` | `labelLong` | `durationMinutes` | `availableInIntake` | `supportedOnMobile` |
 |---|---|---|---:|---|---|
@@ -223,7 +223,7 @@ The four former `formatServiceType` owners now use one type-safe helper with gen
 
 ### Phase 24A-2C.2D — Duration and Scheduling Metadata
 
-**Status:** `PARTIALLY COMPLETE / 2D.1 LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / 2D.2–2D.4 DEFERRED AND UNAPPROVED / NOT DEPLOYED`.
+**Status:** `PARTIALLY COMPLETE / 2D.1 LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / 2D.2 LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED WITH NO RUNTIME CONSUMPTION / 2D.3–2D.4 DEFERRED AND UNAPPROVED / NOT DEPLOYED`.
 
 Phase 2D.1 is validation and parity hardening only. It strengthens canonical service metadata checks, proves complete ordered equality among canonical/web/mobile `SERVICE_TYPES`, and adds 48 focused backend tests against real canonical JSON and real `_build_event_body()` behavior using synthetic records without Google API calls. It changes no runtime behavior.
 
@@ -231,9 +231,12 @@ Exact canonical duration and short-label parity is now characterized as `WALK_30
 
 Kiro independently verified the exact three-file candidate and reproduced 18 shared constant checks, 7 adapter checks, 48 focused parity tests, and 100 combined affected backend tests. It returned `READY_FOR_PHASE_24A_2C_2D_1_DOCUMENTATION_AND_LOCAL_CLOSEOUT`; no blocking correction was identified.
 
+Phase 2D.2 extends the existing generator to emit `src/backend/common/generated_service_types.py` from the cleaned canonical `SERVICE_TYPES` root while leaving web and mobile output byte-identical. The generated module contains only header comments and one plain-dictionary `SERVICE_TYPES` assignment with exact canonical identifiers, order, camelCase fields, strings, positive integers, and booleans. It has no imports, functions, helpers, derived maps, aliases, normalization, or side effects, and no runtime backend source imports it.
+
+Adapter validation now safely extracts the Python literal through a standard-library subprocess using `ast.parse`, a strict direct-assignment check, `ast.literal_eval`, and JSON serialization without `eval`, arbitrary execution, or generated-module import. Complete equality, membership, order, fields, values, and types are proved across canonical, web, mobile, and backend targets. Deterministic zero-diff validation covers all three generated outputs. Three focused backend tests prove real import, canonical equality/order/types, module location, and the absence of static or literal dynamic runtime consumers. Kiro reproduced 18 shared constant checks, 8 adapter checks, deterministic three-target generation, web/mobile byte parity, and 103 combined affected backend tests, then returned `READY_FOR_PHASE_24A_2C_2D_2_DOCUMENTATION_AND_LOCAL_CLOSEOUT` with no blocking correction.
+
 Remaining subphases require separate approval:
 
-- **2D.2:** deterministic generated backend service metadata adapter;
 - **2D.3:** calendar runtime duration and friendly-name wiring;
 - **2D.4:** optional calendar color metadata.
 
@@ -311,7 +314,8 @@ No backend command should be added merely for symmetry. Report the existing full
 | Phase 24A-2C.2B | `LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / BACKEND POLICY, PRODUCTION ASSESSMENT, AND MIGRATION DEFERRED / NOT DEPLOYED` |
 | Phase 24A-2C.2C | `LOCALLY VALIDATED AND REVIEWED / NOT BUILT OR DISTRIBUTED` |
 | Phase 24A-2C.2D.1 | `LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / PARITY AND VALIDATOR HARDENING COMPLETE / NO RUNTIME BEHAVIOR CHANGE / NOT DEPLOYED` |
-| Phase 24A-2C.2D.2–2D.4 | `DEFERRED / NOT APPROVED` |
+| Phase 24A-2C.2D.2 | `LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / GENERATED BACKEND SERVICE-METADATA ADAPTER COMPLETE / NO RUNTIME CONSUMPTION / NOT DEPLOYED` |
+| Phase 24A-2C.2D.3–2D.4 | `DEFERRED / NOT APPROVED` |
 | Production deployment | `NOT APPROVED` |
 | Mobile build or distribution | `NOT APPROVED` |
 | Production-data inspection or migration | `NOT APPROVED` |
@@ -344,7 +348,6 @@ Deferred work:
 
 - request-status planning/wiring outside this service-type plan;
 - backend accepted-identifier policy, legacy normalization, production assessment, migration/deprecation, scheduler-specific contract metadata, and additional product/service availability decisions beyond the locally completed approved 2C.2B frontend scope;
-- 2C.2D.2 deterministic generated backend service metadata adapter;
 - 2C.2D.3 calendar runtime duration and friendly-name wiring;
 - 2C.2D.4 optional calendar color metadata;
 - backend identifier policy, production assessment, legacy normalization, migration/deprecation, deployment review, and existing-event resynchronization;
@@ -356,4 +359,4 @@ This planning phase does not authorize or perform application source changes, te
 
 ---
 
-**PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D.1 COMPLETE / 2C.2D.2–2C.2D.4 DEFERRED / NOT DEPLOYED OR DISTRIBUTED**
+**PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D.1 COMPLETE / 2C.2D.2 COMPLETE / 2C.2D.3–2C.2D.4 DEFERRED / NOT DEPLOYED OR DISTRIBUTED**

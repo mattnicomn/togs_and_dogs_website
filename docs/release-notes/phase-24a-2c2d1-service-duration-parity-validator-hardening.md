@@ -209,9 +209,10 @@ Phase 2D.1 local closeout does not authorize staging, commit, push, deployment, 
 
 Phase 24A-2C.2 remains partially complete locally. Phase 2D overall is not complete.
 
-## 16. Remaining deferred work
+## 16. Subsequent and remaining deferred work
 
-- **2D.2:** deterministic generated backend service metadata adapter;
+Phase 2D.2 subsequently completed its deterministic generated backend service metadata adapter locally, with independent review, no runtime consumption, and no deployment. See `docs/release-notes/phase-24a-2c2d2-generated-backend-service-metadata-adapter.md`.
+
 - **2D.3:** calendar runtime duration and friendly-name wiring;
 - **2D.4:** optional calendar color metadata;
 - backend service-identifier acceptance policy;
@@ -225,6 +226,6 @@ Each item requires separate planning, validation, risk/rollback review, and expl
 
 ## 17. Final status
 
-**PHASE 24A-2C.2D.1 LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / DOCUMENTATION PREPARED / AWAITING COMMIT DECISION / NO RUNTIME BEHAVIOR CHANGE / NOT DEPLOYED**
+**PHASE 24A-2C.2D.1 LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / COMMITTED AND PUSHED AT `0b066339c6c208dba09458572bc666c9676e1951` / NO RUNTIME BEHAVIOR CHANGE / NOT DEPLOYED**
 
-**Phase 24A-2C.2:** **PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D.1 COMPLETE / 2C.2D.2–2C.2D.4 DEFERRED / NOT DEPLOYED OR DISTRIBUTED**
+**Phase 24A-2C.2:** **PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D.1 COMPLETE / 2C.2D.2 COMPLETE / 2C.2D.3–2C.2D.4 DEFERRED / NOT DEPLOYED OR DISTRIBUTED**
