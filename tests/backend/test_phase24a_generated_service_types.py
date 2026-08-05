@@ -91,13 +91,86 @@ def _targeted_imports(path):
     return findings
 
 
-def test_no_backend_runtime_source_consumes_generated_service_types():
-    violations = []
+def test_exactly_one_approved_backend_runtime_consumer_of_generated_service_types():
+    approved_path = (BACKEND_DIR / "common" / "google_calendar.py").resolve()
+    consumers = []
 
     for path in sorted(BACKEND_DIR.rglob("*.py")):
         if path.resolve() == GENERATED_MODULE_PATH.resolve():
             continue
-        for line_number, statement in _targeted_imports(path):
-            violations.append(f"{path.relative_to(ROOT_DIR)}:{line_number}: {statement}")
+        findings = _targeted_imports(path)
+        if findings:
+            for line_number, statement in findings:
+                consumers.append((path.resolve(), line_number, statement))
 
-    assert violations == [], "Generated service metadata has runtime consumers:\n" + "\n".join(violations)
+    assert len(consumers) == 1, (
+        f"Expected exactly one approved runtime consumer of generated service types, found {len(consumers)}:\n"
+        + "\n".join(f"{p}:{l}: {s}" for p, l, s in consumers)
+    )
+
+    consumer_path, line_number, statement = consumers[0]
+    assert consumer_path == approved_path, (
+        f"Approved consumer must be {approved_path}, but found consumer in {consumer_path}:{line_number}"
+    )
+    assert statement == "from common.generated_service_types import ..."
+
+
+def test_google_calendar_wiring_matches_generated_service_types():
+    import common.google_calendar as google_calendar
+
+    assert google_calendar.SERVICE_METADATA is SERVICE_TYPES["services"]
+    assert google_calendar.SERVICE_DURATIONS == {
+        service_type: metadata["durationMinutes"]
+        for service_type, metadata in SERVICE_TYPES["services"].items()
+    }
+    assert google_calendar.FRIENDLY_SERVICE_NAMES == {
+        service_type: metadata["label"]
+        for service_type, metadata in SERVICE_TYPES["services"].items()
+    }
+    assert google_calendar.SERVICE_COLORS == {
+        "WALK_30MIN": "9",
+        "WALK_60MIN": "9",
+        "DROPIN_1HR": "7",
+        "DROPIN_3HR": "7",
+        "OVERNIGHT": "6",
+        "PET_SITTING": "10",
+        "MEET_GREET": "3",
+    }
+
+
+def test_unknown_service_uses_fallback_color_eight_in_google_calendar():
+    from common.google_calendar import _build_event_body
+
+    item = {
+        "request_id": "test-unknown-color",
+        "client_name": "Test Client",
+        "pet_names": "Buddy",
+        "start_date": "2030-01-15",
+        "scheduled_time": "09:00",
+        "service_type": "UNKNOWN_SERVICE",
+    }
+    body, skip_reason = _build_event_body(item)
+    assert skip_reason is None
+    assert body["colorId"] == "8"
+
+
+def test_build_event_body_does_not_mutate_imported_service_types():
+    import copy
+    import common.google_calendar as google_calendar
+    from common.google_calendar import _build_event_body
+
+    before = copy.deepcopy(SERVICE_TYPES)
+
+    item = {
+        "request_id": "test-mutation-safety",
+        "client_name": "Test Client",
+        "pet_names": "Max",
+        "start_date": "2030-01-15",
+        "scheduled_time": "10:00",
+        "service_type": "WALK_30MIN",
+    }
+    body, skip_reason = _build_event_body(item)
+    assert skip_reason is None
+
+    assert SERVICE_TYPES == before
+    assert google_calendar.SERVICE_METADATA == before["services"]

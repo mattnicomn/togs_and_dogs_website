@@ -224,3 +224,55 @@ def test_window_derived_start_retains_current_time_and_applies_contract_duration
     assert f"({window.capitalize()})" in body["summary"]
     assert body["start"]["timeZone"] == "America/New_York"
     assert body["end"]["timeZone"] == "America/New_York"
+
+
+@pytest.mark.parametrize(
+    ("override", "expected_minutes"),
+    [
+        pytest.param(" 90 ", 90, id="whitespace-padded-numeric-string"),
+        pytest.param("0", 0, id="zero-string"),
+        pytest.param(-30, -30, id="negative-integer"),
+        pytest.param(90.7, 90, id="float-truncates-towards-zero"),
+        pytest.param(True, 1, id="boolean-true-becomes-one-minute"),
+    ],
+)
+def test_scheduled_duration_numeric_edge_values_accepted(override, expected_minutes):
+    body = build_event(build_timed_item("WALK_30MIN", scheduled_duration=override))
+    start, end = timed_bounds(body)
+
+    assert end - start == timedelta(minutes=expected_minutes)
+
+
+def test_boolean_false_scheduled_duration_falls_through_to_canonical_duration():
+    body = build_event(build_timed_item("WALK_30MIN", scheduled_duration=False))
+    start, end = timed_bounds(body)
+
+    assert end - start == timedelta(minutes=30)
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        pytest.param("   ", id="whitespace-only-string"),
+        pytest.param("invalid", id="malformed-string"),
+        pytest.param("90.5", id="decimal-string"),
+    ],
+)
+def test_malformed_scheduled_duration_raises_value_error(override):
+    with pytest.raises(ValueError):
+        _build_event_body(build_timed_item("WALK_30MIN", scheduled_duration=override))
+
+
+def test_unknown_service_with_truthy_scheduled_duration_applies_override():
+    body = build_event(build_timed_item("UNKNOWN_SERVICE", scheduled_duration=120))
+    start, end = timed_bounds(body)
+
+    assert end - start == timedelta(minutes=120)
+
+
+def test_malformed_scheduled_duration_on_all_day_item_raises_value_error():
+    item = build_timed_item("WALK_30MIN", scheduled_duration="invalid", visit_windows=["ANYTIME"])
+    item.pop("scheduled_time")
+
+    with pytest.raises(ValueError):
+        _build_event_body(item)

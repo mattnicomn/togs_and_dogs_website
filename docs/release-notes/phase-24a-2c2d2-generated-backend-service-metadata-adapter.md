@@ -187,7 +187,6 @@ Backend identifier policy, production assessment, normalization, migration/depre
 
 ## 18. Remaining deferred work
 
-- **2D.3:** calendar runtime duration and friendly-name wiring;
 - **2D.4:** optional calendar color metadata;
 - backend service-identifier acceptance policy;
 - production assessment;
@@ -201,4 +200,4 @@ Phase 24A-2C.2 remains partially complete locally. Phase 2D overall is not compl
 
 **PHASE 24A-2C.2D.2 LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / DOCUMENTATION PREPARED / AWAITING COMMIT DECISION / NO RUNTIME CONSUMPTION / NOT DEPLOYED**
 
-**Phase 24A-2C.2:** **PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D.1 COMPLETE / 2C.2D.2 COMPLETE / 2C.2D.3–2C.2D.4 DEFERRED / NOT DEPLOYED OR DISTRIBUTED**
+**Phase 24A-2C.2:** **PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D.1 COMPLETE / 2C.2D.2 COMPLETE / 2C.2D.3 COMPLETE / 2C.2D.4 DEFERRED / NOT DEPLOYED OR DISTRIBUTED**

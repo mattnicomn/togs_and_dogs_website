@@ -6,6 +6,7 @@ import urllib.parse
 import urllib.error
 import boto3
 from datetime import datetime
+from common.generated_service_types import SERVICE_TYPES
 
 secrets = boto3.client('secretsmanager')
 
@@ -218,9 +219,11 @@ def _get_valid_token(request_id="UNKNOWN", company_id=None):
 
     return _refresh_access_token(tokens, request_id, company_id)
 
+SERVICE_METADATA = SERVICE_TYPES["services"]
+
 SERVICE_DURATIONS = {
-    'WALK_30MIN': 30, 'WALK_60MIN': 60, 'DROPIN_1HR': 60,
-    'DROPIN_3HR': 180, 'OVERNIGHT': 720, 'PET_SITTING': 60, 'MEET_GREET': 45,
+    service_type: metadata["durationMinutes"]
+    for service_type, metadata in SERVICE_METADATA.items()
 }
 
 WINDOW_START_HOURS = {
@@ -233,9 +236,8 @@ SERVICE_COLORS = {
 }
 
 FRIENDLY_SERVICE_NAMES = {
-    'WALK_30MIN': '30-Min Walk', 'WALK_60MIN': '60-Min Walk',
-    'DROPIN_1HR': '1-Hour Drop-in', 'DROPIN_3HR': '3-Hour Drop-in',
-    'OVERNIGHT': 'Overnight Care', 'PET_SITTING': 'Pet Sitting', 'MEET_GREET': 'Meet & Greet',
+    service_type: metadata["label"]
+    for service_type, metadata in SERVICE_METADATA.items()
 }
 
 def _build_event_body(item, assigned_worker=None):
