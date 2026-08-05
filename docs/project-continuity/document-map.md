@@ -69,6 +69,7 @@
 | Phase 24A-2C.2B.1 web service-type display compatibility (locally validated and independently reviewed) | `docs/release-notes/phase-24a-2c2b1-web-display-compatibility.md` |
 | Phase 24A-2C.2B.2A customer intake canonical service options | `docs/release-notes/phase-24a-2c2b2a-intake-canonical-service-options.md` |
 | Phase 24A-2C.2B.2B CareCard service-type correction (locally validated and independently reviewed) | `docs/release-notes/phase-24a-2c2b2b-carecard-service-type-correction.md` |
+| Phase 24A-2C.2B.2C MasterScheduler canonical service-filter correction (locally validated and independently reviewed) | `docs/release-notes/phase-24a-2c2b2c-masterscheduler-canonical-service-filter.md` |
 | Phase 24A-2C.2C mobile service-type display-label wiring plan | `docs/planning/phase-24a-2c2c-mobile-service-label-wiring.md` |
 | Phase 24A-2C.2C mobile service-type display labels | `docs/release-notes/phase-24a-2c2c-mobile-service-labels.md` |
 

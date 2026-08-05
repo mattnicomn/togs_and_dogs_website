@@ -33,6 +33,17 @@ const legacyCases = [
   ['OTHER', 'Other']
 ];
 
+const schedulerServiceFilterOptions = [
+  ['ALL', 'All Services'],
+  ['WALK_30MIN', '30m Walk'],
+  ['WALK_60MIN', '60m Walk'],
+  ['DROPIN_1HR', '1hr Drop-in'],
+  ['DROPIN_3HR', '3hr Drop-in'],
+  ['OVERNIGHT', 'Overnight'],
+  ['PET_SITTING', 'Pet Sitting'],
+  ['MEET_GREET', 'Meet & Greet']
+];
+
 const setViewportWidth = (width) => {
   Object.defineProperty(window, 'innerWidth', {
     configurable: true,
@@ -75,6 +86,11 @@ const renderScheduler = (items, overrides = {}) => {
   const result = render(<MasterScheduler {...props} />);
   return { ...result, props };
 };
+
+const getSchedulerFilter = (label) => screen
+  .getByText(label, { selector: 'label' })
+  .closest('.filter-group')
+  .querySelector('select');
 
 describe('ClientPortal service-type display compatibility', () => {
   beforeEach(() => {
@@ -148,6 +164,66 @@ describe('MasterScheduler service-type display compatibility', () => {
   afterEach(() => {
     vi.useRealTimers();
     setViewportWidth(1024);
+    vi.restoreAllMocks();
+  });
+
+  it('exposes the exact static canonical service-filter membership, labels, order, and ALL default', () => {
+    renderScheduler([]);
+    const serviceFilter = getSchedulerFilter('Service');
+
+    expect(serviceFilter.value).toBe('ALL');
+    expect(Array.from(serviceFilter.options, option => [option.value, option.textContent])).toEqual(
+      schedulerServiceFilterOptions
+    );
+  });
+
+  it('filters all seven canonical identifiers by exact service_type equality without mutation', () => {
+    const items = canonicalCases.map(([serviceType], index) => makeSchedulerItem(serviceType, index));
+    const before = items.map(item => ({ ...item }));
+    const { container, props } = renderScheduler(items);
+    const serviceFilter = getSchedulerFilter('Service');
+
+    canonicalCases.forEach(([serviceType], index) => {
+      props.onSelectPet.mockClear();
+      fireEvent.change(serviceFilter, { target: { value: serviceType } });
+
+      expect(Array.from(container.querySelectorAll('.visit-pet'), node => node.textContent)).toEqual([
+        `Scheduler Pet ${index}`
+      ]);
+      fireEvent.click(container.querySelector('.scheduled-visit'));
+      expect(props.onSelectPet).toHaveBeenCalledTimes(1);
+      expect(props.onSelectPet).toHaveBeenCalledWith(items[index]);
+    });
+
+    expect(items).toEqual(before);
+  });
+
+  it('keeps legacy, unknown, case-variant, and blank-like values visible only under ALL', () => {
+    const cases = [
+      'WALK_30MIN',
+      'walk_30min',
+      'Walk_30Min',
+      'DOG_WALKING',
+      'WALKING',
+      'OTHER',
+      'HOUSE_SITTING',
+      '',
+      null,
+      undefined
+    ];
+    const items = cases.map((serviceType, index) => makeSchedulerItem(serviceType, index));
+    const before = items.map(item => ({ ...item }));
+    const { container } = renderScheduler(items);
+    const serviceFilter = getSchedulerFilter('Service');
+
+    expect(Array.from(container.querySelectorAll('.visit-pet'), node => node.textContent)).toEqual(
+      cases.map((_, index) => `Scheduler Pet ${index}`)
+    );
+    fireEvent.change(serviceFilter, { target: { value: 'WALK_30MIN' } });
+    expect(Array.from(container.querySelectorAll('.visit-pet'), node => node.textContent)).toEqual([
+      'Scheduler Pet 0'
+    ]);
+    expect(items).toEqual(before);
   });
 
   it('renders canonical and approved labels in desktop service-only visit cards', () => {
@@ -175,6 +251,111 @@ describe('MasterScheduler service-type display compatibility', () => {
       node => node.textContent
     );
     expect(queueLabels).toEqual(cases.map(([, expected]) => expected));
+  });
+
+  it('keeps pending intake independent from service filtering and preserves queue callbacks', () => {
+    const scheduledMatch = makeSchedulerItem('WALK_60MIN', 0);
+    const scheduledNonmatch = makeSchedulerItem('PET_SITTING', 1);
+    const pending = makeSchedulerItem('PET_SITTING', 2, {
+      PK: 'REQ#pending-filter-independence',
+      status: 'PENDING_REVIEW'
+    });
+    const items = [scheduledMatch, scheduledNonmatch, pending];
+    const before = items.map(item => ({ ...item }));
+    const { container, props } = renderScheduler(items);
+
+    fireEvent.change(getSchedulerFilter('Service'), { target: { value: 'WALK_60MIN' } });
+    expect(Array.from(container.querySelectorAll('.visit-pet'), node => node.textContent)).toEqual([
+      scheduledMatch.pet_name
+    ]);
+
+    const pendingQueueItem = screen.getByText(pending.client_name).closest('.queue-item');
+    expect(pendingQueueItem).toHaveTextContent('Pet Sitting');
+    fireEvent.click(pendingQueueItem);
+    expect(props.onSelectPet).toHaveBeenCalledWith(pending);
+
+    fireEvent.click(pendingQueueItem.querySelector('button'));
+    expect(props.onReview).toHaveBeenCalledWith(pending);
+    expect(items).toEqual(before);
+  });
+
+  it('filters only by service_type even when window_type overlaps a canonical filter value', () => {
+    const windowOnlyMatch = makeSchedulerItem('OTHER', 0, { window_type: 'WALK_60MIN' });
+    const serviceMatch = makeSchedulerItem('WALK_60MIN', 1, { window_type: 'OTHER' });
+    const items = [windowOnlyMatch, serviceMatch];
+    const before = items.map(item => ({ ...item }));
+    const { container, props } = renderScheduler(items);
+
+    fireEvent.change(getSchedulerFilter('Service'), { target: { value: 'WALK_60MIN' } });
+    expect(Array.from(container.querySelectorAll('.visit-pet'), node => node.textContent)).toEqual([
+      serviceMatch.pet_name
+    ]);
+    expect(container.querySelector('.visit-type')).toHaveTextContent('OTHER');
+    fireEvent.click(container.querySelector('.scheduled-visit'));
+    expect(props.onSelectPet).toHaveBeenCalledWith(serviceMatch);
+    expect(items).toEqual(before);
+  });
+
+  it('uses the same service-filtered timeline collection on desktop and mobile', () => {
+    const items = [
+      makeSchedulerItem('WALK_30MIN', 0),
+      makeSchedulerItem('PET_SITTING', 1)
+    ];
+    const before = items.map(item => ({ ...item }));
+    const desktop = renderScheduler(items);
+
+    fireEvent.change(getSchedulerFilter('Service'), { target: { value: 'PET_SITTING' } });
+    expect(Array.from(desktop.container.querySelectorAll('.visit-pet'), node => node.textContent)).toEqual([
+      items[1].pet_name
+    ]);
+    expect(desktop.container.querySelector('.badge-light')).toHaveTextContent('1 Visits');
+    desktop.unmount();
+
+    setViewportWidth(375);
+    const mobile = renderScheduler(items);
+    fireEvent.change(getSchedulerFilter('Service'), { target: { value: 'PET_SITTING' } });
+    expect(Array.from(
+      mobile.container.querySelectorAll('.scheduler-mobile-visit-pet'),
+      node => node.textContent
+    )).toEqual([items[1].pet_name]);
+    expect(mobile.container.querySelector('.scheduler-mobile-list-header .badge-light')).toHaveTextContent('1');
+    fireEvent.click(mobile.container.querySelector('.scheduler-mobile-visit-card'));
+    expect(mobile.props.onSelectPet).toHaveBeenCalledWith(items[1]);
+    expect(items).toEqual(before);
+  });
+
+  it('preserves date, staff, status, search, clear-filter, and visit-count behavior', () => {
+    const items = [
+      makeSchedulerItem('PET_SITTING', 0, { client_name: 'Target Client', worker_id: 'Ryan' }),
+      makeSchedulerItem('PET_SITTING', 1, { start_date: '2030-01-06', worker_id: 'Ryan' }),
+      makeSchedulerItem('WALK_30MIN', 2, { worker_id: 'Ryan' }),
+      makeSchedulerItem('PET_SITTING', 3, { worker_id: 'Wife' }),
+      makeSchedulerItem('PET_SITTING', 4, { status: 'IN_PROGRESS', worker_id: 'Ryan' }),
+      makeSchedulerItem('PET_SITTING', 5, { status: 'COMPLETED', worker_id: 'Ryan' })
+    ];
+    const before = items.map(item => ({ ...item }));
+    const { container } = renderScheduler(items, {
+      staffList: [{ display_name: 'Ryan' }, { display_name: 'Wife' }]
+    });
+    const visiblePets = () => Array.from(container.querySelectorAll('.visit-pet'), node => node.textContent);
+
+    expect(visiblePets()).toEqual(['Scheduler Pet 0', 'Scheduler Pet 2', 'Scheduler Pet 3', 'Scheduler Pet 4']);
+    fireEvent.change(getSchedulerFilter('Service'), { target: { value: 'PET_SITTING' } });
+    expect(visiblePets()).toEqual(['Scheduler Pet 0', 'Scheduler Pet 3', 'Scheduler Pet 4']);
+    fireEvent.change(getSchedulerFilter('Staff'), { target: { value: 'Ryan' } });
+    expect(visiblePets()).toEqual(['Scheduler Pet 0', 'Scheduler Pet 4']);
+    fireEvent.change(getSchedulerFilter('Status'), { target: { value: 'ASSIGNED' } });
+    expect(visiblePets()).toEqual(['Scheduler Pet 0']);
+    fireEvent.change(screen.getByPlaceholderText('Customer or pet...'), { target: { value: 'target' } });
+    expect(visiblePets()).toEqual(['Scheduler Pet 0']);
+    expect(container.querySelector('.badge-light')).toHaveTextContent('1 Visits');
+    fireEvent.change(screen.getByPlaceholderText('Customer or pet...'), { target: { value: 'no match' } });
+    expect(visiblePets()).toEqual([]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear Filters' }));
+    expect(getSchedulerFilter('Service').value).toBe('ALL');
+    expect(visiblePets()).toEqual(['Scheduler Pet 0', 'Scheduler Pet 2', 'Scheduler Pet 3', 'Scheduler Pet 4']);
+    expect(items).toEqual(before);
   });
 
   it('keeps truthy window types raw and falls through only for falsey window types', () => {

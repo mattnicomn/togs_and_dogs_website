@@ -166,9 +166,12 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
           <select value={filters.service} onChange={(e) => setFilters({...filters, service: e.target.value})}>
             <option value="ALL">All Services</option>
             <option value="WALK_30MIN">30m Walk</option>
+            <option value="WALK_60MIN">60m Walk</option>
             <option value="DROPIN_1HR">1hr Drop-in</option>
             <option value="DROPIN_3HR">3hr Drop-in</option>
             <option value="OVERNIGHT">Overnight</option>
+            <option value="PET_SITTING">Pet Sitting</option>
+            <option value="MEET_GREET">Meet &amp; Greet</option>
           </select>
         </div>
         <div className="filter-actions">

@@ -1,6 +1,6 @@
 # Phase 24A-2C.2 — Cross-Platform Service-Type Contract Wiring Plan
 
-**Status:** 📋 **PARTIALLY COMPLETE LOCALLY / PHASE 24A-2C.2A COMPLETE / PHASE 24A-2C.2B PARTIALLY IMPLEMENTED / PHASE 24A-2C.2C COMPLETE / PHASE 24A-2C.2D DEFERRED / NOT DEPLOYED OR DISTRIBUTED**
+**Status:** 📋 **PARTIALLY COMPLETE LOCALLY / PHASE 24A-2C.2A COMPLETE / PHASE 24A-2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / PHASE 24A-2C.2C COMPLETE / PHASE 24A-2C.2D DEFERRED / NOT DEPLOYED OR DISTRIBUTED**
 
 **Planning Date:** 2026-08-03
 **Planning Checkpoint:** `40620cff8cd1cc18e338c62a8b9abd2e991b7f7b`
@@ -205,9 +205,11 @@ Explicit 2C.2A exclusions:
 
 ### Phase 24A-2C.2B — Selector Membership and Availability Normalization
 
-**Status:** `PARTIALLY IMPLEMENTED LOCALLY / PLANNING COMPLETE / CUSTOMER INTAKE CANONICAL SELECTION COMPLETE / OTHER SUBPHASES DEFERRED / NOT DEPLOYED`.
+**Status:** `LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / BACKEND POLICY, PRODUCTION ASSESSMENT, AND MIGRATION DEFERRED / NOT DEPLOYED`.
 
-**Current reconciliation (2026-08-05):** Documentation-only planning completed in `docs/planning/phase-24a-2c2b-selector-normalization-design.md`. Phase 24A-2C.2B.2A customer IntakeForm canonical membership is locally validated and reviewed. Phase 24A-2C.2B.1 is locally validated and independently reviewed with web display compatibility complete and not deployed: canonical values use `labelLong`, three exact legacy values use approved display aliases, ClientPortal retains its owner fallback, and MasterScheduler preserves raw `window_type` plus raw unresolved service fallback. Kiro returned `READY_FOR_LOCAL_PHASE_24A_2C_2B_1_CLOSEOUT` with no correction required. The separately approved Phase 24A-2C.2B.2B CareCard Option 2 correction is locally validated and independently reviewed and is not deployed: its selector is removed, request-first/historical-fallback Service Type remains read-only, and PET update payloads omit top-level `service_type`. Kiro returned `READY_FOR_LOCAL_PHASE_24A_2C_2B_2B_CLOSEOUT` with no correction required. Additional selector membership decisions, backend accepted-identifier policy, backend allowlisting or normalization, production-data assessment, migration or deprecation, and deployment remain deferred and unapproved.
+**Current reconciliation (2026-08-05):** Documentation-only planning completed in `docs/planning/phase-24a-2c2b-selector-normalization-design.md`. Phase 24A-2C.2B.1 display compatibility, 2B.2A customer IntakeForm canonical membership, and 2B.2B CareCard Option 2 are locally validated and reviewed at their stated gates. Phase 2B.2C is also locally validated and independently reviewed: MasterScheduler retains its static `ALL` default and exact case-sensitive `service_type` equality while adding the missing canonical `WALK_60MIN`, `PET_SITTING`, and `MEET_GREET` filter choices. Kiro returned `READY_FOR_PHASE_24A_2C_2B_2C_DOCUMENTATION_AND_LOCAL_CLOSEOUT` with no blocking correction. Phase 2C.2B is therefore locally complete for the approved frontend scope only. Backend accepted-identifier policy, backend allowlisting/rejection, legacy normalization, production-data assessment, migration/deprecation, scheduler-specific contract metadata, additional product/service availability decisions, and deployment remain deferred and unapproved.
+
+The exact final MasterScheduler filter is `ALL` — All Services; `WALK_30MIN` — 30m Walk; `WALK_60MIN` — 60m Walk; `DROPIN_1HR` — 1hr Drop-in; `DROPIN_3HR` — 3hr Drop-in; `OVERNIGHT` — Overnight; `PET_SITTING` — Pet Sitting; `MEET_GREET` — Meet & Greet. `window_type` remains outside filtering, pending intake remains independent, and desktop/mobile continue to consume the same filtered scheduler collection. No legacy, unknown, blank, null, or undefined filter option was added.
 
 This phase must separately decide how to handle `DOG_WALKING`, `WALKING`, `OTHER`, canonical `availableInIntake`, current selector memberships/orders, legacy-value display, future backend validation, and possible data normalization. It must not presume that a production migration is needed.
 
@@ -294,7 +296,7 @@ No backend command should be added merely for symmetry. Report the existing full
 |---|---|
 | Phase 24A-2C.2 documentation planning | `APPROVED FOR DOCUMENTATION ONLY` |
 | Phase 24A-2C.2A implementation | `LOCALLY VALIDATED AND REVIEWED / NOT DEPLOYED` |
-| Phase 24A-2C.2B | `PARTIALLY IMPLEMENTED LOCALLY / PLANNING COMPLETE / 2B.1 LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / 2B.2A CUSTOMER INTAKE CANONICAL SELECTION LOCALLY VALIDATED AND REVIEWED / 2B.2B LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED, CARECARD SERVICE-TYPE CORRECTION COMPLETE / OTHER SUBPHASES DEFERRED / NOT DEPLOYED` |
+| Phase 24A-2C.2B | `LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / BACKEND POLICY, PRODUCTION ASSESSMENT, AND MIGRATION DEFERRED / NOT DEPLOYED` |
 | Phase 24A-2C.2C | `LOCALLY VALIDATED AND REVIEWED / NOT BUILT OR DISTRIBUTED` |
 | Phase 24A-2C.2D | `NOT APPROVED` |
 | Production deployment | `NOT APPROVED` |
@@ -323,10 +325,12 @@ Phase 2C.2B.1 validation: 37/37 focused helper/owner tests, 11/11 AdminDashboard
 
 Phase 2C.2B.2B final validation: 22/22 focused CareCard tests, 37/37 existing service-label/owner regressions, 11/11 AdminDashboard/IntakeForm regressions, 224/224 complete Vitest across 19 files, 99/99 legacy / 323 unique web tests, 23/23 staff/admin PET backend tests, 18/18 customer PET backend tests, 18/18 shared constants, 6/6 deterministic adapter checks, and a successful 109-module Vite build (`index-C-Rflmrt.js`, `index-bVFIMo3n.css`, `usmh-logo-CrRnxp7-.png`). The new test is lint-clean; CareCard retains its exact pre-change 6-error/1-warning baseline, complete web lint remains 51 errors/9 warnings, and candidate-introduced lint is zero. Backend source was unchanged; the added tests characterize existing ignored/rejected behavior only. Kiro independently confirmed the exact 10-file candidate and returned `READY_FOR_LOCAL_PHASE_24A_2C_2B_2B_CLOSEOUT` with no blocking correction. No production data, deployment, or distribution action occurred; passing tests and local closeout do not authorize deployment.
 
+Phase 2C.2B.2C final validation: 15/15 focused ServiceTypeDisplayOwners, 29/29 service-label helper, 22/22 CareCard, 11/11 AdminDashboard/IntakeForm, 231/231 complete Vitest across 19 files, 99/99 legacy / 330 unique web, 18/18 shared constants, 6/6 deterministic adapter checks, and a successful 109-module Vite build (`index-C5FqHoe-.js`, `index-bVFIMo3n.css`, `usmh-logo-CrRnxp7-.png`). The changed test is lint-clean; MasterScheduler retains its pre-existing unused `onAssign` error, complete lint remains 51 errors/9 warnings, and candidate-introduced lint is zero. Kiro independently verified the exact two-file implementation candidate and returned `READY_FOR_PHASE_24A_2C_2B_2C_DOCUMENTATION_AND_LOCAL_CLOSEOUT` with no blocking correction. No deployment or production-data access occurred; passing tests and local closeout do not authorize deployment.
+
 Deferred work:
 
 - request-status planning/wiring outside this service-type plan;
-- remaining 2C.2B selector, availability, backend-policy, and noncanonical normalization decisions beyond the locally closed 2B.1, completed 2B.2A, and locally closed 2B.2B CareCard correction;
+- backend accepted-identifier policy, legacy normalization, production assessment, migration/deprecation, scheduler-specific contract metadata, and additional product/service availability decisions beyond the locally completed approved 2C.2B frontend scope;
 - 2C.2D duration/calendar metadata centralization;
 - staff/mobile feature changes unrelated to label display;
 - production inspection or migration design;
@@ -336,4 +340,4 @@ This planning phase does not authorize or perform application source changes, te
 
 ---
 
-**PARTIALLY COMPLETE LOCALLY / PHASE 24A-2C.2A COMPLETE / PHASE 24A-2C.2B PARTIALLY IMPLEMENTED / PHASE 24A-2C.2C COMPLETE / PHASE 24A-2C.2D DEFERRED / NOT DEPLOYED OR DISTRIBUTED**
+**PARTIALLY COMPLETE LOCALLY / PHASE 24A-2C.2A COMPLETE / PHASE 24A-2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / PHASE 24A-2C.2C COMPLETE / PHASE 24A-2C.2D DEFERRED / NOT DEPLOYED OR DISTRIBUTED**
