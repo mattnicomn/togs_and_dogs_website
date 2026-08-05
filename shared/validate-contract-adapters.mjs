@@ -25,9 +25,12 @@ const SERVICES_FILE = join(__dirname, 'constants', 'service-types.json');
 const WEB_ADAPTER = join(ROOT_DIR, 'web', 'src', 'generated', 'contracts.js');
 const MOBILE_ADAPTER = join(ROOT_DIR, 'mobile', 'src', 'contracts', 'generatedContracts.ts');
 
-function parseGeneratedExport(source, exportName, nextExportName) {
+function parseGeneratedExport(source, exportName, nextExportName = null) {
+  const terminator = nextExportName
+    ? `export const ${nextExportName}`
+    : '(?:/\\*\\*|export function)';
   const pattern = new RegExp(
-    `export const ${exportName} = ([\\s\\S]*?)(?: as const)?;\\r?\\nexport const ${nextExportName}`
+    `export const ${exportName} = ([\\s\\S]*?)(?: as const)?;\\r?\\n(?:\\r?\\n)?${terminator}`
   );
   const match = source.match(pattern);
   assert.ok(match, `Unable to parse generated ${exportName} export`);
@@ -84,6 +87,44 @@ test('generated adapters contain the complete canonical PET_FIELDS contract', as
     parseGeneratedExport(mobileCode, 'PET_FIELDS', 'REQUEST_STATUSES'),
     cleanCanonical,
     'Mobile PET_FIELDS adapter differs from canonical contract'
+  );
+});
+
+test('generated adapters contain the complete canonical SERVICE_TYPES contract', async () => {
+  const canonical = JSON.parse(await readFile(SERVICES_FILE, 'utf-8'));
+  const cleanCanonical = Object.fromEntries(
+    Object.entries(canonical).filter(([key]) => !key.startsWith('_'))
+  );
+  const webCode = await readFile(WEB_ADAPTER, 'utf-8');
+  const mobileCode = await readFile(MOBILE_ADAPTER, 'utf-8');
+  const webServices = parseGeneratedExport(webCode, 'SERVICE_TYPES');
+  const mobileServices = parseGeneratedExport(mobileCode, 'SERVICE_TYPES');
+
+  assert.deepEqual(
+    webServices,
+    cleanCanonical,
+    'Canonical-to-web SERVICE_TYPES equality failed'
+  );
+  assert.deepEqual(
+    mobileServices,
+    cleanCanonical,
+    'Canonical-to-mobile SERVICE_TYPES equality failed'
+  );
+  assert.deepEqual(
+    webServices,
+    mobileServices,
+    'Web-to-mobile SERVICE_TYPES equality failed'
+  );
+
+  assert.equal(
+    JSON.stringify(webServices),
+    JSON.stringify(cleanCanonical),
+    'Canonical-to-web SERVICE_TYPES identifier or metadata order differs'
+  );
+  assert.equal(
+    JSON.stringify(mobileServices),
+    JSON.stringify(cleanCanonical),
+    'Canonical-to-mobile SERVICE_TYPES identifier or metadata order differs'
   );
 });
 

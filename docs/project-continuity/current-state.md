@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-04 (Release 22Y Finding 2 Staff Password-Reset State Awareness Local Closeout)
+**Last Updated:** 2026-08-05 (Phase 24A-2C.2D.1 Service-Duration Parity and Validator Hardening Local Closeout)
 
 ---
 
@@ -110,7 +110,7 @@
   - Validation: 18 shared constants, 6 adapter checks, 13 focused web contracts, 24 focused MyPets, 20 phase1b3, 96 legacy, 147 Vitest across 13 files / 243 unique web, successful Vite build, 10 focused mobile contracts, 6 mobile suites / 42 tests, 0 TypeScript errors, and 16 focused backend tests with 0 failed and 0 skipped. Changed Phase 24A-2B.2B web files lint cleanly; full web lint remains 51 errors and 9 warnings in unrelated pre-existing files. These findings were not introduced, modified, or remediated by this phase. No mobile lint script is configured.
   - See: `docs/release-notes/phase-24a-2b2b-veterinarian-field-limits.md`
 
-- Phase 24A-2C.2: Cross-Platform Service-Type Contract Wiring (🔗 PARTIALLY COMPLETE LOCALLY / PHASE 24A-2C.2A COMPLETE / PHASE 24A-2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / PHASE 24A-2C.2C COMPLETE / PHASE 24A-2C.2D DEFERRED / NOT DEPLOYED OR DISTRIBUTED — 2026-08-05)
+- Phase 24A-2C.2: Cross-Platform Service-Type Contract Wiring (🔗 PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D.1 COMPLETE / 2C.2D.2–2C.2D.4 DEFERRED / NOT DEPLOYED OR DISTRIBUTED — 2026-08-05)
   - Phase 24A-2C.2A imported the generated `SERVICE_TYPES` contract into `AdminDashboard.jsx`, replaced duplicated long/short label maps, and sourced the seven explicit selector text nodes from `labelLong` without changing values, order, membership, or the `PET_SITTING` default.
   - Focused behavioral coverage preserves canonical labels, long case-sensitive fallbacks, short case-normalized recognition/original-value fallback, search, raw export, dispatch output, and the exact raw new-visit payload.
   - Independent review confirmed the exact six-file candidate, bounded scope, label/fallback parity, and selector parity with no correction required. Validation: 18 shared constants, 6 adapter checks, 4 focused tests, 99 legacy, 151 Vitest across 14 files / 250 unique web, successful Vite build (`index-D7UoV5fJ.js`, `index-bVFIMo3n.css`), 6 mobile suites / 42 tests, 0 TypeScript errors, and 30 focused backend calendar tests. Phase 2C.2A introduced no lint findings; the new test is lint-clean, `AdminDashboard.jsx` retains its pre-existing 18 errors/5 warnings, and full web lint retains 51 errors/9 warnings in unrelated pre-existing code.
@@ -130,7 +130,10 @@
   - Phase 2C.2B.2C final validation: 15/15 focused ServiceTypeDisplayOwners, 29/29 service-label helper, 22/22 CareCard, 11/11 AdminDashboard/IntakeForm, 231/231 complete Vitest across 19 files, 99/99 legacy / 330 unique web, 18/18 shared constants, 6/6 deterministic adapter checks, and a successful 109-module Vite build (`index-C5FqHoe-.js`, `index-bVFIMo3n.css`, `usmh-logo-CrRnxp7-.png`). The changed test is lint-clean; MasterScheduler retains its one pre-existing unused `onAssign` error; complete web lint remains 51 errors/9 warnings; candidate-introduced lint is zero. Kiro verified the exact two-file implementation candidate and returned `READY_FOR_PHASE_24A_2C_2B_2C_DOCUMENTATION_AND_LOCAL_CLOSEOUT` with no blocking correction.
   - Phase 2C.2B is locally complete for approved frontend scope: 2B.1 display compatibility, 2B.2A IntakeForm canonical selection, 2B.2B CareCard read-only correction/PET payload exclusion, and 2B.2C MasterScheduler canonical filter correction are complete at their stated review gates. Backend accepted-identifier allowlisting or rejection, legacy normalization, production assessment, migration/deprecation, scheduler-specific contract metadata, additional product/service availability changes, deployment, and unrelated lint remediation remain separate future decisions and are deferred and unapproved.
   - Repository evidence does not establish current production presence of noncanonical identifiers. No production data was inspected and migration is not presumed necessary.
-  - Phase 2C.2D duration/scheduling metadata remains deferred and not approved.
+  - Phase 2C.2D.1 is locally validated and independently reviewed. It hardens canonical service validation and complete canonical/web/mobile `SERVICE_TYPES` equality, and adds 48 focused backend parity/fallback tests against real canonical JSON and real `_build_event_body()` behavior using synthetic records only. No contract value, generator, generated adapter, runtime calendar logic, handler, request/job persistence, scheduling behavior, web, mobile, notification, infrastructure, production-data, or production-system behavior changed.
+  - Canonical parity is characterized as `WALK_30MIN` 30 / `30-Min Walk`; `WALK_60MIN` 60 / `60-Min Walk`; `DROPIN_1HR` 60 / `1-Hour Drop-in`; `DROPIN_3HR` 180 / `3-Hour Drop-in`; `OVERNIGHT` 720 / `Overnight Care`; `PET_SITTING` 60 / `Pet Sitting`; and `MEET_GREET` 45 / `Meet & Greet`. Existing override precedence, exact case-sensitive unresolved 60-minute/color-`8` fallback, canonical colors, exclusive-next-day all-day shape, and 08:00/11:00/14:00/17:00 visit-window starts are characterized without mapping or normalization.
+  - Validation and independent review: 18/18 shared constants, 7/7 adapter checks with deterministic zero diff, 48/48 focused parity tests, and 100/100 combined affected backend tests. Kiro verified the exact three-file candidate and returned `READY_FOR_PHASE_24A_2C_2D_1_DOCUMENTATION_AND_LOCAL_CLOSEOUT`; no blocking correction was identified.
+  - Phase 2C.2D remains partially complete. 2D.2 deterministic generated backend service metadata adapter, 2D.3 calendar runtime duration/friendly-name wiring, and 2D.4 optional calendar color metadata remain deferred and unapproved. Backend identifier policy, production assessment, legacy normalization, migration/deprecation, deployment review, and existing-event resynchronization also remain deferred.
   - See: `docs/planning/phase-24a-2c2b-selector-normalization-design.md`
   - See: `docs/release-notes/phase-24a-2c2b1-web-display-compatibility.md`
   - See: `docs/release-notes/phase-24a-2c2b2a-intake-canonical-service-options.md`
@@ -139,14 +142,15 @@
   - See: `docs/planning/phase-24a-2c2c-mobile-service-label-wiring.md`
   - See: `docs/release-notes/phase-24a-2c2c-mobile-service-labels.md`
   - See: `docs/release-notes/phase-24a-2c2a-web-admin-service-labels.md`
+  - See: `docs/release-notes/phase-24a-2c2d1-service-duration-parity-validator-hardening.md`
 
 ### Phase 24A Completion Boundaries
 
 - Latest completed validated production release: **Phase 1B.5C-D.2**.
-- Latest completed locally validated shared-contract phase: **Phase 24A-2A**.
+- Latest completed locally validated shared-contract phase: **Phase 24A-2C.2D.1**.
 - Completed Phase 24A-2B subphases: **Phase 24A-2B.1**, **Phase 24A-2B.2A**, and **Phase 24A-2B.2B**.
 - Phase 24A-2B overall: **LOCALLY VALIDATED AND REVIEWED / ALL PLANNED PHASE 24A-2B CUSTOMER PET FIELD AND VALIDATION WIRING COMPLETE / NOT DEPLOYED OR DISTRIBUTED**.
-- Phase 24A-2C.2 service-type work: **PARTIALLY COMPLETE LOCALLY / PHASE 24A-2C.2A COMPLETE / PHASE 24A-2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / PHASE 24A-2C.2C COMPLETE / PHASE 24A-2C.2D DEFERRED / NOT DEPLOYED OR DISTRIBUTED**. Phases 2C.2A and 2C.2C are locally validated and reviewed. Phase 2C.2B planning, 2B.1 web display compatibility, 2B.2A customer IntakeForm canonical selection, 2B.2B CareCard correction, and 2B.2C MasterScheduler canonical filter correction are locally complete at their review gates. Backend accepted-identifier policy, production assessment, normalization, migration/deprecation, scheduler-specific metadata, additional availability changes, and deployment remain deferred and unapproved. Phase 2C.2D remains deferred and not approved.
+- Phase 24A-2C.2 service-type work: **PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D.1 COMPLETE / 2C.2D.2–2C.2D.4 DEFERRED / NOT DEPLOYED OR DISTRIBUTED**. Phases 2C.2A and 2C.2C are locally validated and reviewed. Phase 2C.2B planning, 2B.1 web display compatibility, 2B.2A customer IntakeForm canonical selection, 2B.2B CareCard correction, and 2B.2C MasterScheduler canonical filter correction are locally complete at their review gates. Phase 2D.1 parity and validator hardening is locally validated and independently reviewed with no runtime behavior change. Backend accepted-identifier policy, production assessment, normalization, migration/deprecation, scheduler-specific metadata, additional availability changes, 2D.2 generated backend metadata, 2D.3 runtime duration/friendly-name wiring, 2D.4 optional color metadata, existing-event resynchronization, and deployment remain deferred and unapproved.
 - Phase 24A-2C request-status wiring remains outside this implementation and has not started.
 - Separate deferred scopes: staff pet-contract work, mobile pet creation and editing, production deployment, mobile distribution, and Ryan testing.
 

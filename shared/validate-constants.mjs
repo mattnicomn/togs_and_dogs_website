@@ -101,9 +101,45 @@ test('service identifiers are unique', () => {
 
 test('services have required properties', () => {
   for (const [id, svc] of Object.entries(services.services)) {
-    assert.ok('label' in svc, `Service "${id}" missing label`);
-    assert.ok('durationMinutes' in svc, `Service "${id}" missing durationMinutes`);
-    assert.ok(typeof svc.durationMinutes === 'number', `Service "${id}" durationMinutes not a number`);
+    assert.ok(
+      svc !== null
+        && typeof svc === 'object'
+        && !Array.isArray(svc)
+        && Object.getPrototypeOf(svc) === Object.prototype,
+      `Service "${id}" must be a plain object`
+    );
+
+    for (const field of ['label', 'labelLong', 'durationMinutes', 'availableInIntake', 'supportedOnMobile']) {
+      assert.ok(field in svc, `Service "${id}" missing ${field}`);
+      assert.notEqual(svc[field], null, `Service "${id}" ${field} must not be null`);
+      assert.notEqual(svc[field], undefined, `Service "${id}" ${field} must not be undefined`);
+    }
+
+    assert.ok(
+      typeof svc.label === 'string' && svc.label.trim().length > 0,
+      `Service "${id}" label must be a non-empty string`
+    );
+    assert.ok(
+      typeof svc.labelLong === 'string' && svc.labelLong.trim().length > 0,
+      `Service "${id}" labelLong must be a non-empty string`
+    );
+    assert.ok(
+      typeof svc.durationMinutes === 'number'
+        && Number.isFinite(svc.durationMinutes)
+        && Number.isInteger(svc.durationMinutes)
+        && svc.durationMinutes > 0,
+      `Service "${id}" durationMinutes must be a positive finite integer`
+    );
+    assert.equal(
+      typeof svc.availableInIntake,
+      'boolean',
+      `Service "${id}" availableInIntake must be a boolean`
+    );
+    assert.equal(
+      typeof svc.supportedOnMobile,
+      'boolean',
+      `Service "${id}" supportedOnMobile must be a boolean`
+    );
   }
 });
 
