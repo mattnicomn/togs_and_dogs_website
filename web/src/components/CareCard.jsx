@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '../Portal.css';
 import { createPaymentSession, sendPaymentEmail } from '../api/client';
+import { getKnownServiceTypeLabel } from '../utils/serviceLabels';
 
 const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList = [], onAssign, onAddPet, onPaymentSessionCreated }) => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -325,8 +326,10 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
     try {
       // Release 5A: Save targets the active pet, not always the first pet.
       // Ensure pet_id and client_id come from activePet so the correct PET# record is updated.
+      const petUpdateData = { ...formData };
+      delete petUpdateData.service_type;
       const saveData = {
-        ...formData,
+        ...petUpdateData,
         pet_id: activePet.pet_id || formData.pet_id,
         client_id: activePet.client_id || formData.client_id
       };
@@ -347,6 +350,11 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   };
 
   const renderTabContent = () => {
+    const rawServiceType = pet._originItem?.service_type ?? pet.service_type;
+    const serviceTypeDisplay = typeof rawServiceType === 'string' && rawServiceType.trim()
+      ? getKnownServiceTypeLabel(rawServiceType) ?? rawServiceType
+      : 'Not Specified';
+
     switch (activeTab) {
       case 'overview':
         return (
@@ -611,14 +619,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
               <div className="content-box">
                 <div className="field">
                   <label>Service Type</label>
-                  {isEditing ? (
-                    <select value={formData.service_type || ''} onChange={e => handleInputChange('service_type', e.target.value)}>
-                      <option value="PET_SITTING">Pet Sitting</option>
-                      <option value="WALKING">Dog Walking</option>
-                      <option value="OVERNIGHT">Overnight Stay</option>
-                      <option value="OTHER">Other</option>
-                    </select>
-                  ) : <p>{pet.service_type || 'Not Specified'}</p>}
+                  <p>{serviceTypeDisplay}</p>
                 </div>
                 
                 {pet.preferred_time && (

@@ -439,3 +439,97 @@ def test_put_preserves_pk_sk_client_id_company_id(mock_put, mock_get, mock_table
     assert saved_item["SK"] == "CLIENT#client_123"
     assert saved_item["client_id"] == "client_123"
     assert saved_item["company_id"] == "tog_and_dogs"
+
+
+@pytest.mark.parametrize("role", ["staff", "admin"])
+@patch('common.db.table')
+@patch('handlers.pet_handler.get_item')
+@patch('handlers.pet_handler.put_item')
+def test_staff_admin_put_ignores_new_service_type(mock_put, mock_get, mock_table, role):
+    """Staff/admin PUT succeeds but does not add a submitted service_type to a PET record."""
+    event = make_event(role=role, method='PUT', path_params={"petId": "pet_abc"}, body={
+        "client_id": "client_123",
+        "name": "Buddy Updated",
+        "service_type": "WALK_30MIN"
+    })
+    existing_pet = {
+        "PK": "PET#pet_abc",
+        "SK": "CLIENT#client_123",
+        "pet_id": "pet_abc",
+        "client_id": "client_123",
+        "company_id": "tog_and_dogs",
+        "name": "Buddy"
+    }
+    mock_get.return_value = existing_pet
+    mock_table.get_item.return_value = {"Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123"}}
+    mock_table.query.return_value = {"Items": [existing_pet]}
+    mock_put.return_value = True
+
+    with patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    saved_item = mock_put.call_args[0][0]
+    assert saved_item["name"] == "Buddy Updated"
+    assert "service_type" not in saved_item
+    assert "service_type" not in json.loads(resp["body"])
+
+
+@pytest.mark.parametrize("role", ["staff", "admin"])
+@patch('common.db.table')
+@patch('handlers.pet_handler.get_item')
+@patch('handlers.pet_handler.put_item')
+def test_staff_admin_put_preserves_existing_service_type(mock_put, mock_get, mock_table, role):
+    """Staff/admin PUT silently ignores a submitted replacement and preserves a stored service_type."""
+    event = make_event(role=role, method='PUT', path_params={"petId": "pet_abc"}, body={
+        "client_id": "client_123",
+        "name": "Buddy Updated",
+        "service_type": "WALK_60MIN"
+    })
+    existing_pet = {
+        "PK": "PET#pet_abc",
+        "SK": "CLIENT#client_123",
+        "pet_id": "pet_abc",
+        "client_id": "client_123",
+        "company_id": "tog_and_dogs",
+        "name": "Buddy",
+        "service_type": "PET_SITTING"
+    }
+    mock_get.return_value = existing_pet
+    mock_table.get_item.return_value = {"Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123"}}
+    mock_table.query.return_value = {"Items": [existing_pet]}
+    mock_put.return_value = True
+
+    with patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    saved_item = mock_put.call_args[0][0]
+    assert saved_item["service_type"] == "PET_SITTING"
+    assert json.loads(resp["body"])["service_type"] == "PET_SITTING"
+
+
+@pytest.mark.parametrize("role", ["staff", "admin"])
+@patch('common.db.table')
+@patch('handlers.pet_handler.get_item')
+@patch('handlers.pet_handler.put_item')
+def test_staff_admin_post_ignores_service_type(mock_put, mock_get, mock_table, role):
+    """Staff/admin POST succeeds but does not persist a submitted service_type on the new PET record."""
+    event = make_event(role=role, method='POST', body={
+        "client_id": "client_123",
+        "name": "Buddy",
+        "species": "DOG",
+        "service_type": "PET_SITTING"
+    })
+    mock_get.return_value = {}
+    mock_table.get_item.return_value = {"Item": {"PK": "COMPANY#tog_and_dogs", "SK": "CLIENT#client_123"}}
+    mock_put.return_value = True
+
+    with patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    saved_item = mock_put.call_args[0][0]
+    assert saved_item["name"] == "Buddy"
+    assert "service_type" not in saved_item
+    assert "service_type" not in json.loads(resp["body"])

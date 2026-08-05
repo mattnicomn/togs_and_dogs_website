@@ -4,7 +4,7 @@
 
 **Planning Date:** 2026-08-03
 **Planning Checkpoint:** `40620cff8cd1cc18e338c62a8b9abd2e991b7f7b`
-**Authorization:** Matthew originally approved documentation-only planning, then separately approved bounded local implementations for 2C.2A, 2C.2B.2A, 2C.2B.1, and 2C.2C. Production-data inspection, deployment, mobile build, and distribution remain unapproved.
+**Authorization:** Matthew originally approved documentation-only planning, then separately approved bounded local implementations for 2C.2A, 2C.2B.2A, 2C.2B.1, 2C.2B.2B, and 2C.2C. Phase 2C.2B.2B is locally validated and independently reviewed; Kiro returned `READY_FOR_LOCAL_PHASE_24A_2C_2B_2B_CLOSEOUT`. Production-data inspection, deployment, mobile build, and distribution remain unapproved.
 
 ---
 
@@ -58,7 +58,7 @@ The generator already serializes the entire service contract into both adapters.
 | `AdminDashboard.jsx` — raw request backup export (current line 2110) | Writes raw `service_type` to the requests worksheet. | Excluded; preserve raw export value. |
 | `web/src/components/MasterScheduler.jsx` | Static four-option service filter remains unchanged. Phase 2C.2B.1 now uses a shared exact-known-label resolver only for desktop service-only visit cards and pending-intake `service_type`; truthy `window_type` remains raw and mobile visit/time behavior remains unchanged. | 2C.2B.1 locally validated and independently reviewed; filter membership/equality, window precedence, raw identifiers, callbacks, scheduling, and grouping remain unchanged. |
 | `web/src/components/IntakeForm.jsx` | Phase 2C.2B.2A now derives six canonical options from generated `SERVICE_TYPES` where `availableInIntake === true`, keeps contract order and the `PET_SITTING` default, and submits `formData.service_type` unchanged. | Locally validated and reviewed, complete locally, and not deployed; legacy `DOG_WALKING` remains read-compatible and unmapped. |
-| `web/src/components/CareCard.jsx` | Static options `PET_SITTING`, `WALKING`, `OVERNIGHT`, `OTHER`; saves the selected raw value through the existing update path and displays raw stored values. | Deferred to 2C.2B. `WALKING` and `OTHER` are noncanonical. |
+| `web/src/components/CareCard.jsx` | Phase 2C.2B.2B removes the ineffective editable PET Service Type selector. Visit Details remains read-only, preferring request `_originItem.service_type` and using historical `pet.service_type` only as fallback; the existing helper supplies canonical `labelLong` and three approved aliases, unresolved nonblank values remain raw, and missing/blank values display `Not Specified`. `service_type` is explicitly absent from `onUpdate` PET payloads. | Locally validated and independently reviewed; correction complete and not deployed. No request editor, PET-level service preference, backend source, persistence, API-client, contract, adapter, mobile, scheduling, notification, or production-data change. |
 | `web/src/components/ClientPortal.jsx` | Phase 2C.2B.1 now uses canonical `labelLong` and exact display aliases `DOG_WALKING` → `Daily Dog Walking`, `WALKING` → `Dog Walking`, and `OTHER` → `Other`; unresolved values retain exact underscore-only, case, whitespace, and `Pet Care Visit` fallbacks. | Locally validated and independently reviewed; fetching, state, cancellation identifiers, payloads, navigation, and request objects remain unchanged. |
 
 No existing web test is focused on AdminDashboard service labels. Existing real-component AdminDashboard coverage is primarily in `web/tests/ClientDrawerEditorConsolidation.test.jsx` and `web/tests/GoogleCalendarRBAC.test.jsx`. A dedicated `web/tests/AdminDashboardServiceTypes.test.jsx` is therefore the narrowest proposed characterization and regression location for 2C.2A.
@@ -110,7 +110,7 @@ The selector order is intentionally different from canonical JSON object order. 
 ## 5. Noncanonical Identifier Findings
 
 - At this plan's original checkpoint, `IntakeForm.jsx` could submit `DOG_WALKING`; Phase 2C.2B.2A subsequently stopped new customer-intake emission without mapping legacy values.
-- `CareCard.jsx` can submit `WALKING` and `OTHER`.
+- Before Phase 2C.2B.2B, `CareCard.jsx` could submit `WALKING` and `OTHER` in an ignored PET update field. The local candidate removes that selector and explicitly omits top-level `service_type` from PET update payloads without mapping or rewriting historical values.
 - The intake backend stores the supplied value without a canonical fixed allowlist.
 - Job creation propagates the stored value unchanged.
 - AdminDashboard, ClientPortal, mobile, notifications, and Google Calendar each have different unknown-value fallback behavior.
@@ -156,7 +156,7 @@ Phase 24A-2C.2A must not import duration metadata, change `scheduled_duration`, 
 
 - `MEET_GREET` is `false` but is present in the AdminDashboard New Visit selector.
 - The public `IntakeForm` now includes the six canonical `availableInIntake: true` services in contract order after the separately approved Phase 2C.2B.2A implementation.
-- The CareCard selector has a different membership again.
+- CareCard formerly had a different four-option membership; Phase 2C.2B.2B removes that ignored PET-field selector and retains compatibility display only.
 
 ### Static label sourcing — eligible for 2C.2A
 
@@ -207,7 +207,7 @@ Explicit 2C.2A exclusions:
 
 **Status:** `PARTIALLY IMPLEMENTED LOCALLY / PLANNING COMPLETE / CUSTOMER INTAKE CANONICAL SELECTION COMPLETE / OTHER SUBPHASES DEFERRED / NOT DEPLOYED`.
 
-**Current reconciliation (2026-08-04):** Documentation-only planning completed in `docs/planning/phase-24a-2c2b-selector-normalization-design.md`. Phase 24A-2C.2B.2A customer IntakeForm canonical membership is locally validated and reviewed. Phase 24A-2C.2B.1 is locally validated and independently reviewed with web display compatibility complete and not deployed: canonical values use `labelLong`, three exact legacy values use approved display aliases, ClientPortal retains its owner fallback, and MasterScheduler preserves raw `window_type` plus raw unresolved service fallback. Kiro returned `READY_FOR_LOCAL_PHASE_24A_2C_2B_1_CLOSEOUT` with no correction required. CareCard cleanup, additional selector membership decisions, backend accepted-identifier policy, backend allowlisting or normalization, production-data assessment, migration or deprecation, and deployment remain not approved or deferred.
+**Current reconciliation (2026-08-05):** Documentation-only planning completed in `docs/planning/phase-24a-2c2b-selector-normalization-design.md`. Phase 24A-2C.2B.2A customer IntakeForm canonical membership is locally validated and reviewed. Phase 24A-2C.2B.1 is locally validated and independently reviewed with web display compatibility complete and not deployed: canonical values use `labelLong`, three exact legacy values use approved display aliases, ClientPortal retains its owner fallback, and MasterScheduler preserves raw `window_type` plus raw unresolved service fallback. Kiro returned `READY_FOR_LOCAL_PHASE_24A_2C_2B_1_CLOSEOUT` with no correction required. The separately approved Phase 24A-2C.2B.2B CareCard Option 2 correction is locally validated and independently reviewed and is not deployed: its selector is removed, request-first/historical-fallback Service Type remains read-only, and PET update payloads omit top-level `service_type`. Kiro returned `READY_FOR_LOCAL_PHASE_24A_2C_2B_2B_CLOSEOUT` with no correction required. Additional selector membership decisions, backend accepted-identifier policy, backend allowlisting or normalization, production-data assessment, migration or deprecation, and deployment remain deferred and unapproved.
 
 This phase must separately decide how to handle `DOG_WALKING`, `WALKING`, `OTHER`, canonical `availableInIntake`, current selector memberships/orders, legacy-value display, future backend validation, and possible data normalization. It must not presume that a production migration is needed.
 
@@ -294,7 +294,7 @@ No backend command should be added merely for symmetry. Report the existing full
 |---|---|
 | Phase 24A-2C.2 documentation planning | `APPROVED FOR DOCUMENTATION ONLY` |
 | Phase 24A-2C.2A implementation | `LOCALLY VALIDATED AND REVIEWED / NOT DEPLOYED` |
-| Phase 24A-2C.2B | `PARTIALLY IMPLEMENTED LOCALLY / PLANNING COMPLETE / 2B.1 LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / WEB DISPLAY COMPATIBILITY COMPLETE / NOT DEPLOYED / 2B.2A CUSTOMER INTAKE CANONICAL SELECTION LOCALLY VALIDATED AND REVIEWED / OTHER SUBPHASES DEFERRED` |
+| Phase 24A-2C.2B | `PARTIALLY IMPLEMENTED LOCALLY / PLANNING COMPLETE / 2B.1 LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / 2B.2A CUSTOMER INTAKE CANONICAL SELECTION LOCALLY VALIDATED AND REVIEWED / 2B.2B LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED, CARECARD SERVICE-TYPE CORRECTION COMPLETE / OTHER SUBPHASES DEFERRED / NOT DEPLOYED` |
 | Phase 24A-2C.2C | `LOCALLY VALIDATED AND REVIEWED / NOT BUILT OR DISTRIBUTED` |
 | Phase 24A-2C.2D | `NOT APPROVED` |
 | Production deployment | `NOT APPROVED` |
@@ -321,10 +321,12 @@ Higher-risk deferred areas are selector membership, availability filtering, back
 
 Phase 2C.2B.1 validation: 37/37 focused helper/owner tests, 11/11 AdminDashboard/IntakeForm exclusion regressions, 202/202 complete Vitest across 18 files, 99/99 legacy / 301 unique web tests, 18/18 shared constants, 6/6 deterministic adapter checks, and a successful 109-module Vite build. New files lint cleanly; ClientPortal and MasterScheduler retain their exact pre-change 2-error/1-warning and 1-error/0-warning baselines; complete web lint remains 51 errors and 9 warnings with zero candidate-introduced findings. Kiro independently reproduced the required matrix and returned `READY_FOR_LOCAL_PHASE_24A_2C_2B_1_CLOSEOUT` with no correction required. No pre-existing ClientPortal-focused suite exists beyond the new rendered-owner coverage.
 
+Phase 2C.2B.2B final validation: 22/22 focused CareCard tests, 37/37 existing service-label/owner regressions, 11/11 AdminDashboard/IntakeForm regressions, 224/224 complete Vitest across 19 files, 99/99 legacy / 323 unique web tests, 23/23 staff/admin PET backend tests, 18/18 customer PET backend tests, 18/18 shared constants, 6/6 deterministic adapter checks, and a successful 109-module Vite build (`index-C-Rflmrt.js`, `index-bVFIMo3n.css`, `usmh-logo-CrRnxp7-.png`). The new test is lint-clean; CareCard retains its exact pre-change 6-error/1-warning baseline, complete web lint remains 51 errors/9 warnings, and candidate-introduced lint is zero. Backend source was unchanged; the added tests characterize existing ignored/rejected behavior only. Kiro independently confirmed the exact 10-file candidate and returned `READY_FOR_LOCAL_PHASE_24A_2C_2B_2B_CLOSEOUT` with no blocking correction. No production data, deployment, or distribution action occurred; passing tests and local closeout do not authorize deployment.
+
 Deferred work:
 
 - request-status planning/wiring outside this service-type plan;
-- remaining 2C.2B selector, availability, backend-policy, and noncanonical normalization decisions beyond the locally closed 2B.1 and completed 2B.2A;
+- remaining 2C.2B selector, availability, backend-policy, and noncanonical normalization decisions beyond the locally closed 2B.1, completed 2B.2A, and locally closed 2B.2B CareCard correction;
 - 2C.2D duration/calendar metadata centralization;
 - staff/mobile feature changes unrelated to label display;
 - production inspection or migration design;

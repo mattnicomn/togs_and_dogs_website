@@ -6,7 +6,7 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src', 'backend'))
 
-from handlers.pet_handler import handler as pet_handler
+from handlers.pet_handler import handler as pet_handler, sanitize_pet_for_client
 
 def make_event(role='client', company_id='tog_and_dogs', method='PUT', path='/client/pets/pet_123', path_params=None, body=None, email="client@example.com", cognito_sub="sub_123", email_verified=True):
     claims = {
@@ -560,3 +560,54 @@ def test_customer_pet_update_audit_failure_resilience(mock_put, mock_get, mock_r
     assert body["name"] == "Buddy New"
     mock_rebuild.assert_called_once()
 
+
+@patch('common.auth.resolve_client_identity')
+@patch('handlers.pet_handler.get_item')
+@patch('handlers.pet_handler.put_item')
+def test_customer_pet_update_rejects_service_type_without_changing_stored_fields(mock_put, mock_get, mock_resolve_id):
+    """Client PUT rejects service_type before persistence and leaves every stored attribute untouched."""
+    existing_pet = {
+        "PK": "PET#pet_123",
+        "SK": "CLIENT#client_123",
+        "company_id": "tog_and_dogs",
+        "client_id": "client_123",
+        "pet_id": "pet_123",
+        "name": "Buddy",
+        "service_type": "PET_SITTING",
+        "photo_url": "https://example.test/buddy.jpg",
+        "is_active": True,
+        "health": {"vet_name": "Dr. Smith", "private_note": "unchanged"}
+    }
+    stored_snapshot = json.loads(json.dumps(existing_pet))
+    mock_resolve_id.return_value = "client_123"
+    mock_get.return_value = existing_pet
+
+    event = make_event(body={"service_type": "WALK_30MIN"})
+    with patch('common.entitlement.require_active_tenant', return_value=None):
+        resp = pet_handler(event, None)
+
+    assert resp["statusCode"] == 400
+    assert "Field service_type is not allowed" in json.loads(resp["body"])["error"]
+    mock_put.assert_not_called()
+    assert existing_pet == stored_snapshot
+
+
+def test_customer_pet_response_sanitizer_excludes_stored_service_type():
+    """Customer PET responses never expose a stored service_type or mutate the stored object."""
+    stored_pet = {
+        "PK": "PET#pet_123",
+        "SK": "CLIENT#client_123",
+        "company_id": "tog_and_dogs",
+        "client_id": "client_123",
+        "pet_id": "pet_123",
+        "name": "Buddy",
+        "service_type": "PET_SITTING",
+        "is_active": True
+    }
+    stored_snapshot = stored_pet.copy()
+
+    response_pet = sanitize_pet_for_client(stored_pet)
+
+    assert response_pet["name"] == "Buddy"
+    assert "service_type" not in response_pet
+    assert stored_pet == stored_snapshot
