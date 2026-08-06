@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-05 (Phase 24A-2C.2D.4 Optional Calendar Color Metadata Assessment Local Closeout)
+**Last Updated:** 2026-08-05 (Phase 24A-2C.1 Request-Status Contract & Display Wiring Planning Complete)
 
 ---
 
@@ -38,15 +38,13 @@
 
 ## Tenant / Multi-Business Readiness
 
-| Item | Status |
-|------|--------|
-| Tenant isolation (company_id enforcement) | ✅ Active in all handlers (11E) |
-| Entitlement enforcement Phase 1 | ✅ Active (export, calendar, staff limit) |
-| Entitlement enforcement Phase 2 | ✅ Deployed (client limit, monthly booking counter) — 18L |
-| Platform Admin UI | ✅ Deployed (/platform-admin) |
-| Platform audit trail | ✅ Working |
-| Cognito custom:company_id | ✅ Deployed & verified in production (19M) |
-| TENANT_RESOLUTION_MODE | ✅ Enabled (strict `multi` mode active — 18T validated) |
+| Feature | Status |
+|---------|--------|
+| Tenant Resolution Engine | ✅ Deployed (header, query param, sub-domain, path, fallback) |
+| Tenant Resolution Mode | ⚠️ Currently `off` in production (`DEFAULT_COMPANY_ID` fallback) |
+| Tenant Isolation | ✅ Enforced across all primary database helpers (11E, 18V, 19K) |
+| Entitlement Framework | ✅ Active with 8 enforced metrics (17A–17W) |
+| Platform Admin Panel | ✅ Deployed (`/platform-admin/metrics`, `/platform-admin/tenants`) |
 | Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
 | Second tenant | ✅ Created & Validated in Platform Admin (19E) |
 | Tenant provisioning script | ✅ Dry run validated (19B) |
@@ -62,6 +60,13 @@
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
 
 ## Active Local Work / Pending Review
+
+- Phase 24A-2C.1: Request-Status Contract & Display Wiring (📋 PHASE 24A-2C.1 PLANNING CORRECTED AND DOCUMENTED / 17 CANONICAL REQUEST STATUSES CONFIRMED / PHASE 2C.1A SIX-FILE IMPLEMENTATION BOUNDARY DEFINED / NO IMPLEMENTATION PERFORMED / NOT DEPLOYED — 2026-08-05)
+  - Documented two distinct lifecycle status domains: Request status domain (`REQ#` items for client intake, review, quoting, approval, booking) and Job status domain (`JOB#` items for staff dispatch and visit execution).
+  - Documented the existing canonical request-status contract (`shared/constants/request-statuses.json`, confirming exactly 17 canonical statuses), existing generated web (`contracts.js`) and mobile (`generatedContracts.ts`) adapters, backend transition authority (`status.py`), one-directional REQ → JOB status cascade (`cascade.py`), Google Calendar triggers, notification event triggers, web/mobile display duplication, and legacy/synonym behavior.
+  - Defined Phase 24A-2C.1A as the smallest behavior-preserving first implementation slice with an exact six-file boundary: modifying `request-statuses.json` (adding `label`), `validate-constants.mjs`, and `validate-contract-adapters.mjs` (adding required request-status deep-equality validation), regenerating `web/src/generated/contracts.js` and `mobile/src/contracts/generatedContracts.ts` via unchanged command (`node shared/generate-contract-adapters.mjs`), and creating dedicated backend parity tests (`test_phase24a_request_status_contract_parity.py`).
+  - Generator source (`generate-contract-adapters.mjs`) is unchanged because it already serializes the full cleaned `REQUEST_STATUSES` object. No application code, contracts, generators, validators, tests, generated adapters, UI components, backend handlers, persistence, calendar behavior, notifications, infrastructure, dependencies, production data, or production systems were modified or implemented.
+  - See: `docs/planning/phase-24a-2c1-request-status-contract-display-wiring.md`
 
 - Release 22Y Finding 2: Staff Password-Reset State Awareness (🔗 LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / STAFF PASSWORD RESET STATE AWARENESS COMPLETE / NOT DEPLOYED — 2026-08-04)
   - The real AdminDashboard staff drawer now preserves protected, self, and orphaned reset guards while also disabling normal password reset for the existing direct `cognito_status: FORCE_CHANGE_PASSWORD` and backend-derived `identity_state: linked_invited` invitation states. `linked_invited` covers enabled Cognito users whose status is not `CONFIRMED`, including `FORCE_CHANGE_PASSWORD`, `UNCONFIRMED`, and `RESET_REQUIRED`; `invitation_sent` is not a staff response value and no frontend or backend contract was invented.
@@ -110,7 +115,7 @@
   - Validation: 18 shared constants, 6 adapter checks, 13 focused web contracts, 24 focused MyPets, 20 phase1b3, 96 legacy, 147 Vitest across 13 files / 243 unique web, successful Vite build, 10 focused mobile contracts, 6 mobile suites / 42 tests, 0 TypeScript errors, and 16 focused backend tests with 0 failed and 0 skipped. Changed Phase 24A-2B.2B web files lint cleanly; full web lint remains 51 errors and 9 warnings in unrelated pre-existing files. These findings were not introduced, modified, or remediated by this phase. No mobile lint script is configured.
   - See: `docs/release-notes/phase-24a-2b2b-veterinarian-field-limits.md`
 
-- Phase 24A-2C.2: Cross-Platform Service-Type Contract Wiring (🔗 PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D.1 COMPLETE / 2C.2D.2 COMPLETE / 2C.2D.3–2C.2D.4 DEFERRED / NOT DEPLOYED OR DISTRIBUTED — 2026-08-05)
+- Phase 24A-2C.2: Cross-Platform Service-Type Contract Wiring (🔗 PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D LOCALLY COMPLETE / NOT DEPLOYED OR DISTRIBUTED — 2026-08-05)
   - Phase 24A-2C.2A imported the generated `SERVICE_TYPES` contract into `AdminDashboard.jsx`, replaced duplicated long/short label maps, and sourced the seven explicit selector text nodes from `labelLong` without changing values, order, membership, or the `PET_SITTING` default.
   - Focused behavioral coverage preserves canonical labels, long case-sensitive fallbacks, short case-normalized recognition/original-value fallback, search, raw export, dispatch output, and the exact raw new-visit payload.
   - Independent review confirmed the exact six-file candidate, bounded scope, label/fallback parity, and selector parity with no correction required. Validation: 18 shared constants, 6 adapter checks, 4 focused tests, 99 legacy, 151 Vitest across 14 files / 250 unique web, successful Vite build (`index-D7UoV5fJ.js`, `index-bVFIMo3n.css`), 6 mobile suites / 42 tests, 0 TypeScript errors, and 30 focused backend calendar tests. Phase 2C.2A introduced no lint findings; the new test is lint-clean, `AdminDashboard.jsx` retains its pre-existing 18 errors/5 warnings, and full web lint retains 51 errors/9 warnings in unrelated pre-existing code.
@@ -157,14 +162,9 @@
 - Completed Phase 24A-2B subphases: **Phase 24A-2B.1**, **Phase 24A-2B.2A**, and **Phase 24A-2B.2B**.
 - Phase 24A-2B overall: **LOCALLY VALIDATED AND REVIEWED / ALL PLANNED PHASE 24A-2B CUSTOMER PET FIELD AND VALIDATION WIRING COMPLETE / NOT DEPLOYED OR DISTRIBUTED**.
 - Phase 24A-2C.2 service-type work: **PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D LOCALLY COMPLETE / NOT DEPLOYED OR DISTRIBUTED**. Phases 2C.2A and 2C.2C are locally validated and reviewed. Phase 2C.2B planning, 2B.1 web display compatibility, 2B.2A customer IntakeForm canonical selection, 2B.2B CareCard correction, and 2B.2C MasterScheduler canonical filter correction are locally complete at their review gates. Phase 2D.1 parity/validator hardening, Phase 2D.2 generated backend metadata, Phase 2D.3 duration/friendly-name calendar wiring, and Phase 2D.4 optional color-metadata assessment closeout are locally complete with exact behavior preserved. Backend accepted-identifier policy, production assessment, normalization, migration/deprecation, scheduler-specific metadata, additional availability changes, tenant-configurable color policy, existing-event resynchronization, and deployment remain deferred and unapproved.
+- Phase 24A-2C.1 request-status work: **PLANNING COMPLETE / REQUEST AND JOB STATUS DOMAINS DOCUMENTED / FIRST METADATA AND PARITY SLICE DEFINED / NO IMPLEMENTATION AUTHORIZED / NOT DEPLOYED**.
 - Phase 24A-2C request-status wiring remains outside this implementation and has not started.
 - Separate deferred scopes: staff pet-contract work, mobile pet creation and editing, production deployment, mobile distribution, and Ryan testing.
-
-
-
-
-
-- Phase 24A-1C: Cross-Platform Visual Token Alignment (🎨 LOCALLY VALIDATED AND REVIEWED / NOT DEPLOYED OR DISTRIBUTED — 2026-07-30)
   - Aligned 6 remaining color tokens per Matthew's explicit approval: `primaryHover` (`#a37213`), `textMuted` (`#6a6a66`), `border` (`#e2dfd9`), `borderSoft` (`#edf2ee`), `success` (`#4a7c59`), `danger` (`#d64933`).
   - Contract `shared/tokens/colors.json` updated to 100% aligned (`"aligned": true` across all 13 tokens).
   - Regenerated `web/src/generated/color-tokens.css` and `mobile/src/theme/generatedColors.ts`.
