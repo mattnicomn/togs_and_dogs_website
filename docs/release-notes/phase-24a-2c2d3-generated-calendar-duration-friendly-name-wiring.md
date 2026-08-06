@@ -248,17 +248,17 @@ Backend identifier policy, production assessment, normalization, migration/depre
 
 ## 18. Remaining deferred work
 
-- **Phase 2D.4:** optional calendar color metadata;
+- tenant-configurable calendar color policy;
 - backend service-identifier acceptance policy;
 - production assessment;
 - normalization and migration/deprecation;
 - existing-event resynchronization;
 - backend deployment review.
 
-Phase 24A-2C.2 remains partially complete locally. Phase 2D overall is not complete.
+Phase 24A-2C.2 remains partially complete locally. Planned Phase 2D backend service-metadata workstream is locally complete across all four subphases (2D.1, 2D.2, 2D.3, 2D.4).
 
 ## 19. Final status
 
 **PHASE 24A-2C.2D.3 LOCALLY VALIDATED AND INDEPENDENTLY REVIEWED / DOCUMENTATION PREPARED / AWAITING COMMIT DECISION / EXACT BEHAVIOR PRESERVED / NOT DEPLOYED**
 
-**Phase 24A-2C.2:** **PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D.1 COMPLETE / 2C.2D.2 COMPLETE / 2C.2D.3 COMPLETE / 2C.2D.4 DEFERRED / NOT DEPLOYED OR DISTRIBUTED**
+**Phase 24A-2C.2:** **PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D LOCALLY COMPLETE / NOT DEPLOYED OR DISTRIBUTED**

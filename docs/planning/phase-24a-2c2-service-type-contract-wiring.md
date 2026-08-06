@@ -1,10 +1,10 @@
 # Phase 24A-2C.2 — Cross-Platform Service-Type Contract Wiring Plan
 
-**Status:** 📋 **PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D.1 COMPLETE / 2C.2D.2 COMPLETE / 2C.2D.3 COMPLETE / 2C.2D.4 DEFERRED / NOT DEPLOYED OR DISTRIBUTED**
+**Status:** 📋 **PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D LOCALLY COMPLETE / NOT DEPLOYED OR DISTRIBUTED**
 
 **Planning Date:** 2026-08-03
 **Planning Checkpoint:** `40620cff8cd1cc18e338c62a8b9abd2e991b7f7b`
-**Authorization:** Matthew originally approved documentation-only planning, then separately approved bounded local implementations for 2C.2A, the approved 2C.2B frontend slices, 2C.2C, the validation-only 2C.2D.1 candidate, the no-runtime-consumption 2C.2D.2 generated backend metadata candidate, and the behavior-preserving 2C.2D.3 generated calendar duration and friendly-name wiring candidate. Phases 2C.2D.1, 2C.2D.2, and 2C.2D.3 are locally validated and independently reviewed; Kiro returned `READY_FOR_PHASE_24A_2C_2D_3_DOCUMENTATION_AND_LOCAL_CLOSEOUT` for the exact three-file 2D.3 candidate. Optional color metadata (2D.4), production-data inspection, deployment, mobile build, and distribution remain unapproved.
+**Authorization:** Matthew originally approved documentation-only planning, then separately approved bounded local implementations for 2C.2A, the approved 2C.2B frontend slices, 2C.2C, the validation-only 2C.2D.1 candidate, the no-runtime-consumption 2C.2D.2 generated backend metadata candidate, the behavior-preserving 2C.2D.3 generated calendar duration and friendly-name wiring candidate, and the read-only 2C.2D.4 optional color-metadata assessment. Phases 2C.2D.1, 2C.2D.2, and 2C.2D.3 are locally validated, independently reviewed, committed, and pushed. Phase 2C.2D.4 is locally complete as an assessed no-implementation closeout (`SERVICE_COLORS` remains handwritten in `google_calendar.py`). Production-data inspection, deployment, mobile build, and distribution remain unapproved.
 
 ---
 
@@ -346,11 +346,13 @@ Phase 2C.2B.2C final validation: 15/15 focused ServiceTypeDisplayOwners, 29/29 s
 
 Phase 2C.2D.3 final validation: `google_calendar.py` imports `SERVICE_TYPES` from `common.generated_service_types` and derives `SERVICE_DURATIONS` and `FRIENDLY_SERVICE_NAMES` (`label`) directly from generated contract metadata. Exact symbol names, `_build_event_body()`, handwritten `SERVICE_COLORS`, and fallback logic are preserved. 11 new edge characterization tests in `test_phase24a_service_duration_contract_parity.py` preserve existing `scheduled_duration` edge handling. AST inspection proves `google_calendar.py` is the exactly-one runtime consumer of generated metadata in backend source. Validation: 18/18 constants, 8/8 adapters, 6/6 generated metadata tests, 59/59 duration parity tests, 18/18 calendar hardening, 12/12 all-day, 22/22 multi-day, and 117/117 combined affected backend tests. Kiro independently verified the candidate and returned `READY_FOR_PHASE_24A_2C_2D_3_DOCUMENTATION_AND_LOCAL_CLOSEOUT`. No deployment or production-data access occurred; passing tests and local closeout do not authorize deployment.
 
+Phase 2C.2D.4 final assessment closeout: Evaluated optional Google Calendar color metadata migration options. Confirmed Google `colorId` strings (`"9"`, `"7"`, `"6"`, etc.) are provider-specific presentation keys unconsumed by web or mobile UIs. Adding color IDs to shared `service-types.json` would pollute cross-platform contracts and bloat platform adapters, while generator-injected backend-only metadata would create un-sourced authority and break adapter validator symmetry. Recommended decision: keep `SERVICE_COLORS` handwritten and isolated inside `src/backend/common/google_calendar.py`. Zero code, test, contract, generator, validator, web, mobile, infrastructure, or deployment change. Planned Phase 2C.2D backend service-metadata workstream is locally complete across all four subphases (2D.1, 2D.2, 2D.3, 2D.4).
+
 Deferred work:
 
 - request-status planning/wiring outside this service-type plan;
 - backend accepted-identifier policy, legacy normalization, production assessment, migration/deprecation, scheduler-specific contract metadata, and additional product/service availability decisions beyond the locally completed approved 2C.2B frontend scope;
-- 2C.2D.4 optional calendar color metadata;
+- tenant-configurable calendar color policy;
 - backend identifier policy, production assessment, legacy normalization, migration/deprecation, deployment review, and existing-event resynchronization;
 - staff/mobile feature changes unrelated to label display;
 - production inspection or migration design;
@@ -360,4 +362,4 @@ This planning phase does not authorize or perform application source changes, te
 
 ---
 
-**PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D.1 COMPLETE / 2C.2D.2 COMPLETE / 2C.2D.3 COMPLETE / 2C.2D.4 DEFERRED / NOT DEPLOYED OR DISTRIBUTED**
+**PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D LOCALLY COMPLETE / NOT DEPLOYED OR DISTRIBUTED**

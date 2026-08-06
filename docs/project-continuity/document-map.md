@@ -75,6 +75,7 @@
 | Phase 24A-2C.2D.1 service-duration parity and validator hardening (locally validated and independently reviewed; no runtime behavior change) | `docs/release-notes/phase-24a-2c2d1-service-duration-parity-validator-hardening.md` |
 | Phase 24A-2C.2D.2 generated backend service-metadata adapter (locally validated and independently reviewed; no runtime consumption) | `docs/release-notes/phase-24a-2c2d2-generated-backend-service-metadata-adapter.md` |
 | Phase 24A-2C.2D.3 generated calendar duration and friendly-name wiring (locally validated and independently reviewed; exact behavior preserved) | `docs/release-notes/phase-24a-2c2d3-generated-calendar-duration-friendly-name-wiring.md` |
+| Phase 24A-2C.2D.4 optional calendar color metadata design & value assessment (no implementation recommended; Phase 2D stream locally complete) | `docs/release-notes/phase-24a-2c2d4-calendar-color-metadata-assessment.md` |
 
 
 
