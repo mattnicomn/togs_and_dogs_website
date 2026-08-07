@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getKnownServiceTypeLabel } from '../utils/serviceLabels.js';
+import { REQUEST_STATUSES } from '../generated/contracts.js';
 import '../Admin.css';
 
 const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [] }) => {
@@ -295,7 +296,7 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
                   <div className="queue-info">
                     <strong>{req.client_name}</strong>
                     <span>{getKnownServiceTypeLabel(req.service_type) ?? req.service_type}</span>
-                    <span className={`status-pill ${req.status}`}>{req.status.replace(/_/g, ' ')}</span>
+                    <span className={`status-pill ${req.status}`}>{REQUEST_STATUSES.statuses?.[req.status]?.label || req.status.replace(/_/g, ' ')}</span>
                   </div>
                   <button onClick={(e) => { e.stopPropagation(); onReview(req); }} className="btn-small">Process</button>
                 </div>
