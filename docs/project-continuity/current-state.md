@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-05 (Phase 24A-2C.1 Request-Status Contract & Display Wiring Planning Complete)
+**Last Updated:** 2026-08-07 (Phase 24A-2C.1B Web Request-Status Display Compatibility Wiring Complete)
 
 ---
 
@@ -60,6 +60,15 @@
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
 
 ## Active Local Work / Pending Review
+
+- Phase 24A-2C.1B: Web Request-Status Display Compatibility Wiring (🔗 LOCALLY COMPLETE / WEB REQUEST-STATUS DISPLAY WIRING IMPLEMENTED / CONTEXTUAL & WORKFLOW LABELS PRESERVED / DEDICATED COMPATIBILITY SUITE ADDED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-07)
+  - Wired generated `REQUEST_STATUSES` from `web/src/generated/contracts.js` into customer portal (`ClientPortal.jsx`) for exact-match entries and Intake Queue status pills (`MasterScheduler.jsx`).
+  - Preserved client-facing contextual overrides (`MG_SCHEDULED` → `"M&G Scheduled"`, `ASSIGNED` → `"Scheduled"`, `CANCELLATION_REQUESTED` → `"Cancellation Pending"`), MasterScheduler status filter dropdown options (`ALL`, `ASSIGNED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED` single-"l", `RESCHEDULED`), CareCard status transition options, AdminDashboard workflow-sensitive labels, descriptions, colors, backgrounds, and fallbacks.
+  - Added 7 focused unit tests in `web/tests/RequestStatusDisplayCompatibility.test.jsx`. Validation: 18 constants, 9 adapters, 13 backend parity, 238 full web Vitest across 20 test files.
+  - Kiro independent review classified candidate as `IMPLEMENTATION_CORRECT` (`READY_FOR_PHASE_24A_2C_1B_COMMIT_DECISION`).
+  - Committed (`2a7959e06367681527cc784f448663521ae030a8`) and pushed to `origin/main`. NOT DEPLOYED; production baseline remains Phase 1B.5C-D.2.
+  - See: `docs/planning/phase-24a-2c1-request-status-contract-display-wiring.md`
+  - See: `docs/release-notes/phase-24a-2c1b-web-request-status-display-compatibility-wiring.md`
 
 - Phase 24A-2C.1A: Request-Status Label Metadata & Parity Hardening (🔗 LOCALLY COMPLETE / 17 REQUEST-STATUS LABELS ADDED / REQUEST-STATUS CONTRACT AND ADAPTER PARITY HARDENED / DEDICATED CHARACTERIZATION TESTS ADDED / DOCUMENTED, COMMITTED, AND PUSHED / NO RUNTIME CONSUMER WIRING / NOT DEPLOYED — 2026-08-06)
   - Implemented the bounded six-file metadata and parity hardening candidate: added non-empty `label` strings to all 17 canonical entries in `shared/constants/request-statuses.json`, hardened `validate-constants.mjs` and `validate-contract-adapters.mjs`, deterministically regenerated `web/src/generated/contracts.js` and `mobile/src/contracts/generatedContracts.ts` via unchanged generator command (`node shared/generate-contract-adapters.mjs`), and added dedicated backend characterization suite `tests/backend/test_phase24a_request_status_contract_parity.py` (13 tests).

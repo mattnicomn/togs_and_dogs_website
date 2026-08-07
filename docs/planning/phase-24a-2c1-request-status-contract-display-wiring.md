@@ -2,15 +2,15 @@
 
 ## 1. Status and Authorization
 
-**Status:** **PHASE 24A-2C.1A LOCALLY COMPLETE / 17 REQUEST-STATUS LABELS ADDED / REQUEST-STATUS CONTRACT AND ADAPTER PARITY HARDENED / DEDICATED CHARACTERIZATION TESTS ADDED / DOCUMENTED, COMMITTED, AND PUSHED / NO RUNTIME CONSUMER WIRING / NOT DEPLOYED**
+**Status:** **PHASE 24A-2C.1B LOCALLY COMPLETE / WEB REQUEST-STATUS DISPLAY WIRING IMPLEMENTED / CONTEXTUAL & WORKFLOW LABELS PRESERVED / DEDICATED COMPATIBILITY SUITE ADDED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED**
 
 - **Planning Date:** 2026-08-05
-- **Implementation & Review Date:** 2026-08-05
-- **Commit Date:** 2026-08-06
-- **Commit SHA:** `5f27b282b1a638ffd641fbef598623351cb9da42` (`feat: add request status labels and parity validation`)
-- **Matthew's Approval Boundary:** Phase 2C.1A implementation is locally complete, validated, independently reviewed, committed, and pushed to `origin/main`. No application code, backend handlers, persistence, calendar behavior, notifications, web consumers, mobile consumers, infrastructure, dependencies, production data, or production systems were modified. Future consumer wiring (2C.1B/2C.1C) remains unapproved and undeployed.
+- **2C.1A Commit Date:** 2026-08-06 (SHA `5f27b282b1a638ffd641fbef598623351cb9da42`)
+- **2C.1B Commit Date:** 2026-08-07
+- **2C.1B Implementation Commit SHA:** `2a7959e06367681527cc784f448663521ae030a8` (`feat: wire request status display labels`)
+- **Matthew's Approval Boundary:** Phase 2C.1B implementation is locally complete, validated, independently reviewed (Kiro returned `IMPLEMENTATION_CORRECT`), committed, and pushed to `origin/main`. Web request-status display labels are wired into `ClientPortal.jsx` and `MasterScheduler.jsx` while preserving customer contextual overrides (`"M&G Scheduled"`, `"Scheduled"`, `"Cancellation Pending"`), MasterScheduler filter options, CareCard status options, AdminDashboard workflow labels, descriptions, colors, backgrounds, and fallbacks. Future mobile display wiring (2C.1C) remains unapproved and undeployed.
 - **Latest Validated Production Baseline:** Phase 1B.5C-D.2.
-- **Latest Completed Local Closeout:** Phase 24A-2C.2D.4 (Optional Google Calendar Color Metadata Assessment Closeout).
+- **Latest Completed Local Closeout:** Phase 24A-2C.1B (Web Request-Status Display Compatibility Wiring).
 
 ---
 
