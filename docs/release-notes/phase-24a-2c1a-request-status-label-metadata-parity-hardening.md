@@ -2,8 +2,10 @@
 
 ## 1. Executive Summary & Status
 
-- **Status:** **PHASE 24A-2C.1A LOCALLY IMPLEMENTED / 17 REQUEST-STATUS LABELS ADDED / REQUEST-STATUS CONTRACT AND ADAPTER PARITY HARDENED / DEDICATED CHARACTERIZATION TESTS ADDED / INDEPENDENTLY REVIEWED / AWAITING COMMIT DECISION / NOT DEPLOYED**
+- **Status:** **PHASE 24A-2C.1A LOCALLY COMPLETE / 17 REQUEST-STATUS LABELS ADDED / REQUEST-STATUS CONTRACT AND ADAPTER PARITY HARDENED / DEDICATED CHARACTERIZATION TESTS ADDED / DOCUMENTED, COMMITTED, AND PUSHED / NO RUNTIME CONSUMER WIRING / NOT DEPLOYED**
 - **Date:** 2026-08-05
+- **Commit Date:** 2026-08-06
+- **Commit SHA:** `5f27b282b1a638ffd641fbef598623351cb9da42` (`feat: add request status labels and parity validation`)
 - **Starting Checkpoint:** `779e221aca10764c9d5cea046e8d40ad85cfbd6a` (main branch)
 - **Base Commit:** `docs: plan request status contract wiring`
 - **Scope:** Bounded six-file local metadata and parity hardening candidate. Adds friendly display `label` metadata to all 17 canonical request statuses in `shared/constants/request-statuses.json`, hardens contract validators, deterministically regenerates Web and Mobile adapters, and adds a dedicated characterization test suite.
@@ -197,4 +199,4 @@ Phase 2C.1G: Status Allowlist & Transition Policy Assessment (Requires Productio
 
 ## 13. Final Status
 
-**PHASE 24A-2C.1A LOCALLY IMPLEMENTED / 17 REQUEST-STATUS LABELS ADDED / REQUEST-STATUS CONTRACT AND ADAPTER PARITY HARDENED / DEDICATED CHARACTERIZATION TESTS ADDED / INDEPENDENTLY REVIEWED / AWAITING COMMIT DECISION / NOT DEPLOYED**
+**PHASE 24A-2C.1A LOCALLY COMPLETE / 17 REQUEST-STATUS LABELS ADDED / REQUEST-STATUS CONTRACT AND ADAPTER PARITY HARDENED / DEDICATED CHARACTERIZATION TESTS ADDED / DOCUMENTED, COMMITTED, AND PUSHED / NO RUNTIME CONSUMER WIRING / NOT DEPLOYED**

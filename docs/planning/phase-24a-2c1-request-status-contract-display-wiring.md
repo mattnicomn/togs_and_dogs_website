@@ -2,13 +2,13 @@
 
 ## 1. Status and Authorization
 
-**Status:** **PHASE 24A-2C.1A LOCALLY IMPLEMENTED / 17 REQUEST-STATUS LABELS ADDED / REQUEST-STATUS CONTRACT AND ADAPTER PARITY HARDENED / DEDICATED CHARACTERIZATION TESTS ADDED / INDEPENDENTLY REVIEWED / AWAITING COMMIT DECISION / NOT DEPLOYED**
+**Status:** **PHASE 24A-2C.1A LOCALLY COMPLETE / 17 REQUEST-STATUS LABELS ADDED / REQUEST-STATUS CONTRACT AND ADAPTER PARITY HARDENED / DEDICATED CHARACTERIZATION TESTS ADDED / DOCUMENTED, COMMITTED, AND PUSHED / NO RUNTIME CONSUMER WIRING / NOT DEPLOYED**
 
 - **Planning Date:** 2026-08-05
 - **Implementation & Review Date:** 2026-08-05
-- **Starting Checkpoint:** `779e221aca10764c9d5cea046e8d40ad85cfbd6a` (main branch)
-- **Base Commit:** `docs: plan request status contract wiring`
-- **Matthew's Approval Boundary:** Phase 2C.1A implementation is locally complete, validated, and independently reviewed. No application code, backend handlers, persistence, calendar behavior, notifications, web consumers, mobile consumers, infrastructure, dependencies, production data, or production systems were modified.
+- **Commit Date:** 2026-08-06
+- **Commit SHA:** `5f27b282b1a638ffd641fbef598623351cb9da42` (`feat: add request status labels and parity validation`)
+- **Matthew's Approval Boundary:** Phase 2C.1A implementation is locally complete, validated, independently reviewed, committed, and pushed to `origin/main`. No application code, backend handlers, persistence, calendar behavior, notifications, web consumers, mobile consumers, infrastructure, dependencies, production data, or production systems were modified. Future consumer wiring (2C.1B/2C.1C) remains unapproved and undeployed.
 - **Latest Validated Production Baseline:** Phase 1B.5C-D.2.
 - **Latest Completed Local Closeout:** Phase 24A-2C.2D.4 (Optional Google Calendar Color Metadata Assessment Closeout).
 
