@@ -66,6 +66,7 @@
 | Phase 24A-2C.1 request-status contract & display wiring plan | `docs/planning/phase-24a-2c1-request-status-contract-display-wiring.md` |
 | Phase 24A-2C.1A request-status label metadata & parity hardening (locally complete, committed, and pushed) | `docs/release-notes/phase-24a-2c1a-request-status-label-metadata-parity-hardening.md` |
 | Phase 24A-2C.1B web request-status display compatibility wiring (locally complete, committed, and pushed) | `docs/release-notes/phase-24a-2c1b-web-request-status-display-compatibility-wiring.md` |
+| Phase 24A-2C.1C mobile request-status display compatibility wiring (locally complete, committed, and pushed) | `docs/release-notes/phase-24a-2c1c-mobile-request-status-display-compatibility-wiring.md` |
 | Phase 24A-2C.2 cross-platform service-type contract wiring plan | `docs/planning/phase-24a-2c2-service-type-contract-wiring.md` |
 | Phase 24A-2C.2A web admin service-type display labels | `docs/release-notes/phase-24a-2c2a-web-admin-service-labels.md` |
 | Phase 24A-2C.2B selector membership and noncanonical compatibility plan | `docs/planning/phase-24a-2c2b-selector-normalization-design.md` |

@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-07 (Phase 24A-2C.1B Web Request-Status Display Compatibility Wiring Complete)
+**Last Updated:** 2026-08-07 (Phase 24A-2C.1C Mobile Request-Status Display Compatibility Wiring Complete)
 
 ---
 
@@ -61,11 +61,20 @@
 
 ## Active Local Work / Pending Review
 
+- Phase 24A-2C.1C: Mobile Request-Status Display Compatibility Wiring (🔗 LOCALLY COMPLETE / MOBILE REQUEST-STATUS DISPLAY WIRING IMPLEMENTED / CONTEXTUAL & WORKFLOW LABELS PRESERVED / DEDICATED COMPATIBILITY SUITE ADDED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-07)
+  - Wired generated `REQUEST_STATUSES` from `mobile/src/contracts/generatedContracts.ts` into mobile status badge (`StatusBadge.tsx`) for upper-cased contract-backed badge labels and customer appointments screen (`BookingsScreen.tsx`) for exact-match entries.
+  - Preserved customer contextual overrides (`ASSIGNED` → `"Scheduled"`, `JOB_CREATED` → `"Scheduled"`), staff navigation filter tabs (`RequestListScreen.tsx`), staff dashboard metrics counter (`DashboardScreen.tsx`), badge styling, colors, borders, typography, layout, padding, and accessibility properties.
+  - Added 10 dedicated compatibility unit tests in `mobile/__tests__/RequestStatusDisplayCompatibility.test.tsx`. Validation: 18 constants, 9 adapters, 79 full mobile Jest tests across 9 suites.
+  - Kiro independent review classified candidate as `IMPLEMENTATION_CORRECT` (`READY_FOR_PHASE_24A_2C_1C_COMMIT_DECISION`).
+  - Committed (`83225b6800b3ed16eb825f61f06e1027347a2e52`) and pushed to `origin/main`. NOT DEPLOYED; production baseline remains Phase 1B.5C-D.2. Zero EAS or Expo distribution builds occurred.
+  - See: `docs/planning/phase-24a-2c1-request-status-contract-display-wiring.md`
+  - See: `docs/release-notes/phase-24a-2c1c-mobile-request-status-display-compatibility-wiring.md`
+
 - Phase 24A-2C.1B: Web Request-Status Display Compatibility Wiring (🔗 LOCALLY COMPLETE / WEB REQUEST-STATUS DISPLAY WIRING IMPLEMENTED / CONTEXTUAL & WORKFLOW LABELS PRESERVED / DEDICATED COMPATIBILITY SUITE ADDED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-07)
   - Wired generated `REQUEST_STATUSES` from `web/src/generated/contracts.js` into customer portal (`ClientPortal.jsx`) for exact-match entries and Intake Queue status pills (`MasterScheduler.jsx`).
   - Preserved client-facing contextual overrides (`MG_SCHEDULED` → `"M&G Scheduled"`, `ASSIGNED` → `"Scheduled"`, `CANCELLATION_REQUESTED` → `"Cancellation Pending"`), MasterScheduler status filter dropdown options (`ALL`, `ASSIGNED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED` single-"l", `RESCHEDULED`), CareCard status transition options, AdminDashboard workflow-sensitive labels, descriptions, colors, backgrounds, and fallbacks.
   - Added 7 focused unit tests in `web/tests/RequestStatusDisplayCompatibility.test.jsx`. Validation: 18 constants, 9 adapters, 13 backend parity, 238 full web Vitest across 20 test files.
-  - Kiro independent review classified candidate as `IMPLEMENTATION_CORRECT` (`READY_FOR_PHASE_24A_2C_1B_COMMIT_DECISION`).
+  - Kiro independent review classified the candidate as `IMPLEMENTATION_CORRECT` (`READY_FOR_PHASE_24A_2C_1B_COMMIT_DECISION`).
   - Committed (`2a7959e06367681527cc784f448663521ae030a8`) and pushed to `origin/main`. NOT DEPLOYED; production baseline remains Phase 1B.5C-D.2.
   - See: `docs/planning/phase-24a-2c1-request-status-contract-display-wiring.md`
   - See: `docs/release-notes/phase-24a-2c1b-web-request-status-display-compatibility-wiring.md`

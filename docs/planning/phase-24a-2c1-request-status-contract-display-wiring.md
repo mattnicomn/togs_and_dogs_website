@@ -2,15 +2,16 @@
 
 ## 1. Status and Authorization
 
-**Status:** **PHASE 24A-2C.1B LOCALLY COMPLETE / WEB REQUEST-STATUS DISPLAY WIRING IMPLEMENTED / CONTEXTUAL & WORKFLOW LABELS PRESERVED / DEDICATED COMPATIBILITY SUITE ADDED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED**
+**Status:** **PHASE 24A-2C.1C LOCALLY COMPLETE / MOBILE REQUEST-STATUS DISPLAY WIRING IMPLEMENTED / CONTEXTUAL & WORKFLOW LABELS PRESERVED / DEDICATED COMPATIBILITY SUITE ADDED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED**
 
 - **Planning Date:** 2026-08-05
 - **2C.1A Commit Date:** 2026-08-06 (SHA `5f27b282b1a638ffd641fbef598623351cb9da42`)
-- **2C.1B Commit Date:** 2026-08-07
-- **2C.1B Implementation Commit SHA:** `2a7959e06367681527cc784f448663521ae030a8` (`feat: wire request status display labels`)
-- **Matthew's Approval Boundary:** Phase 2C.1B implementation is locally complete, validated, independently reviewed (Kiro returned `IMPLEMENTATION_CORRECT`), committed, and pushed to `origin/main`. Web request-status display labels are wired into `ClientPortal.jsx` and `MasterScheduler.jsx` while preserving customer contextual overrides (`"M&G Scheduled"`, `"Scheduled"`, `"Cancellation Pending"`), MasterScheduler filter options, CareCard status options, AdminDashboard workflow labels, descriptions, colors, backgrounds, and fallbacks. Future mobile display wiring (2C.1C) remains unapproved and undeployed.
+- **2C.1B Commit Date:** 2026-08-07 (SHA `2a7959e06367681527cc784f448663521ae030a8`)
+- **2C.1C Commit Date:** 2026-08-07
+- **2C.1C Implementation Commit SHA:** `83225b6800b3ed16eb825f61f06e1027347a2e52` (`feat: wire mobile request status display labels`)
+- **Matthew's Approval Boundary:** Phase 2C.1C implementation is locally complete, validated, independently reviewed (Kiro returned `IMPLEMENTATION_CORRECT`), committed, and pushed to `origin/main`. Mobile request-status display labels are wired into `StatusBadge.tsx` and `BookingsScreen.tsx` while preserving customer contextual overrides (`ASSIGNED` → `"Scheduled"`, `JOB_CREATED` → `"Scheduled"`), staff filter tab labels (`RequestListScreen.tsx`), staff dashboard counters (`DashboardScreen.tsx`), badge styling, colors, borders, typography, layout, padding, and accessibility properties. Future Phase 24A work remains separately gated and undeployed.
 - **Latest Validated Production Baseline:** Phase 1B.5C-D.2.
-- **Latest Completed Local Closeout:** Phase 24A-2C.1B (Web Request-Status Display Compatibility Wiring).
+- **Latest Completed Local Closeout:** Phase 24A-2C.1C (Mobile Request-Status Display Compatibility Wiring).
 
 ---
 
