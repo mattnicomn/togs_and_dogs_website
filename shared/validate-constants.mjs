@@ -73,6 +73,9 @@ test('status synonyms reference existing statuses or are known legacy values', (
 
 test('required status properties exist', () => {
   for (const [id, status] of Object.entries(statuses.statuses)) {
+    assert.ok('label' in status, `Status "${id}" missing label`);
+    assert.equal(typeof status.label, 'string', `Status "${id}" label must be a string`);
+    assert.ok(status.label.trim().length > 0, `Status "${id}" label must be a non-empty string`);
     assert.ok('category' in status, `Status "${id}" missing category`);
     assert.ok('terminal' in status, `Status "${id}" missing terminal`);
     assert.ok('customerVisible' in status, `Status "${id}" missing customerVisible`);

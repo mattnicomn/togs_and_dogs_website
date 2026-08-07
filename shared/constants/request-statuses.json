@@ -5,6 +5,7 @@
   "_note": "Machine identifiers only. Display labels are platform-specific due to workflow-context sensitivity on web.",
   "statuses": {
     "PENDING_REVIEW": {
+      "label": "Pending Review",
       "category": "neutral",
       "terminal": false,
       "customerVisible": true,
@@ -12,6 +13,7 @@
       "synonyms": ["NEEDS_REVIEW"]
     },
     "MEET_GREET_REQUIRED": {
+      "label": "Meet & Greet Required",
       "category": "informational",
       "terminal": false,
       "customerVisible": false,
@@ -19,6 +21,7 @@
       "synonyms": ["NEEDS_MG"]
     },
     "MG_SCHEDULED": {
+      "label": "Meet & Greet Scheduled",
       "category": "informational",
       "terminal": false,
       "customerVisible": false,
@@ -26,6 +29,7 @@
       "synonyms": []
     },
     "MG_COMPLETED": {
+      "label": "Meet & Greet Completed",
       "category": "informational",
       "terminal": false,
       "customerVisible": false,
@@ -33,6 +37,7 @@
       "synonyms": []
     },
     "PROFILE_CREATED": {
+      "label": "Profile Created",
       "category": "informational",
       "terminal": false,
       "customerVisible": false,
@@ -40,6 +45,7 @@
       "synonyms": []
     },
     "READY_FOR_APPROVAL": {
+      "label": "Ready for Approval",
       "category": "informational",
       "terminal": false,
       "customerVisible": false,
@@ -47,6 +53,7 @@
       "synonyms": ["NEW_REQUEST"]
     },
     "QUOTE_NEEDED": {
+      "label": "Quote Needed",
       "category": "informational",
       "terminal": false,
       "customerVisible": false,
@@ -54,6 +61,7 @@
       "synonyms": []
     },
     "QUOTE_SENT": {
+      "label": "Quote Sent",
       "category": "informational",
       "terminal": false,
       "customerVisible": true,
@@ -61,6 +69,7 @@
       "synonyms": ["QUOTED"]
     },
     "APPROVED": {
+      "label": "Approved",
       "category": "success",
       "terminal": false,
       "customerVisible": true,
@@ -68,6 +77,7 @@
       "synonyms": ["BOOKED"]
     },
     "ASSIGNED": {
+      "label": "Assigned",
       "category": "success",
       "terminal": false,
       "customerVisible": true,
@@ -75,6 +85,7 @@
       "synonyms": ["JOB_CREATED", "SCHEDULED"]
     },
     "DECLINED": {
+      "label": "Declined",
       "category": "danger",
       "terminal": true,
       "customerVisible": true,
@@ -82,6 +93,7 @@
       "synonyms": []
     },
     "CANCELLATION_REQUESTED": {
+      "label": "Cancellation Requested",
       "category": "warning",
       "terminal": false,
       "customerVisible": true,
@@ -89,6 +101,7 @@
       "synonyms": []
     },
     "CANCELLATION_DENIED": {
+      "label": "Cancellation Denied",
       "category": "warning",
       "terminal": false,
       "customerVisible": true,
@@ -96,6 +109,7 @@
       "synonyms": []
     },
     "CANCELLED": {
+      "label": "Cancelled",
       "category": "danger",
       "terminal": true,
       "customerVisible": true,
@@ -103,6 +117,7 @@
       "synonyms": []
     },
     "COMPLETED": {
+      "label": "Completed",
       "category": "success",
       "terminal": true,
       "customerVisible": true,
@@ -110,6 +125,7 @@
       "synonyms": []
     },
     "ARCHIVED": {
+      "label": "Archived",
       "category": "neutral",
       "terminal": true,
       "customerVisible": false,
@@ -117,6 +133,7 @@
       "synonyms": []
     },
     "DELETED": {
+      "label": "Deleted",
       "category": "neutral",
       "terminal": true,
       "customerVisible": false,

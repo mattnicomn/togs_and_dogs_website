@@ -64,6 +64,7 @@
 | Phase 24A-2B.2A web pet top-level validation limits | `docs/release-notes/phase-24a-2b2a-web-pet-top-level-limits.md` |
 | Phase 24A-2B.2B customer veterinarian-field limits | `docs/release-notes/phase-24a-2b2b-veterinarian-field-limits.md` |
 | Phase 24A-2C.1 request-status contract & display wiring plan | `docs/planning/phase-24a-2c1-request-status-contract-display-wiring.md` |
+| Phase 24A-2C.1A request-status label metadata & parity hardening (locally implemented and independently reviewed) | `docs/release-notes/phase-24a-2c1a-request-status-label-metadata-parity-hardening.md` |
 | Phase 24A-2C.2 cross-platform service-type contract wiring plan | `docs/planning/phase-24a-2c2-service-type-contract-wiring.md` |
 | Phase 24A-2C.2A web admin service-type display labels | `docs/release-notes/phase-24a-2c2a-web-admin-service-labels.md` |
 | Phase 24A-2C.2B selector membership and noncanonical compatibility plan | `docs/planning/phase-24a-2c2b-selector-normalization-design.md` |

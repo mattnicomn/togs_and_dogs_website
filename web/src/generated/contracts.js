@@ -79,6 +79,7 @@ export const PET_FIELDS = {
 export const REQUEST_STATUSES = {
   "statuses": {
     "PENDING_REVIEW": {
+      "label": "Pending Review",
       "category": "neutral",
       "terminal": false,
       "customerVisible": true,
@@ -88,6 +89,7 @@ export const REQUEST_STATUSES = {
       ]
     },
     "MEET_GREET_REQUIRED": {
+      "label": "Meet & Greet Required",
       "category": "informational",
       "terminal": false,
       "customerVisible": false,
@@ -97,6 +99,7 @@ export const REQUEST_STATUSES = {
       ]
     },
     "MG_SCHEDULED": {
+      "label": "Meet & Greet Scheduled",
       "category": "informational",
       "terminal": false,
       "customerVisible": false,
@@ -104,6 +107,7 @@ export const REQUEST_STATUSES = {
       "synonyms": []
     },
     "MG_COMPLETED": {
+      "label": "Meet & Greet Completed",
       "category": "informational",
       "terminal": false,
       "customerVisible": false,
@@ -111,6 +115,7 @@ export const REQUEST_STATUSES = {
       "synonyms": []
     },
     "PROFILE_CREATED": {
+      "label": "Profile Created",
       "category": "informational",
       "terminal": false,
       "customerVisible": false,
@@ -118,6 +123,7 @@ export const REQUEST_STATUSES = {
       "synonyms": []
     },
     "READY_FOR_APPROVAL": {
+      "label": "Ready for Approval",
       "category": "informational",
       "terminal": false,
       "customerVisible": false,
@@ -127,6 +133,7 @@ export const REQUEST_STATUSES = {
       ]
     },
     "QUOTE_NEEDED": {
+      "label": "Quote Needed",
       "category": "informational",
       "terminal": false,
       "customerVisible": false,
@@ -134,6 +141,7 @@ export const REQUEST_STATUSES = {
       "synonyms": []
     },
     "QUOTE_SENT": {
+      "label": "Quote Sent",
       "category": "informational",
       "terminal": false,
       "customerVisible": true,
@@ -143,6 +151,7 @@ export const REQUEST_STATUSES = {
       ]
     },
     "APPROVED": {
+      "label": "Approved",
       "category": "success",
       "terminal": false,
       "customerVisible": true,
@@ -152,6 +161,7 @@ export const REQUEST_STATUSES = {
       ]
     },
     "ASSIGNED": {
+      "label": "Assigned",
       "category": "success",
       "terminal": false,
       "customerVisible": true,
@@ -162,6 +172,7 @@ export const REQUEST_STATUSES = {
       ]
     },
     "DECLINED": {
+      "label": "Declined",
       "category": "danger",
       "terminal": true,
       "customerVisible": true,
@@ -169,6 +180,7 @@ export const REQUEST_STATUSES = {
       "synonyms": []
     },
     "CANCELLATION_REQUESTED": {
+      "label": "Cancellation Requested",
       "category": "warning",
       "terminal": false,
       "customerVisible": true,
@@ -176,6 +188,7 @@ export const REQUEST_STATUSES = {
       "synonyms": []
     },
     "CANCELLATION_DENIED": {
+      "label": "Cancellation Denied",
       "category": "warning",
       "terminal": false,
       "customerVisible": true,
@@ -183,6 +196,7 @@ export const REQUEST_STATUSES = {
       "synonyms": []
     },
     "CANCELLED": {
+      "label": "Cancelled",
       "category": "danger",
       "terminal": true,
       "customerVisible": true,
@@ -190,6 +204,7 @@ export const REQUEST_STATUSES = {
       "synonyms": []
     },
     "COMPLETED": {
+      "label": "Completed",
       "category": "success",
       "terminal": true,
       "customerVisible": true,
@@ -197,6 +212,7 @@ export const REQUEST_STATUSES = {
       "synonyms": []
     },
     "ARCHIVED": {
+      "label": "Archived",
       "category": "neutral",
       "terminal": true,
       "customerVisible": false,
@@ -204,6 +220,7 @@ export const REQUEST_STATUSES = {
       "synonyms": []
     },
     "DELETED": {
+      "label": "Deleted",
       "category": "neutral",
       "terminal": true,
       "customerVisible": false,

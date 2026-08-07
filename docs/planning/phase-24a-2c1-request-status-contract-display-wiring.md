@@ -2,11 +2,13 @@
 
 ## 1. Status and Authorization
 
-**Status:** **PHASE 24A-2C.1 PLANNING CORRECTED AND DOCUMENTED / 17 CANONICAL REQUEST STATUSES CONFIRMED / PHASE 2C.1A SIX-FILE IMPLEMENTATION BOUNDARY DEFINED / NO IMPLEMENTATION PERFORMED / NOT DEPLOYED**
+**Status:** **PHASE 24A-2C.1A LOCALLY IMPLEMENTED / 17 REQUEST-STATUS LABELS ADDED / REQUEST-STATUS CONTRACT AND ADAPTER PARITY HARDENED / DEDICATED CHARACTERIZATION TESTS ADDED / INDEPENDENTLY REVIEWED / AWAITING COMMIT DECISION / NOT DEPLOYED**
 
 - **Planning Date:** 2026-08-05
-- **Starting Checkpoint:** `6a00cf5115a25d8a091432f2379b516ac443e24e` (main branch)
-- **Matthew's Approval Boundary:** Documentation-only plan. No application code, contracts, generators, validators, tests, generated adapters, handlers, persistence, calendar behavior, notifications, web, mobile, infrastructure, dependencies, production data, or production systems are modified.
+- **Implementation & Review Date:** 2026-08-05
+- **Starting Checkpoint:** `779e221aca10764c9d5cea046e8d40ad85cfbd6a` (main branch)
+- **Base Commit:** `docs: plan request status contract wiring`
+- **Matthew's Approval Boundary:** Phase 2C.1A implementation is locally complete, validated, and independently reviewed. No application code, backend handlers, persistence, calendar behavior, notifications, web consumers, mobile consumers, infrastructure, dependencies, production data, or production systems were modified.
 - **Latest Validated Production Baseline:** Phase 1B.5C-D.2.
 - **Latest Completed Local Closeout:** Phase 24A-2C.2D.4 (Optional Google Calendar Color Metadata Assessment Closeout).
 

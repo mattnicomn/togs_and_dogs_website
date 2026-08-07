@@ -240,6 +240,34 @@ test('generated adapters contain the complete canonical PET_FIELDS contract', as
   );
 });
 
+test('generated adapters contain the complete canonical REQUEST_STATUSES contract', async () => {
+  const canonical = JSON.parse(await readFile(STATUSES_FILE, 'utf-8'));
+  const cleanCanonical = Object.fromEntries(
+    Object.entries(canonical).filter(([key]) => !key.startsWith('_'))
+  );
+  const webCode = await readFile(WEB_ADAPTER, 'utf-8');
+  const mobileCode = await readFile(MOBILE_ADAPTER, 'utf-8');
+
+  const webStatuses = parseGeneratedExport(webCode, 'REQUEST_STATUSES', 'SERVICE_TYPES');
+  const mobileStatuses = parseGeneratedExport(mobileCode, 'REQUEST_STATUSES', 'SERVICE_TYPES');
+
+  assert.deepEqual(
+    webStatuses,
+    cleanCanonical,
+    'Web REQUEST_STATUSES adapter differs from canonical contract'
+  );
+  assert.deepEqual(
+    mobileStatuses,
+    cleanCanonical,
+    'Mobile REQUEST_STATUSES adapter differs from canonical contract'
+  );
+  assert.deepEqual(
+    webStatuses,
+    mobileStatuses,
+    'Web and mobile REQUEST_STATUSES adapters differ from one another'
+  );
+});
+
 test('generated adapters contain the complete canonical SERVICE_TYPES contract', async () => {
   const canonical = JSON.parse(await readFile(SERVICES_FILE, 'utf-8'));
   const cleanCanonical = Object.fromEntries(
