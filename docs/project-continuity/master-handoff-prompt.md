@@ -38,11 +38,12 @@ CURRENT STATE SUMMARY (verify against docs/project-continuity/current-state.md):
 - TENANT_RESOLUTION_MODE=multi is ACTIVE and validated (strict mode enabled 18T, confirmed 18U).
 - Platform Admin UI exists. Second test tenant exists (test_tenant_alpha).
 - Ryan testing is paused.
+- Phase 24A cross-platform contract layer (API paths 2A, pet fields 2B, request statuses 2C.1, service types 2C.2) is 100% locally complete, committed, and pushed. NOT DEPLOYED.
+- Phase 24A-5 (Mobile Pet Editing) is deferred, gated on Phase 1B.5C-A deployment.
+- Phase 24A-6 (Mobile Care-Request Intake Flow) is the next unfinished feature task (PLANNED_NOT_STARTED).
 - Phase 1B.5C-A (Customer Pet Editing) is ready for Matthew deployment decision. Not deployed. Saved Terraform plan exists and has not been applied.
-- Phase 23A (AWS Tagging Evidence Audit) is complete. No Terraform tagging remediation required. Optional deferred items documented.
-- Phase 23B (AWS Cost Visibility) Steps 1–2C complete. All cost-allocation tags activated. Budget alerts enhanced (80% forecasted, 100% actual added). Cost Explorer saved report requires manual console creation. Operating guide written.
-- Cross-platform UI alignment direction established (planning only, no implementation approved).
 - Next production action: Matthew decides on Phase 1B.5C-A deployment.
+- Next local development action: Read-only assessment for Phase 24A-6 (Mobile Care-Request Intake Flow).
 
 Please read the continuity docs and confirm you understand the current state before proceeding with any recommendations.
 ```

@@ -61,6 +61,13 @@
 
 ## Active Local Work / Pending Review
 
+- Phase 24A Roadmap & Continuity Reconciliation (🔗 LOCALLY COMPLETE / COMBINED PHASE 2C CONTRACT STREAM 2C.1 & 2C.2 LOCALLY CLOSED / PHASE 24A-6 IDENTIFIED AS NEXT UNFINISHED FEATURE TASK / PHASE 24A-5 & 24A-9 DEFERRED AND GATED / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-07)
+  - Reconciled Phase 24A roadmap and project continuity state across repository documentation.
+  - Confirmed the combined Phase 2C contract workstream (2C.1 request statuses and 2C.2 service types) is 100% locally complete, validated, independently reviewed by Kiro, committed, and pushed.
+  - Re-established Phase 24A-6 (Mobile Care-Request Intake Flow) as the true next unfinished feature task (`PLANNED_NOT_STARTED`).
+  - Confirmed Phase 24A-5 (Mobile My Pets Editing) remains deferred/gated on Phase 1B.5C-A deployment, Phase 24A-9 remains distribution-gated on explicit Matthew approval, and Phase 24A remains NOT DEPLOYED (latest validated production baseline remains Phase 1B.5C-D.2).
+  - See: `docs/release-notes/phase-24a-roadmap-continuity-reconciliation.md`
+
 - Phase 24A-2C.1C: Mobile Request-Status Display Compatibility Wiring (🔗 LOCALLY COMPLETE / MOBILE REQUEST-STATUS DISPLAY WIRING IMPLEMENTED / CONTEXTUAL & WORKFLOW LABELS PRESERVED / DEDICATED COMPATIBILITY SUITE ADDED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-07)
   - Wired generated `REQUEST_STATUSES` from `mobile/src/contracts/generatedContracts.ts` into mobile status badge (`StatusBadge.tsx`) for upper-cased contract-backed badge labels and customer appointments screen (`BookingsScreen.tsx`) for exact-match entries.
   - Preserved customer contextual overrides (`ASSIGNED` → `"Scheduled"`, `JOB_CREATED` → `"Scheduled"`), staff navigation filter tabs (`RequestListScreen.tsx`), staff dashboard metrics counter (`DashboardScreen.tsx`), badge styling, colors, borders, typography, layout, padding, and accessibility properties.
