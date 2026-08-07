@@ -15,6 +15,7 @@ import { getClientRequests } from '../api/client';
 import { COLORS } from '../theme/colors';
 import { PetRequest } from '../types';
 import { getServiceTypeLabel } from '../utils/serviceLabels';
+import { REQUEST_STATUSES } from '../contracts/generatedContracts';
 
 const formatDate = (dateStr: string) => {
   if (!dateStr) return '';
@@ -23,12 +24,12 @@ const formatDate = (dateStr: string) => {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDING_REVIEW: 'Pending Review',
-  APPROVED: 'Approved',
+  PENDING_REVIEW: REQUEST_STATUSES.statuses.PENDING_REVIEW?.label || 'Pending Review',
+  APPROVED: REQUEST_STATUSES.statuses.APPROVED?.label || 'Approved',
   ASSIGNED: 'Scheduled',
   JOB_CREATED: 'Scheduled',
-  COMPLETED: 'Completed',
-  CANCELLED: 'Cancelled',
+  COMPLETED: REQUEST_STATUSES.statuses.COMPLETED?.label || 'Completed',
+  CANCELLED: REQUEST_STATUSES.statuses.CANCELLED?.label || 'Cancelled',
 };
 
 const STATUS_COLOR: Record<string, string> = {

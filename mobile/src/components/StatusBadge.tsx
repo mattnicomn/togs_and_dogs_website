@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text } from 'react-native';
+import { REQUEST_STATUSES } from '../contracts/generatedContracts';
 
 interface StatusBadgeProps {
   status: string;
@@ -7,29 +8,33 @@ interface StatusBadgeProps {
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
   const normalizedStatus = (status || '').toUpperCase();
+  const contractLabel = REQUEST_STATUSES.statuses[normalizedStatus as keyof typeof REQUEST_STATUSES.statuses]?.label;
   
   let badgeStyles = styles.badgeNew;
   let textStyles = styles.textNew;
-  let label = 'PENDING REVIEW';
+  let label = (contractLabel || normalizedStatus || 'PENDING REVIEW').toUpperCase().replace(/_/g, ' ');
 
   if (normalizedStatus === 'APPROVED') {
     badgeStyles = styles.badgeApproved;
     textStyles = styles.textApproved;
-    label = 'APPROVED';
+    label = (REQUEST_STATUSES.statuses.APPROVED?.label || 'APPROVED').toUpperCase();
   } else if (normalizedStatus === 'ASSIGNED' || normalizedStatus === 'SCHEDULED' || normalizedStatus === 'JOB_CREATED') {
     badgeStyles = styles.badgeAssigned;
     textStyles = styles.textAssigned;
-    label = normalizedStatus === 'JOB_CREATED' ? 'ASSIGNED' : normalizedStatus;
+    const key = normalizedStatus === 'JOB_CREATED' ? 'ASSIGNED' : normalizedStatus;
+    const mappedLabel = REQUEST_STATUSES.statuses[key as keyof typeof REQUEST_STATUSES.statuses]?.label || key;
+    label = mappedLabel.toUpperCase();
   } else if (['CANCELLED', 'REJECTED', 'DECLINED'].includes(normalizedStatus)) {
     badgeStyles = styles.badgeCancelled;
     textStyles = styles.textCancelled;
-    label = normalizedStatus;
+    const mappedLabel = REQUEST_STATUSES.statuses[normalizedStatus as keyof typeof REQUEST_STATUSES.statuses]?.label || normalizedStatus;
+    label = mappedLabel.toUpperCase();
   } else if (normalizedStatus === 'COMPLETED') {
     badgeStyles = styles.badgeCompleted;
     textStyles = styles.textCompleted;
-    label = 'COMPLETED';
-  } else {
-    label = normalizedStatus || 'PENDING REVIEW';
+    label = (REQUEST_STATUSES.statuses.COMPLETED?.label || 'COMPLETED').toUpperCase();
+  } else if (normalizedStatus === 'PENDING_REVIEW' || normalizedStatus === 'NEEDS_REVIEW') {
+    label = (REQUEST_STATUSES.statuses.PENDING_REVIEW?.label || 'PENDING REVIEW').toUpperCase();
   }
 
   return (
