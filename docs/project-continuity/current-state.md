@@ -61,6 +61,14 @@
 
 ## Active Local Work / Pending Review
 
+- Phase 24A-9B: Paired iOS + Android Internal Builds (🔗 LOCALLY COMPLETE / PAIRED IOS + ANDROID ARTIFACTS CREATED / IOS TESTFLIGHT SUBMITTED / ANDROID SIGNED AAB CREATED (STORE UPLOAD HELD) / ZERO PUBLIC RELEASE / ZERO PRODUCTION WRITES — 2026-08-09)
+  - Compiled paired mobile binaries from exact Git SHA `8a1ce46c0a8bd0d02f4000188b21e115b370281c` and shared marketing version `1.0.0`.
+  - iOS build `1.0.0 (5)` (EAS build ID `c7b7d9da-056b-45a8-86cd-cd6882969464`) auto-submitted to Apple App Store Connect / TestFlight (`fe722283-3205-4a87-8d9a-40162407966c`).
+  - Android build `1.0.0` versionCode `3` (EAS build ID `e2bc9a1d-666b-4698-882f-6aa7ba7c2132`) generated signed `.aab` artifact (`1w6wvegHq5Dxk4ubgdbQBzAFtbDIUDOeMcJgA8Bcc7U.aab`). Google Play upload held pending Phase 24A-9B.4.
+  - Validation: 0 TypeScript errors, 18 constants, 9 adapters, 18 backend customer pet tests, 13 backend status parity tests, 104 full mobile tests across 10 suites.
+  - Public publishing remains unapproved; Ryan testing remains paused; production write smoke testing remains unapproved.
+  - See: `docs/release-notes/phase-24a-9b-paired-ios-android-internal-builds.md`
+
 - Phase 24A-9A: Cross-Platform Mobile Release Pipeline Assessment & Preparation (🔗 LOCALLY COMPLETE / RELEASE PIPELINE DEFINED / PAIRED IOS + ANDROID RELEASE MODEL ESTABLISHED / NON-WRITE SMOKE MATRIX DOCUMENTED / ZERO BUILD TRIGGERED / AWAITING MATTHEW PAIRED BUILD DECISION — 2026-08-09)
   - Established repeatable paired release model (One Git SHA `60754d97c1f8cd139e81434531500f21abcdb4d5` → paired iOS IPA + Android AAB artifacts).
   - Formulated paired build commands (`eas build --platform ios` and `eas build --platform android`).
