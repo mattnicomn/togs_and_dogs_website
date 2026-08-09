@@ -42,9 +42,10 @@ CURRENT STATE SUMMARY (verify against docs/project-continuity/current-state.md):
 - Phase 24A-5 (Mobile Pet Editing) is deferred, gated on Phase 1B.5C-A deployment.
 - Phase 24A-6 (Mobile Care-Request Intake Flow) is 100% locally complete, committed, and pushed. NOT DEPLOYED.
 - Phase 24A-7 (Visual Consistency Polish) is 100% locally complete, committed, and pushed. NOT DEPLOYED.
+- Phase 24A-8 (Accessibility Validation) is 100% locally complete, committed, and pushed. NOT DEPLOYED.
+- Phase 24A-9 (Mobile Build & Distribution) is GATED on explicit Matthew approval. NOT DEPLOYED.
 - Phase 1B.5C-A (Customer Pet Editing) is ready for Matthew deployment decision. Not deployed. Saved Terraform plan exists and has not been applied.
 - Next production action: Matthew decides on Phase 1B.5C-A deployment.
-- Next local development action: Read-only assessment / planning for Phase 24A-8 (Accessibility Validation).
 
 Please read the continuity docs and confirm you understand the current state before proceeding with any recommendations.
 ```

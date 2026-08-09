@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-09 (Phase 24A-7 Mobile Visual Consistency Polish Locally Complete)
+**Last Updated:** 2026-08-09 (Phase 24A-8 Mobile Accessibility Validation Locally Complete)
 
 ---
 
@@ -60,6 +60,14 @@
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
 
 ## Active Local Work / Pending Review
+
+- Phase 24A-8: Accessibility Validation (🔗 LOCALLY COMPLETE / MOBILE ACCESSIBILITY SEMANTICS IMPROVED / DEDICATED ACCESSIBILITY REGRESSION TESTS ADDED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-09)
+  - Screen-reader accessibility attributes (`accessibilityRole`, `accessibilityLabel`, `accessibilityState`, `accessibilityLiveRegion`) and touch target sizes (~44pt minimum height) added across `IntakeScreen.tsx`, `BookingsScreen.tsx`, `RequestCard.tsx`, and `StatusBadge.tsx`.
+  - Added 4 dedicated accessibility unit tests in `mobile/__tests__/IntakeScreen.test.tsx`.
+  - Validation: 0 TypeScript errors, 18 constants, 9 adapters, 18 focused tests, 93 full mobile tests across 10 suites.
+  - Kiro independent review: `IMPLEMENTATION_CORRECT` (`READY_FOR_PHASE_24A_8_COMMIT_DECISION`).
+  - Committed (`18b51e9170ac7d3b2de94770bd16fc02d35f22a5`) and pushed to `origin/main`. NOT DEPLOYED; production baseline remains Phase 1B.5C-D.2. Zero EAS or Expo distribution builds occurred.
+  - See: `docs/release-notes/phase-24a-8-accessibility-validation.md`
 
 - Phase 24A-7: Visual Consistency Polish (🔗 LOCALLY COMPLETE / MOBILE VISUAL CONSISTENCY POLISHED / 8PX ACTION BUTTON RADII & 12PX CARD SURFACE RADII NORMALIZED / COLOR TOKEN LITERALS REPLACED WITH `COLORS.white` / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-09)
   - Standardized mobile action button radii to `8px` (`BookingsScreen.tsx` header CTA, `IntakeScreen.tsx` step navigation and submit buttons) and card surface radii to `12px` (`IntakeScreen.tsx` service options grid).

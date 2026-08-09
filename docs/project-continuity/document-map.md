@@ -136,14 +136,14 @@
 | AWS tagging evidence audit | `docs/planning/phase-23a-aws-tagging-evidence-audit-and-minimal-remediation.md` |
 | AWS budget coverage and cost visibility dashboard | `docs/planning/phase-23b-aws-budget-coverage-and-cost-visibility-dashboard.md` |
 | Phase 23B Step 1 budget coverage verification | `docs/release-notes/phase-23b-step-1-budget-coverage-verification.md` |
-| Phase 23B Steps 2A–2C cost visibility and budget alerts | `docs/release-notes/phase-23b-cost-visibility-dashboard-and-budget-alerts.md` |
 | Cross-platform design system and mobile alignment | `docs/planning/phase-24a-cross-platform-design-system-and-mobile-workflow-alignment.md` |
 | Phase 24A-1A shared token contract | `docs/release-notes/phase-24a-1a-shared-token-contract.md` |
 | Phase 24A-1B platform token adapters | `docs/release-notes/phase-24a-1b-platform-token-adapters.md` |
 | Phase 24A-2 shared constants and contracts | `docs/release-notes/phase-24a-2-shared-constants-and-contracts.md` |
 | Phase 24A-3 mobile test foundation | `docs/release-notes/phase-24a-3-mobile-test-foundation.md` |
-| Phase 24A-6 mobile care-request intake flow | `docs/release-notes/phase-24a-6-mobile-care-request-intake-flow.md` |
-| Phase 24A-7 mobile visual consistency polish | `docs/release-notes/phase-24a-7-visual-consistency-polish.md` |
+| Phase 24A-6 mobile care-request intake flow (locally complete, committed, and pushed) | `docs/release-notes/phase-24a-6-mobile-care-request-intake-flow.md` |
+| Phase 24A-7 mobile visual consistency polish (locally complete, committed, and pushed) | `docs/release-notes/phase-24a-7-visual-consistency-polish.md` |
+| Phase 24A-8 mobile accessibility validation (locally complete, committed, and pushed) | `docs/release-notes/phase-24a-8-accessibility-validation.md` |
 
 
 ## Backlog

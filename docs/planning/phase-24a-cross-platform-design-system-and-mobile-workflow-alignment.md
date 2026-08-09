@@ -1,7 +1,7 @@
 # Phase 24A: Cross-Platform Design System and Mobile Workflow Alignment
 
-**Status:** 📋 PLANNING COMPLETE (Revised) — Implementation not approved
-**Date:** 2026-07-24 (revised)
+**Status:** 📋 PLANNING COMPLETE (Revised) — Implementation phases 24A-1A–1C, 24A-2A, 24A-2B.1–2B.2B, 24A-2C.1A–1C, 24A-2C.2A–2D.4, 24A-3, 24A-4, 24A-6, 24A-7, and 24A-8 locally complete, committed, and pushed; Phase 24A-5 deferred; Phase 24A-9 gated on explicit Matthew approval; Phase 24A NOT DEPLOYED.
+**Date:** 2026-07-24 (revised 2026-08-09)
 **Starting HEAD:** `2fbfba9` (planning), `bc73408` (revision)
 **Depends on:** Phase 1B.5C-A deployment (for mobile pet editing only)
 
