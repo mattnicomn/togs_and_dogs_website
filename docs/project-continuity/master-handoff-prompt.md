@@ -43,7 +43,7 @@ CURRENT STATE SUMMARY (verify against docs/project-continuity/current-state.md):
 - Phase 24A-6 (Mobile Care-Request Intake Flow) is 100% locally complete, committed, and pushed. NOT DEPLOYED.
 - Phase 1B.5C-A (Customer Pet Editing) is ready for Matthew deployment decision. Not deployed. Saved Terraform plan exists and has not been applied.
 - Next production action: Matthew decides on Phase 1B.5C-A deployment.
-- Next local development action: Assessment / planning for Phase 24A-7 (Mobile Booking Details Screen).
+- Next local development action: Read-only assessment / planning for Phase 24A-7 (Visual Consistency Polish).
 
 Please read the continuity docs and confirm you understand the current state before proceeding with any recommendations.
 ```
