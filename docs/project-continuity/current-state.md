@@ -61,6 +61,15 @@
 
 ## Active Local Work / Pending Review
 
+- Phase 24A-5: Mobile My Pets Editing (🔗 LOCALLY COMPLETE / MOBILE MY PETS EDITING IMPLEMENTED / INLINE EDIT MODE INTEGRATED / CLIENT PET FIELDS (10 FIELDS) SUPPORTED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-09)
+  - Added authenticated client self-service pet profile editing to `MyPetsScreen.tsx` using `PUT /client/pets/{petId}` (API helper `updateClientPet` in `client.ts`).
+  - Pre-populates all 10 client-editable fields, enforces contract max lengths (`PET_FIELDS`), supports optional string clearing, dirty-state tracking (`isDirty`), double-submit prevention, and unsaved changes confirmation (`Alert.alert`).
+  - Preserved Phase 24A-7 visual tokens (`COLORS`) and Phase 24A-8 accessibility semantics (`accessibilityRole`, `accessibilityLabel`, `accessibilityState`).
+  - Validation: 0 TypeScript errors, 18 constants, 9 adapters, 18 backend customer pet tests, 25 focused MyPets tests, 104 full mobile tests across 10 suites.
+  - Kiro independent review: `IMPLEMENTATION_CORRECT` (`READY_FOR_PHASE_24A_5_COMMIT_DECISION`).
+  - Committed (`93fe98a5c2f28481cd53a85a9479567c413a534d`) and pushed to `origin/main`. NOT DEPLOYED; production baseline remains Phase 1B.5C-D.2. Zero EAS or Expo distribution builds occurred.
+  - See: `docs/release-notes/phase-24a-5-mobile-my-pets-editing.md`
+
 - Phase 24A-8: Accessibility Validation (🔗 LOCALLY COMPLETE / MOBILE ACCESSIBILITY SEMANTICS IMPROVED / DEDICATED ACCESSIBILITY REGRESSION TESTS ADDED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-09)
   - Screen-reader accessibility attributes (`accessibilityRole`, `accessibilityLabel`, `accessibilityState`, `accessibilityLiveRegion`) and touch target sizes (~44pt minimum height) added across `IntakeScreen.tsx`, `BookingsScreen.tsx`, `RequestCard.tsx`, and `StatusBadge.tsx`.
   - Added 4 dedicated accessibility unit tests in `mobile/__tests__/IntakeScreen.test.tsx`.
@@ -361,9 +370,9 @@
 - Direction approved: shared design tokens, terminology, validation, API contracts.
 - React/Vite remains the web framework. Expo/React Native remains mobile.
 - No website rewrite to React Native Web.
-- Mobile pet editing API (PUT /client/pets/{petId}) was deployed 2026-07-28 and validated 2026-07-30 via Phase 1B.5C-A. Phase 24A-5 (Mobile My Pets Editing) is READY_FOR_LOCAL_IMPLEMENTATION.
+- Mobile pet editing API (PUT /client/pets/{petId}) was deployed 2026-07-28 and validated 2026-07-30 via Phase 1B.5C-A. Phase 24A-5 (Mobile My Pets Editing) is 100% LOCALLY COMPLETE (committed and pushed).
 - No EAS, TestFlight, App Store, Google Play, Ryan-testing, or mobile-distribution changes approved.
-- Recommended sequence: shared architecture (1A ✅) → wiring (1B ✅) → visual alignment (1C ✅) → constants (2 ✅) → mobile tests (3 ✅) → mobile My Pets read (4 ✅) → intake (6 ✅) → polish (7 ✅) → a11y (8 ✅) → mobile My Pets edit (5, READY_FOR_LOCAL_IMPLEMENTATION) → build/distribution (9, separately approved).
+- Recommended sequence: shared architecture (1A ✅) → wiring (1B ✅) → visual alignment (1C ✅) → constants (2 ✅) → mobile tests (3 ✅) → mobile My Pets read (4 ✅) → mobile My Pets edit (5 ✅) → intake (6 ✅) → polish (7 ✅) → a11y (8 ✅) → build/distribution (9, separately approved).
 - Mobile test infrastructure must precede new mobile feature screens.
 - Web forgot-password is missing (mobile has it complete); not a blocking dependency.
 
@@ -443,7 +452,7 @@
 **Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes. Release 22ZA implemented the mobile responsive foundation and accessible slide-out navigation drawer (pre-deploy validated). Release 22ZB implemented the full-screen Profile Editor mobile sheet layout (pre-deploy validated). Release 22ZC added keyboard-accessible stat cards, responsive filter controls stacking, and accessible data-label column labels on mobile request cards (pre-deploy validated). Phase 1B.2A backend-only Lambda package apply completed successfully, deploying the pet creation is_active hardening code to production. Phase 1B.2A ClientPetIndex GSI-only apply completed successfully, creating the global secondary database index in production (index backfilled and status ACTIVE). Phase 1B.2A ClientPetIndex query cutover deployed to production on 2026-07-20 (0 added, 13 changed, 0 destroyed). All 13 Lambda functions verified Active/Successful with expected CodeSha256. Matthew authenticated manual smoke PASSED (admin login, Client Management page, client drawer, admin pet list). Phase 1B.3 frontend deployed to production with /my-pets route, card-click drawer interaction, accessible cards, and mobile bottom-sheet. Hook-order hotfix applied. Matthew confirmed production works. Phase 1B.3 COMPLETE and CLOSED. Phase 1B.4A–E Client Drawer Editor Consolidation deployed to production. Matthew confirmed drawer View/Edit/Create experience works correctly, inline editor retired, Staff Management unaffected. Phase 1B.4A–E COMPLETE and CLOSED. Phase 1B.4F–H remain deferred. Phase 1B.5 (Pet Management and Client–Pet Association) is active. Phase 1B.5A and 1B.5A.1 deployed and validated (2026-07-22). Phase 1B.5B-A Staff Pet Editor and hotfixes deployed and validated (2026-07-23). Phase 1B.5C-A Customer Pet Editing deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-A.1 admin pet care field hotfix deployed and validated (2026-07-30). Phase 1B.5C-B (active staff count fix) and 1B.5C-C (staff edit double-click fix) deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-D.1 (platform-managed protected admin controls) deployed, seeded, and validated (2026-07-30). Phase 1B.5C-D.2 (remove legacy config protection) converged via D.1 deployment and validated (2026-07-30). Latest completed validated production release is Phase 1B.5C-D.2 (2026-07-30).**
 
 **Next options:**
-- Phase 24A-5: Mobile My Pets Editing (READY_FOR_LOCAL_IMPLEMENTATION; backend API PUT /client/pets/{petId} ✅ deployed 2026-07-28 and validated 2026-07-30)
+- Phase 24A-9: Mobile Build & Distribution (GATED pending explicit Matthew approval)
 - Phase 1B.5D–E: Pet Lifecycle safeguards and booking integration (deferred)
 - Address remaining Phase 1B.4F–H staff drawer alignment (deferred, low priority)
 - Begin Release 22ZD — Scheduler, Client Management, Platform Admin mobile polish (Phase 4 of 22Z plan)

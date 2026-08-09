@@ -374,7 +374,7 @@ This decision requires implementation-time evidence. The planning document recor
 **Critical distinction:**
 - Planning may proceed at any time.
 - Mobile My Pets **read-only** (24A-4) is locally complete.
-- Mobile My Pets **editing** (24A-5) is `READY_FOR_LOCAL_IMPLEMENTATION` (Phase 1B.5C-A backend API was deployed 2026-07-28 and validated 2026-07-30).
+- Mobile My Pets **editing** (24A-5) is 100% locally complete, committed (`93fe98a5c2f28481cd53a85a9479567c413a534d`), and pushed to `origin/main`.
 - Client edit scope remains edit-only (no pet creation, deletion, archive, or restore).
 - No EAS build or mobile distribution (24A-9) is approved regardless of local implementation progress.
 
