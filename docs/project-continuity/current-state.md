@@ -282,6 +282,71 @@
   - Step 2B: Cost Explorer saved report spec complete. Manual console step remains (CLI unsupported). Operating guide written.
   - Step 2C: Budget alerts added — 80% forecasted and 100% actual. Original 80% actual preserved. $20 limit unchanged.
   - Budget coverage: 92–97% of workload-account costs captured by `Client=TogAndDogs` filter.
+  - Aligned 6 remaining color tokens per Matthew's explicit approval: `primaryHover` (`#a37213`), `textMuted` (`#6a6a66`), `border` (`#e2dfd9`), `borderSoft` (`#edf2ee`), `success` (`#4a7c59`), `danger` (`#d64933`).
+  - Contract `shared/tokens/colors.json` updated to 100% aligned (`"aligned": true` across all 13 tokens).
+  - Regenerated `web/src/generated/color-tokens.css` and `mobile/src/theme/generatedColors.ts`.
+  - Cleaned up duplicate manual CSS declarations in `web/src/index.css` so `@import` is authoritative.
+  - Validation: 9 contract tests, 7 adapter tests, 229 web tests, Vite production build, 31 mobile Jest tests, and `tsc --noEmit` all passed.
+  - See: `docs/release-notes/phase-24a-1c-visual-token-alignment.md`
+- Phase 24A-4.1: Mobile My Pets Session-Expiration Test Hardening (🛡️ LOCALLY VALIDATED AND REVIEWED / NOT BUILT OR DISTRIBUTED — 2026-07-30)
+  - Added behavioral unit test to `mobile/__tests__/MyPetsScreen.test.tsx` verifying session-expiration logout invocation and error UI suppression.
+  - Validation: 14 focused tests pass (+1 test), 32 complete mobile suite tests pass, `tsc --noEmit` clean (0 errors). Zero application source changed.
+  - See: `docs/release-notes/phase-24a-41-mobile-my-pets-session-expiration-test-hardening.md`
+- Phase 24A-4: Mobile My Pets Read-Only Screen (✅ LOCALLY VALIDATED AND REVIEWED / NOT BUILT OR DISTRIBUTED — 2026-07-30)
+  - Original implementation at commit `33e579c` (2026-07-25). Phase 24A-4 was reconciliation and validation only — no mobile source changes.
+  - Customer-facing read-only screen using authenticated `GET /client/pets`.
+  - Independent Kiro re-review PASSED: navigation access, API integration, read-model fields, strict read-only, UI states, accessibility all confirmed.
+  - Tests: 13 focused + 31 complete suite passed, TypeScript 0 errors. No build or distribution.
+  - See: `docs/release-notes/phase-24a-4-mobile-my-pets-read-only-screen.md`
+- Phase 1B.5C-A: Customer Pet Editing — Production Deployment (✅ VALIDATED AND CLOSED — 2026-07-30)
+  - Applied saved Terraform plan (`phase-1b5c-a-customer-pet-editing.tfplan`, deployment ID `ec4xqi`, 8 added, 14 changed, 1 destroyed).
+  - Backend: All 13 Lambda functions updated with CodeSha256 `aUEukME39YjTvpZN/vml1i2QOrP5CxN4Rb+3NiWRuSM=`. `/client/pets/{petId}` (PUT, Cognito auth) active.
+  - Frontend: `web/dist` synced to S3 (`togs-and-dogs-prod-toganddogs-hosting`) and CloudFront invalidated (`I4LTEENIVINRH6DDP7URES23EM`).
+  - Customer validation PASSED. Admin regression (Phase 1B.5C-A.1) deployed and validated.
+  - See: `docs/release-notes/phase-1b5c-a-customer-pet-editing-production-deployment.md`
+- Phase 1B.5C-A.1: Admin Pet Care Field Visibility Hotfix (✅ VALIDATED AND CLOSED — 2026-07-30)
+  - Resolved admin drawer `UI_RENDERING_GAP`: added `age`, `care_instructions`, and `feeding_notes` rendering.
+  - Added abbreviated Pet ID labels for duplicate-name disambiguation.
+  - Deployed as part of Phase 1B.5C-B+C frontend deployment (commit `510b063`). Matthew authenticated validation PASSED.
+  - See: `docs/release-notes/phase-1b5c-a1-admin-pet-care-field-visibility-hotfix.md`
+- Phase 1B.5C-B: Staff Limit Active-Count Entitlement Fix (✅ VALIDATED AND CLOSED — 2026-07-30)
+  - Changed `max_staff` entitlement check to count only active staff (`is_active != False`).
+  - Deployed as part of Phase 1B.5C-B+C combined deployment (commit `510b063`, backend Terraform apply + S3/CloudFront invalidation `IDDXHEGTSQV9QGXDJX2V03NT4P`).
+  - Matthew validated: Staff Users displayed as 4/5, count matched expected active total.
+  - See: `docs/release-notes/phase-1b5c-b-staff-limit-active-count-entitlement-fix.md`
+- Phase 1B.5C-C: Staff Edit Double-Click Correction (✅ VALIDATED AND CLOSED — 2026-07-30)
+  - Fixed staff profile editor requiring a second click to open.
+  - Deployed as part of Phase 1B.5C-B+C combined frontend deployment (commit `510b063`).
+  - Matthew validated: editor opens with one click, correct staff member opens, existing edit behavior functional.
+  - See: `docs/release-notes/phase-1b5c-c-staff-edit-double-click-correction.md`
+- Phase 1B.5C-D.1: Platform-Managed Protected Admin Controls (✅ VALIDATED AND CLOSED — 2026-07-30)
+  - Data-driven `is_platform_protected` flag, `set-protected`/`unset-protected` actions, frontend toggle.
+  - Matthew's profile seeded as Protected Platform Admin.
+  - Matthew validated: profile shows Access: Protected, self-unprotect blocked, destructive actions disabled, other profiles unaffected.
+  - See: `docs/release-notes/phase-1b5c-d1-platform-managed-protected-admin-controls.md`
+- Phase 1B.5C-D.2: Remove Legacy Config Protection (✅ VALIDATED AND CLOSED — 2026-07-30)
+  - Removed `Admin_Root` and `USmissionhero` from legacy fallback defaults and Terraform env vars.
+  - Retained `support@usmissionhero.com` as permanent emergency fallback.
+  - Production convergence confirmed via fresh Terraform refresh (zero pending Lambda changes).
+  - D.2 was included in the earlier D.1 Lambda deployment; no separate D.2 apply was required.
+  - Matthew validated protected-admin behavior in production.
+  - See: `docs/release-notes/phase-1b5c-d2-remove-legacy-config-protection.md`
+
+## Completed Planning / Evidence Workstreams
+
+- Phase 23A: AWS Tagging Evidence Audit (✅ EVIDENCE AUDIT COMPLETE — No Terraform remediation required — 2026-07-24)
+  - All supported Terraform-managed resources carry full nine-key tag set via provider default_tags.
+  - Optional deferred items: bootstrap resource tagging, Lambda log-group tagging, SESv2 migration evaluation.
+  - Budget filter (`Client=TogAndDogs`) confirmed functioning.
+  - Cost-allocation activation status requires payer-account access (linked account cannot query).
+  - See `docs/planning/phase-23a-aws-tagging-evidence-audit-and-minimal-remediation.md`
+- Phase 23B: AWS Budget Coverage and Cost Visibility Dashboard (✅ STEPS 1–2C COMPLETE — 2026-07-26)
+  - Goal: ensure Matthew can see and monitor complete Togs & Dogs cost footprint.
+  - Step 1 read-only verification COMPLETE (2026-07-25).
+  - Step 2A: All 5 inactive cost-allocation tags activated (Project, Application, CostCenter, Company, BillingModel) on 2026-07-26.
+  - Step 2B: Cost Explorer saved report spec complete. Manual console step remains (CLI unsupported). Operating guide written.
+  - Step 2C: Budget alerts added — 80% forecasted and 100% actual. Original 80% actual preserved. $20 limit unchanged.
+  - Budget coverage: 92–97% of workload-account costs captured by `Client=TogAndDogs` filter.
   - Excluded: CloudWatch alarm monitoring ($0.45/month), Terraform state bucket ($0.01/month).
   - Classification: SUBSTANTIALLY COMPLETE WITH DOCUMENTED EXCLUSIONS.
   - Terraform drift note: two new budget notifications added outside Terraform. Reconciliation deferred.
@@ -291,20 +356,14 @@
   - See `docs/release-notes/phase-23b-cost-visibility-dashboard-and-budget-alerts.md`
   - See `docs/operations/aws-cost-visibility-operating-guide.md`
 
-## Cross-Platform UI Alignment (Planning Only)
+## Cross-Platform UI Alignment
 
 - Direction approved: shared design tokens, terminology, validation, API contracts.
 - React/Vite remains the web framework. Expo/React Native remains mobile.
 - No website rewrite to React Native Web.
-- Preferred eventual pilot: My Pets workflow (depends on Phase 1B.5C-A deployment).
-- Mobile pet editing depends on the customer pet API being available after the Phase 1B.5C-A deployment decision.
+- Mobile pet editing API (PUT /client/pets/{petId}) was deployed 2026-07-28 and validated 2026-07-30 via Phase 1B.5C-A. Phase 24A-5 (Mobile My Pets Editing) is READY_FOR_LOCAL_IMPLEMENTATION.
 - No EAS, TestFlight, App Store, Google Play, Ryan-testing, or mobile-distribution changes approved.
-- Phase 24A planning document complete: `docs/planning/phase-24a-cross-platform-design-system-and-mobile-workflow-alignment.md`
-- Phase 24A-1A token contract complete: `shared/tokens/colors.json` defined, validation passes, neither app imports it yet.
-- Phase 24A-1B platform adapters complete: generator wired, web and mobile consume generated adapters, no visual change, all tests pass.
-- Phase 24A-2 shared constants and contracts complete: request statuses, service types, pet fields, and API paths defined as reference contracts. Not yet consumed by applications. Role-mapping discrepancy documented for separate resolution.
-- Phase 24A-3 mobile test foundation complete: jest-expo@54, Jest 29, RNTL v14, test-renderer@1.1. 18 baseline tests passing. All web/mobile/shared regressions validated. Vitest path-casing issue resolved (uppercase drive letter required).
-- Recommended sequence: shared architecture (1A ✅) → wiring (1B ✅) → visual alignment (1C) → constants (2 ✅) → mobile tests (3 ✅) → mobile My Pets read (4) → edit (5) → intake (6) → polish (7) → a11y (8) → build/distribution (9, separately approved).
+- Recommended sequence: shared architecture (1A ✅) → wiring (1B ✅) → visual alignment (1C ✅) → constants (2 ✅) → mobile tests (3 ✅) → mobile My Pets read (4 ✅) → intake (6 ✅) → polish (7 ✅) → a11y (8 ✅) → mobile My Pets edit (5, READY_FOR_LOCAL_IMPLEMENTATION) → build/distribution (9, separately approved).
 - Mobile test infrastructure must precede new mobile feature screens.
 - Web forgot-password is missing (mobile has it complete); not a blocking dependency.
 
@@ -384,7 +443,7 @@
 **Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes. Release 22ZA implemented the mobile responsive foundation and accessible slide-out navigation drawer (pre-deploy validated). Release 22ZB implemented the full-screen Profile Editor mobile sheet layout (pre-deploy validated). Release 22ZC added keyboard-accessible stat cards, responsive filter controls stacking, and accessible data-label column labels on mobile request cards (pre-deploy validated). Phase 1B.2A backend-only Lambda package apply completed successfully, deploying the pet creation is_active hardening code to production. Phase 1B.2A ClientPetIndex GSI-only apply completed successfully, creating the global secondary database index in production (index backfilled and status ACTIVE). Phase 1B.2A ClientPetIndex query cutover deployed to production on 2026-07-20 (0 added, 13 changed, 0 destroyed). All 13 Lambda functions verified Active/Successful with expected CodeSha256. Matthew authenticated manual smoke PASSED (admin login, Client Management page, client drawer, admin pet list). Phase 1B.3 frontend deployed to production with /my-pets route, card-click drawer interaction, accessible cards, and mobile bottom-sheet. Hook-order hotfix applied. Matthew confirmed production works. Phase 1B.3 COMPLETE and CLOSED. Phase 1B.4A–E Client Drawer Editor Consolidation deployed to production. Matthew confirmed drawer View/Edit/Create experience works correctly, inline editor retired, Staff Management unaffected. Phase 1B.4A–E COMPLETE and CLOSED. Phase 1B.4F–H remain deferred. Phase 1B.5 (Pet Management and Client–Pet Association) is active. Phase 1B.5A and 1B.5A.1 deployed and validated (2026-07-22). Phase 1B.5B-A Staff Pet Editor and hotfixes deployed and validated (2026-07-23). Phase 1B.5C-A Customer Pet Editing deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-A.1 admin pet care field hotfix deployed and validated (2026-07-30). Phase 1B.5C-B (active staff count fix) and 1B.5C-C (staff edit double-click fix) deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-D.1 (platform-managed protected admin controls) deployed, seeded, and validated (2026-07-30). Phase 1B.5C-D.2 (remove legacy config protection) converged via D.1 deployment and validated (2026-07-30). Latest completed validated production release is Phase 1B.5C-D.2 (2026-07-30).**
 
 **Next options:**
-- Phase 24A-4: Mobile My Pets Read-Only Screen (requires Matthew approval; depends on 24A-3 ✅ complete and 1B.5C-A ✅ deployed)
+- Phase 24A-5: Mobile My Pets Editing (READY_FOR_LOCAL_IMPLEMENTATION; backend API PUT /client/pets/{petId} ✅ deployed 2026-07-28 and validated 2026-07-30)
 - Phase 1B.5D–E: Pet Lifecycle safeguards and booking integration (deferred)
 - Address remaining Phase 1B.4F–H staff drawer alignment (deferred, low priority)
 - Begin Release 22ZD — Scheduler, Client Management, Platform Admin mobile polish (Phase 4 of 22Z plan)

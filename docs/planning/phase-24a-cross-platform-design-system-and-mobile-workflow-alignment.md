@@ -369,17 +369,14 @@ This decision requires implementation-time evidence. The planning document recor
 | Shared tokens and constants (24A-1, 24A-2) | All mobile feature work | Not started |
 | Mobile test infrastructure (24A-3) | Any new mobile screen | Not started |
 | `GET /client/pets` API | Mobile My Pets read-only (24A-4) | ✅ Already deployed and operational |
-| `PUT /client/pets/{petId}` API (Phase 1B.5C-A) | Mobile My Pets editing (24A-5) | ⏸️ NOT deployed — awaiting Matthew decision |
+| `PUT /client/pets/{petId}` API (Phase 1B.5C-A) | Mobile My Pets editing (24A-5) | ✅ Deployed 2026-07-28 & Validated 2026-07-30 |
 
 **Critical distinction:**
 - Planning may proceed at any time.
-- Mobile My Pets **read-only** may proceed after 24A-3 (the GET endpoint is already live).
-- Mobile My Pets **editing** must NOT proceed until Phase 1B.5C-A is:
-  1. Explicitly approved by Matthew
-  2. Deployed via the saved Terraform plan
-  3. Authenticated production validated by Matthew
-  4. Recorded as completed in continuity documents
-- No EAS build or mobile distribution is approved regardless of implementation progress.
+- Mobile My Pets **read-only** (24A-4) is locally complete.
+- Mobile My Pets **editing** (24A-5) is `READY_FOR_LOCAL_IMPLEMENTATION` (Phase 1B.5C-A backend API was deployed 2026-07-28 and validated 2026-07-30).
+- Client edit scope remains edit-only (no pet creation, deletion, archive, or restore).
+- No EAS build or mobile distribution (24A-9) is approved regardless of local implementation progress.
 
 ---
 
