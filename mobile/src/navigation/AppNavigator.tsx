@@ -10,6 +10,7 @@ import { RequestListScreen } from '../screens/RequestListScreen';
 import { ScheduleScreen } from '../screens/ScheduleScreen';
 import { BookingsScreen } from '../screens/BookingsScreen';
 import { RequestDetailScreen } from '../screens/RequestDetailScreen';
+import { IntakeScreen } from '../screens/IntakeScreen';
 import { COLORS } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
@@ -185,6 +186,18 @@ const StaffNavigator = () => (
   </StaffStack.Navigator>
 );
 
+const ClientStack = createNativeStackNavigator();
+const ClientNavigator = () => (
+  <ClientStack.Navigator screenOptions={{ headerShown: false }}>
+    <ClientStack.Screen name="ClientTabs" component={ClientTabs} />
+    <ClientStack.Screen
+      name="IntakeScreen"
+      component={IntakeScreen}
+      options={{ headerShown: false }}
+    />
+  </ClientStack.Navigator>
+);
+
 export const AppNavigator = () => {
   const { isAuthenticated, role, isLoading } = useAuth();
 
@@ -207,7 +220,7 @@ export const AppNavigator = () => {
     case 'staff':
       return <StaffNavigator />;
     default:
-      return <ClientTabs />;
+      return <ClientNavigator />;
   }
 };
 

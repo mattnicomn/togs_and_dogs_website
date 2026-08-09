@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/useAuth';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { getClientRequests } from '../api/client';
 import { COLORS } from '../theme/colors';
 import { PetRequest } from '../types';
@@ -42,6 +42,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export const BookingsScreen = () => {
+  const navigation = useNavigation<any>();
   const { logout } = useAuth();
   const [requests, setRequests] = useState<PetRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -142,8 +143,18 @@ export const BookingsScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Appointments</Text>
-        <Text style={styles.subtitle}>Your booked pet care visits</Text>
+        <View style={styles.headerTitleRow}>
+          <View>
+            <Text style={styles.title}>My Appointments</Text>
+            <Text style={styles.subtitle}>Your booked pet care visits</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.bookCareBtn}
+            onPress={() => navigation.navigate('IntakeScreen')}
+          >
+            <Text style={styles.bookCareBtnText}>+ Book Care</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {isLoading ? (
@@ -178,8 +189,14 @@ export const BookingsScreen = () => {
               <Text style={styles.emptyIcon}>🐕</Text>
               <Text style={styles.emptyTitle}>No Appointments Yet</Text>
               <Text style={styles.emptySub}>
-                You don't have any bookings on file yet. Contact Tog & Dogs to schedule your first visit.
+                You don't have any bookings on file yet. Book your first pet care visit below!
               </Text>
+              <TouchableOpacity
+                style={styles.emptyBookBtn}
+                onPress={() => navigation.navigate('IntakeScreen')}
+              >
+                <Text style={styles.emptyBookBtnText}>+ Book Pet Care</Text>
+              </TouchableOpacity>
             </View>
           }
         />
@@ -346,5 +363,33 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 16,
     fontWeight: '700',
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bookCareBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  bookCareBtnText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  emptyBookBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  emptyBookBtnText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 14,
   },
 });

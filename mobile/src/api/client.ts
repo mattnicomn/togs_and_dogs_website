@@ -108,5 +108,8 @@ export const completeJob = (jobId: string, requestId: string, visitNotes = "") =
 // Phase 24A-4: Client pets listing (read-only)
 export const getClientPets = () => request(API_PATHS.client.getPets, 'GET', null, true);
 
+// Phase 24A-6: Client care request submission
+export const submitClientRequest = (data: any) => request(API_PATHS.client.submitRequest, 'POST', data, true);
+
 
 
