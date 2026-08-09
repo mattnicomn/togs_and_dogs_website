@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-07 (Phase 24A-2C.1C Mobile Request-Status Display Compatibility Wiring Complete)
+**Last Updated:** 2026-08-09 (Phase 24A-6 Mobile Care-Request Intake Flow Locally Complete)
 
 ---
 
@@ -60,6 +60,15 @@
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
 
 ## Active Local Work / Pending Review
+
+- Phase 24A-6: Mobile Care-Request Intake Flow (🔗 LOCALLY COMPLETE / MOBILE CARE-REQUEST INTAKE FLOW IMPLEMENTED / 3-STEP INTAKE WIZARD INTEGRATED / CONTRACT-DERIVED CANONICAL SERVICES / READ-ONLY CLIENT PETS LOADED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-09)
+  - Implemented complete 3-step mobile care request intake wizard (`IntakeScreen.tsx`), integrated navigation route (`AppNavigator.tsx`), added `+ Book Care` and `+ Book Pet Care` buttons (`BookingsScreen.tsx`), added API helper `submitClientRequest` (`client.ts`), and created a 10-test unit suite (`IntakeScreen.test.tsx`).
+  - Derived service options from `SERVICE_TYPES` contract metadata, excluded `MEET_GREET`, enforced client terms/privacy policy agreement (`accepted_terms: true`, `accepted_privacy: true`, `terms_version: "1.0"`, `privacy_version: "1.0"`), and submitted booking requests to backend (`POST /client/request`) without client-assigned status.
+  - Loaded existing read-only client pets via `getClientPets()` (`GET /client/pets`, Phase 24A-4 contract) without invoking pet modification or creation endpoints, preserving Phase 24A-5 as deferred.
+  - Validation: 0 TypeScript errors, 18 constants, 9 adapters, 14 focused tests, 89 full mobile tests across 10 suites.
+  - Kiro independent review: `IMPLEMENTATION_CORRECT` (`READY_FOR_PHASE_24A_6_COMMIT_DECISION`).
+  - Committed (`2831205a092ab94b774ac7bcdaada27bea19976e`) and pushed to `origin/main`. NOT DEPLOYED; production baseline remains Phase 1B.5C-D.2. Zero EAS or Expo distribution builds occurred.
+  - See: `docs/release-notes/phase-24a-6-mobile-care-request-intake-flow.md`
 
 - Phase 24A Roadmap & Continuity Reconciliation (🔗 LOCALLY COMPLETE / COMBINED PHASE 2C CONTRACT STREAM 2C.1 & 2C.2 LOCALLY CLOSED / PHASE 24A-6 IDENTIFIED AS NEXT UNFINISHED FEATURE TASK / PHASE 24A-5 & 24A-9 DEFERRED AND GATED / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-07)
   - Reconciled Phase 24A roadmap and project continuity state across repository documentation.
