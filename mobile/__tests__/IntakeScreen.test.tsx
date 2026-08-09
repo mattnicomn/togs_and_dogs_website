@@ -104,9 +104,10 @@ describe('IntakeScreen Component Tests', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Continue →')).toBeTruthy();
+      expect(screen.getByLabelText('Continue →')).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Continue →'));
+    fireEvent.press(screen.getByLabelText('Continue →'));
 
     await waitFor(() => {
       expect(screen.getByText('⚠️ Please select at least one visit date.')).toBeTruthy();
@@ -116,7 +117,7 @@ describe('IntakeScreen Component Tests', () => {
   test('5. progresses to Step 2 after valid date selection', async () => {
     await render(<IntakeScreen />);
 
-    const dateChips = await screen.findAllByText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
+    const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
     expect(dateChips.length).toBeGreaterThan(0);
     fireEvent.press(dateChips[0]);
 
@@ -124,7 +125,7 @@ describe('IntakeScreen Component Tests', () => {
       expect(screen.getByText(/Selected \(1\)/)).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Continue →'));
+    fireEvent.press(screen.getByLabelText('Continue →'));
 
     await waitFor(() => {
       expect(screen.getByText('Select Pets')).toBeTruthy();
@@ -134,14 +135,14 @@ describe('IntakeScreen Component Tests', () => {
   test('6. loads existing read-only client pets from getClientPets', async () => {
     await render(<IntakeScreen />);
 
-    const dateChips = await screen.findAllByText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
+    const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
     fireEvent.press(dateChips[0]);
 
     await waitFor(() => {
       expect(screen.getByText(/Selected \(1\)/)).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Continue →'));
+    fireEvent.press(screen.getByLabelText('Continue →'));
 
     await waitFor(() => {
       expect(mockGetClientPets).toHaveBeenCalled();
@@ -151,14 +152,13 @@ describe('IntakeScreen Component Tests', () => {
   test('7. validates terms acceptance before submission on Step 3', async () => {
     await render(<IntakeScreen />);
 
-    const dateChips = await screen.findAllByText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
+    const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
     fireEvent.press(dateChips[0]);
-
     await waitFor(() => {
       expect(screen.getByText(/Selected \(1\)/)).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Continue →'));
+    fireEvent.press(screen.getByLabelText('Continue →'));
 
     await waitFor(() => {
       expect(screen.getByText('Select Pets')).toBeTruthy();
@@ -169,18 +169,18 @@ describe('IntakeScreen Component Tests', () => {
       expect(screen.getByDisplayValue('Buster')).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Continue →'));
+    fireEvent.press(screen.getByLabelText('Continue →'));
 
     await waitFor(() => {
       expect(screen.getByText('Review Booking Request')).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Submit Booking Request'));
+    const submitBtn = screen.getByLabelText('Submit Booking Request');
+    expect(submitBtn.props.accessibilityState.disabled).toBe(true);
 
-    await waitFor(() => {
-      expect(screen.getByText('⚠️ You must accept the Terms and Privacy Policy before submitting.')).toBeTruthy();
-      expect(mockSubmitClientRequest).not.toHaveBeenCalled();
-    });
+    fireEvent.press(submitBtn);
+
+    expect(mockSubmitClientRequest).not.toHaveBeenCalled();
   });
 
   test('8. submits valid care-request payload without client-assigned status', async () => {
@@ -188,14 +188,14 @@ describe('IntakeScreen Component Tests', () => {
 
     await render(<IntakeScreen />);
 
-    const dateChips = await screen.findAllByText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
+    const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
     fireEvent.press(dateChips[0]);
 
     await waitFor(() => {
       expect(screen.getByText(/Selected \(1\)/)).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Continue →'));
+    fireEvent.press(screen.getByLabelText('Continue →'));
 
     await waitFor(() => {
       expect(screen.getByText('Select Pets')).toBeTruthy();
@@ -206,7 +206,7 @@ describe('IntakeScreen Component Tests', () => {
       expect(screen.getByDisplayValue('Buster')).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Continue →'));
+    fireEvent.press(screen.getByLabelText('Continue →'));
 
     await waitFor(() => {
       expect(screen.getByText('Review Booking Request')).toBeTruthy();
@@ -217,7 +217,7 @@ describe('IntakeScreen Component Tests', () => {
       expect(screen.getByText('☑')).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Submit Booking Request'));
+    fireEvent.press(screen.getByLabelText('Submit Booking Request'));
 
     await waitFor(() => {
       expect(mockSubmitClientRequest).toHaveBeenCalledTimes(1);
@@ -247,14 +247,14 @@ describe('IntakeScreen Component Tests', () => {
 
     await render(<IntakeScreen />);
 
-    const dateChips = await screen.findAllByText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
+    const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
     fireEvent.press(dateChips[0]);
 
     await waitFor(() => {
       expect(screen.getByText(/Selected \(1\)/)).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Continue →'));
+    fireEvent.press(screen.getByLabelText('Continue →'));
 
     await waitFor(() => {
       expect(screen.getByText('Select Pets')).toBeTruthy();
@@ -265,7 +265,7 @@ describe('IntakeScreen Component Tests', () => {
       expect(screen.getByDisplayValue('Buster')).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Continue →'));
+    fireEvent.press(screen.getByLabelText('Continue →'));
 
     await waitFor(() => {
       expect(screen.getByText('Review Booking Request')).toBeTruthy();
@@ -276,7 +276,7 @@ describe('IntakeScreen Component Tests', () => {
       expect(screen.getByText('☑')).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Submit Booking Request'));
+    fireEvent.press(screen.getByLabelText('Submit Booking Request'));
 
     await waitFor(() => {
       expect(screen.getByText('⚠️ Network error: Unable to connect')).toBeTruthy();
@@ -288,14 +288,14 @@ describe('IntakeScreen Component Tests', () => {
 
     await render(<IntakeScreen />);
 
-    const dateChips = await screen.findAllByText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
+    const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
     fireEvent.press(dateChips[0]);
 
     await waitFor(() => {
       expect(screen.getByText(/Selected \(1\)/)).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Continue →'));
+    fireEvent.press(screen.getByLabelText('Continue →'));
 
     await waitFor(() => {
       expect(screen.getByText('Select Pets')).toBeTruthy();
@@ -306,7 +306,7 @@ describe('IntakeScreen Component Tests', () => {
       expect(screen.getByDisplayValue('Buster')).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Continue →'));
+    fireEvent.press(screen.getByLabelText('Continue →'));
 
     await waitFor(() => {
       expect(screen.getByText('Review Booking Request')).toBeTruthy();
@@ -317,7 +317,7 @@ describe('IntakeScreen Component Tests', () => {
       expect(screen.getByText('☑')).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Submit Booking Request'));
+    fireEvent.press(screen.getByLabelText('Submit Booking Request'));
 
     await waitFor(() => {
       expect(screen.getByText('View My Bookings')).toBeTruthy();
@@ -325,5 +325,138 @@ describe('IntakeScreen Component Tests', () => {
 
     fireEvent.press(screen.getByText('View My Bookings'));
     expect(mockNavigate).toHaveBeenCalledWith('Bookings');
+  });
+
+  test('11. exposes accessibility roles and selection states on intake controls', async () => {
+    await render(<IntakeScreen />);
+
+    await waitFor(() => {
+      const sittingText = screen.getByText('Pet Sitting');
+      expect(sittingText.parent!.props.accessibilityRole).toBe('button');
+      expect(sittingText.parent!.props.accessibilityState.selected).toBe(true);
+    });
+
+    const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
+    expect(dateChips[0].props.accessibilityRole).toBe('button');
+    expect(dateChips[0].props.accessibilityState.selected).toBe(false);
+
+    fireEvent.press(dateChips[0]);
+    await waitFor(() => {
+      expect(dateChips[0].props.accessibilityState.selected).toBe(true);
+    });
+
+    const windowOption = screen.getByText(/Morning/);
+    expect(windowOption.parent!.props.accessibilityRole).toBe('button');
+    expect(windowOption.parent!.props.accessibilityState.selected).toBe(true);
+  });
+
+  test('12. exposes checkbox role and checked accessibility state on policy agreement row', async () => {
+    await render(<IntakeScreen />);
+
+    const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
+    fireEvent.press(dateChips[0]);
+    await waitFor(() => {
+      expect(screen.getByText(/Selected \(1\)/)).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByLabelText('Continue →'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Select Pets')).toBeTruthy();
+    });
+
+    fireEvent.changeText(screen.getByPlaceholderText('e.g. Buster'), 'Buster');
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Buster')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByLabelText('Continue →'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Review Booking Request')).toBeTruthy();
+    });
+
+    const checkbox = screen.getByLabelText('Accept Tog & Dogs Terms of Service and Privacy Policy');
+    expect(checkbox.props.accessibilityRole).toBe('checkbox');
+    expect(checkbox.props.accessibilityState.checked).toBe(false);
+
+    fireEvent.press(checkbox);
+    await waitFor(() => {
+      expect(checkbox.props.accessibilityState.checked).toBe(true);
+    });
+  });
+
+  test('13. exposes disabled accessibility state on submit button when terms unaccepted', async () => {
+    await render(<IntakeScreen />);
+
+    const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
+    fireEvent.press(dateChips[0]);
+    await waitFor(() => {
+      expect(screen.getByText(/Selected \(1\)/)).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByLabelText('Continue →'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Select Pets')).toBeTruthy();
+    });
+    fireEvent.changeText(screen.getByPlaceholderText('e.g. Buster'), 'Buster');
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Buster')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByLabelText('Continue →'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Review Booking Request')).toBeTruthy();
+    });
+
+    const submitBtn = screen.getByLabelText('Submit Booking Request');
+    expect(submitBtn.props.accessibilityRole).toBe('button');
+    expect(submitBtn.props.accessibilityState.disabled).toBe(true);
+  });
+
+  test('14. exposes confirmation screen header and accessible action button', async () => {
+    mockSubmitClientRequest.mockResolvedValue({ request_id: 'REQ-778899' });
+
+    await render(<IntakeScreen />);
+
+    const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
+    fireEvent.press(dateChips[0]);
+    await waitFor(() => {
+      expect(screen.getByText(/Selected \(1\)/)).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByLabelText('Continue →'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Select Pets')).toBeTruthy();
+    });
+    fireEvent.changeText(screen.getByPlaceholderText('e.g. Buster'), 'Buster');
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Buster')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByLabelText('Continue →'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Review Booking Request')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('I accept the Tog & Dogs Terms of Service and Privacy Policy.'));
+    await waitFor(() => {
+      expect(screen.getByText('☑')).toBeTruthy();
+    });
+
+    const submitBtn = screen.getByLabelText('Submit Booking Request');
+    expect(submitBtn.props.accessibilityState.disabled).toBe(false);
+
+    fireEvent.press(submitBtn);
+
+    await waitFor(() => {
+      const successTitle = screen.getByText('Request Received!');
+      expect(successTitle.props.accessibilityRole).toBe('header');
+      expect(screen.getByText('View My Bookings')).toBeTruthy();
+    });
   });
 });

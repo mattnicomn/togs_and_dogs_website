@@ -145,12 +145,14 @@ export const BookingsScreen = () => {
       <View style={styles.header}>
         <View style={styles.headerTitleRow}>
           <View>
-            <Text style={styles.title}>My Appointments</Text>
+            <Text style={styles.title} accessibilityRole="header">My Appointments</Text>
             <Text style={styles.subtitle}>Your booked pet care visits</Text>
           </View>
           <TouchableOpacity
             style={styles.bookCareBtn}
             onPress={() => navigation.navigate('IntakeScreen')}
+            accessibilityRole="button"
+            accessibilityLabel="Book new pet care visit"
           >
             <Text style={styles.bookCareBtnText}>+ Book Care</Text>
           </TouchableOpacity>
@@ -159,14 +161,19 @@ export const BookingsScreen = () => {
 
       {isLoading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <ActivityIndicator size="large" color={COLORS.primary} accessibilityLabel="Loading your appointments" />
           <Text style={styles.loadingText}>Loading your appointments...</Text>
         </View>
       ) : error ? (
         <View style={styles.centerContainer}>
           <Text style={styles.errorIcon}>⚠️</Text>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => fetchBookings()}>
+          <TouchableOpacity
+            style={styles.retryBtn}
+            onPress={() => fetchBookings()}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading appointments"
+          >
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -194,6 +201,8 @@ export const BookingsScreen = () => {
               <TouchableOpacity
                 style={styles.emptyBookBtn}
                 onPress={() => navigation.navigate('IntakeScreen')}
+                accessibilityRole="button"
+                accessibilityLabel="Book your first pet care visit"
               >
                 <Text style={styles.emptyBookBtnText}>+ Book Pet Care</Text>
               </TouchableOpacity>
@@ -202,7 +211,12 @@ export const BookingsScreen = () => {
         />
       )}
 
-      <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+      <TouchableOpacity
+        style={styles.logoutBtn}
+        onPress={logout}
+        accessibilityRole="button"
+        accessibilityLabel="Log out of account"
+      >
         <Text style={styles.logoutText}>Log Out</Text>
       </TouchableOpacity>
     </SafeAreaView>

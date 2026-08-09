@@ -303,15 +303,16 @@ export const IntakeScreen = () => {
     return (
       <SafeAreaView style={styles.container}>
         {renderHeader()}
-        <View style={styles.successContainer}>
+        <View style={styles.successContainer} accessibilityLiveRegion="polite">
           <Text style={styles.successIcon}>🎉</Text>
-          <Text style={styles.successTitle}>Request Received!</Text>
+          <Text style={styles.successTitle} accessibilityRole="header">Request Received!</Text>
           <Text style={styles.successSub}>
             Your request ID is <Text style={styles.reqIdText}>{successRequestId}</Text>. Our team will review your booking details and confirm shortly.
           </Text>
           <TouchableOpacity
             style={styles.primaryBtn}
             onPress={() => navigation?.navigate?.('Bookings')}
+            accessibilityRole="button"
           >
             <Text style={styles.primaryBtnText}>View My Bookings</Text>
           </TouchableOpacity>
@@ -329,14 +330,14 @@ export const IntakeScreen = () => {
 
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {error ? (
-          <View style={styles.errorBanner}>
+          <View style={styles.errorBanner} accessibilityLiveRegion="assertive">
             <Text style={styles.errorText}>⚠️ {error}</Text>
           </View>
         ) : null}
         {/* STEP 1: SERVICE & SCHEDULE */}
         {step === 1 && (
           <View style={styles.stepContent}>
-            <Text style={styles.sectionTitle}>1. Select Service</Text>
+            <Text style={styles.sectionTitle} accessibilityRole="header">1. Select Service</Text>
             <View style={styles.optionsGrid}>
               {INTAKE_SERVICE_OPTIONS.map((item) => {
                 const isSelected = serviceType === item.key;
@@ -345,6 +346,8 @@ export const IntakeScreen = () => {
                     key={item.key}
                     style={[styles.serviceOption, isSelected && styles.serviceOptionSelected]}
                     onPress={() => setServiceType(item.key)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
                   >
                     <Text style={[styles.serviceOptionLabel, isSelected && styles.serviceOptionLabelSelected]}>
                       {item.label}
@@ -354,7 +357,7 @@ export const IntakeScreen = () => {
               })}
             </View>
 
-            <Text style={[styles.sectionTitle, { marginTop: 24 }]}>2. Visit Dates</Text>
+            <Text style={[styles.sectionTitle, { marginTop: 24 }]} accessibilityRole="header">2. Visit Dates</Text>
             <Text style={styles.fieldHint}>Tap to select upcoming care dates ({selectedDates.length} selected)</Text>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.datesScroll}>
@@ -365,6 +368,9 @@ export const IntakeScreen = () => {
                     key={item.dateStr}
                     style={[styles.dateChip, isSelected && styles.dateChipSelected]}
                     onPress={() => toggleDate(item.dateStr)}
+                    accessibilityRole="button"
+                    accessibilityLabel={item.labelStr}
+                    accessibilityState={{ selected: isSelected }}
                   >
                     <Text style={[styles.dateChipText, isSelected && styles.dateChipTextSelected]}>
                       {item.labelStr}
@@ -381,8 +387,14 @@ export const IntakeScreen = () => {
                 placeholderTextColor={COLORS.textMuted}
                 value={customDateInput}
                 onChangeText={setCustomDateInput}
+                accessibilityLabel="Custom YYYY-MM-DD date input"
               />
-              <TouchableOpacity style={styles.addDateBtn} onPress={addCustomDate}>
+              <TouchableOpacity
+                style={styles.addDateBtn}
+                onPress={addCustomDate}
+                accessibilityRole="button"
+                accessibilityLabel="+ Add custom date"
+              >
                 <Text style={styles.addDateBtnText}>+ Add</Text>
               </TouchableOpacity>
             </View>
@@ -394,7 +406,7 @@ export const IntakeScreen = () => {
               </View>
             )}
 
-            <Text style={[styles.sectionTitle, { marginTop: 24 }]}>3. Visit Windows</Text>
+            <Text style={[styles.sectionTitle, { marginTop: 24 }]} accessibilityRole="header">3. Visit Windows</Text>
             {VISIT_WINDOW_OPTIONS.map((win) => {
               const isSelected = visitWindows.includes(win.key);
               return (
@@ -402,6 +414,8 @@ export const IntakeScreen = () => {
                   key={win.key}
                   style={[styles.windowOption, isSelected && styles.windowOptionSelected]}
                   onPress={() => toggleVisitWindow(win.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
                 >
                   <Text style={[styles.windowOptionLabel, isSelected && styles.windowOptionLabelSelected]}>
                     {isSelected ? '☑ ' : '☐ '} {win.label}
@@ -422,11 +436,14 @@ export const IntakeScreen = () => {
 
             {staffOptions.length > 0 && (
               <View>
-                <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Preferred Sitter (Optional)</Text>
+                <Text style={[styles.fieldLabel, { marginTop: 16 }]} accessibilityRole="header">Preferred Sitter (Optional)</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.datesScroll}>
                   <TouchableOpacity
                     style={[styles.dateChip, !preferredSitter && styles.dateChipSelected]}
                     onPress={() => setPreferredSitter('')}
+                    accessibilityRole="button"
+                    accessibilityLabel="No Preference for sitter"
+                    accessibilityState={{ selected: !preferredSitter }}
                   >
                     <Text style={[styles.dateChipText, !preferredSitter && styles.dateChipTextSelected]}>
                       No Preference
@@ -439,6 +456,9 @@ export const IntakeScreen = () => {
                         key={sitter.id || sitter.name}
                         style={[styles.dateChip, isSelected && styles.dateChipSelected]}
                         onPress={() => setPreferredSitter(sitter.id || sitter.name)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Preferred sitter option ${sitter.name}`}
+                        accessibilityState={{ selected: isSelected }}
                       >
                         <Text style={[styles.dateChipText, isSelected && styles.dateChipTextSelected]}>
                           👤 {sitter.name}
@@ -455,9 +475,9 @@ export const IntakeScreen = () => {
         {/* STEP 2: PETS & DETAILS */}
         {step === 2 && (
           <View style={styles.stepContent}>
-            <Text style={styles.sectionTitle}>Select Pets</Text>
+            <Text style={styles.sectionTitle} accessibilityRole="header">Select Pets</Text>
             {petsLoading ? (
-              <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: 12 }} />
+              <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: 12 }} accessibilityLabel="Loading pets" />
             ) : availablePets.length > 0 ? (
               <View style={styles.petsChipContainer}>
                 {availablePets.map((pet) => {
@@ -467,6 +487,8 @@ export const IntakeScreen = () => {
                       key={pet.id || pet.name}
                       style={[styles.petChip, isSelected && styles.petChipSelected]}
                       onPress={() => togglePetSelection(pet.name)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
                     >
                       <Text style={[styles.petChipText, isSelected && styles.petChipTextSelected]}>
                         {isSelected ? '🐶 ' : '🐾 '} {pet.name} ({pet.breed || pet.species || 'Pet'})
@@ -486,6 +508,7 @@ export const IntakeScreen = () => {
               placeholderTextColor={COLORS.textMuted}
               value={fallbackPetName}
               onChangeText={setFallbackPetName}
+              accessibilityLabel="Pet name input"
             />
 
             <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Feeding Notes (Optional)</Text>
@@ -495,6 +518,7 @@ export const IntakeScreen = () => {
               placeholderTextColor={COLORS.textMuted}
               value={feedingNotes}
               onChangeText={setFeedingNotes}
+              accessibilityLabel="Feeding notes"
             />
 
             <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Medication Notes (Optional)</Text>
@@ -504,9 +528,10 @@ export const IntakeScreen = () => {
               placeholderTextColor={COLORS.textMuted}
               value={medicationNotes}
               onChangeText={setMedicationNotes}
+              accessibilityLabel="Medication notes"
             />
 
-            <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Veterinary & Emergency (Optional)</Text>
+            <Text style={[styles.sectionTitle, { marginTop: 24 }]} accessibilityRole="header">Veterinary & Emergency (Optional)</Text>
             <Text style={styles.fieldLabel}>Vet Clinic Name</Text>
             <TextInput
               style={styles.textInput}
@@ -514,6 +539,7 @@ export const IntakeScreen = () => {
               placeholderTextColor={COLORS.textMuted}
               value={vetClinic}
               onChangeText={setVetClinic}
+              accessibilityLabel="Vet clinic name"
             />
 
             <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Emergency Contact Name</Text>
@@ -523,6 +549,7 @@ export const IntakeScreen = () => {
               placeholderTextColor={COLORS.textMuted}
               value={emergencyName}
               onChangeText={setEmergencyName}
+              accessibilityLabel="Emergency contact name"
             />
           </View>
         )}
@@ -530,7 +557,7 @@ export const IntakeScreen = () => {
         {/* STEP 3: REVIEW & SUBMIT */}
         {step === 3 && (
           <View style={styles.stepContent}>
-            <Text style={styles.sectionTitle}>Review Booking Request</Text>
+            <Text style={styles.sectionTitle} accessibilityRole="header">Review Booking Request</Text>
 
             <View style={styles.reviewCard}>
               <View style={styles.reviewRow}>
@@ -570,10 +597,13 @@ export const IntakeScreen = () => {
               ) : null}
             </View>
 
-            <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Policy Agreement</Text>
+            <Text style={[styles.sectionTitle, { marginTop: 24 }]} accessibilityRole="header">Policy Agreement</Text>
             <TouchableOpacity
               style={styles.termsRow}
               onPress={() => setAcceptedTerms(!acceptedTerms)}
+              accessibilityRole="checkbox"
+              accessibilityLabel="Accept Tog & Dogs Terms of Service and Privacy Policy"
+              accessibilityState={{ checked: acceptedTerms }}
             >
               <Text style={styles.checkboxText}>{acceptedTerms ? '☑' : '☐'}</Text>
               <Text style={styles.termsLabel}>
@@ -586,23 +616,37 @@ export const IntakeScreen = () => {
         {/* CONTROLS */}
         <View style={styles.actionRow}>
           {step > 1 ? (
-            <TouchableOpacity style={styles.secondaryBtn} onPress={handlePrev} disabled={isSubmitting}>
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={handlePrev}
+              disabled={isSubmitting}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isSubmitting }}
+            >
               <Text style={styles.secondaryBtnText}>Back</Text>
             </TouchableOpacity>
           ) : null}
 
           {step < 3 ? (
-            <TouchableOpacity style={styles.primaryBtnFlex} onPress={handleNext}>
+            <TouchableOpacity
+              style={styles.primaryBtnFlex}
+              onPress={handleNext}
+              accessibilityRole="button"
+              accessibilityLabel="Continue →"
+            >
               <Text style={styles.primaryBtnText}>Continue →</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
               style={[styles.primaryBtnFlex, !acceptedTerms && styles.btnDisabled]}
               onPress={handleSubmit}
-              disabled={isSubmitting}
+              disabled={!acceptedTerms || isSubmitting}
+              accessibilityRole="button"
+              accessibilityLabel="Submit Booking Request"
+              accessibilityState={{ disabled: !acceptedTerms || isSubmitting, busy: isSubmitting }}
             >
               {isSubmitting ? (
-                <ActivityIndicator color="#ffffff" size="small" />
+                <ActivityIndicator color="#ffffff" size="small" accessibilityLabel="Submitting booking request" />
               ) : (
                 <Text style={styles.primaryBtnText}>Submit Booking Request</Text>
               )}
@@ -759,6 +803,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     marginRight: 8,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   dateChipSelected: {
     backgroundColor: COLORS.primary,
@@ -793,6 +839,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 10,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   addDateBtnText: {
     color: COLORS.white,
@@ -824,6 +872,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     marginBottom: 6,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   windowOptionSelected: {
     borderColor: COLORS.primary,
@@ -860,6 +910,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 8,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   petChipSelected: {
     backgroundColor: COLORS.primary,
@@ -905,6 +957,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.borderSoft,
+    minHeight: 44,
   },
   checkboxText: {
     fontSize: 18,
@@ -930,6 +983,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
   },
   secondaryBtnText: {
     fontSize: 14,
@@ -942,6 +997,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
   },
   primaryBtnText: {
     fontSize: 14,
@@ -983,5 +1040,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 14,
     paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
   },
 });

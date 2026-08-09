@@ -157,6 +157,9 @@ export const RequestCard: React.FC<RequestCardProps> = ({
         onPress={isDetailView ? undefined : handlePressCard}
         disabled={isDetailView}
         activeOpacity={isDetailView ? 1 : 0.7}
+        accessibilityRole={isDetailView ? undefined : 'button'}
+        accessibilityLabel={isDetailView ? undefined : `Care request for ${request.pet_name || 'pet'} by ${request.client_name || 'client'}, status ${request.status}`}
+        accessibilityState={isDetailView ? undefined : { expanded: expanded }}
       >
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -228,6 +231,9 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                 onPress={() => setShowConfirmModal(true)}
                 disabled={isMutating}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Approve Booking"
+                accessibilityState={{ disabled: isMutating, busy: isMutating }}
               >
                 <Text style={styles.approveBtnText}>Approve Booking</Text>
               </TouchableOpacity>
@@ -239,6 +245,9 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                 onPress={handleAssignPress}
                 disabled={isMutating}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Assign Staff"
+                accessibilityState={{ disabled: isMutating, busy: isMutating }}
               >
                 <Text style={styles.assignBtnText}>Assign Staff</Text>
               </TouchableOpacity>
@@ -250,6 +259,9 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                 onPress={handleAssignPress}
                 disabled={isMutating}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Change Staff"
+                accessibilityState={{ disabled: isMutating, busy: isMutating }}
               >
                 <Text style={styles.changeBtnText}>Change Staff</Text>
               </TouchableOpacity>
