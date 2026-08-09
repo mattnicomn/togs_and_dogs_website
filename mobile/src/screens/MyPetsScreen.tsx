@@ -1,10 +1,11 @@
 /**
- * Phase 24A-4: My Pets Read-Only Screen
+ * Phase 24A-5: My Pets Screen (Read & Edit)
  *
- * Displays the authenticated customer's saved pets from GET /client/pets.
- * Read-only — no editing, creating, or deleting pets.
+ * Displays the authenticated customer's saved pets from GET /client/pets
+ * and supports inline editing of existing pet profiles via PUT /client/pets/{petId}.
+ * Client editing only — no pet creation, deletion, archiving, or restoring.
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -14,12 +15,15 @@ import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/useAuth';
 import { useFocusEffect } from '@react-navigation/native';
-import { getClientPets } from '../api/client';
+import { getClientPets, updateClientPet } from '../api/client';
 import { COLORS } from '../theme/colors';
+import { PET_FIELDS } from '../contracts/generatedContracts';
 
 interface Pet {
   pet_id: string;
@@ -38,8 +42,175 @@ interface Pet {
   };
 }
 
-// --- Pet Detail Modal/View ---
-const PetDetail = ({ pet, onClose }: { pet: Pet; onClose: () => void }) => {
+interface FormValues {
+  name: string;
+  species: string;
+  breed: string;
+  age: string;
+  care_instructions: string;
+  feeding_notes: string;
+  medication_notes: string;
+  behavior_notes: string;
+  health_vet_name: string;
+  health_vet_phone: string;
+}
+
+// Helper to extract editable form values from a pet record
+const getInitialFormValues = (pet: Pet): FormValues => ({
+  name: pet.name || '',
+  species: pet.species || '',
+  breed: pet.breed || '',
+  age: pet.age || '',
+  care_instructions: pet.care_instructions || '',
+  feeding_notes: pet.feeding_notes || '',
+  medication_notes: pet.medication_notes || '',
+  behavior_notes: pet.behavior_notes || '',
+  health_vet_name: pet.health?.vet_name || '',
+  health_vet_phone: pet.health?.vet_phone || '',
+});
+
+// --- Pet Detail & Inline Editor View ---
+const PetDetail = ({
+  pet,
+  onClose,
+  onSaveSuccess,
+}: {
+  pet: Pet;
+  onClose: () => void;
+  onSaveSuccess: (updatedPet: Pet) => void;
+}) => {
+  const { logout } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
+  const [formValues, setFormValues] = useState<FormValues>(() => getInitialFormValues(pet));
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+
+  const initialFormValues = useMemo(() => getInitialFormValues(pet), [pet]);
+
+  const isDirty = useMemo(() => {
+    return (
+      formValues.name !== initialFormValues.name ||
+      formValues.species !== initialFormValues.species ||
+      formValues.breed !== initialFormValues.breed ||
+      formValues.age !== initialFormValues.age ||
+      formValues.care_instructions !== initialFormValues.care_instructions ||
+      formValues.feeding_notes !== initialFormValues.feeding_notes ||
+      formValues.medication_notes !== initialFormValues.medication_notes ||
+      formValues.behavior_notes !== initialFormValues.behavior_notes ||
+      formValues.health_vet_name !== initialFormValues.health_vet_name ||
+      formValues.health_vet_phone !== initialFormValues.health_vet_phone
+    );
+  }, [formValues, initialFormValues]);
+
+  const isNameValid = formValues.name.trim().length > 0 && formValues.name.trim().length <= PET_FIELDS.fieldLimits.name;
+
+  const handleStartEdit = () => {
+    setFormValues(getInitialFormValues(pet));
+    setEditError(null);
+    setSaveSuccessMessage(null);
+    setIsEditing(true);
+  };
+
+  const performCancelEdit = () => {
+    setFormValues(getInitialFormValues(pet));
+    setEditError(null);
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    if (isDirty) {
+      Alert.alert(
+        'Discard Unsaved Changes?',
+        'You have unsaved pet edits. Are you sure you want to discard them?',
+        [
+          { text: 'Keep Editing', style: 'cancel' },
+          { text: 'Discard', style: 'destructive', onPress: performCancelEdit },
+        ]
+      );
+    } else {
+      performCancelEdit();
+    }
+  };
+
+  const handleBack = () => {
+    if (isEditing && isDirty) {
+      Alert.alert(
+        'Discard Unsaved Changes?',
+        'You have unsaved pet edits. Are you sure you want to discard them?',
+        [
+          { text: 'Keep Editing', style: 'cancel' },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => {
+              performCancelEdit();
+              onClose();
+            },
+          },
+        ]
+      );
+    } else {
+      if (isEditing) {
+        performCancelEdit();
+      }
+      onClose();
+    }
+  };
+
+  const handleSave = async () => {
+    const trimmedName = formValues.name.trim();
+    if (!trimmedName) {
+      setEditError('Pet name cannot be empty.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setEditError(null);
+    setSaveSuccessMessage(null);
+
+    const payload = {
+      name: trimmedName,
+      species: formValues.species.trim(),
+      breed: formValues.breed.trim(),
+      age: formValues.age.trim(),
+      care_instructions: formValues.care_instructions.trim(),
+      feeding_notes: formValues.feeding_notes.trim(),
+      medication_notes: formValues.medication_notes.trim(),
+      behavior_notes: formValues.behavior_notes.trim(),
+      health: {
+        vet_name: formValues.health_vet_name.trim(),
+        vet_phone: formValues.health_vet_phone.trim(),
+      },
+    };
+
+    try {
+      const result = await updateClientPet(pet.pet_id, payload);
+      const updatedPet: Pet = {
+        ...pet,
+        ...payload,
+        ...(result && typeof result === 'object' ? result : {}),
+      };
+      onSaveSuccess(updatedPet);
+      setIsEditing(false);
+      setSaveSuccessMessage('Pet details saved successfully.');
+    } catch (e: any) {
+      const msg = e.message || '';
+      if (
+        msg.includes('session expired') ||
+        msg.toLowerCase().includes('expired') ||
+        msg.toLowerCase().includes('unauthorized')
+      ) {
+        await logout();
+      } else {
+        setEditError(msg || 'Failed to update pet. Please try again.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Read-only display fields
   const fields: { label: string; value: string | undefined }[] = [
     { label: 'Species', value: pet.species },
     { label: 'Breed', value: pet.breed },
@@ -57,31 +228,232 @@ const PetDetail = ({ pet, onClose }: { pet: Pet; onClose: () => void }) => {
   return (
     <ScrollView style={styles.detailContainer} contentContainerStyle={styles.detailContent}>
       <View style={styles.detailHeader}>
-        <Text style={styles.detailName} accessibilityRole="header">🐾 {pet.name}</Text>
-        {pet.species && <Text style={styles.detailSpecies}>{pet.species}</Text>}
+        <View style={styles.headerTitleRow}>
+          <Text style={styles.detailName} accessibilityRole="header">
+            🐾 {pet.name}
+          </Text>
+          {!isEditing && (
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={handleStartEdit}
+              accessibilityRole="button"
+              accessibilityLabel={`Edit profile for ${pet.name}`}
+            >
+              <Text style={styles.editButtonText}>Edit Profile</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        {pet.species && !isEditing && <Text style={styles.detailSpecies}>{pet.species}</Text>}
       </View>
 
-      {visibleFields.length === 0 ? (
-        <View style={styles.emptyDetail}>
-          <Text style={styles.emptyDetailText}>No additional details available for this pet.</Text>
+      {saveSuccessMessage && (
+        <View style={styles.successBanner}>
+          <Text style={styles.successBannerText}>✓ {saveSuccessMessage}</Text>
         </View>
-      ) : (
-        visibleFields.map((field) => (
-          <View key={field.label} style={styles.detailRow}>
-            <Text style={styles.detailLabel}>{field.label}</Text>
-            <Text style={styles.detailValue}>{field.value}</Text>
-          </View>
-        ))
       )}
 
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Back to pet list"
-      >
-        <Text style={styles.backButtonText}>← Back to My Pets</Text>
-      </TouchableOpacity>
+      {editError && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>⚠️ {editError}</Text>
+        </View>
+      )}
+
+      {isEditing ? (
+        <View style={styles.formContainer}>
+          <View style={styles.editFieldRow}>
+            <Text style={styles.detailLabel}>Pet Name *</Text>
+            <TextInput
+              style={styles.input}
+              value={formValues.name}
+              onChangeText={(text) => setFormValues(prev => ({ ...prev, name: text }))}
+              maxLength={PET_FIELDS.fieldLimits.name}
+              placeholder="Pet Name"
+              accessibilityLabel="Pet Name"
+              accessibilityHint="Enter pet name"
+            />
+          </View>
+
+          <View style={styles.editFieldRow}>
+            <Text style={styles.detailLabel}>Species</Text>
+            <TextInput
+              style={styles.input}
+              value={formValues.species}
+              onChangeText={(text) => setFormValues(prev => ({ ...prev, species: text }))}
+              maxLength={PET_FIELDS.fieldLimits.species}
+              placeholder="e.g. Dog, Cat"
+              accessibilityLabel="Species"
+              accessibilityHint="Enter species"
+            />
+          </View>
+
+          <View style={styles.editFieldRow}>
+            <Text style={styles.detailLabel}>Breed</Text>
+            <TextInput
+              style={styles.input}
+              value={formValues.breed}
+              onChangeText={(text) => setFormValues(prev => ({ ...prev, breed: text }))}
+              maxLength={PET_FIELDS.fieldLimits.breed}
+              placeholder="e.g. Golden Retriever"
+              accessibilityLabel="Breed"
+              accessibilityHint="Enter breed"
+            />
+          </View>
+
+          <View style={styles.editFieldRow}>
+            <Text style={styles.detailLabel}>Age</Text>
+            <TextInput
+              style={styles.input}
+              value={formValues.age}
+              onChangeText={(text) => setFormValues(prev => ({ ...prev, age: text }))}
+              maxLength={PET_FIELDS.fieldLimits.age}
+              placeholder="e.g. 3 years"
+              accessibilityLabel="Age"
+              accessibilityHint="Enter pet age"
+            />
+          </View>
+
+          <View style={styles.editFieldRow}>
+            <Text style={styles.detailLabel}>Care Instructions</Text>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              value={formValues.care_instructions}
+              onChangeText={(text) => setFormValues(prev => ({ ...prev, care_instructions: text }))}
+              maxLength={PET_FIELDS.fieldLimits.care_instructions}
+              multiline
+              numberOfLines={3}
+              placeholder="General care instructions"
+              accessibilityLabel="Care Instructions"
+              accessibilityHint="Enter general care instructions"
+            />
+          </View>
+
+          <View style={styles.editFieldRow}>
+            <Text style={styles.detailLabel}>Feeding Notes</Text>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              value={formValues.feeding_notes}
+              onChangeText={(text) => setFormValues(prev => ({ ...prev, feeding_notes: text }))}
+              maxLength={PET_FIELDS.fieldLimits.feeding_notes}
+              multiline
+              numberOfLines={3}
+              placeholder="Feeding schedule & diet notes"
+              accessibilityLabel="Feeding Notes"
+              accessibilityHint="Enter feeding schedule and notes"
+            />
+          </View>
+
+          <View style={styles.editFieldRow}>
+            <Text style={styles.detailLabel}>Medication Notes</Text>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              value={formValues.medication_notes}
+              onChangeText={(text) => setFormValues(prev => ({ ...prev, medication_notes: text }))}
+              maxLength={PET_FIELDS.fieldLimits.medication_notes}
+              multiline
+              numberOfLines={3}
+              placeholder="Medication details & dosage"
+              accessibilityLabel="Medication Notes"
+              accessibilityHint="Enter medication details"
+            />
+          </View>
+
+          <View style={styles.editFieldRow}>
+            <Text style={styles.detailLabel}>Behavior Notes</Text>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              value={formValues.behavior_notes}
+              onChangeText={(text) => setFormValues(prev => ({ ...prev, behavior_notes: text }))}
+              maxLength={PET_FIELDS.fieldLimits.behavior_notes}
+              multiline
+              numberOfLines={3}
+              placeholder="Behavioral traits & warnings"
+              accessibilityLabel="Behavior Notes"
+              accessibilityHint="Enter behavioral traits"
+            />
+          </View>
+
+          <View style={styles.editFieldRow}>
+            <Text style={styles.detailLabel}>Vet Name</Text>
+            <TextInput
+              style={styles.input}
+              value={formValues.health_vet_name}
+              onChangeText={(text) => setFormValues(prev => ({ ...prev, health_vet_name: text }))}
+              maxLength={PET_FIELDS.clientWriteHealthFieldLimits.vet_name}
+              placeholder="Veterinarian or clinic name"
+              accessibilityLabel="Vet Name"
+              accessibilityHint="Enter veterinarian name"
+            />
+          </View>
+
+          <View style={styles.editFieldRow}>
+            <Text style={styles.detailLabel}>Vet Phone</Text>
+            <TextInput
+              style={styles.input}
+              value={formValues.health_vet_phone}
+              onChangeText={(text) => setFormValues(prev => ({ ...prev, health_vet_phone: text }))}
+              maxLength={PET_FIELDS.clientWriteHealthFieldLimits.vet_phone}
+              keyboardType="phone-pad"
+              placeholder="Veterinarian phone number"
+              accessibilityLabel="Vet Phone"
+              accessibilityHint="Enter veterinarian phone number"
+            />
+          </View>
+
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={[
+                styles.saveButton,
+                (!isDirty || !isNameValid || isSubmitting) && styles.disabledButton,
+              ]}
+              onPress={handleSave}
+              disabled={!isDirty || !isNameValid || isSubmitting}
+              accessibilityRole="button"
+              accessibilityLabel="Save pet changes"
+              accessibilityState={{ disabled: !isDirty || !isNameValid || isSubmitting, busy: isSubmitting }}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
+              ) : (
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={handleCancel}
+              disabled={isSubmitting}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel editing pet details"
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <>
+          {visibleFields.length === 0 ? (
+            <View style={styles.emptyDetail}>
+              <Text style={styles.emptyDetailText}>No additional details available for this pet.</Text>
+            </View>
+          ) : (
+            visibleFields.map((field) => (
+              <View key={field.label} style={styles.detailRow}>
+                <Text style={styles.detailLabel}>{field.label}</Text>
+                <Text style={styles.detailValue}>{field.value}</Text>
+              </View>
+            ))
+          )}
+
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBack}
+            accessibilityRole="button"
+            accessibilityLabel="Back to pet list"
+          >
+            <Text style={styles.backButtonText}>← Back to My Pets</Text>
+          </TouchableOpacity>
+        </>
+      )}
     </ScrollView>
   );
 };
@@ -130,11 +502,22 @@ export const MyPetsScreen = () => {
     }, [fetchPets])
   );
 
+  const handleSaveSuccess = (updatedPet: Pet) => {
+    setSelectedPet(updatedPet);
+    setPets((prev) =>
+      prev.map((p) => (p.pet_id === updatedPet.pet_id ? updatedPet : p))
+    );
+  };
+
   // Detail view
   if (selectedPet) {
     return (
       <SafeAreaView style={styles.container}>
-        <PetDetail pet={selectedPet} onClose={() => setSelectedPet(null)} />
+        <PetDetail
+          pet={selectedPet}
+          onClose={() => setSelectedPet(null)}
+          onSaveSuccess={handleSaveSuccess}
+        />
       </SafeAreaView>
     );
   }
@@ -360,10 +743,27 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.borderSoft,
     paddingBottom: 16,
   },
+  headerTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   detailName: {
     fontSize: 22,
     fontWeight: '800',
     color: COLORS.text,
+    flex: 1,
+  },
+  editButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  editButtonText: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: '700',
   },
   detailSpecies: {
     fontSize: 14,
@@ -405,5 +805,82 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: 15,
     fontWeight: '700',
+  },
+  // Form Editor Styles
+  formContainer: {
+    marginTop: 8,
+  },
+  editFieldRow: {
+    marginBottom: 16,
+  },
+  input: {
+    backgroundColor: COLORS.cardBg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: COLORS.text,
+  },
+  multilineInput: {
+    minHeight: 72,
+    textAlignVertical: 'top',
+  },
+  actionRow: {
+    marginTop: 16,
+    marginBottom: 24,
+    gap: 12,
+  },
+  saveButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  saveButtonText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  cancelButton: {
+    backgroundColor: COLORS.borderSoft,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  errorBanner: {
+    backgroundColor: '#fff5f5',
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  errorBannerText: {
+    color: COLORS.danger,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  successBanner: {
+    backgroundColor: '#f0fff4',
+    borderWidth: 1,
+    borderColor: COLORS.success,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  successBannerText: {
+    color: COLORS.success,
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

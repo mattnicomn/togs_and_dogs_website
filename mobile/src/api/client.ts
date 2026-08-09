@@ -1,7 +1,7 @@
 import { CONFIG } from './config';
 import { getIdToken, isTokenExpired } from '../auth/storage';
 import { refreshSession } from '../auth/cognito';
-import { API_PATHS } from '../contracts/generatedContracts';
+import { API_PATHS, buildPath } from '../contracts/generatedContracts';
 
 const request = async (path: string, method = 'GET', data: any = null, isProtected = false) => {
   const options: RequestInit = {
@@ -108,8 +108,9 @@ export const completeJob = (jobId: string, requestId: string, visitNotes = "") =
 // Phase 24A-4: Client pets listing (read-only)
 export const getClientPets = () => request(API_PATHS.client.getPets, 'GET', null, true);
 
+// Phase 24A-5: Client pet update
+export const updateClientPet = (petId: string, data: any) =>
+  request(buildPath(API_PATHS.client.updatePet, { petId }), 'PUT', data, true);
+
 // Phase 24A-6: Client care request submission
 export const submitClientRequest = (data: any) => request(API_PATHS.client.submitRequest, 'POST', data, true);
-
-
-
