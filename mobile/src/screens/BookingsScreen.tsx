@@ -373,10 +373,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 8,
   },
   bookCareBtnText: {
-    color: '#ffffff',
+    color: COLORS.white,
     fontWeight: '800',
     fontSize: 13,
   },
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   emptyBookBtnText: {
-    color: '#ffffff',
+    color: COLORS.white,
     fontWeight: '800',
     fontSize: 14,
   },

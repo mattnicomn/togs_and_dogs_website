@@ -732,7 +732,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.cardBg,
     borderWidth: 1,
     borderColor: COLORS.borderSoft,
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 14,
   },
   serviceOptionSelected: {
@@ -770,7 +770,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
   dateChipTextSelected: {
-    color: '#ffffff',
+    color: COLORS.white,
   },
   customDateRow: {
     flexDirection: 'row',
@@ -795,7 +795,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   addDateBtnText: {
-    color: '#ffffff',
+    color: COLORS.white,
     fontWeight: '700',
     fontSize: 13,
   },
@@ -871,7 +871,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
   petChipTextSelected: {
-    color: '#ffffff',
+    color: COLORS.white,
   },
   reviewCard: {
     backgroundColor: COLORS.cardBg,
@@ -926,7 +926,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.cardBg,
     borderWidth: 1,
     borderColor: COLORS.borderSoft,
-    borderRadius: 10,
+    borderRadius: 8,
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: 'center',
@@ -939,14 +939,14 @@ const styles = StyleSheet.create({
   primaryBtnFlex: {
     flex: 1,
     backgroundColor: COLORS.primary,
-    borderRadius: 10,
+    borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
   },
   primaryBtnText: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#ffffff',
+    color: COLORS.white,
   },
   btnDisabled: {
     opacity: 0.5,
@@ -980,7 +980,7 @@ const styles = StyleSheet.create({
   },
   primaryBtn: {
     backgroundColor: COLORS.primary,
-    borderRadius: 10,
+    borderRadius: 8,
     paddingVertical: 14,
     paddingHorizontal: 24,
   },
