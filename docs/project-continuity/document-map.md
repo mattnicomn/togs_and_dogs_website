@@ -143,6 +143,7 @@
 | Phase 24A-2 shared constants and contracts | `docs/release-notes/phase-24a-2-shared-constants-and-contracts.md` |
 | Phase 24A-3 mobile test foundation | `docs/release-notes/phase-24a-3-mobile-test-foundation.md` |
 | Phase 24A-6 mobile care-request intake flow | `docs/release-notes/phase-24a-6-mobile-care-request-intake-flow.md` |
+| Phase 24A-7 mobile visual consistency polish | `docs/release-notes/phase-24a-7-visual-consistency-polish.md` |
 
 
 ## Backlog

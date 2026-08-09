@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-09 (Phase 24A-6 Mobile Care-Request Intake Flow Locally Complete)
+**Last Updated:** 2026-08-09 (Phase 24A-7 Mobile Visual Consistency Polish Locally Complete)
 
 ---
 
@@ -60,6 +60,15 @@
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
 
 ## Active Local Work / Pending Review
+
+- Phase 24A-7: Visual Consistency Polish (🔗 LOCALLY COMPLETE / MOBILE VISUAL CONSISTENCY POLISHED / 8PX ACTION BUTTON RADII & 12PX CARD SURFACE RADII NORMALIZED / COLOR TOKEN LITERALS REPLACED WITH `COLORS.white` / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-09)
+  - Standardized mobile action button radii to `8px` (`BookingsScreen.tsx` header CTA, `IntakeScreen.tsx` step navigation and submit buttons) and card surface radii to `12px` (`IntakeScreen.tsx` service options grid).
+  - Replaced raw `#ffffff` string literals with generated token `COLORS.white`. Assessed `MyPetsScreen.tsx` and `RequestCard.tsx` and confirmed they were already fully aligned.
+  - Preserved all status badge pill shapes (`borderRadius: 99`), selection chips (`borderRadius: 20`), navigation, forms, validation, status display semantics, and business logic.
+  - Validation: 0 TypeScript errors, 18 constants, 9 adapters, 28 focused tests, 89 full mobile tests across 10 suites.
+  - Kiro independent review: `IMPLEMENTATION_CORRECT` (`READY_FOR_PHASE_24A_7_COMMIT_DECISION`).
+  - Committed (`b34f0460c50fdf5033c4155b9e07ca4ea30e3868`) and pushed to `origin/main`. NOT DEPLOYED; production baseline remains Phase 1B.5C-D.2. Zero EAS or Expo distribution builds occurred.
+  - See: `docs/release-notes/phase-24a-7-visual-consistency-polish.md`
 
 - Phase 24A-6: Mobile Care-Request Intake Flow (🔗 LOCALLY COMPLETE / MOBILE CARE-REQUEST INTAKE FLOW IMPLEMENTED / 3-STEP INTAKE WIZARD INTEGRATED / CONTRACT-DERIVED CANONICAL SERVICES / READ-ONLY CLIENT PETS LOADED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-09)
   - Implemented complete 3-step mobile care request intake wizard (`IntakeScreen.tsx`), integrated navigation route (`AppNavigator.tsx`), added `+ Book Care` and `+ Book Pet Care` buttons (`BookingsScreen.tsx`), added API helper `submitClientRequest` (`client.ts`), and created a 10-test unit suite (`IntakeScreen.test.tsx`).
