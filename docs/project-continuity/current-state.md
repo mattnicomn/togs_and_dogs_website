@@ -61,6 +61,14 @@
 
 ## Active Local Work / Pending Review
 
+- Phase 24A-9A: Cross-Platform Mobile Release Pipeline Assessment & Preparation (🔗 LOCALLY COMPLETE / RELEASE PIPELINE DEFINED / PAIRED IOS + ANDROID RELEASE MODEL ESTABLISHED / NON-WRITE SMOKE MATRIX DOCUMENTED / ZERO BUILD TRIGGERED / AWAITING MATTHEW PAIRED BUILD DECISION — 2026-08-09)
+  - Established repeatable paired release model (One Git SHA `60754d97c1f8cd139e81434531500f21abcdb4d5` → paired iOS IPA + Android AAB artifacts).
+  - Formulated paired build commands (`eas build --platform ios` and `eas build --platform android`).
+  - Defined Production Write Safety Boundary (SAFE non-write smoke testing vs WRITE approval required for pet edit save and intake submit).
+  - Validation: 0 TypeScript errors, 18 constants, 9 adapters, 18 backend customer pet tests, 13 backend status parity tests, 104 full mobile tests across 10 suites.
+  - Zero EAS builds triggered; awaiting Matthew explicit approval for Phase 24A-9B paired builds.
+  - See: `docs/release-notes/phase-24a-9a-cross-platform-release-pipeline-assessment-and-preparation.md`
+
 - Phase 24A-5: Mobile My Pets Editing (🔗 LOCALLY COMPLETE / MOBILE MY PETS EDITING IMPLEMENTED / INLINE EDIT MODE INTEGRATED / CLIENT PET FIELDS (10 FIELDS) SUPPORTED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-09)
   - Added authenticated client self-service pet profile editing to `MyPetsScreen.tsx` using `PUT /client/pets/{petId}` (API helper `updateClientPet` in `client.ts`).
   - Pre-populates all 10 client-editable fields, enforces contract max lengths (`PET_FIELDS`), supports optional string clearing, dirty-state tracking (`isDirty`), double-submit prevention, and unsaved changes confirmation (`Alert.alert`).

@@ -42,10 +42,10 @@ CURRENT STATE SUMMARY (verify against docs/project-continuity/current-state.md):
 - Phase 24A-5 (Mobile My Pets Editing) is 100% locally complete, committed, and pushed. NOT DEPLOYED.
 - Phase 24A-6 (Mobile Care-Request Intake Flow) is 100% locally complete, committed, and pushed. NOT DEPLOYED.
 - Phase 24A-7 (Visual Consistency Polish) is 100% locally complete, committed, and pushed. NOT DEPLOYED.
-- Phase 24A-8 (Accessibility Validation) is 100% locally complete, committed, and pushed. NOT DEPLOYED.
-- Phase 24A-9 (Mobile Build & Distribution) is GATED on explicit Matthew approval. NOT DEPLOYED.
+- Phase 24A-9A (Cross-Platform Mobile Release Pipeline Preparation) is 100% locally complete. Zero EAS builds triggered.
+- Phase 24A-9B (Paired iOS + Android Builds) is GATED on explicit Matthew approval. NOT DEPLOYED.
 - Phase 1B.5C-A (Customer Pet Editing) is deployed and validated in production (Phase 1B.5C-D.2 baseline).
-- Next local development action: Phase 24A-9 Mobile Build & Distribution decision (GATED pending explicit Matthew approval).
+- Next local development action: Phase 24A-9B Paired iOS + Android Internal Build Decision (GATED pending explicit Matthew approval).
 
 Please read the continuity docs and confirm you understand the current state before proceeding with any recommendations.
 ```
