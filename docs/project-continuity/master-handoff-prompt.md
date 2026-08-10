@@ -43,9 +43,11 @@ CURRENT STATE SUMMARY (verify against docs/project-continuity/current-state.md):
 - Phase 24A-6 (Mobile Care-Request Intake Flow) is 100% locally complete, committed, and pushed. NOT DEPLOYED.
 - Phase 24A-7 (Visual Consistency Polish) is 100% locally complete, committed, and pushed. NOT DEPLOYED.
 - Phase 24A-9A (Cross-Platform Mobile Release Pipeline Preparation) is 100% locally complete. Zero EAS builds triggered.
-- Phase 24A-9B (Paired iOS + Android Internal Builds) is COMPLETE. iOS `1.0.0 (5)` submitted to TestFlight (EAS `c7b7d9da-056b-45a8-86cd-cd6882969464`, submission `fe722283-3205-4a87-8d9a-40162407966c`). Android `1.0.0` versionCode `3` signed AAB ready (EAS `e2bc9a1d-666b-4698-882f-6aa7ba7c2132`). Google Play upload deliberately held. Both artifacts originate from `8a1ce46c0a8bd0d02f4000188b21e115b370281c`.
+- Phase 24A-9B (Paired iOS + Android Internal Builds) is COMPLETE. iOS `1.0.0 (5)` submitted to TestFlight (EAS `c7b7d9da-056b-45a8-86cd-cd6882969464`). Android `1.0.0` versionCode `3` signed AAB uploaded to Google Play Internal Testing (EAS `e2bc9a1d-666b-4698-882f-6aa7ba7c2132`). Both artifacts originate from `8a1ce46c0a8bd0d02f4000188b21e115b370281c`.
+- Phase 24A-9B.4 (Google Play Internal Testing Setup) is COMPLETE. Play Console: `Latest release: 3 (1.0.0)` — Available to internal testers. Google Play service-account / EAS Submit automation not yet configured (future pipeline hardening).
+- Phase 24A-9C (Cross-Platform Non-Write Smoke Validation) is ACTIVE. Android Studio emulator initial runtime check confirmed by Matthew. Physical iOS and Android hands-on scenario matrix pending Matthew confirmation.
 - Phase 1B.5C-A (Customer Pet Editing) is deployed and validated in production (Phase 1B.5C-D.2 baseline).
-- Next local development action: Phase 24A-9B.4 Google Play Internal Testing Setup & Android AAB Submission.
+- Next local development action: Phase 24A-9C Matthew hands-on non-write smoke checklist completion (iOS TestFlight + physical Android), then Phase 24A-9D (controlled production-write validation, GATED pending separate Matthew approval).
 
 Please read the continuity docs and confirm you understand the current state before proceeding with any recommendations.
 ```

@@ -61,10 +61,24 @@
 
 ## Active Local Work / Pending Review
 
-- Phase 24A-9B: Paired iOS + Android Internal Builds (🔗 LOCALLY COMPLETE / PAIRED IOS + ANDROID ARTIFACTS CREATED / IOS TESTFLIGHT SUBMITTED / ANDROID SIGNED AAB CREATED (STORE UPLOAD HELD) / ZERO PUBLIC RELEASE / ZERO PRODUCTION WRITES — 2026-08-09)
+- Phase 24A-9C: Cross-Platform Non-Write Smoke Validation (🔗 ACTIVE / IOS TESTFLIGHT 1.0.0 (5) AVAILABLE / ANDROID INTERNAL TESTING 3 (1.0.0) AVAILABLE / ANDROID EMULATOR RUNTIME CHECK CONFIRMED / PHYSICAL ANDROID DEVICE PENDING / NON-WRITE BOUNDARY ENFORCED — 2026-08-09)
+  - iOS `1.0.0 (5)` available on TestFlight. Android `1.0.0` versionCode `3` available on Google Play Internal Testing.
+  - Android Studio emulator initial runtime check confirmed by Matthew (visual check passed). Full scenario matrix pending Matthew hands-on confirmation on physical devices.
+  - `PUT /client/pets/{petId}` and `POST /client/requests` NOT executed. No production writes occurred.
+  - iOS classification: `IOS_NONWRITE_SMOKE_PENDING`. Android emulator: `ANDROID_EMULATOR_SMOKE_PASS`. Android physical device: `ANDROID_PHYSICAL_DEVICE_PENDING`.
+  - See: `docs/release-notes/phase-24a-9c-cross-platform-nonwrite-smoke-validation.md`
+
+- Phase 24A-9B.4: Google Play Internal Testing Setup (🔗 COMPLETE / ANDROID VERSIONCODE 3 UPLOADED / INTERNAL TESTING ACTIVE / `3 (1.0.0)` AVAILABLE TO INTERNAL TESTERS / ZERO PUBLIC RELEASE — 2026-08-09)
+  - Android AAB (EAS `e2bc9a1d-666b-4698-882f-6aa7ba7c2132`) manually uploaded to Google Play Console Internal Testing track.
+  - Play Console confirmed: `Latest release: 3 (1.0.0)` — Available to internal testers.
+  - Google Play service-account JSON / EAS Submit automation not yet configured (future pipeline hardening item).
+  - Ryan remains paused; public release remains unapproved.
+  - See: `docs/release-notes/phase-24a-9b4-google-play-internal-testing.md`
+
+- Phase 24A-9B: Paired iOS + Android Internal Builds (🔗 LOCALLY COMPLETE / PAIRED IOS + ANDROID ARTIFACTS CREATED / IOS TESTFLIGHT SUBMITTED / ANDROID SIGNED AAB UPLOADED TO PLAY INTERNAL TESTING / ZERO PUBLIC RELEASE / ZERO PRODUCTION WRITES — 2026-08-09)
   - Compiled paired mobile binaries from exact Git SHA `8a1ce46c0a8bd0d02f4000188b21e115b370281c` and shared marketing version `1.0.0`.
   - iOS build `1.0.0 (5)` (EAS build ID `c7b7d9da-056b-45a8-86cd-cd6882969464`) auto-submitted to Apple App Store Connect / TestFlight (`fe722283-3205-4a87-8d9a-40162407966c`).
-  - Android build `1.0.0` versionCode `3` (EAS build ID `e2bc9a1d-666b-4698-882f-6aa7ba7c2132`) generated signed `.aab` artifact (`1w6wvegHq5Dxk4ubgdbQBzAFtbDIUDOeMcJgA8Bcc7U.aab`). Google Play upload held pending Phase 24A-9B.4.
+  - Android build `1.0.0` versionCode `3` (EAS build ID `e2bc9a1d-666b-4698-882f-6aa7ba7c2132`) signed `.aab` uploaded to Google Play Internal Testing. Play Console: `Latest release: 3 (1.0.0)` — Available to internal testers.
   - Validation: 0 TypeScript errors, 18 constants, 9 adapters, 18 backend customer pet tests, 13 backend status parity tests, 104 full mobile tests across 10 suites.
   - Public publishing remains unapproved; Ryan testing remains paused; production write smoke testing remains unapproved.
   - See: `docs/release-notes/phase-24a-9b-paired-ios-android-internal-builds.md`
