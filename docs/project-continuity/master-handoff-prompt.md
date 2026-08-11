@@ -45,9 +45,10 @@ CURRENT STATE SUMMARY (verify against docs/project-continuity/current-state.md):
 - Phase 24A-9A (Cross-Platform Mobile Release Pipeline Preparation) is 100% locally complete. Zero EAS builds triggered.
 - Phase 24A-9B (Paired iOS + Android Internal Builds) is COMPLETE. iOS `1.0.0 (5)` submitted to TestFlight (EAS `c7b7d9da-056b-45a8-86cd-cd6882969464`). Android `1.0.0` versionCode `3` signed AAB uploaded to Google Play Internal Testing (EAS `e2bc9a1d-666b-4698-882f-6aa7ba7c2132`). Both artifacts originate from `8a1ce46c0a8bd0d02f4000188b21e115b370281c`.
 - Phase 24A-9B.4 (Google Play Internal Testing Setup) is COMPLETE. Play Console: `Latest release: 3 (1.0.0)` — Available to internal testers. Google Play service-account / EAS Submit automation not yet configured (future pipeline hardening).
-- Phase 24A-9C (Cross-Platform Non-Write Smoke Validation) is ACTIVE. Android Studio emulator initial runtime check confirmed by Matthew. Physical iOS and Android hands-on scenario matrix pending Matthew confirmation.
+- Phase 24A-9C.1 (iOS Physical Smoke Defect Remediation) is LOCALLY COMPLETE, independently reviewed (`IMPLEMENTATION_CORRECT`), committed, and pushed at `2c3e22a95e0062bed5e40f42e39e4669f94a1d43`. It fixes legacy pet read-value crashes, iOS keyboard obscuration, and nested Bookings navigation. No corrected build exists yet.
+- Phase 24A-9C (Cross-Platform Smoke Validation) remains ACTIVE. Matthew's physical-iPhone testing successfully exercised one pet update and one care-request submission as user actions; agents did not repeat or inspect those writes. Corrected paired iOS/Android artifacts and physical revalidation remain pending.
 - Phase 1B.5C-A (Customer Pet Editing) is deployed and validated in production (Phase 1B.5C-D.2 baseline).
-- Next local development action: Phase 24A-9C Matthew hands-on non-write smoke checklist completion (iOS TestFlight + physical Android), then Phase 24A-9D (controlled production-write validation, GATED pending separate Matthew approval).
+- Next action: with separate approval, create paired iOS and Android remediation builds from `2c3e22a95e0062bed5e40f42e39e4669f94a1d43`, then physically revalidate the three fixes without repeating pet-save or care-request-submit production writes.
 
 Please read the continuity docs and confirm you understand the current state before proceeding with any recommendations.
 ```

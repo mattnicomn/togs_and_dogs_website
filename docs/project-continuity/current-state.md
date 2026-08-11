@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-09 (Phase 24A-8 Mobile Accessibility Validation Locally Complete)
+**Last Updated:** 2026-08-10 (Phase 24A-9C.1 iOS Physical Smoke Defect Remediation Locally Complete)
 
 ---
 
@@ -20,7 +20,7 @@
 | Item | Status |
 |------|--------|
 | Framework | Expo / React Native |
-| Latest build | 1.0.0 (4) — Internal TestFlight |
+| Latest build | iOS 1.0.0 (5) — TestFlight; Android 1.0.0 versionCode 3 — Google Play Internal Testing |
 | Internal tester (Matthew) | ✅ Active |
 | External tester (Ryan) | ❌ Paused (deferred to 19-series) |
 | Apple Beta App Review | Submitted (15J), outcome pending/unknown |
@@ -61,11 +61,19 @@
 
 ## Active Local Work / Pending Review
 
-- Phase 24A-9C: Cross-Platform Non-Write Smoke Validation (🔗 ACTIVE / IOS TESTFLIGHT 1.0.0 (5) AVAILABLE / ANDROID INTERNAL TESTING 3 (1.0.0) AVAILABLE / ANDROID EMULATOR RUNTIME CHECK CONFIRMED / PHYSICAL ANDROID DEVICE PENDING / NON-WRITE BOUNDARY ENFORCED — 2026-08-09)
+- Phase 24A-9C.1: iOS Physical Smoke Defect Remediation (🔗 LOCAL REMEDIATION COMPLETE / KIRO IMPLEMENTATION_CORRECT / COMMITTED AND PUSHED / PAIRED REBUILD AND PHYSICAL REVALIDATION REQUIRED — 2026-08-10)
+  - Physical iPhone testing found one legacy-shaped pet-profile crash, keyboard obscuration in My Pets and Intake, and a no-op View My Bookings CTA.
+  - Added safe read-boundary pet-value normalization, iOS keyboard avoidance with scroll clearance, and nested `ClientTabs -> Bookings` navigation.
+  - Validation: 0 TypeScript errors; 18/18 constants; 9/9 adapters; 31/31 backend; 29/29 My Pets; 19/19 Intake + Bookings; 109/109 full mobile tests across 10 suites; clean diff check.
+  - Kiro returned `IMPLEMENTATION_CORRECT`. Implementation commit `2c3e22a95e0062bed5e40f42e39e4669f94a1d43` is pushed to `origin/main`.
+  - No EAS build was run. Phase 24A-9C remains active until corrected paired artifacts are physically revalidated.
+  - See: `docs/release-notes/phase-24a-9c1-ios-physical-smoke-defect-remediation.md`
+
+- Phase 24A-9C: Cross-Platform Smoke Validation (🔗 ACTIVE / IOS PHYSICAL DEFECTS REMEDIATED LOCALLY / NEW PAIRED BUILD REQUIRED / PHYSICAL IOS AND ANDROID REVALIDATION PENDING — 2026-08-10)
   - iOS `1.0.0 (5)` available on TestFlight. Android `1.0.0` versionCode `3` available on Google Play Internal Testing.
-  - Android Studio emulator initial runtime check confirmed by Matthew (visual check passed). Full scenario matrix pending Matthew hands-on confirmation on physical devices.
-  - `PUT /client/pets/{petId}` and `POST /client/requests` NOT executed. No production writes occurred.
-  - iOS classification: `IOS_NONWRITE_SMOKE_PENDING`. Android emulator: `ANDROID_EMULATOR_SMOKE_PASS`. Android physical device: `ANDROID_PHYSICAL_DEVICE_PENDING`.
+  - Matthew's physical-iPhone testing exercised one customer pet update and one care-request submission successfully. These were user actions and were not repeated by agents.
+  - The current distributed artifacts predate remediation SHA `2c3e22a95e0062bed5e40f42e39e4669f94a1d43`; paired corrected artifacts must be built from that SHA before re-testing.
+  - Android emulator: `ANDROID_EMULATOR_SMOKE_PASS`. iOS corrected-build revalidation and Android physical-device validation remain pending.
   - See: `docs/release-notes/phase-24a-9c-cross-platform-nonwrite-smoke-validation.md`
 
 - Phase 24A-9B.4: Google Play Internal Testing Setup (🔗 COMPLETE / ANDROID VERSIONCODE 3 UPLOADED / INTERNAL TESTING ACTIVE / `3 (1.0.0)` AVAILABLE TO INTERNAL TESTERS / ZERO PUBLIC RELEASE — 2026-08-09)

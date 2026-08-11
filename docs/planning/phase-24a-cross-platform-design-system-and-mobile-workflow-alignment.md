@@ -1,7 +1,7 @@
 # Phase 24A: Cross-Platform Design System and Mobile Workflow Alignment
 
-**Status:** 📋 PLANNING COMPLETE (Revised) — Implementation phases 24A-1A–1C, 24A-2A, 24A-2B.1–2B.2B, 24A-2C.1A–1C, 24A-2C.2A–2D.4, 24A-3, 24A-4, 24A-6, 24A-7, and 24A-8 locally complete, committed, and pushed; Phase 24A-5 deferred; Phase 24A-9 gated on explicit Matthew approval; Phase 24A NOT DEPLOYED.
-**Date:** 2026-07-24 (revised 2026-08-09)
+**Status:** 📋 PLANNING COMPLETE (Revised) — Implementation phases 24A-1A–1C, 24A-2A, 24A-2B.1–2B.2B, 24A-2C.1A–1C, 24A-2C.2A–2D.4, and 24A-3–8 are locally complete, committed, and pushed. Phase 24A-9A and 9B paired internal builds are complete; Phase 24A-9C.1 remediation is locally complete at `2c3e22a95e0062bed5e40f42e39e4669f94a1d43`; corrected paired builds and physical revalidation remain separately approval-gated. Phase 24A is not publicly released.
+**Date:** 2026-07-24 (revised 2026-08-10)
 **Starting HEAD:** `2fbfba9` (planning), `bc73408` (revision)
 **Depends on:** Phase 1B.5C-A deployment (for mobile pet editing only)
 
@@ -344,11 +344,11 @@ This decision requires implementation-time evidence. The planning document recor
 | **Rollback** | Revert accessibility additions |
 | **Continuity update** | Record accessibility pass |
 
-### Phase 24A-9 — Mobile Build and Distribution (Separately Approved)
+### Phase 24A-9 — Mobile Build, Internal Distribution, and Validation (Separately Approved)
 
 | Property | Value |
 |---|---|
-| **Scope** | EAS build, TestFlight update, Matthew validation on device |
+| **Scope** | Paired EAS builds, internal distribution, Matthew validation on device, and bounded defect remediation |
 | **Prerequisites** | All prior 24A phases complete and reviewed |
 | **Source files likely affected** | `mobile/app.json` version bump, possibly `eas.json` |
 | **Expected tests** | All mobile Jest tests pass; type check clean |
@@ -358,7 +358,8 @@ This decision requires implementation-time evidence. The planning document recor
 | **EAS build needed** | **Yes** |
 | **Required Matthew approval** | **Separate explicit Matthew approval for EAS build and TestFlight** |
 | **Rollback** | Do not distribute; previous TestFlight build remains active |
-| **Continuity update** | Record build version and distribution status |
+| **Current state** | 9A/9B complete; 9C.1 locally remediated; corrected paired artifacts and physical revalidation pending |
+| **Continuity update** | Record source SHA, build identifiers, internal distribution, findings, remediation, and physical validation status |
 
 ---
 
@@ -376,7 +377,8 @@ This decision requires implementation-time evidence. The planning document recor
 - Mobile My Pets **read-only** (24A-4) is locally complete.
 - Mobile My Pets **editing** (24A-5) is 100% locally complete, committed (`93fe98a5c2f28481cd53a85a9479567c413a534d`), and pushed to `origin/main`.
 - Client edit scope remains edit-only (no pet creation, deletion, archive, or restore).
-- No EAS build or mobile distribution (24A-9) is approved regardless of local implementation progress.
+- The original paired internal artifacts were built from `8a1ce46c0a8bd0d02f4000188b21e115b370281c`; physical-iPhone findings were remediated locally in `2c3e22a95e0062bed5e40f42e39e4669f94a1d43`.
+- A new paired iOS and Android remediation build from the corrected SHA remains separately approval-gated; public distribution remains unapproved.
 
 ---
 
