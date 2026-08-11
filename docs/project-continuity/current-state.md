@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-10 (Phase 24A-9C.1 iOS Physical Smoke Defect Remediation Locally Complete)
+**Last Updated:** 2026-08-10 (Phase 24A-9C Remediation Revalidation Complete)
 
 ---
 
@@ -20,7 +20,7 @@
 | Item | Status |
 |------|--------|
 | Framework | Expo / React Native |
-| Latest build | iOS 1.0.0 (5) — TestFlight; Android 1.0.0 versionCode 3 — Google Play Internal Testing |
+| Latest build | iOS 1.0.0 (6) — TestFlight; Android 1.0.0 versionCode 4 — Google Play Internal Testing |
 | Internal tester (Matthew) | ✅ Active |
 | External tester (Ryan) | ❌ Paused (deferred to 19-series) |
 | Apple Beta App Review | Submitted (15J), outcome pending/unknown |
@@ -61,20 +61,19 @@
 
 ## Active Local Work / Pending Review
 
-- Phase 24A-9C.1: iOS Physical Smoke Defect Remediation (🔗 LOCAL REMEDIATION COMPLETE / KIRO IMPLEMENTATION_CORRECT / COMMITTED AND PUSHED / PAIRED REBUILD AND PHYSICAL REVALIDATION REQUIRED — 2026-08-10)
-  - Physical iPhone testing found one legacy-shaped pet-profile crash, keyboard obscuration in My Pets and Intake, and a no-op View My Bookings CTA.
-  - Added safe read-boundary pet-value normalization, iOS keyboard avoidance with scroll clearance, and nested `ClientTabs -> Bookings` navigation.
-  - Validation: 0 TypeScript errors; 18/18 constants; 9/9 adapters; 31/31 backend; 29/29 My Pets; 19/19 Intake + Bookings; 109/109 full mobile tests across 10 suites; clean diff check.
-  - Kiro returned `IMPLEMENTATION_CORRECT`. Implementation commit `2c3e22a95e0062bed5e40f42e39e4669f94a1d43` is pushed to `origin/main`.
-  - No EAS build was run. Phase 24A-9C remains active until corrected paired artifacts are physically revalidated.
-  - See: `docs/release-notes/phase-24a-9c1-ios-physical-smoke-defect-remediation.md`
+- Phase 24A-9C.2 / Phase 24A-9C: Paired Remediation Builds and Revalidation (✅ PAIRED REMEDIATION BUILDS COMPLETE / REMEDIATION REVALIDATION COMPLETE / PASS — 2026-08-10)
+  - The authoritative internal-validation pair is iOS `1.0.0 (6)` (EAS `7d159e13-a3a3-41ad-96ab-cd6f83a582b0`; TestFlight submission `9eeb37ff-7f89-49d2-b6ff-25f34adb993d`) and Android `1.0.0` versionCode `4` (EAS `808d1f45-2f03-423d-886c-1e4649c1d782`), both built from exact source SHA `bf9f80d95c1846f197bab24d96463906bc26bfce`.
+  - TestFlight distribution succeeded. Matthew's physical-iPhone remediation revalidation passed: `IOS_PET_DETAIL_CRASH_REMEDIATION_PASS`, `IOS_KEYBOARD_REMEDIATION_PASS`, `VIEW_MY_BOOKINGS_REMEDIATION_PASS`, and `MOBILE_REMEDIATION_REGRESSION_PASS`.
+  - Android versionCode 4 is active on Google Play Internal Testing and available to internal testers: `ANDROID_REMEDIATION_PLAY_INTERNAL_COMPLETE` and `ANDROID_REMEDIATION_VALIDATION_PASS`.
+  - The Android test environment was not established as an actual phone/tablet, so `ANDROID_PHYSICAL_DEVICE_PENDING` remains accurate; no physical-device pass is claimed.
+  - Build 5 and versionCode 3 are historical validation artifacts only. Earlier user-run pet-update and care-request writes succeeded historically and were not repeated.
+  - See: `docs/release-notes/phase-24a-9c2-paired-remediation-revalidation-closeout.md`
 
-- Phase 24A-9C: Cross-Platform Smoke Validation (🔗 ACTIVE / IOS PHYSICAL DEFECTS REMEDIATED LOCALLY / NEW PAIRED BUILD REQUIRED / PHYSICAL IOS AND ANDROID REVALIDATION PENDING — 2026-08-10)
-  - iOS `1.0.0 (5)` available on TestFlight. Android `1.0.0` versionCode `3` available on Google Play Internal Testing.
-  - Matthew's physical-iPhone testing exercised one customer pet update and one care-request submission successfully. These were user actions and were not repeated by agents.
-  - The current distributed artifacts predate remediation SHA `2c3e22a95e0062bed5e40f42e39e4669f94a1d43`; paired corrected artifacts must be built from that SHA before re-testing.
-  - Android emulator: `ANDROID_EMULATOR_SMOKE_PASS`. iOS corrected-build revalidation and Android physical-device validation remain pending.
-  - See: `docs/release-notes/phase-24a-9c-cross-platform-nonwrite-smoke-validation.md`
+- Phase 24A-9C.1: iOS Physical Smoke Defect Remediation (✅ COMPLETE / KIRO IMPLEMENTATION_CORRECT / COMMITTED AND PUSHED / REVALIDATED IN BUILD 6 — 2026-08-10)
+  - Implementation commit `2c3e22a95e0062bed5e40f42e39e4669f94a1d43` fixed the legacy pet-value crash, keyboard obscuration, and nested Bookings navigation.
+  - Pre-build validation remained: 0 TypeScript errors; 18/18 constants; 9/9 adapters; 31/31 backend; 29/29 My Pets; 19/19 Intake + Bookings; 109/109 full mobile tests across 10 suites; clean diff check.
+  - Corrected iOS Build 6 and Android versionCode 4 subsequently passed Matthew's remediation validation within the documented platform-evidence boundary.
+  - See: `docs/release-notes/phase-24a-9c1-ios-physical-smoke-defect-remediation.md`
 
 - Phase 24A-9B.4: Google Play Internal Testing Setup (🔗 COMPLETE / ANDROID VERSIONCODE 3 UPLOADED / INTERNAL TESTING ACTIVE / `3 (1.0.0)` AVAILABLE TO INTERNAL TESTERS / ZERO PUBLIC RELEASE — 2026-08-09)
   - Android AAB (EAS `e2bc9a1d-666b-4698-882f-6aa7ba7c2132`) manually uploaded to Google Play Console Internal Testing track.
@@ -83,7 +82,7 @@
   - Ryan remains paused; public release remains unapproved.
   - See: `docs/release-notes/phase-24a-9b4-google-play-internal-testing.md`
 
-- Phase 24A-9B: Paired iOS + Android Internal Builds (🔗 LOCALLY COMPLETE / PAIRED IOS + ANDROID ARTIFACTS CREATED / IOS TESTFLIGHT SUBMITTED / ANDROID SIGNED AAB UPLOADED TO PLAY INTERNAL TESTING / ZERO PUBLIC RELEASE / ZERO PRODUCTION WRITES — 2026-08-09)
+- Phase 24A-9B: Paired iOS + Android Internal Builds (✅ COMPLETE / ORIGINAL PAIRED IOS + ANDROID ARTIFACTS CREATED / SUPERSEDED FOR REMEDIATION VALIDATION / ZERO PUBLIC RELEASE — 2026-08-09)
   - Compiled paired mobile binaries from exact Git SHA `8a1ce46c0a8bd0d02f4000188b21e115b370281c` and shared marketing version `1.0.0`.
   - iOS build `1.0.0 (5)` (EAS build ID `c7b7d9da-056b-45a8-86cd-cd6882969464`) auto-submitted to Apple App Store Connect / TestFlight (`fe722283-3205-4a87-8d9a-40162407966c`).
   - Android build `1.0.0` versionCode `3` (EAS build ID `e2bc9a1d-666b-4698-882f-6aa7ba7c2132`) signed `.aab` uploaded to Google Play Internal Testing. Play Console: `Latest release: 3 (1.0.0)` — Available to internal testers.
@@ -91,12 +90,12 @@
   - Public publishing remains unapproved; Ryan testing remains paused; production write smoke testing remains unapproved.
   - See: `docs/release-notes/phase-24a-9b-paired-ios-android-internal-builds.md`
 
-- Phase 24A-9A: Cross-Platform Mobile Release Pipeline Assessment & Preparation (🔗 LOCALLY COMPLETE / RELEASE PIPELINE DEFINED / PAIRED IOS + ANDROID RELEASE MODEL ESTABLISHED / NON-WRITE SMOKE MATRIX DOCUMENTED / ZERO BUILD TRIGGERED / AWAITING MATTHEW PAIRED BUILD DECISION — 2026-08-09)
+- Phase 24A-9A: Cross-Platform Mobile Release Pipeline Assessment & Preparation (✅ COMPLETE / RELEASE PIPELINE DEFINED / PAIRED IOS + ANDROID RELEASE MODEL ESTABLISHED / NON-WRITE SMOKE MATRIX DOCUMENTED — 2026-08-09)
   - Established repeatable paired release model (One Git SHA `60754d97c1f8cd139e81434531500f21abcdb4d5` → paired iOS IPA + Android AAB artifacts).
   - Formulated paired build commands (`eas build --platform ios` and `eas build --platform android`).
   - Defined Production Write Safety Boundary (SAFE non-write smoke testing vs WRITE approval required for pet edit save and intake submit).
   - Validation: 0 TypeScript errors, 18 constants, 9 adapters, 18 backend customer pet tests, 13 backend status parity tests, 104 full mobile tests across 10 suites.
-  - Zero EAS builds triggered; awaiting Matthew explicit approval for Phase 24A-9B paired builds.
+  - This preparation phase triggered zero EAS builds; its later Phase 24A-9B gate was separately approved and completed.
   - See: `docs/release-notes/phase-24a-9a-cross-platform-release-pipeline-assessment-and-preparation.md`
 
 - Phase 24A-5: Mobile My Pets Editing (🔗 LOCALLY COMPLETE / MOBILE MY PETS EDITING IMPLEMENTED / INLINE EDIT MODE INTEGRATED / CLIENT PET FIELDS (10 FIELDS) SUPPORTED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-09)
@@ -490,7 +489,8 @@
 **Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes. Release 22ZA implemented the mobile responsive foundation and accessible slide-out navigation drawer (pre-deploy validated). Release 22ZB implemented the full-screen Profile Editor mobile sheet layout (pre-deploy validated). Release 22ZC added keyboard-accessible stat cards, responsive filter controls stacking, and accessible data-label column labels on mobile request cards (pre-deploy validated). Phase 1B.2A backend-only Lambda package apply completed successfully, deploying the pet creation is_active hardening code to production. Phase 1B.2A ClientPetIndex GSI-only apply completed successfully, creating the global secondary database index in production (index backfilled and status ACTIVE). Phase 1B.2A ClientPetIndex query cutover deployed to production on 2026-07-20 (0 added, 13 changed, 0 destroyed). All 13 Lambda functions verified Active/Successful with expected CodeSha256. Matthew authenticated manual smoke PASSED (admin login, Client Management page, client drawer, admin pet list). Phase 1B.3 frontend deployed to production with /my-pets route, card-click drawer interaction, accessible cards, and mobile bottom-sheet. Hook-order hotfix applied. Matthew confirmed production works. Phase 1B.3 COMPLETE and CLOSED. Phase 1B.4A–E Client Drawer Editor Consolidation deployed to production. Matthew confirmed drawer View/Edit/Create experience works correctly, inline editor retired, Staff Management unaffected. Phase 1B.4A–E COMPLETE and CLOSED. Phase 1B.4F–H remain deferred. Phase 1B.5 (Pet Management and Client–Pet Association) is active. Phase 1B.5A and 1B.5A.1 deployed and validated (2026-07-22). Phase 1B.5B-A Staff Pet Editor and hotfixes deployed and validated (2026-07-23). Phase 1B.5C-A Customer Pet Editing deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-A.1 admin pet care field hotfix deployed and validated (2026-07-30). Phase 1B.5C-B (active staff count fix) and 1B.5C-C (staff edit double-click fix) deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-D.1 (platform-managed protected admin controls) deployed, seeded, and validated (2026-07-30). Phase 1B.5C-D.2 (remove legacy config protection) converged via D.1 deployment and validated (2026-07-30). Latest completed validated production release is Phase 1B.5C-D.2 (2026-07-30).**
 
 **Next options:**
-- Phase 24A-9: Mobile Build & Distribution (GATED pending explicit Matthew approval)
+- Perform a read-only Phase 24A/backlog prioritization review before authorizing another implementation stream.
+- Phase 24A-9D: Formal production-write validation (separately gated; not authorized by the completed 9C revalidation)
 - Phase 1B.5D–E: Pet Lifecycle safeguards and booking integration (deferred)
 - Address remaining Phase 1B.4F–H staff drawer alignment (deferred, low priority)
 - Begin Release 22ZD — Scheduler, Client Management, Platform Admin mobile polish (Phase 4 of 22Z plan)

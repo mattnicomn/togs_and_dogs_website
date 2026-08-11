@@ -2,12 +2,12 @@
 
 ## 1. Status
 
-- **Status:** **LOCAL REMEDIATION COMPLETE / INDEPENDENTLY REVIEWED / COMMITTED AND PUSHED / NEW PAIRED BUILD REQUIRED / PHYSICAL-DEVICE REVALIDATION PENDING**
+- **Status:** **COMPLETE / INDEPENDENTLY REVIEWED / COMMITTED AND PUSHED / REVALIDATED IN CORRECTED PAIRED RELEASE**
 - **Date:** 2026-08-10
 - **Corrected source SHA:** `2c3e22a95e0062bed5e40f42e39e4669f94a1d43`
 - **Implementation commit:** `fix: resolve mobile physical smoke defects`
 
-Phase 24A-9C remains active. This closeout records the locally completed remediation only; it does not classify the defects as physically revalidated.
+Phase 24A-9C.1 is complete. The original local closeout recorded remediation only; corrected iOS Build 6 and Android versionCode 4 were subsequently built from `bf9f80d95c1846f197bab24d96463906bc26bfce`, and Matthew reported that the tested remediation behavior passes on both releases. The Android device type remains unconfirmed.
 
 ## 2. Physical iPhone Findings
 
@@ -86,24 +86,15 @@ No backend, web, contract, adapter, dependency, build-configuration, or distribu
 
 Kiro independently returned `IMPLEMENTATION_CORRECT` and `READY_FOR_PHASE_24A_9C_1_COMMIT_DECISION` with no findings.
 
-## 7. Release State and Next Gate
+## 7. Final Revalidation State
 
-- **Phase 24A-9C.1:** `LOCAL_REMEDIATION_COMPLETE`
-- **Phase 24A-9C:** active; physical-device revalidation pending
+- **Phase 24A-9C.1:** `COMPLETE`
+- **Phase 24A-9C.2:** `PAIRED_REMEDIATION_BUILDS_COMPLETE`
+- **Phase 24A-9C:** `REMEDIATION_REVALIDATION_COMPLETE_PASS`
+- **iOS:** Build `1.0.0 (6)` passed physical-iPhone remediation validation.
+- **Android:** `1.0.0` versionCode `4` passed remediation validation in the user-reported environment; `ANDROID_PHYSICAL_DEVICE_PENDING` remains because the device type is not established.
 - **Public App Store / Google Play production:** unapproved
 - **Ryan testing:** paused
-- **EAS/TestFlight/Google Play changes during this closeout:** none
+- **Phase 24A-9D:** separately gated
 
-The exact next action is a paired iOS and Android remediation build from corrected SHA `2c3e22a95e0062bed5e40f42e39e4669f94a1d43`. Preserve marketing version `1.0.0` unless release policy requires otherwise. Likely identifiers—iOS build 6 and Android versionCode 4—remain provisional until EAS reports authoritative remote values.
-
-The paired build must revalidate:
-
-1. the previously crashing pet opens successfully;
-2. lower My Pets fields remain visible while focused;
-3. lower Intake fields remain visible while focused;
-4. View My Bookings returns to Bookings;
-5. existing list, detail, edit, and cancel behavior;
-6. intake navigation; and
-7. general regression behavior.
-
-These fixes can be revalidated without another pet save or care-request submission.
+The final artifact metadata and validation classifications are recorded in `phase-24a-9c2-paired-remediation-revalidation-closeout.md`. No additional pet save or care-request submission was needed or performed.

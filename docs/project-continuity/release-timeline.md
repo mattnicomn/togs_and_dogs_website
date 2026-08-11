@@ -22,6 +22,15 @@
 | 10D–10E | First iOS build + TestFlight upload |
 | 10F–10K | P0 bug fixes, build 1.0.0(3) |
 
+## Cross-Platform Mobile Internal Validation (Phase 24A)
+
+| Phase | Milestone |
+|---------|-----------|
+| 24A-9A | Paired iOS/Android release pipeline prepared |
+| 24A-9B / 9B.4 | Original paired internal builds and Google Play Internal Testing setup complete |
+| 24A-9C.1 | Physical-iPhone smoke defects remediated and independently reviewed |
+| 24A-9C.2 / 9C | Corrected iOS `1.0.0 (6)` and Android `1.0.0` versionCode `4` internally distributed; remediation revalidation complete/pass (2026-08-10) |
+
 ## Multi-Tenant Foundation (Releases 11)
 
 | Release | Milestone |

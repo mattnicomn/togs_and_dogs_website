@@ -43,12 +43,12 @@ CURRENT STATE SUMMARY (verify against docs/project-continuity/current-state.md):
 - Phase 24A-6 (Mobile Care-Request Intake Flow) is 100% locally complete, committed, and pushed. NOT DEPLOYED.
 - Phase 24A-7 (Visual Consistency Polish) is 100% locally complete, committed, and pushed. NOT DEPLOYED.
 - Phase 24A-9A (Cross-Platform Mobile Release Pipeline Preparation) is 100% locally complete. Zero EAS builds triggered.
-- Phase 24A-9B (Paired iOS + Android Internal Builds) is COMPLETE. iOS `1.0.0 (5)` submitted to TestFlight (EAS `c7b7d9da-056b-45a8-86cd-cd6882969464`). Android `1.0.0` versionCode `3` signed AAB uploaded to Google Play Internal Testing (EAS `e2bc9a1d-666b-4698-882f-6aa7ba7c2132`). Both artifacts originate from `8a1ce46c0a8bd0d02f4000188b21e115b370281c`.
-- Phase 24A-9B.4 (Google Play Internal Testing Setup) is COMPLETE. Play Console: `Latest release: 3 (1.0.0)` — Available to internal testers. Google Play service-account / EAS Submit automation not yet configured (future pipeline hardening).
-- Phase 24A-9C.1 (iOS Physical Smoke Defect Remediation) is LOCALLY COMPLETE, independently reviewed (`IMPLEMENTATION_CORRECT`), committed, and pushed at `2c3e22a95e0062bed5e40f42e39e4669f94a1d43`. It fixes legacy pet read-value crashes, iOS keyboard obscuration, and nested Bookings navigation. No corrected build exists yet.
-- Phase 24A-9C (Cross-Platform Smoke Validation) remains ACTIVE. Matthew's physical-iPhone testing successfully exercised one pet update and one care-request submission as user actions; agents did not repeat or inspect those writes. Corrected paired iOS/Android artifacts and physical revalidation remain pending.
+- Phase 24A-9A, 9B, and 9B.4 are COMPLETE. Their iOS Build 5 and Android versionCode 3 artifacts are historical only.
+- Phase 24A-9C.1 is COMPLETE and independently reviewed (`IMPLEMENTATION_CORRECT`). Implementation commit `2c3e22a95e0062bed5e40f42e39e4669f94a1d43` fixed the legacy pet read-value crash, keyboard obscuration, and nested Bookings navigation.
+- Phase 24A-9C.2 paired remediation builds are COMPLETE. The current authoritative internal-validation pair is iOS `1.0.0 (6)` (EAS `7d159e13-a3a3-41ad-96ab-cd6f83a582b0`; TestFlight submission `9eeb37ff-7f89-49d2-b6ff-25f34adb993d`) and Android `1.0.0` versionCode `4` (EAS `808d1f45-2f03-423d-886c-1e4649c1d782`), both from `bf9f80d95c1846f197bab24d96463906bc26bfce`.
+- Phase 24A-9C remediation revalidation is COMPLETE / PASS. Matthew physically validated iOS; Android remediation validation passed, but the Android device type is not documented, so physical Android remains unconfirmed. Earlier user-run pet-update and care-request writes were not repeated.
 - Phase 1B.5C-A (Customer Pet Editing) is deployed and validated in production (Phase 1B.5C-D.2 baseline).
-- Next action: with separate approval, create paired iOS and Android remediation builds from `2c3e22a95e0062bed5e40f42e39e4669f94a1d43`, then physically revalidate the three fixes without repeating pet-save or care-request-submit production writes.
+- Next action: perform a read-only Phase 24A/backlog prioritization review before authorizing any new implementation, production-write validation, tester expansion, or public-store work. Phase 24A-9D remains separately gated.
 
 Please read the continuity docs and confirm you understand the current state before proceeding with any recommendations.
 ```

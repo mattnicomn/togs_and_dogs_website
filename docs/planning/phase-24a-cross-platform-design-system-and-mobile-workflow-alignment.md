@@ -1,6 +1,6 @@
 # Phase 24A: Cross-Platform Design System and Mobile Workflow Alignment
 
-**Status:** 📋 PLANNING COMPLETE (Revised) — Implementation phases 24A-1A–1C, 24A-2A, 24A-2B.1–2B.2B, 24A-2C.1A–1C, 24A-2C.2A–2D.4, and 24A-3–8 are locally complete, committed, and pushed. Phase 24A-9A and 9B paired internal builds are complete; Phase 24A-9C.1 remediation is locally complete at `2c3e22a95e0062bed5e40f42e39e4669f94a1d43`; corrected paired builds and physical revalidation remain separately approval-gated. Phase 24A is not publicly released.
+**Status:** 📋 PLANNING COMPLETE (Revised) — Implementation phases 24A-1A–1C, 24A-2A, 24A-2B.1–2B.2B, 24A-2C.1A–1C, 24A-2C.2A–2D.4, and 24A-3–8 are locally complete, committed, and pushed. Phases 24A-9A, 9B, 9B.4, and 9C.1 are complete. Phase 24A-9C.2 paired remediation builds are complete, and Phase 24A-9C remediation revalidation is complete/pass against iOS `1.0.0 (6)` and Android `1.0.0` versionCode `4`, both from `bf9f80d95c1846f197bab24d96463906bc26bfce`. Phase 24A is not publicly released; formal Phase 24A-9D production-write validation remains separately gated.
 **Date:** 2026-07-24 (revised 2026-08-10)
 **Starting HEAD:** `2fbfba9` (planning), `bc73408` (revision)
 **Depends on:** Phase 1B.5C-A deployment (for mobile pet editing only)
@@ -358,7 +358,7 @@ This decision requires implementation-time evidence. The planning document recor
 | **EAS build needed** | **Yes** |
 | **Required Matthew approval** | **Separate explicit Matthew approval for EAS build and TestFlight** |
 | **Rollback** | Do not distribute; previous TestFlight build remains active |
-| **Current state** | 9A/9B complete; 9C.1 locally remediated; corrected paired artifacts and physical revalidation pending |
+| **Current state** | 9A, 9B, 9B.4, and 9C.1 complete; 9C.2 paired remediation builds complete; 9C remediation revalidation complete/pass. iOS physical validation passed; Android remediation validation passed with physical-device status unconfirmed. Public release and 9D remain separately gated. |
 | **Continuity update** | Record source SHA, build identifiers, internal distribution, findings, remediation, and physical validation status |
 
 ---

@@ -144,8 +144,9 @@
 | Phase 24A-6 mobile care-request intake flow (locally complete, committed, and pushed) | `docs/release-notes/phase-24a-6-mobile-care-request-intake-flow.md` |
 | Phase 24A-7 mobile visual consistency polish (locally complete, committed, and pushed) | `docs/release-notes/phase-24a-7-visual-consistency-polish.md` |
 | Phase 24A-8 mobile accessibility validation (locally complete, committed, and pushed) | `docs/release-notes/phase-24a-8-accessibility-validation.md` |
-| Phase 24A-9C cross-platform smoke validation (active; corrected paired artifacts pending) | `docs/release-notes/phase-24a-9c-cross-platform-nonwrite-smoke-validation.md` |
-| Phase 24A-9C.1 iOS physical smoke defect remediation (locally complete, committed, and pushed) | `docs/release-notes/phase-24a-9c1-ios-physical-smoke-defect-remediation.md` |
+| Phase 24A-9C cross-platform remediation revalidation (complete/pass) | `docs/release-notes/phase-24a-9c-cross-platform-nonwrite-smoke-validation.md` |
+| Phase 24A-9C.1 iOS physical smoke defect remediation (complete and revalidated) | `docs/release-notes/phase-24a-9c1-ios-physical-smoke-defect-remediation.md` |
+| Phase 24A-9C.2 paired remediation builds and revalidation closeout (complete/pass) | `docs/release-notes/phase-24a-9c2-paired-remediation-revalidation-closeout.md` |
 
 
 ## Backlog

@@ -1,186 +1,92 @@
-# Phase 24A-9C: Cross-Platform Physical Device Smoke Validation
+# Phase 24A-9C: Cross-Platform Remediation Validation
 
 ## 1. Executive Summary & Status
 
-- **Status:** **PHASE 24A-9C ACTIVE / IOS PHYSICAL DEFECTS FOUND / PHASE 24A-9C.1 REMEDIATED LOCALLY / CORRECTED PAIRED ARTIFACTS REQUIRED / PHYSICAL IOS AND ANDROID REVALIDATION PENDING**
-- **Date:** 2026-08-09 (started), updated 2026-08-10 — ongoing through corrected-build physical revalidation
-- **Source SHA for both builds:** `8a1ce46c0a8bd0d02f4000188b21e115b370281c`
-- **Corrected remediation SHA:** `2c3e22a95e0062bed5e40f42e39e4669f94a1d43`
+- **Status:** **REMEDIATION REVALIDATION COMPLETE / PASS**
+- **Date:** 2026-08-09 (started), completed 2026-08-10
+- **Authoritative remediation source SHA:** `bf9f80d95c1846f197bab24d96463906bc26bfce`
+- **Marketing version:** `1.0.0`
 
----
+Phase 24A-9C is complete within the approved internal-validation boundary. Matthew reports that all tested remediation behavior passes on the corrected iOS and Android releases. Public-store release, tester expansion, and formal Phase 24A-9D production-write validation remain separately gated.
 
-## 2. Build Targets for This Validation
+## 2. Authoritative Internal-Validation Pair
 
-| Platform | Version | Build Identifier | Distribution Channel |
+| Platform | Artifact | Internal Distribution | Status |
 | :--- | :--- | :--- | :--- |
-| **iOS** | `1.0.0` | Build 5 — EAS `c7b7d9da-056b-45a8-86cd-cd6882969464` | TestFlight (Matthew-only) |
-| **Android** | `1.0.0` | versionCode 3 — EAS `e2bc9a1d-666b-4698-882f-6aa7ba7c2132` | Google Play Internal Testing (Matthew-only) |
+| iOS | `1.0.0 (6)`; EAS `7d159e13-a3a3-41ad-96ab-cd6f83a582b0` | TestFlight submission `9eeb37ff-7f89-49d2-b6ff-25f34adb993d` | Distribution successful; physical-iPhone remediation validation passed |
+| Android | `1.0.0`; versionCode `4`; EAS `808d1f45-2f03-423d-886c-1e4649c1d782` | Google Play Internal Testing | Signed AAB generated, manually uploaded, active, and available to internal testers |
 
----
+Both artifacts were built from exact source SHA `bf9f80d95c1846f197bab24d96463906bc26bfce`. iOS Build 5 and Android versionCode 3 are historical validation artifacts only and are not current remediation-validation artifacts.
 
-## 3. Original Production Write Safety Boundary and Actual History
+## 3. Remediation Revalidation Results
 
-The original plan did not authorize the following actions:
+| Area | Result |
+| :--- | :--- |
+| Previously failing pet-profile interaction | `IOS_PET_DETAIL_CRASH_REMEDIATION_PASS` |
+| iOS form keyboard behavior | `IOS_KEYBOARD_REMEDIATION_PASS` |
+| Android form keyboard behavior | `ANDROID_KEYBOARD_REMEDIATION_PASS` in the user-reported Android test environment |
+| Corrected bookings navigation | `VIEW_MY_BOOKINGS_REMEDIATION_PASS` |
+| Overall corrected-release regression | `MOBILE_REMEDIATION_REGRESSION_PASS` |
 
-| Action | Endpoint | Status |
-| :--- | :--- | :--- |
-| Pet Profile Edit Save | `PUT /client/pets/{petId}` | **EXECUTED ONCE BY MATTHEW DURING USER TESTING** |
-| Care Request Submit | `POST /client/requests` | **EXECUTED ONCE BY MATTHEW DURING USER TESTING** |
+The result records Matthew's supplied validation outcome without adding observations beyond that report.
 
-This documentation corrects the earlier planned-state record. These were user-performed production actions, not agent actions. Agents did not repeat the writes or query production records during remediation or closeout. Future corrected-build revalidation must avoid both writes.
+## 4. Platform Classifications
 
----
+### iOS
 
-## 4. Original Planned Non-Write Smoke Scenarios
+- Test environment: Matthew's physical iPhone
+- Classification: `IOS_REMEDIATION_VALIDATION_PASS`
+- The crash, keyboard, navigation, and general regression classifications above are closed as passing.
 
-### 4A. Authentication
-- Sign in with valid client credentials
-- Observe session token storage
-- Sign out and confirm session cleared
+### Android
 
-### 4B. Navigation
-- Switch between all tabs (Bookings, My Pets, Profile)
-- Verify tab bar renders correctly
-- Verify back navigation
+- Validation classification: `ANDROID_REMEDIATION_VALIDATION_PASS`
+- Google Play classification: `ANDROID_REMEDIATION_PLAY_INTERNAL_COMPLETE`
+- Physical-device classification: `ANDROID_PHYSICAL_DEVICE_PENDING`
 
-### 4C. My Pets — Read-Only
-- View pet list
-- Open individual pet detail record
-- Verify all fields render with correct values
+The supplied evidence does not establish whether Android testing occurred on an actual Android phone/tablet. This closeout therefore does not claim `ANDROID_PHYSICAL_DEVICE_PASS`.
 
-### 4D. My Pets — Edit Mode (Non-Write)
-- Tap "Edit Profile" to enter edit mode
-- Verify all 10 fields pre-populate correctly
-- Modify field values locally; verify character limit enforcement (`PET_FIELDS` max lengths)
-- Verify dirty-state detection (unsaved changes indicator)
-- **Tap Cancel** — verify discard-changes confirmation `Alert.alert` appears
-- Confirm discard; verify edit mode exits without saving
-- **DO NOT TAP SAVE CHANGES**
+## 5. Google Play Internal Testing Evidence
 
-### 4E. Care Request Intake — Non-Write
-- Tap `+ Book Care` or `+ Book Pet Care` CTA
-- Navigate all 3 intake wizard steps (service selection → date/window → pet selection)
-- Verify `SERVICE_TYPES` contract-derived service options render (excluding `MEET_GREET`)
-- Select service, date, window, and pet
-- Enter notes if safe (non-submit path only)
-- Accept terms on Step 3 to reach review screen
-- Verify review screen renders all selections correctly
-- **DO NOT TAP SUBMIT CARE REQUEST**
-- Tap back/cancel to exit wizard
+- Track: Internal testing; Active
+- Artifact: versionCode 4 AAB
+- Status: `Available to internal testers`
+- Version codes: 1
+- Released: August 10, 2026, approximately 10:55 PM
+- No Production, Open testing, or Closed testing promotion occurred.
 
-### 4F. Bookings
-- View booking/request list
-- Verify `StatusBadge` renders correct labels for each request status
-- Verify `+ Book Care` CTA visible in header
+The internal release notes were:
 
-### 4G. Visual Quality
-- Verify 8px action button border radius (`BookingsScreen`, `IntakeScreen`)
-- Verify 12px card surface border radius (`IntakeScreen` service grid)
-- Verify `COLORS.white` token usage (no raw `#ffffff` strings visible)
-- Verify status badge pill shapes (`borderRadius: 99`)
-- Verify selection chip shapes (`borderRadius: 20`)
-- Verify keyboard avoidance / safe-area behavior
+> Phase 24A remediation internal preview: fixes a pet-profile crash with legacy data, improves keyboard visibility in My Pets and Book Care forms, and fixes View My Bookings navigation. Internal validation build only.
 
-### 4H. Accessibility (where practical)
-- Enable VoiceOver (iOS) or TalkBack (Android emulator)
-- Verify `accessibilityRole` on interactive elements
-- Verify `accessibilityLabel` on form fields and buttons
-- Verify `accessibilityState` (`checked`, `disabled`) on applicable controls
-- Verify `accessibilityLiveRegion` on status/error messages
-- Verify ~44pt minimum touch targets on all interactive elements
+## 6. Production-Write History and Boundary
 
----
+Earlier user testing of Build 5 exercised one customer pet update and one care-request submission successfully. Those were user actions, not agent actions. They were not repeated during the corrected-build validation or this documentation closeout.
 
-## 5. Platform Validation Matrix
+This historical evidence does not close or authorize Phase 24A-9D. Any formal production-write validation remains separately approval-gated.
 
-### iOS (Matthew's physical iPhone via TestFlight)
+## 7. Final Phase State
 
-| Scenario | Platform | Device | Status |
-| :--- | :--- | :--- | :--- |
-| Sign in / sign out | iOS | Matthew's iPhone | `PASS` |
-| Navigation / tab switching | iOS | Matthew's iPhone | `PARTIAL PASS` — success-screen Bookings CTA failed |
-| My Pets read-only view | iOS | Matthew's iPhone | `PARTIAL PASS` — list and other profiles worked; one profile crashed |
-| My Pets edit mode | iOS | Matthew's iPhone | `PARTIAL PASS` — edit/cancel and one user Save worked; keyboard obscured lower fields |
-| Intake wizard | iOS | Matthew's iPhone | `PARTIAL PASS` — request submission and success screen worked; keyboard obscured lower fields |
-| Bookings / status badges | iOS | Matthew's iPhone | `PASS` — list/status rendering observed |
-| Visual quality (radii, tokens) | iOS | Matthew's iPhone | Pending corrected-build confirmation |
-| Accessibility (VoiceOver) | iOS | Matthew's iPhone | Pending corrected-build confirmation |
+| Phase | Final State |
+| :--- | :--- |
+| Phase 24A-9A | COMPLETE |
+| Phase 24A-9B | COMPLETE |
+| Phase 24A-9B.4 | COMPLETE |
+| Phase 24A-9C.1 | COMPLETE |
+| Phase 24A-9C.2 | PAIRED REMEDIATION BUILDS COMPLETE |
+| Phase 24A-9C | REMEDIATION REVALIDATION COMPLETE / PASS |
 
-**iOS Classification:** `IOS_PHYSICAL_DEFECTS_FOUND_REMEDIATED_LOCALLY_REBUILD_REQUIRED`
+## 8. Preserved Gates
 
-The three findings and their local remediation are recorded in `phase-24a-9c1-ios-physical-smoke-defect-remediation.md`.
+- Public Apple App Store release: NOT APPROVED
+- Public Google Play Production release: NOT APPROVED
+- Ryan tester expansion: PAUSED / NOT APPROVED
+- Phase 24A-9D formal production-write validation: SEPARATELY GATED
+- Stripe: sandbox-only
+- Tenant Resolution Mode remains off/disabled; tenant inventory is unchanged and no tenant was created by this phase
 
-### Android Emulator (Android Studio)
+Internal TestFlight and Google Play Internal Testing success is not public-release authorization.
 
-| Scenario | Platform | Device | Status |
-| :--- | :--- | :--- | :--- |
-| App launches, initial runtime check | Android | Android Studio Emulator | `PASS` — Matthew confirmed successful install and visual check |
+## 9. Safest Next Action
 
-**Android Emulator Classification:** `ANDROID_EMULATOR_SMOKE_PASS` (initial runtime check; full scenario matrix pending)
-
-**Android Physical Device Classification:** `ANDROID_PHYSICAL_DEVICE_PENDING`
-
-> Physical Android validation requires testing on a real Android phone/tablet (not Windows PC / Google Play Games). This remains a release-readiness limitation before broader Android distribution.
-
----
-
-## 6. Scenarios Requiring Matthew Manual Confirmation
-
-After separately approved paired remediation builds, return this non-write checklist to Matthew for hands-on confirmation:
-
-```
-iOS corrected remediation build — Physical iPhone
-[ ] 1. Sign in successfully
-[ ] 2. Navigate between Bookings / My Pets tabs
-[ ] 3. My Pets list loads and shows pet(s)
-[ ] 4. Open the previously crashing pet — detail renders without a crash
-[ ] 5. Enter edit mode — all 10 fields pre-populate
-[ ] 6. Focus and scroll through lower My Pets fields — keyboard does not obscure them
-[ ] 7. Modify a field, then Cancel — discard alert appears and no Save occurs
-[ ] 8. Tap "+ Book Care" — intake wizard opens
-[ ] 9. Navigate Step 1 (service) → Step 2 (date/window) → Step 3 (pets)
-[ ] 10. Focus and scroll through lower Intake fields — keyboard does not obscure them
-[ ] 11. Reach review, then exit without submitting
-[ ] 12. On the existing success path, View My Bookings targets the Bookings tab
-[ ] 13. Visual quality — correct border radii, white tokens visible
-[ ] 14. General list/detail/edit/cancel/navigation regression checks pass
-
-Android corrected remediation build — Physical Android device (if available)
-[ ] 1-14 as above (same scenarios)
-```
-
----
-
-## 7. Production Write History and Revalidation Boundary
-
-- `PUT /client/pets/{petId}` — **executed once by Matthew during user testing**
-- `POST /client/requests` — **executed once by Matthew during user testing**
-- Agents did not perform or repeat either write and did not query the resulting records.
-- Corrected-build revalidation does not require another pet Save or request Submit.
-
----
-
-## 8. Governance
-
-- **Ryan:** PAUSED — not added to any tester group
-- **Public Release:** DEFERRED & UNAPPROVED
-- **Google Play Promotion:** Internal Testing ONLY — not promoted
-- **Stripe:** Sandbox-only
-- **Tenant mode:** DISABLED
-
----
-
-## 9. Next Steps
-
-1. **Paired remediation builds from the corrected SHA**
-   - Requires separate explicit Matthew approval
-   - Build iOS and Android from `2c3e22a95e0062bed5e40f42e39e4669f94a1d43`
-   - Preserve paired-source discipline; remote build identifiers remain provisional until EAS reports them
-2. **Physical corrected-build revalidation**
-   - Revalidate the three fixes without another production pet Save or care-request Submit
-   - Complete physical Android validation when a device is available
-3. **Phase 24A-9D — Any additional controlled production-write validation**
-   - Remains separately approval-gated and is not implied by this closeout
-4. **Phase 24A-9E — Internal Tester Expansion**
-   - Requires separate explicit Matthew approval
-   - Adds Ernest (or other approved testers) to TestFlight + Play Internal Testing
+Perform a read-only Phase 24A and backlog prioritization review before authorizing new implementation. The existing options are deferred or separately gated, including Phase 24A-9D, Phase 1B.5D-E lifecycle safeguards and booking integration, Phase 1B.4F-H staff drawer alignment, Release 22ZD mobile polish, and Stripe-dependent SaaS maturity work.
