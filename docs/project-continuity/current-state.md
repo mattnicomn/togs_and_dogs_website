@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-11 (Web Customer Self-Service Password Recovery Locally Complete)
+**Last Updated:** 2026-08-11 (Authoritative Continuity and Backlog Reconciled)
 
 ---
 
@@ -12,7 +12,7 @@
 | Backend (Python/Lambda) | ✅ Deployed |
 | API Gateway | ✅ Active — staff reset-password and set-temp-password routes added (22C) |
 | DynamoDB | ✅ Single table, shared-tenant model |
-| Google Calendar | ⚠️ Shared business connection — Disconnect button removed from UI (hotfix 2026-07-12); verify status in production (cascade fixed 18P; per-tenant isolation 21H) |
+| Google Calendar | ✅ One configured Google provider connection for `tog_and_dogs`; token storage/resolution is tenant-scoped (21H). `test_tenant_alpha` remains provider `none` / `not_configured`; independent providers for multiple tenants are not claimed. |
 | Postmark email | ✅ Active (notifications, payment emails) |
 
 ## Mobile / TestFlight
@@ -23,8 +23,8 @@
 | Latest build | iOS 1.0.0 (6) — TestFlight; Android 1.0.0 versionCode 4 — Google Play Internal Testing |
 | Internal tester (Matthew) | ✅ Active |
 | External tester (Ryan) | ❌ Paused (deferred to 19-series) |
-| Apple Beta App Review | Submitted (15J), outcome pending/unknown |
-| Public App Store | ❌ Not submitted, not approved |
+| Apple Beta App Review | ❓ Submitted (15J); outcome `UNKNOWN / NOT VERIFIED` |
+| Public stores | ❌ No Apple App Store or Google Play Production release approved |
 
 ## Stripe / Payments
 
@@ -40,15 +40,15 @@
 
 | Feature | Status |
 |---------|--------|
-| Tenant Resolution Engine | ✅ Deployed (header, query param, sub-domain, path, fallback) |
-| Tenant Resolution Mode | ⚠️ Currently `off` in production (`DEFAULT_COMPANY_ID` fallback) |
+| Tenant Resolution Engine | ✅ Deployed (header, query parameter, subdomain, and path sources); active strict `multi` mode rejects unresolved tenants instead of using the compatibility fallback |
+| Tenant Resolution Mode | ✅ Strict `TENANT_RESOLUTION_MODE=multi` active in production and validated (18T/18U); do not change without explicit Matthew approval |
 | Tenant Isolation | ✅ Enforced across all primary database helpers (11E, 18V, 19K) |
 | Entitlement Framework | ✅ Active with 8 enforced metrics (17A–17W) |
 | Platform Admin Panel | ✅ Deployed (`/platform-admin/metrics`, `/platform-admin/tenants`) |
 | Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
-| Second tenant | ✅ Created & Validated in Platform Admin (19E) |
-| Tenant provisioning script | ✅ Dry run validated (19B) |
-| Tenant display branding | ✅ Dynamic brand name, shell logo, and footer separated by route (19N pre-deploy) |
+| Second tenant | ✅ Internal test tenant `test_tenant_alpha` created and validated (19D/19E); future customer/additional tenant provisioning remains approval-gated |
+| Tenant provisioning script | ✅ Dry run and controlled test-tenant apply validated (19B/19D) |
+| Tenant display branding | ✅ Dynamic brand name, shell logo, and footer separated by route; deployed and validated (19N) |
 | Tenant disable & restore | ✅ Gated & Validated in Production (20F — PASS) |
 | Google Calendar Per-Tenant Token Isolation | ✅ Deployed & Validated (21H — PASS) |
 
@@ -59,7 +59,9 @@
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
 
-## Active Local Work / Pending Review
+## Current Work and Latest Closeouts
+
+The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
 
 - Web Customer Self-Service Password Recovery (🔗 LOCAL IMPLEMENTATION COMPLETE / COMMITTED / PUSHED / NOT DEPLOYED / KIRO IMPLEMENTATION_CORRECT — 2026-08-11)
   - Added a web-only Forgot password flow to the existing shared login shell: request verification code, confirm code plus new password, success state, and return to sign-in.
@@ -105,54 +107,53 @@
   - This preparation phase triggered zero EAS builds; its later Phase 24A-9B gate was separately approved and completed.
   - See: `docs/release-notes/phase-24a-9a-cross-platform-release-pipeline-assessment-and-preparation.md`
 
-- Phase 24A-5: Mobile My Pets Editing (🔗 LOCALLY COMPLETE / MOBILE MY PETS EDITING IMPLEMENTED / INLINE EDIT MODE INTEGRATED / CLIENT PET FIELDS (10 FIELDS) SUPPORTED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-09)
+- Phase 24A-5: Mobile My Pets Editing (✅ COMPLETE / INTERNALLY DISTRIBUTED IN IOS BUILD 6 AND ANDROID VERSIONCODE 4 / NOT PUBLICLY RELEASED — 2026-08-09)
   - Added authenticated client self-service pet profile editing to `MyPetsScreen.tsx` using `PUT /client/pets/{petId}` (API helper `updateClientPet` in `client.ts`).
   - Pre-populates all 10 client-editable fields, enforces contract max lengths (`PET_FIELDS`), supports optional string clearing, dirty-state tracking (`isDirty`), double-submit prevention, and unsaved changes confirmation (`Alert.alert`).
   - Preserved Phase 24A-7 visual tokens (`COLORS`) and Phase 24A-8 accessibility semantics (`accessibilityRole`, `accessibilityLabel`, `accessibilityState`).
   - Validation: 0 TypeScript errors, 18 constants, 9 adapters, 18 backend customer pet tests, 25 focused MyPets tests, 104 full mobile tests across 10 suites.
   - Kiro independent review: `IMPLEMENTATION_CORRECT` (`READY_FOR_PHASE_24A_5_COMMIT_DECISION`).
-  - Committed (`93fe98a5c2f28481cd53a85a9479567c413a534d`) and pushed to `origin/main`. NOT DEPLOYED; production baseline remains Phase 1B.5C-D.2. Zero EAS or Expo distribution builds occurred.
+  - Committed (`93fe98a5c2f28481cd53a85a9479567c413a534d`) and pushed to `origin/main`; later included in the corrected internal pair and remediation revalidation. No public release occurred.
   - See: `docs/release-notes/phase-24a-5-mobile-my-pets-editing.md`
 
-- Phase 24A-8: Accessibility Validation (🔗 LOCALLY COMPLETE / MOBILE ACCESSIBILITY SEMANTICS IMPROVED / DEDICATED ACCESSIBILITY REGRESSION TESTS ADDED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-09)
+- Phase 24A-8: Accessibility Validation (✅ COMPLETE / INTERNALLY DISTRIBUTED IN IOS BUILD 6 AND ANDROID VERSIONCODE 4 / NOT PUBLICLY RELEASED — 2026-08-09)
   - Screen-reader accessibility attributes (`accessibilityRole`, `accessibilityLabel`, `accessibilityState`, `accessibilityLiveRegion`) and touch target sizes (~44pt minimum height) added across `IntakeScreen.tsx`, `BookingsScreen.tsx`, `RequestCard.tsx`, and `StatusBadge.tsx`.
   - Added 4 dedicated accessibility unit tests in `mobile/__tests__/IntakeScreen.test.tsx`.
   - Validation: 0 TypeScript errors, 18 constants, 9 adapters, 18 focused tests, 93 full mobile tests across 10 suites.
   - Kiro independent review: `IMPLEMENTATION_CORRECT` (`READY_FOR_PHASE_24A_8_COMMIT_DECISION`).
-  - Committed (`18b51e9170ac7d3b2de94770bd16fc02d35f22a5`) and pushed to `origin/main`. NOT DEPLOYED; production baseline remains Phase 1B.5C-D.2. Zero EAS or Expo distribution builds occurred.
+  - Committed (`18b51e9170ac7d3b2de94770bd16fc02d35f22a5`) and pushed to `origin/main`; later included in the corrected internal pair and remediation revalidation. No public release occurred.
   - See: `docs/release-notes/phase-24a-8-accessibility-validation.md`
 
-- Phase 24A-7: Visual Consistency Polish (🔗 LOCALLY COMPLETE / MOBILE VISUAL CONSISTENCY POLISHED / 8PX ACTION BUTTON RADII & 12PX CARD SURFACE RADII NORMALIZED / COLOR TOKEN LITERALS REPLACED WITH `COLORS.white` / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-09)
+- Phase 24A-7: Visual Consistency Polish (✅ COMPLETE / INTERNALLY DISTRIBUTED IN IOS BUILD 6 AND ANDROID VERSIONCODE 4 / NOT PUBLICLY RELEASED — 2026-08-09)
   - Standardized mobile action button radii to `8px` (`BookingsScreen.tsx` header CTA, `IntakeScreen.tsx` step navigation and submit buttons) and card surface radii to `12px` (`IntakeScreen.tsx` service options grid).
   - Replaced raw `#ffffff` string literals with generated token `COLORS.white`. Assessed `MyPetsScreen.tsx` and `RequestCard.tsx` and confirmed they were already fully aligned.
   - Preserved all status badge pill shapes (`borderRadius: 99`), selection chips (`borderRadius: 20`), navigation, forms, validation, status display semantics, and business logic.
   - Validation: 0 TypeScript errors, 18 constants, 9 adapters, 28 focused tests, 89 full mobile tests across 10 suites.
   - Kiro independent review: `IMPLEMENTATION_CORRECT` (`READY_FOR_PHASE_24A_7_COMMIT_DECISION`).
-  - Committed (`b34f0460c50fdf5033c4155b9e07ca4ea30e3868`) and pushed to `origin/main`. NOT DEPLOYED; production baseline remains Phase 1B.5C-D.2. Zero EAS or Expo distribution builds occurred.
+  - Committed (`b34f0460c50fdf5033c4155b9e07ca4ea30e3868`) and pushed to `origin/main`; later included in the corrected internal pair and remediation revalidation. No public release occurred.
   - See: `docs/release-notes/phase-24a-7-visual-consistency-polish.md`
 
-- Phase 24A-6: Mobile Care-Request Intake Flow (🔗 LOCALLY COMPLETE / MOBILE CARE-REQUEST INTAKE FLOW IMPLEMENTED / 3-STEP INTAKE WIZARD INTEGRATED / CONTRACT-DERIVED CANONICAL SERVICES / READ-ONLY CLIENT PETS LOADED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-09)
+- Phase 24A-6: Mobile Care-Request Intake Flow (✅ COMPLETE / INTERNALLY DISTRIBUTED IN IOS BUILD 6 AND ANDROID VERSIONCODE 4 / NOT PUBLICLY RELEASED — 2026-08-09)
   - Implemented complete 3-step mobile care request intake wizard (`IntakeScreen.tsx`), integrated navigation route (`AppNavigator.tsx`), added `+ Book Care` and `+ Book Pet Care` buttons (`BookingsScreen.tsx`), added API helper `submitClientRequest` (`client.ts`), and created a 10-test unit suite (`IntakeScreen.test.tsx`).
   - Derived service options from `SERVICE_TYPES` contract metadata, excluded `MEET_GREET`, enforced client terms/privacy policy agreement (`accepted_terms: true`, `accepted_privacy: true`, `terms_version: "1.0"`, `privacy_version: "1.0"`), and submitted booking requests to backend (`POST /client/request`) without client-assigned status.
-  - Loaded existing read-only client pets via `getClientPets()` (`GET /client/pets`, Phase 24A-4 contract) without invoking pet modification or creation endpoints, preserving Phase 24A-5 as deferred.
+  - Loaded existing read-only client pets via `getClientPets()` (`GET /client/pets`, Phase 24A-4 contract) without invoking pet modification or creation endpoints. Phase 24A-5 was still deferred at this phase checkpoint and subsequently completed.
   - Validation: 0 TypeScript errors, 18 constants, 9 adapters, 14 focused tests, 89 full mobile tests across 10 suites.
   - Kiro independent review: `IMPLEMENTATION_CORRECT` (`READY_FOR_PHASE_24A_6_COMMIT_DECISION`).
-  - Committed (`2831205a092ab94b774ac7bcdaada27bea19976e`) and pushed to `origin/main`. NOT DEPLOYED; production baseline remains Phase 1B.5C-D.2. Zero EAS or Expo distribution builds occurred.
+  - Committed (`2831205a092ab94b774ac7bcdaada27bea19976e`) and pushed to `origin/main`; later included in the corrected internal pair and remediation revalidation. No public release occurred.
   - See: `docs/release-notes/phase-24a-6-mobile-care-request-intake-flow.md`
 
-- Phase 24A Roadmap & Continuity Reconciliation (🔗 LOCALLY COMPLETE / COMBINED PHASE 2C CONTRACT STREAM 2C.1 & 2C.2 LOCALLY CLOSED / PHASE 24A-6 IDENTIFIED AS NEXT UNFINISHED FEATURE TASK / PHASE 24A-5 & 24A-9 DEFERRED AND GATED / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-07)
+- Phase 24A Roadmap & Continuity Reconciliation (📚 HISTORICAL 2026-08-07 CHECKPOINT / SUBSEQUENT PHASES 5–9C COMPLETE)
   - Reconciled Phase 24A roadmap and project continuity state across repository documentation.
   - Confirmed the combined Phase 2C contract workstream (2C.1 request statuses and 2C.2 service types) is 100% locally complete, validated, independently reviewed by Kiro, committed, and pushed.
-  - Re-established Phase 24A-6 (Mobile Care-Request Intake Flow) as the true next unfinished feature task (`PLANNED_NOT_STARTED`).
-  - Confirmed Phase 24A-5 (Mobile My Pets Editing) remains deferred/gated on Phase 1B.5C-A deployment, Phase 24A-9 remains distribution-gated on explicit Matthew approval, and Phase 24A remains NOT DEPLOYED (latest validated production baseline remains Phase 1B.5C-D.2).
+  - At that checkpoint, Phase 24A-6 was the next unfinished feature task and Phases 5/9 remained gated. Those statements were later superseded by completed implementation, internal distribution, and 9C remediation revalidation.
   - See: `docs/release-notes/phase-24a-roadmap-continuity-reconciliation.md`
 
-- Phase 24A-2C.1C: Mobile Request-Status Display Compatibility Wiring (🔗 LOCALLY COMPLETE / MOBILE REQUEST-STATUS DISPLAY WIRING IMPLEMENTED / CONTEXTUAL & WORKFLOW LABELS PRESERVED / DEDICATED COMPATIBILITY SUITE ADDED / INDEPENDENTLY REVIEWED (KIRO: IMPLEMENTATION_CORRECT) / COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-07)
+- Phase 24A-2C.1C: Mobile Request-Status Display Compatibility Wiring (✅ COMPLETE / INTERNALLY DISTRIBUTED IN IOS BUILD 6 AND ANDROID VERSIONCODE 4 / NOT PUBLICLY RELEASED — 2026-08-07)
   - Wired generated `REQUEST_STATUSES` from `mobile/src/contracts/generatedContracts.ts` into mobile status badge (`StatusBadge.tsx`) for upper-cased contract-backed badge labels and customer appointments screen (`BookingsScreen.tsx`) for exact-match entries.
   - Preserved customer contextual overrides (`ASSIGNED` → `"Scheduled"`, `JOB_CREATED` → `"Scheduled"`), staff navigation filter tabs (`RequestListScreen.tsx`), staff dashboard metrics counter (`DashboardScreen.tsx`), badge styling, colors, borders, typography, layout, padding, and accessibility properties.
   - Added 10 dedicated compatibility unit tests in `mobile/__tests__/RequestStatusDisplayCompatibility.test.tsx`. Validation: 18 constants, 9 adapters, 79 full mobile Jest tests across 9 suites.
   - Kiro independent review classified candidate as `IMPLEMENTATION_CORRECT` (`READY_FOR_PHASE_24A_2C_1C_COMMIT_DECISION`).
-  - Committed (`83225b6800b3ed16eb825f61f06e1027347a2e52`) and pushed to `origin/main`. NOT DEPLOYED; production baseline remains Phase 1B.5C-D.2. Zero EAS or Expo distribution builds occurred.
+  - Committed (`83225b6800b3ed16eb825f61f06e1027347a2e52`) and pushed to `origin/main`; later included in the corrected internal pair. No public release occurred.
   - See: `docs/planning/phase-24a-2c1-request-status-contract-display-wiring.md`
   - See: `docs/release-notes/phase-24a-2c1c-mobile-request-status-display-compatibility-wiring.md`
 
@@ -264,92 +265,28 @@
 
 - Latest completed validated production release: **Phase 1B.5C-D.2**.
 - Latest completed locally validated shared-contract phase: **Phase 24A-2C.2D.4** (assessed no-implementation closeout; Phase 2D stream locally complete).
+- Current mobile distribution: Phase 24A mobile work through remediation is included in iOS Build 6 and Android versionCode 4, internally distributed and revalidated. No public-store release is approved.
 - Completed Phase 24A-2B subphases: **Phase 24A-2B.1**, **Phase 24A-2B.2A**, and **Phase 24A-2B.2B**.
-- Phase 24A-2B overall: **LOCALLY VALIDATED AND REVIEWED / ALL PLANNED PHASE 24A-2B CUSTOMER PET FIELD AND VALIDATION WIRING COMPLETE / NOT DEPLOYED OR DISTRIBUTED**.
-- Phase 24A-2C.2 service-type work: **PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D LOCALLY COMPLETE / NOT DEPLOYED OR DISTRIBUTED**. Phases 2C.2A and 2C.2C are locally validated and reviewed. Phase 2C.2B planning, 2B.1 web display compatibility, 2B.2A customer IntakeForm canonical selection, 2B.2B CareCard correction, and 2B.2C MasterScheduler canonical filter correction are locally complete at their review gates. Phase 2D.1 parity/validator hardening, Phase 2D.2 generated backend metadata, Phase 2D.3 duration/friendly-name calendar wiring, and Phase 2D.4 optional color-metadata assessment closeout are locally complete with exact behavior preserved. Backend accepted-identifier policy, production assessment, normalization, migration/deprecation, scheduler-specific metadata, additional availability changes, tenant-configurable color policy, existing-event resynchronization, and deployment remain deferred and unapproved.
-- Phase 24A-2C.1 request-status work: **PLANNING COMPLETE / REQUEST AND JOB STATUS DOMAINS DOCUMENTED / FIRST METADATA AND PARITY SLICE DEFINED / NO IMPLEMENTATION AUTHORIZED / NOT DEPLOYED**.
-- Phase 24A-2C request-status wiring remains outside this implementation and has not started.
-- Separate deferred scopes: staff pet-contract work, mobile pet creation and editing, production deployment, mobile distribution, and Ryan testing.
+- Phase 24A-2B overall: **LOCALLY VALIDATED AND REVIEWED / ALL PLANNED PHASE 24A-2B CUSTOMER PET FIELD AND VALIDATION WIRING COMPLETE**. Mobile portions are present in the internal pair; no blanket web/backend production deployment is claimed.
+- Phase 24A-2C.2 service-type work: **PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D LOCALLY COMPLETE**. Mobile portions are present in the internal pair; no blanket web/backend production deployment is claimed. Phases 2C.2A and 2C.2C are locally validated and reviewed. Phase 2C.2B planning, 2B.1 web display compatibility, 2B.2A customer IntakeForm canonical selection, 2B.2B CareCard correction, and 2B.2C MasterScheduler canonical filter correction are locally complete at their review gates. Phase 2D.1 parity/validator hardening, Phase 2D.2 generated backend metadata, Phase 2D.3 duration/friendly-name calendar wiring, and Phase 2D.4 optional color-metadata assessment closeout are locally complete with exact behavior preserved. Backend accepted-identifier policy, production assessment, normalization, migration/deprecation, scheduler-specific metadata, additional availability changes, tenant-configurable color policy, existing-event resynchronization, and deployment remain deferred and unapproved.
+- Phase 24A-2C.1 request-status work: **LOCALLY COMPLETE / WEB AND MOBILE DISPLAY COMPATIBILITY WIRED / COMMITTED AND PUSHED** across 2C.1A–2C.1C. Any web/backend production deployment decision remains separate.
+- Separate deferred scopes: staff pet-contract work, mobile pet creation, backend identifier policy, production assessment/migration, web password-recovery deployment, public mobile release, physical Android confirmation, and Ryan testing.
+- Phase 24A-1C: Cross-platform visual token alignment (✅ LOCALLY VALIDATED AND REVIEWED — 2026-07-30)
   - Aligned 6 remaining color tokens per Matthew's explicit approval: `primaryHover` (`#a37213`), `textMuted` (`#6a6a66`), `border` (`#e2dfd9`), `borderSoft` (`#edf2ee`), `success` (`#4a7c59`), `danger` (`#d64933`).
   - Contract `shared/tokens/colors.json` updated to 100% aligned (`"aligned": true` across all 13 tokens).
   - Regenerated `web/src/generated/color-tokens.css` and `mobile/src/theme/generatedColors.ts`.
   - Cleaned up duplicate manual CSS declarations in `web/src/index.css` so `@import` is authoritative.
   - Validation: 9 contract tests, 7 adapter tests, 229 web tests, Vite production build, 31 mobile Jest tests, and `tsc --noEmit` all passed.
   - See: `docs/release-notes/phase-24a-1c-visual-token-alignment.md`
-- Phase 24A-4.1: Mobile My Pets Session-Expiration Test Hardening (🛡️ LOCALLY VALIDATED AND REVIEWED / NOT BUILT OR DISTRIBUTED — 2026-07-30)
+- Phase 24A-4.1: Mobile My Pets Session-Expiration Test Hardening (🛡️ LOCALLY VALIDATED AND REVIEWED / SUBSEQUENTLY INCLUDED IN INTERNAL BUILD 6 AND VERSIONCODE 4 — 2026-07-30)
   - Added behavioral unit test to `mobile/__tests__/MyPetsScreen.test.tsx` verifying session-expiration logout invocation and error UI suppression.
   - Validation: 14 focused tests pass (+1 test), 32 complete mobile suite tests pass, `tsc --noEmit` clean (0 errors). Zero application source changed.
   - See: `docs/release-notes/phase-24a-41-mobile-my-pets-session-expiration-test-hardening.md`
-- Phase 24A-4: Mobile My Pets Read-Only Screen (✅ LOCALLY VALIDATED AND REVIEWED / NOT BUILT OR DISTRIBUTED — 2026-07-30)
+- Phase 24A-4: Mobile My Pets Read-Only Screen (✅ COMPLETE / INTERNALLY DISTRIBUTED IN IOS BUILD 6 AND ANDROID VERSIONCODE 4 / NOT PUBLICLY RELEASED — 2026-07-30)
   - Original implementation at commit `33e579c` (2026-07-25). Phase 24A-4 was reconciliation and validation only — no mobile source changes.
   - Customer-facing read-only screen using authenticated `GET /client/pets`.
   - Independent Kiro re-review PASSED: navigation access, API integration, read-model fields, strict read-only, UI states, accessibility all confirmed.
-  - Tests: 13 focused + 31 complete suite passed, TypeScript 0 errors. No build or distribution.
-  - See: `docs/release-notes/phase-24a-4-mobile-my-pets-read-only-screen.md`
-- Phase 1B.5C-A: Customer Pet Editing — Production Deployment (✅ VALIDATED AND CLOSED — 2026-07-30)
-  - Applied saved Terraform plan (`phase-1b5c-a-customer-pet-editing.tfplan`, deployment ID `ec4xqi`, 8 added, 14 changed, 1 destroyed).
-  - Backend: All 13 Lambda functions updated with CodeSha256 `aUEukME39YjTvpZN/vml1i2QOrP5CxN4Rb+3NiWRuSM=`. `/client/pets/{petId}` (PUT, Cognito auth) active.
-  - Frontend: `web/dist` synced to S3 (`togs-and-dogs-prod-toganddogs-hosting`) and CloudFront invalidated (`I4LTEENIVINRH6DDP7URES23EM`).
-  - Customer validation PASSED. Admin regression (Phase 1B.5C-A.1) deployed and validated.
-  - See: `docs/release-notes/phase-1b5c-a-customer-pet-editing-production-deployment.md`
-- Phase 1B.5C-A.1: Admin Pet Care Field Visibility Hotfix (✅ VALIDATED AND CLOSED — 2026-07-30)
-  - Resolved admin drawer `UI_RENDERING_GAP`: added `age`, `care_instructions`, and `feeding_notes` rendering.
-  - Added abbreviated Pet ID labels for duplicate-name disambiguation.
-  - Deployed as part of Phase 1B.5C-B+C frontend deployment (commit `510b063`). Matthew authenticated validation PASSED.
-  - See: `docs/release-notes/phase-1b5c-a1-admin-pet-care-field-visibility-hotfix.md`
-- Phase 1B.5C-B: Staff Limit Active-Count Entitlement Fix (✅ VALIDATED AND CLOSED — 2026-07-30)
-  - Changed `max_staff` entitlement check to count only active staff (`is_active != False`).
-  - Deployed as part of Phase 1B.5C-B+C combined deployment (commit `510b063`, backend Terraform apply + S3/CloudFront invalidation `IDDXHEGTSQV9QGXDJX2V03NT4P`).
-  - Matthew validated: Staff Users displayed as 4/5, count matched expected active total.
-  - See: `docs/release-notes/phase-1b5c-b-staff-limit-active-count-entitlement-fix.md`
-- Phase 1B.5C-C: Staff Edit Double-Click Correction (✅ VALIDATED AND CLOSED — 2026-07-30)
-  - Fixed staff profile editor requiring a second click to open.
-  - Deployed as part of Phase 1B.5C-B+C combined frontend deployment (commit `510b063`).
-  - Matthew validated: editor opens with one click, correct staff member opens, existing edit behavior functional.
-  - See: `docs/release-notes/phase-1b5c-c-staff-edit-double-click-correction.md`
-- Phase 1B.5C-D.1: Platform-Managed Protected Admin Controls (✅ VALIDATED AND CLOSED — 2026-07-30)
-  - Data-driven `is_platform_protected` flag, `set-protected`/`unset-protected` actions, frontend toggle.
-  - Matthew's profile seeded as Protected Platform Admin.
-  - Matthew validated: profile shows Access: Protected, self-unprotect blocked, destructive actions disabled, other profiles unaffected.
-  - See: `docs/release-notes/phase-1b5c-d1-platform-managed-protected-admin-controls.md`
-- Phase 1B.5C-D.2: Remove Legacy Config Protection (✅ VALIDATED AND CLOSED — 2026-07-30)
-  - Removed `Admin_Root` and `USmissionhero` from legacy fallback defaults and Terraform env vars.
-  - Retained `support@usmissionhero.com` as permanent emergency fallback.
-  - Production convergence confirmed via fresh Terraform refresh (zero pending Lambda changes).
-  - D.2 was included in the earlier D.1 Lambda deployment; no separate D.2 apply was required.
-  - Matthew validated protected-admin behavior in production.
-  - See: `docs/release-notes/phase-1b5c-d2-remove-legacy-config-protection.md`
-
-## Completed Planning / Evidence Workstreams
-
-- Phase 23A: AWS Tagging Evidence Audit (✅ EVIDENCE AUDIT COMPLETE — No Terraform remediation required — 2026-07-24)
-  - All supported Terraform-managed resources carry full nine-key tag set via provider default_tags.
-  - Optional deferred items: bootstrap resource tagging, Lambda log-group tagging, SESv2 migration evaluation.
-  - Budget filter (`Client=TogAndDogs`) confirmed functioning.
-  - Cost-allocation activation status requires payer-account access (linked account cannot query).
-  - See `docs/planning/phase-23a-aws-tagging-evidence-audit-and-minimal-remediation.md`
-- Phase 23B: AWS Budget Coverage and Cost Visibility Dashboard (✅ STEPS 1–2C COMPLETE — 2026-07-26)
-  - Goal: ensure Matthew can see and monitor complete Togs & Dogs cost footprint.
-  - Step 1 read-only verification COMPLETE (2026-07-25).
-  - Step 2A: All 5 inactive cost-allocation tags activated (Project, Application, CostCenter, Company, BillingModel) on 2026-07-26.
-  - Step 2B: Cost Explorer saved report spec complete. Manual console step remains (CLI unsupported). Operating guide written.
-  - Step 2C: Budget alerts added — 80% forecasted and 100% actual. Original 80% actual preserved. $20 limit unchanged.
-  - Budget coverage: 92–97% of workload-account costs captured by `Client=TogAndDogs` filter.
-  - Aligned 6 remaining color tokens per Matthew's explicit approval: `primaryHover` (`#a37213`), `textMuted` (`#6a6a66`), `border` (`#e2dfd9`), `borderSoft` (`#edf2ee`), `success` (`#4a7c59`), `danger` (`#d64933`).
-  - Contract `shared/tokens/colors.json` updated to 100% aligned (`"aligned": true` across all 13 tokens).
-  - Regenerated `web/src/generated/color-tokens.css` and `mobile/src/theme/generatedColors.ts`.
-  - Cleaned up duplicate manual CSS declarations in `web/src/index.css` so `@import` is authoritative.
-  - Validation: 9 contract tests, 7 adapter tests, 229 web tests, Vite production build, 31 mobile Jest tests, and `tsc --noEmit` all passed.
-  - See: `docs/release-notes/phase-24a-1c-visual-token-alignment.md`
-- Phase 24A-4.1: Mobile My Pets Session-Expiration Test Hardening (🛡️ LOCALLY VALIDATED AND REVIEWED / NOT BUILT OR DISTRIBUTED — 2026-07-30)
-  - Added behavioral unit test to `mobile/__tests__/MyPetsScreen.test.tsx` verifying session-expiration logout invocation and error UI suppression.
-  - Validation: 14 focused tests pass (+1 test), 32 complete mobile suite tests pass, `tsc --noEmit` clean (0 errors). Zero application source changed.
-  - See: `docs/release-notes/phase-24a-41-mobile-my-pets-session-expiration-test-hardening.md`
-- Phase 24A-4: Mobile My Pets Read-Only Screen (✅ LOCALLY VALIDATED AND REVIEWED / NOT BUILT OR DISTRIBUTED — 2026-07-30)
-  - Original implementation at commit `33e579c` (2026-07-25). Phase 24A-4 was reconciliation and validation only — no mobile source changes.
-  - Customer-facing read-only screen using authenticated `GET /client/pets`.
-  - Independent Kiro re-review PASSED: navigation access, API integration, read-model fields, strict read-only, UI states, accessibility all confirmed.
-  - Tests: 13 focused + 31 complete suite passed, TypeScript 0 errors. No build or distribution.
+  - Tests at the local checkpoint: 13 focused + 31 complete suite passed, TypeScript 0 errors. No build occurred in that phase; the screen was subsequently included in the corrected internal pair.
   - See: `docs/release-notes/phase-24a-4-mobile-my-pets-read-only-screen.md`
 - Phase 1B.5C-A: Customer Pet Editing — Production Deployment (✅ VALIDATED AND CLOSED — 2026-07-30)
   - Applied saved Terraform plan (`phase-1b5c-a-customer-pet-editing.tfplan`, deployment ID `ec4xqi`, 8 added, 14 changed, 1 destroyed).
@@ -415,9 +352,9 @@
 - React/Vite remains the web framework. Expo/React Native remains mobile.
 - No website rewrite to React Native Web.
 - Mobile pet editing API (PUT /client/pets/{petId}) was deployed 2026-07-28 and validated 2026-07-30 via Phase 1B.5C-A. Phase 24A-5 (Mobile My Pets Editing) is 100% LOCALLY COMPLETE (committed and pushed).
-- No EAS, TestFlight, App Store, Google Play, Ryan-testing, or mobile-distribution changes approved.
-- Recommended sequence: shared architecture (1A ✅) → wiring (1B ✅) → visual alignment (1C ✅) → constants (2 ✅) → mobile tests (3 ✅) → mobile My Pets read (4 ✅) → mobile My Pets edit (5 ✅) → intake (6 ✅) → polish (7 ✅) → a11y (8 ✅) → build/distribution (9, separately approved).
-- Mobile test infrastructure must precede new mobile feature screens.
+- Phase 24A-1A–9C are complete within their approved boundaries. Mobile Jest is active with 109/109 tests across 10 suites.
+- Corrected iOS Build 6 and Android versionCode 4 are internally distributed and revalidated. No public Apple App Store or Google Play Production release, Ryan expansion, or additional EAS work is approved.
+- Physical Android validation remains unconfirmed; Phase 24A-9D formal production-write validation remains separately gated.
 - Web customer self-service password recovery is locally complete, committed, and pushed; deployment remains separately gated.
 
 ## Latest Completed Releases
@@ -496,11 +433,11 @@
 **Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes. Release 22ZA implemented the mobile responsive foundation and accessible slide-out navigation drawer (pre-deploy validated). Release 22ZB implemented the full-screen Profile Editor mobile sheet layout (pre-deploy validated). Release 22ZC added keyboard-accessible stat cards, responsive filter controls stacking, and accessible data-label column labels on mobile request cards (pre-deploy validated). Phase 1B.2A backend-only Lambda package apply completed successfully, deploying the pet creation is_active hardening code to production. Phase 1B.2A ClientPetIndex GSI-only apply completed successfully, creating the global secondary database index in production (index backfilled and status ACTIVE). Phase 1B.2A ClientPetIndex query cutover deployed to production on 2026-07-20 (0 added, 13 changed, 0 destroyed). All 13 Lambda functions verified Active/Successful with expected CodeSha256. Matthew authenticated manual smoke PASSED (admin login, Client Management page, client drawer, admin pet list). Phase 1B.3 frontend deployed to production with /my-pets route, card-click drawer interaction, accessible cards, and mobile bottom-sheet. Hook-order hotfix applied. Matthew confirmed production works. Phase 1B.3 COMPLETE and CLOSED. Phase 1B.4A–E Client Drawer Editor Consolidation deployed to production. Matthew confirmed drawer View/Edit/Create experience works correctly, inline editor retired, Staff Management unaffected. Phase 1B.4A–E COMPLETE and CLOSED. Phase 1B.4F–H remain deferred. Phase 1B.5 (Pet Management and Client–Pet Association) is active. Phase 1B.5A and 1B.5A.1 deployed and validated (2026-07-22). Phase 1B.5B-A Staff Pet Editor and hotfixes deployed and validated (2026-07-23). Phase 1B.5C-A Customer Pet Editing deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-A.1 admin pet care field hotfix deployed and validated (2026-07-30). Phase 1B.5C-B (active staff count fix) and 1B.5C-C (staff edit double-click fix) deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-D.1 (platform-managed protected admin controls) deployed, seeded, and validated (2026-07-30). Phase 1B.5C-D.2 (remove legacy config protection) converged via D.1 deployment and validated (2026-07-30). Latest completed validated production release is Phase 1B.5C-D.2 (2026-07-30).**
 
 **Next options:**
-- Perform a read-only Phase 24A/backlog prioritization review before authorizing another implementation stream.
+- Author the business-owner Getting Started guide (recommended next documentation task; ready now).
 - Phase 24A-9D: Formal production-write validation (separately gated; not authorized by the completed 9C revalidation)
 - Phase 1B.5D–E: Pet Lifecycle safeguards and booking integration (deferred)
 - Address remaining Phase 1B.4F–H staff drawer alignment (deferred, low priority)
 - Begin Release 22ZD — Scheduler, Client Management, Platform Admin mobile polish (Phase 4 of 22Z plan)
 - A later explicit deployment decision is required for the independently reviewed Release 22Y Finding 2 frontend fix; Google Calendar disconnect/API Gateway remediation remains separate and unapproved.
 - Budget notification Terraform drift reconciliation (deferred, requires separate review and Matthew approval)
-- Continue SaaS maturity priorities (blocked on EIN for Stripe live).
+- Continue SaaS maturity priorities using the reconciled backlog: Getting Started is ready; Stripe Checkout, billing dashboard, and pricing/signup remain blocked or sequenced behind EIN/product decisions; invites require product/security/Cognito design.

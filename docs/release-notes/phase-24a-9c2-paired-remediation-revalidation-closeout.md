@@ -48,7 +48,7 @@ The Android evidence does not identify an actual phone/tablet. Physical Android 
 - Ryan tester expansion: PAUSED / NOT APPROVED
 - Phase 24A-9D formal production-write validation: SEPARATELY GATED
 - Stripe: sandbox-only
-- Tenant Resolution Mode remains off/disabled; tenant inventory is unchanged and no tenant was created by this phase
+- Strict `TENANT_RESOLUTION_MODE=multi` remains active and validated (18T/18U); this phase did not change tenant configuration or inventory and did not create a tenant
 
 ## 6. Documentation Validation
 

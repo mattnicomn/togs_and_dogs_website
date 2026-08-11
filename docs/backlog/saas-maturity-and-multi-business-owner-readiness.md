@@ -2,7 +2,7 @@
 
 **Status:** Active Backlog
 **Owner:** Matthew
-**Priority:** Strategic (gates second-tenant onboarding)
+**Priority:** Strategic (future customer-tenant onboarding)
 **Created:** 2026-06-19
 **Source:** Release 16A Repository Readiness Audit
 
@@ -10,23 +10,25 @@
 
 ## Summary
 
-The platform has strong single-tenant foundations but requires significant work before a second business owner can safely onboard. This backlog tracks all items needed for multi-business-owner SaaS readiness.
+The platform has an active primary tenant (`tog_and_dogs`) and an existing internal test tenant (`test_tenant_alpha`). Strict tenant resolution, tenant isolation, entitlement gates, provisioning tooling, branding, and per-tenant Google token isolation are deployed and validated. This backlog now tracks the product, billing, self-service, and operating work required before onboarding a future production/customer tenant. Further tenant provisioning remains approval-gated.
 
 ---
 
-## Critical Path Items (Must Complete Before Second Tenant)
+## Current Readiness for Future Customer-Tenant Onboarding
 
 | # | Item | Status | Effort | Depends On |
 |---|------|--------|--------|------------|
 | 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
 | 2 | Usage metering per tenant | ✅ Phase 2 active & validated (18N) | Done | #1 |
-| 3 | Tenant provisioning workflow/tool | ✅ Second test tenant created (19D) | High | #1 |
-| 5 | Cognito `custom:company_id` enforcement | ✅ Verified & isolated in prod (19M) | Medium | #4 |
-| 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
-| 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
-| 8 | Pricing/signup page | ❌ Not started | Medium | #6 |
-| 9 | Per-tenant branding | ✅ Dynamic brand name, shell logo, and footer separated by route (19N pre-deploy) | Medium | #4 |
-| 10 | "Getting Started" docs for new owners | ❌ Not started | Low | #4 |
+| 3 | Tenant provisioning workflow/tool | ✅ Test tenant created and validated (19D/19E); further provisioning approval-gated | Done | #1 |
+| 4 | Cognito `custom:company_id` enforcement | ✅ Verified and isolated in production (19M) | Done | #3 |
+| 5 | Strict tenant resolution | ✅ `TENANT_RESOLUTION_MODE=multi` active and validated (18T/18U) | Done | #4 |
+| 6 | Per-tenant branding and access isolation | ✅ Validated (19M/19N/20F) | Done | #3–#5 |
+| 7 | Google Calendar token isolation | ✅ Per-tenant token resolution deployed and validated (21H) | Done | #5 |
+| 8 | Stripe subscription Checkout for new tenants | ⛔ Blocked by EIN and product/business approvals | High | EIN + pricing/payment decisions |
+| 9 | Business owner billing dashboard | ⏸ Wait for subscription semantics | Medium | #8 |
+| 10 | Pricing/signup page | ⛔ Blocked by product/pricing decision and payment direction | Medium | #8 |
+| 11 | "Getting Started" guide for business owners | ✅ Ready to author now | Low | — |
 
 ---
 
@@ -34,121 +36,59 @@ The platform has strong single-tenant foundations but requires significant work 
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| `DEFAULT_COMPANY_ID` fallback | Critical | Hardened in 17Y to support strict mode (PermissionError if mode=multi). Single mode remains active for backward compatibility; once Cognito attribute audit (17Z) is complete, strict mode (18A) will be enabled. |
+| Tenant-resolution regression | Critical | Production Terraform and all 13 Lambdas use strict `TENANT_RESOLUTION_MODE=multi`, enabled in 18T and monitored in 18U. Missing/invalid tenant claims fail rather than silently using the compatibility fallback. Do not change the mode without explicit Matthew approval. |
+| Premature customer-tenant onboarding | High | `test_tenant_alpha` is an internal validation tenant, not a customer onboarding precedent. Require explicit approval plus product, billing, security, and operating readiness for any further tenant. |
 
 ---
 
-## Important But Not Blocking Second Tenant
+## Remaining Product and Operations Backlog
 
 | # | Item | Status | Priority |
 |---|------|--------|----------|
-| 10 | EIN obtained + Stripe live verification | ❌ Blocked (IRS) | High |
-| 11 | Payment terms/refund policy published | ⚠️ Draft exists | Medium |
-| 12 | Ryan external TestFlight validated | ⏳ Pending Apple review | Medium |
-| 13 | Self-service staff/client invite | ❌ Not started | Low |
-| 14 | Video visit evidence | ❌ Not started | Low |
-| 15 | Analytics dashboard | ❌ Not started | Low |
-| 16 | AI-assisted onboarding | ❌ Not started | Low |
-| 17 | Multi-location support | ❌ Not started | Future |
+| 1 | EIN obtained + Stripe live verification | ⛔ Blocked (IRS and business approval) | High |
+| 2 | Stripe subscription Checkout | ⛔ Blocked by EIN and product/business approvals | High |
+| 3 | Business-owner billing dashboard | ⏸ Wait on subscription semantics | Medium |
+| 4 | Pricing/signup | ⛔ Blocked by product/pricing decision and payment direction | High |
+| 5 | Payment terms/refund policy published | ⚠️ Draft exists | Medium |
+| 6 | Business-owner Getting Started guide | ✅ Ready now | High |
+| 7 | Self-service staff/client invites | 🧭 Requires product, security, and Cognito design | Medium |
+| 8 | Ryan external testing | ⏸ Paused; requires explicit Matthew approval | Medium |
+| 9 | Apple Beta App Review outcome | ❓ UNKNOWN / NOT VERIFIED | Medium |
+| 10 | Analytics dashboard | ❌ Not started; lower sequence | Low |
+| 11 | AI-assisted onboarding | ❌ Not started; follow deterministic onboarding | Low |
+| 12 | Video visit evidence | ❌ Not started | Low |
+| 13 | Multi-location support | ❌ Not started | Future |
 
 ---
 
-## Current Single-Tenant Maturity (tog_and_dogs)
+## Current Platform Maturity
 
 | Dimension | Score | Notes |
 |-----------|-------|-------|
 | Core operations | 9/10 | Booking, scheduling, assignment, completion all working |
-| Tenant isolation | 8/10 | Enforced in all handlers; missing entitlement gating |
+| Tenant isolation | 9/10 | Strict multi mode, entitlements, two-tenant isolation, branding, and disabled-tenant enforcement validated |
 | Payments | 6/10 | Sandbox-complete; live blocked on EIN |
-| Mobile | 7/10 | Internal TestFlight validated; Ryan not yet testing |
+| Mobile | 8/10 | Corrected iOS Build 6 and Android versionCode 4 internally distributed and revalidated; physical Android remains unconfirmed; Ryan paused |
 | Documentation | 8/10 | Ops guides, policies (draft), release notes comprehensive |
 | Maintainability | 5/10 | Requires developer/Matthew for many admin tasks |
-| Self-service | 2/10 | Almost nothing is self-service for a new owner |
+| Self-service | 3/10 | Web customer password recovery is locally complete but not deployed; onboarding, invites, billing, and settings remain limited |
 
 ---
 
-## Resume Criteria for Multi-Tenant Work
+## Future Customer-Tenant Approval Gates
 
-# Backlog: SaaS Maturity and Multi-Business-Owner Readiness
+The internal test tenant already exists. Do not provision another tenant or treat `test_tenant_alpha` as a production customer until:
 
-**Status:** Active Backlog
-**Owner:** Matthew
-**Priority:** Strategic (gates second-tenant onboarding)
-**Created:** 2026-06-19
-**Source:** Release 16A Repository Readiness Audit
+1. ✅ Strict tenant resolution and isolation remain active and healthy (18T/18U/19M/20F).
+2. ✅ Platform Admin and provisioning tooling remain validated (17P/17W/19D/19E).
+3. ✅ Google Calendar per-tenant token isolation remains deployed and validated (21H).
+4. ⛔ Matthew explicitly approves the specific tenant and onboarding scope.
+5. ⛔ Product tier, pricing, signup, subscription, support, and rollback semantics are approved.
+6. ⛔ Security/Cognito design is approved for any self-service invite path.
+7. ⚠️ Billing activation remains blocked by EIN where live subscription/payment behavior is required.
+8. ✅ Deterministic Getting Started documentation can be authored before the remaining blocked product work.
 
----
-
-## Summary
-
-The platform has strong single-tenant foundations but requires significant work before a second business owner can safely onboard. This backlog tracks all items needed for multi-business-owner SaaS readiness.
-
----
-
-## Critical Path Items (Must Complete Before Second Tenant)
-
-| # | Item | Status | Effort | Depends On |
-|---|------|--------|--------|------------|
-| 1 | Entitlement enforcement in handlers | ✅ Phase 1 active (17D/17I) | Done | — |
-| 2 | Usage metering per tenant | ✅ Phase 2 active & validated (18N) | Done | #1 |
-| 3 | Tenant provisioning workflow/tool | ✅ Second test tenant created (19D) | High | #1 |
-| 5 | Cognito `custom:company_id` enforcement | ✅ Verified & isolated in prod (19M) | Medium | #4 |
-| 6 | Stripe subscription Checkout for new tenants | ❌ Not started | High | EIN + #4 |
-| 7 | Business owner billing dashboard | ❌ Not started | Medium | #6 |
-| 8 | Pricing/signup page | ❌ Not started | Medium | #6 |
-| 9 | Per-tenant branding | ✅ Dynamic brand name, shell logo, and footer separated by route (19N pre-deploy) | Medium | #4 |
-| 10 | "Getting Started" docs for new owners | ❌ Not started | Low | #4 |
-
----
-
-## Known Risks
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| `DEFAULT_COMPANY_ID` fallback | Critical | Hardened in 17Y to support strict mode (PermissionError if mode=multi). Single mode remains active for backward compatibility; once Cognito attribute audit (17Z) is complete, strict mode (18A) will be enabled. |
-
----
-
-## Important But Not Blocking Second Tenant
-
-| # | Item | Status | Priority |
-|---|------|--------|----------|
-| 10 | EIN obtained + Stripe live verification | ❌ Blocked (IRS) | High |
-| 11 | Payment terms/refund policy published | ⚠️ Draft exists | Medium |
-| 12 | Ryan external TestFlight validated | ⏳ Pending Apple review | Medium |
-| 13 | Self-service staff/client invite | ❌ Not started | Low |
-| 14 | Video visit evidence | ❌ Not started | Low |
-| 15 | Analytics dashboard | ❌ Not started | Low |
-| 16 | AI-assisted onboarding | ❌ Not started | Low |
-| 17 | Multi-location support | ❌ Not started | Future |
-
----
-
-## Current Single-Tenant Maturity (tog_and_dogs)
-
-| Dimension | Score | Notes |
-|-----------|-------|-------|
-| Core operations | 9/10 | Booking, scheduling, assignment, completion all working |
-| Tenant isolation | 8/10 | Enforced in all handlers; missing entitlement gating |
-| Payments | 6/10 | Sandbox-complete; live blocked on EIN |
-| Mobile | 7/10 | Internal TestFlight validated; Ryan not yet testing |
-| Documentation | 8/10 | Ops guides, policies (draft), release notes comprehensive |
-| Maintainability | 5/10 | Requires developer/Matthew for many admin tasks |
-| Self-service | 2/10 | Almost nothing is self-service for a new owner |
-
----
-
-## Resume Criteria for Multi-Tenant Work
-
-Start second-tenant creation only when:
-1. ✅ Entitlement enforcement active (Phase 1 & 2 gates working — 17D/17I/18L)
-2. ✅ Platform Admin UI deployed and validated (17P/17R)
-3. ✅ Credential security cleanup complete (shared dev passwords rotated — 17U)
-4. ✅ Tenant provisioning tooling exists (creation script — 17W)
-5. ❌ Matthew explicitly approves second-tenant creation
-6. ⏳ EIN resolved + live payments working (for billing portal only — not required for dry run)
-7. ⏳ Ryan invitation deferred until 19A re-evaluation gate
-8. ✅ Google Calendar per-tenant token isolation deployed and validated in production (21H — PASS)
+The dated update log below is historical chronology. Statements such as “strict mode remains disabled” or “no second tenant exists” were accurate at those checkpoints and are superseded by later entries.
 
 **Updated 2026-06-21 (17W):** Tenant provisioning script (`scripts/provision_tenant.py`) implemented. Dry-run mode is safe. Apply mode requires explicit gate approval. Company ID resolution audit completed — `custom:company_id` claim correctly takes precedence. Known risk documented: a Cognito user without `custom:company_id` set falls through to `DEFAULT_COMPANY_ID` ("tog_and_dogs"). Remediation required before any second-tenant Cognito user is created (post-auth Lambda trigger or strict Cognito user attribute enforcement).
 
@@ -239,3 +179,5 @@ Start second-tenant creation only when:
 **Updated 2026-07-10 (22L):** Implemented the pending cancellation request admin visibility fix pre-deploy. Redefined frontend cancellation helpers and active filter predicates in `AdminDashboard.jsx` to ensure client `CANCELLATION_REQUESTED` bookings appear in "Needs Action" and "All Active" lists, are correctly counted, display as "Cancellation Requested" in an urgent red badge, and expose a dropdown menu option to Approve/Deny reviews. Compiled successfully via Vite. Standalone pytest runs are verified green.
 
 **Updated 2026-07-10 (22P):** Deployed the Centralized Profile Editor MVP (Release 22J) from `main` to production. Staff cards are simplified — direct risky account/security action buttons removed from card surfaces. Each card now has a Manage button that opens a centralized Profile Editor side drawer with structured sections (Profile Details, Login Identity, Tenant & Role, Account Security, Protected Account Guardrails, Danger Zone). Protected platform admin and orphaned login (USmissionhero) guardrails are enforced. The 22M production/main divergence is fully resolved. Matthew manually cleared the 2 pending cancellation records (Joey Rockwell, TestPet_ScenarioB) prior to this deployment.
+
+**Updated 2026-08-11 (Continuity reconciliation):** Removed the duplicated backlog copy and reconciled the live forward-looking state. Strict `multi` mode is active and validated; `test_tenant_alpha` already exists as an internal test tenant; corrected iOS Build 6 and Android versionCode 4 are internally distributed; Ryan remains paused; and Apple Beta App Review outcome remains unknown/not verified. The Getting Started guide is ready now. Stripe Checkout, billing dashboard, pricing/signup, self-service invites, analytics, AI onboarding, and multi-location remain incomplete under the approval and sequencing boundaries above. Web customer password recovery is locally complete, committed, and pushed, but not deployed.

@@ -32,7 +32,7 @@
 ## Tenant and Multi-Business Safety
 
 - ❌ Do not disable or change `TENANT_RESOLUTION_MODE` without Matthew's explicit approval (strict `multi` mode is active and validated)
-- ❌ Do not create a second tenant without explicit approval
+- ❌ Do not provision any additional tenant or repurpose the existing `test_tenant_alpha` validation tenant without explicit approval
 - ❌ Do not modify existing tenant metadata (tier/status) without approval
 - ❌ Do not run `scripts/provision_tenant.py --mode=apply` without approval
 

@@ -13,6 +13,8 @@ Make the React/Vite website and Expo/React Native mobile application feel like o
 
 **Not in scope:** React Native Web migration, website rewrite, EAS builds, mobile distribution, TestFlight changes, App Store submission, Ryan testing changes.
 
+**Reading note:** This document began as the pre-implementation Phase 24A plan. Detailed design and phase-scope sections preserve that historical planning context. The header, authentication parity, current technology baseline, workflow matrix, Phase 24A-9 current state, dependencies, and testing strategy below are reconciled to the current repository state.
+
 ---
 
 ## 2. Authentication Parity (Corrected)
@@ -44,7 +46,7 @@ The admin-initiated `resetStaffPassword` and `resetClientPassword` API functions
 | Success state | ✅ Present | Green success banner with "Back to Sign In" button |
 | Error states | ✅ Comprehensive | Code mismatch, expiry, generic failure, validation (8-char min, password match) |
 | Complete flow usable | ✅ Yes | Three-mode LoginScreen: login → forgotSendCode → forgotResetPassword |
-| Tests | ❌ None | No automated tests exist for the mobile app |
+| Tests | ✅ Present | `LoginScreen.test.tsx` covers forgot-password entry, code request, transition, and required-email validation; full mobile suite is 109/109 across 10 suites |
 
 ### 2.3 Disposition
 
@@ -63,13 +65,15 @@ The admin-initiated `resetStaffPassword` and `resetClientPassword` API functions
 | Styling | CSS custom properties + component CSS files | React Native StyleSheet (inline) |
 | Routing | React Router 7 (createBrowserRouter) | React Navigation 7 (stack + bottom tabs) |
 | Auth | Cognito SDK (browser localStorage) | Cognito SDK (Expo SecureStore) |
-| Tests | Vitest 4 + RTL (209 passing) + Node test runner (legacy) | None configured |
-| Build | Vite production build | Expo EAS (not currently active) |
+| Tests | Vitest 4 + RTL (251 passing) + Node test runner (99 legacy; 350 combined web) | Jest/jest-expo + React Native Testing Library (109/109 across 10 suites) |
+| Build | Vite production build | Expo EAS active; corrected iOS Build 6 and Android versionCode 4 internally distributed |
 | Module format | ESM (`"type": "module"`) | Metro bundler (CommonJS interop) |
 
 ---
 
-## 4. Design Token Comparison
+## 4. Original Design Token Comparison (Historical; Superseded by Phase 24A-1C)
+
+The comparison below records the original gap analysis. Phase 24A-1C subsequently aligned all 13 canonical color tokens; do not treat the original differences as current state.
 
 ### 4.1 Color Alignment
 
@@ -101,9 +105,9 @@ No formal shared scale exists on either platform. Both use ad-hoc pixel/dp value
 | Sign-in | `/admin` inline login | `LoginScreen` dedicated | ✅ Functional | Align error messages |
 | Forgot password | ✅ Locally complete / not deployed | ✅ Complete | ✅ Aligned locally | Separate web deployment gate |
 | Session refresh | Cognito SDK auto (browser) | SecureStore + pre-request refresh | ✅ Both maintain | Platform-appropriate |
-| My Pets (list) | `/my-pets` ✅ | ❌ Missing | — | **Pilot target** |
-| Pet editing | ✅ (Phase 1B.5C-A) | ❌ Missing | — | After 1B.5C-A deployment |
-| Care request intake | `/book` ✅ (4-step) | ❌ Missing | — | Second-stage target |
+| My Pets (list) | `/my-pets` ✅ | ✅ Complete; internally distributed | ✅ Functional | Included in Build 6/versionCode 4 |
+| Pet editing | ✅ (Phase 1B.5C-A) | ✅ Complete; internally distributed | ✅ Functional | Included in Build 6/versionCode 4 |
+| Care request intake | `/book` ✅ (4-step) | ✅ Complete; internally distributed (3-step) | ✅ Functional | Platform-specific step structure preserved |
 | My Bookings | `/my-bookings` ✅ | `BookingsScreen` ✅ | ✅ Functional | Align labels |
 | Request detail (admin) | CareCard ✅ | `RequestDetailScreen` ✅ | ✅ Actions match | Align labels |
 | Request list (admin) | Dashboard tab ✅ | `RequestListScreen` ✅ | ✅ Filter + list | Align filter labels |
@@ -116,7 +120,7 @@ No formal shared scale exists on either platform. Both use ad-hoc pixel/dp value
 
 ---
 
-## 6. Design-System Structure
+## 6. Original Design-System Structure (Historical Planning)
 
 ### 6.1 Recommended: Shared Tokens + Contracts, Separate Presentation
 
@@ -174,7 +178,7 @@ This decision requires implementation-time evidence. The planning document recor
 
 ---
 
-## 7. Revised Release Sequence
+## 7. Original Revised Release Sequence (Historical Plan with Current Phase 9 Status)
 
 ### Phase 24A-1A — Shared Architecture and Token Contract
 
@@ -367,8 +371,8 @@ This decision requires implementation-time evidence. The planning document recor
 
 | Dependency | Required For | Status |
 |---|---|---|
-| Shared tokens and constants (24A-1, 24A-2) | All mobile feature work | Not started |
-| Mobile test infrastructure (24A-3) | Any new mobile screen | Not started |
+| Shared tokens and constants (24A-1, 24A-2) | All mobile feature work | ✅ Complete |
+| Mobile test infrastructure (24A-3) | Any new mobile screen | ✅ Complete; Jest active |
 | `GET /client/pets` API | Mobile My Pets read-only (24A-4) | ✅ Already deployed and operational |
 | `PUT /client/pets/{petId}` API (Phase 1B.5C-A) | Mobile My Pets editing (24A-5) | ✅ Deployed 2026-07-28 & Validated 2026-07-30 |
 
@@ -378,7 +382,7 @@ This decision requires implementation-time evidence. The planning document recor
 - Mobile My Pets **editing** (24A-5) is 100% locally complete, committed (`93fe98a5c2f28481cd53a85a9479567c413a534d`), and pushed to `origin/main`.
 - Client edit scope remains edit-only (no pet creation, deletion, archive, or restore).
 - The original paired internal artifacts were built from `8a1ce46c0a8bd0d02f4000188b21e115b370281c`; physical-iPhone findings were remediated locally in `2c3e22a95e0062bed5e40f42e39e4669f94a1d43`.
-- A new paired iOS and Android remediation build from the corrected SHA remains separately approval-gated; public distribution remains unapproved.
+- The corrected pair was subsequently built from `bf9f80d95c1846f197bab24d96463906bc26bfce`: iOS Build 6 and Android versionCode 4 are internally distributed and remediation-revalidated. Public distribution remains unapproved.
 
 ---
 
@@ -414,20 +418,16 @@ This decision requires implementation-time evidence. The planning document recor
 - Runnable by both Vitest (web context) and Jest (mobile context)
 
 ### Web (Existing — Must Remain Passing)
-- 96 legacy tests (Node test runner) + 113 component tests (Vitest + RTL) = 209 total
+- Current validated baseline: 99 legacy tests (Node test runner) + 251 Vitest tests = 350 combined web tests
 - Production build (`npm run build`) must succeed
 - Shared imports must not break existing test mocks
 
-### Mobile (To Be Established in Phase 24A-3)
-- `jest-expo` preset
-- `@testing-library/react-native`
-- API-client mock (mock `fetch` globally)
-- Navigation mock (`@react-navigation/native` jest mock)
-- SecureStore mock (`expo-secure-store` jest mock)
-- Auth context mock (wrapper providing `AuthProvider` with controllable state)
+### Mobile (Established in Phase 24A-3)
+- Jest 29 with `jest-expo` and `@testing-library/react-native`
+- API, navigation, SecureStore, and auth-context mocking established
 - Type checking: `tsc --noEmit`
-- CI command: `npm test` + `npm run typecheck`
-- Initial smoke tests: screen renders for LoginScreen, BookingsScreen, DashboardScreen, role-based navigation routing
+- CI commands: `npm test`, `npm run test:ci`, and `npm run typecheck`
+- Current validated baseline: 109/109 mobile tests across 10 suites
 
 ---
 
