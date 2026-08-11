@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -311,7 +313,10 @@ export const IntakeScreen = () => {
           </Text>
           <TouchableOpacity
             style={styles.primaryBtn}
-            onPress={() => navigation?.navigate?.('Bookings')}
+            onPress={() => {
+              // Bookings is nested under the ClientTabs route in ClientStack.
+              navigation?.navigate?.('ClientTabs', { screen: 'Bookings' });
+            }}
             accessibilityRole="button"
           >
             <Text style={styles.primaryBtnText}>View My Bookings</Text>
@@ -328,12 +333,21 @@ export const IntakeScreen = () => {
       {renderHeader()}
       {renderStepper()}
 
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {error ? (
-          <View style={styles.errorBanner} accessibilityLiveRegion="assertive">
-            <Text style={styles.errorText}>⚠️ {error}</Text>
-          </View>
-        ) : null}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        testID="intake-keyboard-container"
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          testID="intake-form-scroll"
+        >
+          {error ? (
+            <View style={styles.errorBanner} accessibilityLiveRegion="assertive">
+              <Text style={styles.errorText}>⚠️ {error}</Text>
+            </View>
+          ) : null}
         {/* STEP 1: SERVICE & SCHEDULE */}
         {step === 1 && (
           <View style={styles.stepContent}>
@@ -653,7 +667,8 @@ export const IntakeScreen = () => {
             </TouchableOpacity>
           )}
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -662,6 +677,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  keyboardAvoidingContainer: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -734,7 +752,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 40,
+    // Leave scrollable clearance below the last input while the keyboard is open.
+    paddingBottom: 120,
   },
   errorBanner: {
     backgroundColor: '#fee2e2',

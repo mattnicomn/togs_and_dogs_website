@@ -3,7 +3,13 @@
  */
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+} from 'react-native';
 
 const mockGoBack = jest.fn();
 const mockNavigate = jest.fn();
@@ -324,7 +330,8 @@ describe('IntakeScreen Component Tests', () => {
     });
 
     fireEvent.press(screen.getByText('View My Bookings'));
-    expect(mockNavigate).toHaveBeenCalledWith('Bookings');
+    expect(mockNavigate).toHaveBeenCalledWith('ClientTabs', { screen: 'Bookings' });
+    expect(mockNavigate).not.toHaveBeenCalledWith('Bookings');
   });
 
   test('11. exposes accessibility roles and selection states on intake controls', async () => {
@@ -458,5 +465,18 @@ describe('IntakeScreen Component Tests', () => {
       expect(successTitle.props.accessibilityRole).toBe('header');
       expect(screen.getByText('View My Bookings')).toBeTruthy();
     });
+  });
+});
+
+describe('IntakeScreen - Phase 24A-9C.1 Keyboard Structure', () => {
+  it('wraps the intake form in keyboard-aware scroll structure', async () => {
+    await render(<IntakeScreen />);
+    await screen.findByText('Book Pet Care');
+
+    const keyboardView = screen.getByTestId('intake-keyboard-container');
+    const scrollView = screen.getByTestId('intake-form-scroll');
+    expect(keyboardView.props.behavior).not.toBe('height');
+    expect(scrollView.props.keyboardShouldPersistTaps).toBe('handled');
+    expect(StyleSheet.flatten(scrollView.props.contentContainerStyle).paddingBottom).toBe(120);
   });
 });

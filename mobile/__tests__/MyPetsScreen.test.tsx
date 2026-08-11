@@ -7,7 +7,7 @@
  */
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
-import { Alert } from 'react-native';
+import { Alert, StyleSheet } from 'react-native';
 
 // Mock auth
 const mockLogout = jest.fn();
@@ -472,5 +472,95 @@ describe('MyPetsScreen - Session Expiration', () => {
     expect(screen.queryByText(/Your session expired/)).toBeNull();
     expect(screen.queryByText('Retry')).toBeNull();
     expect(mockGetClientPets).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('MyPetsScreen - Phase 24A-9C.1 Legacy Read Regression', () => {
+  const LEGACY_PET = {
+    pet_id: 'pet-synthetic-legacy',
+    name: 'Synthetic Legacy Pet',
+    species: 'Dog',
+    breed: 'Mixed',
+    age: 13,
+    care_instructions: 'Walk daily',
+    feeding_notes: 'Twice daily',
+    medication_notes: { malformed: true },
+    behavior_notes: null,
+    is_active: true,
+    server_only_value: 'must not be written',
+    health: { vet_name: 'Synthetic Vet', vet_phone: 5550100 },
+  };
+
+  it('opens and displays numeric legacy fields without crashing', async () => {
+    mockGetClientPets.mockResolvedValue({ pets: [LEGACY_PET] });
+    await render(<MyPetsScreen />);
+
+    await waitFor(() => expect(screen.getByText('Age: 13')).toBeTruthy());
+    await fireEvent.press(screen.getByLabelText('View details for Synthetic Legacy Pet'));
+
+    await waitFor(() => {
+      expect(screen.getByText('13')).toBeTruthy();
+      expect(screen.getByText('5550100')).toBeTruthy();
+      expect(screen.queryByText('[object Object]')).toBeNull();
+    });
+  });
+
+  it('initializes editable fields as safe strings', async () => {
+    mockGetClientPets.mockResolvedValue({ pets: [LEGACY_PET] });
+    await render(<MyPetsScreen />);
+
+    await screen.findByLabelText('View details for Synthetic Legacy Pet');
+    await fireEvent.press(screen.getByLabelText('View details for Synthetic Legacy Pet'));
+    await fireEvent.press(screen.getByLabelText('Edit profile for Synthetic Legacy Pet'));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Age').props.value).toBe('13');
+      expect(screen.getByLabelText('Vet Phone').props.value).toBe('5550100');
+      expect(screen.getByLabelText('Medication Notes').props.value).toBe('');
+      expect(screen.getByLabelText('Behavior Notes').props.value).toBe('');
+    });
+  });
+
+  it('writes the unchanged allowlisted payload with string-safe legacy values', async () => {
+    mockGetClientPets.mockResolvedValue({ pets: [LEGACY_PET] });
+    mockUpdateClientPet.mockResolvedValue(LEGACY_PET);
+    await render(<MyPetsScreen />);
+
+    await screen.findByLabelText('View details for Synthetic Legacy Pet');
+    await fireEvent.press(screen.getByLabelText('View details for Synthetic Legacy Pet'));
+    await fireEvent.press(screen.getByLabelText('Edit profile for Synthetic Legacy Pet'));
+    await fireEvent.changeText(screen.getByLabelText('Care Instructions'), 'Walk twice daily');
+    await fireEvent.press(screen.getByLabelText('Save pet changes'));
+
+    await waitFor(() => {
+      expect(mockUpdateClientPet).toHaveBeenCalledWith('pet-synthetic-legacy', {
+        name: 'Synthetic Legacy Pet',
+        species: 'Dog',
+        breed: 'Mixed',
+        age: '13',
+        care_instructions: 'Walk twice daily',
+        feeding_notes: 'Twice daily',
+        medication_notes: '',
+        behavior_notes: '',
+        health: {
+          vet_name: 'Synthetic Vet',
+          vet_phone: '5550100',
+        },
+      });
+    });
+  });
+
+  it('wraps the detail editor in keyboard-aware scroll structure', async () => {
+    mockGetClientPets.mockResolvedValue({ pets: [LEGACY_PET] });
+    await render(<MyPetsScreen />);
+
+    await screen.findByLabelText('View details for Synthetic Legacy Pet');
+    await fireEvent.press(screen.getByLabelText('View details for Synthetic Legacy Pet'));
+
+    const keyboardView = screen.getByTestId('my-pets-keyboard-container');
+    const scrollView = screen.getByTestId('my-pets-detail-scroll');
+    expect(keyboardView.props.behavior).not.toBe('height');
+    expect(scrollView.props.keyboardShouldPersistTaps).toBe('handled');
+    expect(StyleSheet.flatten(scrollView.props.contentContainerStyle).paddingBottom).toBe(120);
   });
 });

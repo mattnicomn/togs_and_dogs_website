@@ -17,6 +17,8 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/useAuth';
@@ -27,19 +29,19 @@ import { PET_FIELDS } from '../contracts/generatedContracts';
 
 interface Pet {
   pet_id: string;
-  name: string;
-  species?: string;
-  breed?: string;
-  age?: string;
-  care_instructions?: string;
-  feeding_notes?: string;
-  medication_notes?: string;
-  behavior_notes?: string;
+  name: unknown;
+  species?: unknown;
+  breed?: unknown;
+  age?: unknown;
+  care_instructions?: unknown;
+  feeding_notes?: unknown;
+  medication_notes?: unknown;
+  behavior_notes?: unknown;
   is_active?: boolean;
   health?: {
-    vet_name?: string;
-    vet_phone?: string;
-  };
+    vet_name?: unknown;
+    vet_phone?: unknown;
+  } | null;
 }
 
 interface FormValues {
@@ -55,18 +57,27 @@ interface FormValues {
   health_vet_phone: string;
 }
 
+// Normalize legacy API read values before rendering them or placing them in a
+// TextInput. Only strings and finite numbers are valid editable text values;
+// malformed values become empty strings and cannot leak into an update payload.
+const toPetFieldString = (value: unknown): string => {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return '';
+};
+
 // Helper to extract editable form values from a pet record
 const getInitialFormValues = (pet: Pet): FormValues => ({
-  name: pet.name || '',
-  species: pet.species || '',
-  breed: pet.breed || '',
-  age: pet.age || '',
-  care_instructions: pet.care_instructions || '',
-  feeding_notes: pet.feeding_notes || '',
-  medication_notes: pet.medication_notes || '',
-  behavior_notes: pet.behavior_notes || '',
-  health_vet_name: pet.health?.vet_name || '',
-  health_vet_phone: pet.health?.vet_phone || '',
+  name: toPetFieldString(pet.name),
+  species: toPetFieldString(pet.species),
+  breed: toPetFieldString(pet.breed),
+  age: toPetFieldString(pet.age),
+  care_instructions: toPetFieldString(pet.care_instructions),
+  feeding_notes: toPetFieldString(pet.feeding_notes),
+  medication_notes: toPetFieldString(pet.medication_notes),
+  behavior_notes: toPetFieldString(pet.behavior_notes),
+  health_vet_name: toPetFieldString(pet.health?.vet_name),
+  health_vet_phone: toPetFieldString(pet.health?.vet_phone),
 });
 
 // --- Pet Detail & Inline Editor View ---
@@ -210,40 +221,53 @@ const PetDetail = ({
     }
   };
 
-  // Read-only display fields
-  const fields: { label: string; value: string | undefined }[] = [
-    { label: 'Species', value: pet.species },
-    { label: 'Breed', value: pet.breed },
-    { label: 'Age', value: pet.age },
-    { label: 'Care Instructions', value: pet.care_instructions },
-    { label: 'Feeding Notes', value: pet.feeding_notes },
-    { label: 'Medication Notes', value: pet.medication_notes },
-    { label: 'Behavior Notes', value: pet.behavior_notes },
-    { label: 'Vet Name', value: pet.health?.vet_name },
-    { label: 'Vet Phone', value: pet.health?.vet_phone },
+  const petName = toPetFieldString(pet.name);
+  const petSpecies = toPetFieldString(pet.species);
+
+  // Normalize every read value before filtering or rendering it.
+  const fields: { label: string; value: string }[] = [
+    { label: 'Species', value: petSpecies },
+    { label: 'Breed', value: toPetFieldString(pet.breed) },
+    { label: 'Age', value: toPetFieldString(pet.age) },
+    { label: 'Care Instructions', value: toPetFieldString(pet.care_instructions) },
+    { label: 'Feeding Notes', value: toPetFieldString(pet.feeding_notes) },
+    { label: 'Medication Notes', value: toPetFieldString(pet.medication_notes) },
+    { label: 'Behavior Notes', value: toPetFieldString(pet.behavior_notes) },
+    { label: 'Vet Name', value: toPetFieldString(pet.health?.vet_name) },
+    { label: 'Vet Phone', value: toPetFieldString(pet.health?.vet_phone) },
   ];
 
-  const visibleFields = fields.filter(f => f.value && f.value.trim());
+  const visibleFields = fields.filter(f => f.value.trim().length > 0);
 
   return (
-    <ScrollView style={styles.detailContainer} contentContainerStyle={styles.detailContent}>
+    <KeyboardAvoidingView
+      style={styles.detailContainer}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      testID="my-pets-keyboard-container"
+    >
+      <ScrollView
+        style={styles.detailScrollView}
+        contentContainerStyle={styles.detailContent}
+        keyboardShouldPersistTaps="handled"
+        testID="my-pets-detail-scroll"
+      >
       <View style={styles.detailHeader}>
         <View style={styles.headerTitleRow}>
           <Text style={styles.detailName} accessibilityRole="header">
-            🐾 {pet.name}
+            🐾 {petName}
           </Text>
           {!isEditing && (
             <TouchableOpacity
               style={styles.editButton}
               onPress={handleStartEdit}
               accessibilityRole="button"
-              accessibilityLabel={`Edit profile for ${pet.name}`}
+              accessibilityLabel={`Edit profile for ${petName}`}
             >
               <Text style={styles.editButtonText}>Edit Profile</Text>
             </TouchableOpacity>
           )}
         </View>
-        {pet.species && !isEditing && <Text style={styles.detailSpecies}>{pet.species}</Text>}
+        {petSpecies && !isEditing && <Text style={styles.detailSpecies}>{petSpecies}</Text>}
       </View>
 
       {saveSuccessMessage && (
@@ -454,7 +478,8 @@ const PetDetail = ({
           </TouchableOpacity>
         </>
       )}
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -522,29 +547,32 @@ export const MyPetsScreen = () => {
     );
   }
 
-  const renderPetCard = ({ item }: { item: Pet }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => setSelectedPet(item)}
-      accessibilityRole="button"
-      accessibilityLabel={`View details for ${item.name}`}
-    >
-      <View style={styles.cardHeader}>
-        <Text style={styles.petName}>🐾 {item.name}</Text>
-        {item.species && (
-          <View style={styles.speciesBadge}>
-            <Text style={styles.speciesText}>{item.species}</Text>
-          </View>
-        )}
-      </View>
-      {item.breed && (
-        <Text style={styles.petBreed}>{item.breed}</Text>
-      )}
-      {item.age && (
-        <Text style={styles.petAge}>Age: {item.age}</Text>
-      )}
-    </TouchableOpacity>
-  );
+  const renderPetCard = ({ item }: { item: Pet }) => {
+    const name = toPetFieldString(item.name);
+    const species = toPetFieldString(item.species);
+    const breed = toPetFieldString(item.breed);
+    const age = toPetFieldString(item.age);
+
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => setSelectedPet(item)}
+        accessibilityRole="button"
+        accessibilityLabel={`View details for ${name}`}
+      >
+        <View style={styles.cardHeader}>
+          <Text style={styles.petName}>🐾 {name}</Text>
+          {species && (
+            <View style={styles.speciesBadge}>
+              <Text style={styles.speciesText}>{species}</Text>
+            </View>
+          )}
+        </View>
+        {breed && <Text style={styles.petBreed}>{breed}</Text>}
+        {age && <Text style={styles.petAge}>Age: {age}</Text>}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -734,8 +762,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  detailScrollView: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
   detailContent: {
     padding: 24,
+    paddingBottom: 120,
   },
   detailHeader: {
     marginBottom: 24,
