@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-10 (Phase 24A-9C Remediation Revalidation Complete)
+**Last Updated:** 2026-08-11 (Web Customer Self-Service Password Recovery Locally Complete)
 
 ---
 
@@ -60,6 +60,13 @@
 | Ryan testing paused | Cannot validate real staff workflow externally | Decision (19-series) |
 
 ## Active Local Work / Pending Review
+
+- Web Customer Self-Service Password Recovery (🔗 LOCAL IMPLEMENTATION COMPLETE / COMMITTED / PUSHED / NOT DEPLOYED / KIRO IMPLEMENTATION_CORRECT — 2026-08-11)
+  - Added a web-only Forgot password flow to the existing shared login shell: request verification code, confirm code plus new password, success state, and return to sign-in.
+  - Uses the existing customer Cognito user pool and standard self-service SDK operations. No Cognito configuration/user, backend, infrastructure, mobile, production-data, tenant, or deployment change occurred.
+  - Validation: 13/13 focused, 24/24 relevant AdminDashboard/auth, 251/251 Vitest across 21 files, 99/99 legacy / 350 combined web tests, successful 109-module build, targeted lint clean, and clean diff check. Kiro returned `IMPLEMENTATION_CORRECT`.
+  - Implementation commit: `c85a7860c706f38ab2da7998fb7ee8621e8fcfa6`. Production deployment remains separately gated.
+  - See: `docs/release-notes/release-web-customer-self-service-password-recovery.md`
 
 - Phase 24A-9C.2 / Phase 24A-9C: Paired Remediation Builds and Revalidation (✅ PAIRED REMEDIATION BUILDS COMPLETE / REMEDIATION REVALIDATION COMPLETE / PASS — 2026-08-10)
   - The authoritative internal-validation pair is iOS `1.0.0 (6)` (EAS `7d159e13-a3a3-41ad-96ab-cd6f83a582b0`; TestFlight submission `9eeb37ff-7f89-49d2-b6ff-25f34adb993d`) and Android `1.0.0` versionCode `4` (EAS `808d1f45-2f03-423d-886c-1e4649c1d782`), both built from exact source SHA `bf9f80d95c1846f197bab24d96463906bc26bfce`.
@@ -411,7 +418,7 @@
 - No EAS, TestFlight, App Store, Google Play, Ryan-testing, or mobile-distribution changes approved.
 - Recommended sequence: shared architecture (1A ✅) → wiring (1B ✅) → visual alignment (1C ✅) → constants (2 ✅) → mobile tests (3 ✅) → mobile My Pets read (4 ✅) → mobile My Pets edit (5 ✅) → intake (6 ✅) → polish (7 ✅) → a11y (8 ✅) → build/distribution (9, separately approved).
 - Mobile test infrastructure must precede new mobile feature screens.
-- Web forgot-password is missing (mobile has it complete); not a blocking dependency.
+- Web customer self-service password recovery is locally complete, committed, and pushed; deployment remains separately gated.
 
 ## Latest Completed Releases
 

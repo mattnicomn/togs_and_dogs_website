@@ -31,6 +31,12 @@
 | 24A-9C.1 | Physical-iPhone smoke defects remediated and independently reviewed |
 | 24A-9C.2 / 9C | Corrected iOS `1.0.0 (6)` and Android `1.0.0` versionCode `4` internally distributed; remediation revalidation complete/pass (2026-08-10) |
 
+## Web Authentication Parity
+
+| Release | Milestone |
+|---------|-----------|
+| Web customer password recovery | Self-service verification-code request and code/new-password confirmation locally implemented, independently reviewed, committed, and pushed; not deployed (2026-08-11) |
+
 ## Multi-Tenant Foundation (Releases 11)
 
 | Release | Milestone |

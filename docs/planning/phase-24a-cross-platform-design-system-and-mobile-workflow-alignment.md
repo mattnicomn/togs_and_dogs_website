@@ -1,7 +1,7 @@
 # Phase 24A: Cross-Platform Design System and Mobile Workflow Alignment
 
 **Status:** 📋 PLANNING COMPLETE (Revised) — Implementation phases 24A-1A–1C, 24A-2A, 24A-2B.1–2B.2B, 24A-2C.1A–1C, 24A-2C.2A–2D.4, and 24A-3–8 are locally complete, committed, and pushed. Phases 24A-9A, 9B, 9B.4, and 9C.1 are complete. Phase 24A-9C.2 paired remediation builds are complete, and Phase 24A-9C remediation revalidation is complete/pass against iOS `1.0.0 (6)` and Android `1.0.0` versionCode `4`, both from `bf9f80d95c1846f197bab24d96463906bc26bfce`. Phase 24A is not publicly released; formal Phase 24A-9D production-write validation remains separately gated.
-**Date:** 2026-07-24 (revised 2026-08-10)
+**Date:** 2026-07-24 (revised 2026-08-11)
 **Starting HEAD:** `2fbfba9` (planning), `bc73408` (revision)
 **Depends on:** Phase 1B.5C-A deployment (for mobile pet editing only)
 
@@ -17,19 +17,19 @@ Make the React/Vite website and Expo/React Native mobile application feel like o
 
 ## 2. Authentication Parity (Corrected)
 
-### 2.1 Web — Forgot-Password Status: **Missing**
+### 2.1 Web — Forgot-Password Status: **Locally Complete / Not Deployed**
 
 | Capability | Status | Evidence |
 |---|---|---|
-| Forgot-password entry point | ❌ Missing | No "Forgot password?" link exists in the web login flow (`AdminDashboard.jsx` login section) |
-| Reset initiation (`forgotPassword`) | ❌ Missing | `web/src/api/auth.js` does not export a `forgotPassword` function |
-| Verification-code handling | ❌ Missing | No UI or function exists |
-| New-password submission | ❌ Missing | No UI or function exists |
-| Success/error states | ❌ Missing | No UI exists |
-| Complete flow usable | ❌ No | |
-| Tests | N/A | No implementation to test |
+| Forgot-password entry point | ✅ Locally complete | Keyboard-accessible action in the existing `AdminDashboard.jsx` login shell |
+| Reset initiation (`forgotPassword`) | ✅ Locally complete | `web/src/api/auth.js` uses the existing customer user pool and standard self-service SDK operation |
+| Verification-code handling | ✅ Locally complete | Dedicated code/new-password confirmation state |
+| New-password submission | ✅ Locally complete | `confirmForgotPassword(email, code, newPassword)` with required, eight-character, and password-match validation |
+| Success/error states | ✅ Locally complete | Safe generic request errors, code mismatch/expiry copy, success status, and return to sign-in |
+| Complete flow usable | ✅ Locally | Not deployed to production |
+| Tests | ✅ Complete | 13 focused; 24 relevant AdminDashboard/auth; 251 Vitest; 99 legacy / 350 combined web tests |
 
-The web auth module (`web/src/api/auth.js`) provides only: `signIn`, `signOut`, `getSession`, `getIdToken`, `getEffectiveRole`. The underlying `amazon-cognito-identity-js` SDK supports `forgotPassword` and `confirmPassword`, but neither is called or exposed.
+The web auth module now exposes `forgotPassword` and `confirmForgotPassword` alongside the existing sign-in/session helpers. Implementation commit `c85a7860c706f38ab2da7998fb7ee8621e8fcfa6` is pushed and independently reviewed (`IMPLEMENTATION_CORRECT`). No Cognito configuration, backend, infrastructure, mobile, or production change occurred.
 
 The admin-initiated `resetStaffPassword` and `resetClientPassword` API functions exist for staff/client account management — these are **not** self-service forgot-password flows.
 
@@ -48,9 +48,9 @@ The admin-initiated `resetStaffPassword` and `resetClientPassword` API functions
 
 ### 2.3 Disposition
 
-- Web self-service forgot-password is a gap that should be addressed independently of this plan.
-- Mobile's implementation is the reference for future web parity.
-- This is NOT a blocking dependency for the cross-platform design-system work.
+- Web self-service forgot-password parity is locally complete, committed, pushed, and not deployed.
+- Mobile served as the behavioral reference while the web retained its platform-specific presentation.
+- Production deployment remains a separate approval gate and is not authorized by local completion.
 
 ---
 
@@ -99,7 +99,7 @@ No formal shared scale exists on either platform. Both use ad-hoc pixel/dp value
 | Workflow | Web | Mobile | Aligned | Disposition |
 |----------|-----|--------|---------|-------------|
 | Sign-in | `/admin` inline login | `LoginScreen` dedicated | ✅ Functional | Align error messages |
-| Forgot password | ❌ Missing | ✅ Complete | ❌ Gap (web) | Separate web remediation |
+| Forgot password | ✅ Locally complete / not deployed | ✅ Complete | ✅ Aligned locally | Separate web deployment gate |
 | Session refresh | Cognito SDK auto (browser) | SecureStore + pre-request refresh | ✅ Both maintain | Platform-appropriate |
 | My Pets (list) | `/my-pets` ✅ | ❌ Missing | — | **Pilot target** |
 | Pet editing | ✅ (Phase 1B.5C-A) | ❌ Missing | — | After 1B.5C-A deployment |

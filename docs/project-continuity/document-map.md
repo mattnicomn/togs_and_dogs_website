@@ -10,6 +10,7 @@
 |-------|----------|
 | Release notes index | `docs/release-notes/index.md` |
 | Individual release notes | `docs/release-notes/release-*.md` |
+| Web customer self-service password recovery (locally complete, committed, pushed, not deployed) | `docs/release-notes/release-web-customer-self-service-password-recovery.md` |
 
 ## Planning Documents
 

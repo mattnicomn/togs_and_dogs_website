@@ -48,7 +48,8 @@ CURRENT STATE SUMMARY (verify against docs/project-continuity/current-state.md):
 - Phase 24A-9C.2 paired remediation builds are COMPLETE. The current authoritative internal-validation pair is iOS `1.0.0 (6)` (EAS `7d159e13-a3a3-41ad-96ab-cd6f83a582b0`; TestFlight submission `9eeb37ff-7f89-49d2-b6ff-25f34adb993d`) and Android `1.0.0` versionCode `4` (EAS `808d1f45-2f03-423d-886c-1e4649c1d782`), both from `bf9f80d95c1846f197bab24d96463906bc26bfce`.
 - Phase 24A-9C remediation revalidation is COMPLETE / PASS. Matthew physically validated iOS; Android remediation validation passed, but the Android device type is not documented, so physical Android remains unconfirmed. Earlier user-run pet-update and care-request writes were not repeated.
 - Phase 1B.5C-A (Customer Pet Editing) is deployed and validated in production (Phase 1B.5C-D.2 baseline).
-- Next action: perform a read-only Phase 24A/backlog prioritization review before authorizing any new implementation, production-write validation, tester expansion, or public-store work. Phase 24A-9D remains separately gated.
+- Web customer self-service password recovery is locally complete, independently reviewed (`IMPLEMENTATION_CORRECT`), committed (`c85a7860c706f38ab2da7998fb7ee8621e8fcfa6`), and pushed. It is NOT DEPLOYED; production deployment remains separately gated.
+- Next safest repository action: bounded documentation-only continuity cleanup remains recommended before another production/deployment decision. The business-owner Getting Started guide remains the next ready product-documentation candidate. Phase 24A-9D remains separately gated and mostly redundant based on existing write evidence.
 
 Please read the continuity docs and confirm you understand the current state before proceeding with any recommendations.
 ```
