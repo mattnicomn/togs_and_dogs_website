@@ -161,6 +161,7 @@
 
 | Topic | Location |
 |-------|----------|
+| Business Owner Getting Started (locally complete, independently reviewed, committed and pushed, not public) | `docs/operations/business-owner-getting-started.md` |
 | Admin quick reference | `docs/operations/admin-quick-reference.md` |
 | AWS cost visibility operating guide | `docs/operations/aws-cost-visibility-operating-guide.md` |
 | Payment workflow guide | `docs/operations/payment-workflow-quick-reference.md` |

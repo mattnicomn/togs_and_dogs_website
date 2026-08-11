@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-11 (Authoritative Continuity and Backlog Reconciled)
+**Last Updated:** 2026-08-11 (Business Owner Getting Started Guide Committed and Pushed)
 
 ---
 
@@ -62,6 +62,12 @@
 ## Current Work and Latest Closeouts
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
+
+- Business Owner Getting Started Guide (✅ LOCALLY COMPLETE / KIRO `GUIDE_CORRECT` / COMMITTED / PUSHED / NOT PUBLIC — 2026-08-11)
+  - Added the repository-only onboarding and operations guide at `docs/operations/business-owner-getting-started.md` for a nondeveloper business owner, with a secondary platform-admin audience.
+  - Documents the current assisted onboarding model, tenant/role boundaries, first login, branding, staff/client/pet workflows, request/booking/job lifecycle, Calendar, notifications, sandbox-only payments, internal-only mobile distribution, practical checklists, support boundaries, and known limitations.
+  - Includes an internal self-service gap matrix and ranked top-five automation opportunities. No tenant, user, application, integration, infrastructure, production, payment, or distribution change occurred.
+  - Kiro independently reviewed the five-file documentation candidate and returned `GUIDE_CORRECT` / `READY_FOR_BUSINESS_OWNER_GUIDE_COMMIT_DECISION`. The guide is committed and pushed as repository documentation; no public publication or release is claimed.
 
 - Web Customer Self-Service Password Recovery (🔗 LOCAL IMPLEMENTATION COMPLETE / COMMITTED / PUSHED / NOT DEPLOYED / KIRO IMPLEMENTATION_CORRECT — 2026-08-11)
   - Added a web-only Forgot password flow to the existing shared login shell: request verification code, confirm code plus new password, success state, and return to sign-in.
@@ -433,11 +439,11 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
 **Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes. Release 22ZA implemented the mobile responsive foundation and accessible slide-out navigation drawer (pre-deploy validated). Release 22ZB implemented the full-screen Profile Editor mobile sheet layout (pre-deploy validated). Release 22ZC added keyboard-accessible stat cards, responsive filter controls stacking, and accessible data-label column labels on mobile request cards (pre-deploy validated). Phase 1B.2A backend-only Lambda package apply completed successfully, deploying the pet creation is_active hardening code to production. Phase 1B.2A ClientPetIndex GSI-only apply completed successfully, creating the global secondary database index in production (index backfilled and status ACTIVE). Phase 1B.2A ClientPetIndex query cutover deployed to production on 2026-07-20 (0 added, 13 changed, 0 destroyed). All 13 Lambda functions verified Active/Successful with expected CodeSha256. Matthew authenticated manual smoke PASSED (admin login, Client Management page, client drawer, admin pet list). Phase 1B.3 frontend deployed to production with /my-pets route, card-click drawer interaction, accessible cards, and mobile bottom-sheet. Hook-order hotfix applied. Matthew confirmed production works. Phase 1B.3 COMPLETE and CLOSED. Phase 1B.4A–E Client Drawer Editor Consolidation deployed to production. Matthew confirmed drawer View/Edit/Create experience works correctly, inline editor retired, Staff Management unaffected. Phase 1B.4A–E COMPLETE and CLOSED. Phase 1B.4F–H remain deferred. Phase 1B.5 (Pet Management and Client–Pet Association) is active. Phase 1B.5A and 1B.5A.1 deployed and validated (2026-07-22). Phase 1B.5B-A Staff Pet Editor and hotfixes deployed and validated (2026-07-23). Phase 1B.5C-A Customer Pet Editing deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-A.1 admin pet care field hotfix deployed and validated (2026-07-30). Phase 1B.5C-B (active staff count fix) and 1B.5C-C (staff edit double-click fix) deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-D.1 (platform-managed protected admin controls) deployed, seeded, and validated (2026-07-30). Phase 1B.5C-D.2 (remove legacy config protection) converged via D.1 deployment and validated (2026-07-30). Latest completed validated production release is Phase 1B.5C-D.2 (2026-07-30).**
 
 **Next options:**
-- Author the business-owner Getting Started guide (recommended next documentation task; ready now).
+- Perform a read-only design assessment for the guide's highest-ranked self-service gap: a gated Platform Admin tenant-onboarding orchestrator. Any implementation, tenant creation, or production write remains separately approval-gated.
 - Phase 24A-9D: Formal production-write validation (separately gated; not authorized by the completed 9C revalidation)
 - Phase 1B.5D–E: Pet Lifecycle safeguards and booking integration (deferred)
 - Address remaining Phase 1B.4F–H staff drawer alignment (deferred, low priority)
 - Begin Release 22ZD — Scheduler, Client Management, Platform Admin mobile polish (Phase 4 of 22Z plan)
 - A later explicit deployment decision is required for the independently reviewed Release 22Y Finding 2 frontend fix; Google Calendar disconnect/API Gateway remediation remains separate and unapproved.
 - Budget notification Terraform drift reconciliation (deferred, requires separate review and Matthew approval)
-- Continue SaaS maturity priorities using the reconciled backlog: Getting Started is ready; Stripe Checkout, billing dashboard, and pricing/signup remain blocked or sequenced behind EIN/product decisions; invites require product/security/Cognito design.
+- Continue SaaS maturity priorities using the guide's self-service gap matrix: begin with gated tenant-onboarding design; Stripe Checkout, billing dashboard, and pricing/signup remain blocked or sequenced behind EIN/product decisions; broader self-service invites require product/security/Cognito design.

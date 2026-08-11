@@ -28,7 +28,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 8 | Stripe subscription Checkout for new tenants | ⛔ Blocked by EIN and product/business approvals | High | EIN + pricing/payment decisions |
 | 9 | Business owner billing dashboard | ⏸ Wait for subscription semantics | Medium | #8 |
 | 10 | Pricing/signup page | ⛔ Blocked by product/pricing decision and payment direction | Medium | #8 |
-| 11 | "Getting Started" guide for business owners | ✅ Ready to author now | Low | — |
+| 11 | "Getting Started" guide for business owners | ✅ LOCALLY COMPLETE / `GUIDE_CORRECT` / COMMITTED / PUSHED / NOT PUBLIC | Low | — |
 
 ---
 
@@ -50,7 +50,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 3 | Business-owner billing dashboard | ⏸ Wait on subscription semantics | Medium |
 | 4 | Pricing/signup | ⛔ Blocked by product/pricing decision and payment direction | High |
 | 5 | Payment terms/refund policy published | ⚠️ Draft exists | Medium |
-| 6 | Business-owner Getting Started guide | ✅ Ready now | High |
+| 6 | Business-owner Getting Started guide | ✅ LOCALLY COMPLETE / `GUIDE_CORRECT` / COMMITTED / PUSHED / NOT PUBLIC | High |
 | 7 | Self-service staff/client invites | 🧭 Requires product, security, and Cognito design | Medium |
 | 8 | Ryan external testing | ⏸ Paused; requires explicit Matthew approval | Medium |
 | 9 | Apple Beta App Review outcome | ❓ UNKNOWN / NOT VERIFIED | Medium |
@@ -86,7 +86,7 @@ The internal test tenant already exists. Do not provision another tenant or trea
 5. ⛔ Product tier, pricing, signup, subscription, support, and rollback semantics are approved.
 6. ⛔ Security/Cognito design is approved for any self-service invite path.
 7. ⚠️ Billing activation remains blocked by EIN where live subscription/payment behavior is required.
-8. ✅ Deterministic Getting Started documentation can be authored before the remaining blocked product work.
+8. ✅ Deterministic Getting Started documentation is locally complete, independently reviewed (`GUIDE_CORRECT`), committed, and pushed as repository documentation; it is not publicly published.
 
 The dated update log below is historical chronology. Statements such as “strict mode remains disabled” or “no second tenant exists” were accurate at those checkpoints and are superseded by later entries.
 
@@ -181,3 +181,5 @@ The dated update log below is historical chronology. Statements such as “stric
 **Updated 2026-07-10 (22P):** Deployed the Centralized Profile Editor MVP (Release 22J) from `main` to production. Staff cards are simplified — direct risky account/security action buttons removed from card surfaces. Each card now has a Manage button that opens a centralized Profile Editor side drawer with structured sections (Profile Details, Login Identity, Tenant & Role, Account Security, Protected Account Guardrails, Danger Zone). Protected platform admin and orphaned login (USmissionhero) guardrails are enforced. The 22M production/main divergence is fully resolved. Matthew manually cleared the 2 pending cancellation records (Joey Rockwell, TestPet_ScenarioB) prior to this deployment.
 
 **Updated 2026-08-11 (Continuity reconciliation):** Removed the duplicated backlog copy and reconciled the live forward-looking state. Strict `multi` mode is active and validated; `test_tenant_alpha` already exists as an internal test tenant; corrected iOS Build 6 and Android versionCode 4 are internally distributed; Ryan remains paused; and Apple Beta App Review outcome remains unknown/not verified. The Getting Started guide is ready now. Stripe Checkout, billing dashboard, pricing/signup, self-service invites, analytics, AI onboarding, and multi-location remain incomplete under the approval and sequencing boundaries above. Web customer password recovery is locally complete, committed, and pushed, but not deployed.
+
+**Updated 2026-08-11 (Business-owner guide closeout):** The authoritative repository-only Business Owner Getting Started guide is locally complete at `docs/operations/business-owner-getting-started.md`, independently reviewed by Kiro (`GUIDE_CORRECT`), committed, and pushed. It documents the current assisted onboarding model, role and workflow boundaries, payment/mobile limitations, self-service gap matrix, and ranked automation opportunities. The guide is not publicly published. This documentation closeout does not authorize tenant/user creation, deployment, live payments, mobile distribution, or self-service onboarding.
