@@ -31,6 +31,30 @@ export const signIn = (email, password) => {
   });
 };
 
+export const forgotPassword = (email) => {
+  return new Promise((resolve, reject) => {
+    const userData = { Username: email, Pool: userPool };
+    const cognitoUser = new CognitoUser(userData);
+
+    cognitoUser.forgotPassword({
+      onSuccess: () => resolve(),
+      onFailure: (err) => reject(err)
+    });
+  });
+};
+
+export const confirmForgotPassword = (email, verificationCode, newPassword) => {
+  return new Promise((resolve, reject) => {
+    const userData = { Username: email, Pool: userPool };
+    const cognitoUser = new CognitoUser(userData);
+
+    cognitoUser.confirmPassword(verificationCode, newPassword, {
+      onSuccess: () => resolve(),
+      onFailure: (err) => reject(err)
+    });
+  });
+};
+
 export const signOut = () => {
   const cognitoUser = userPool.getCurrentUser();
   if (cognitoUser) {
@@ -77,4 +101,3 @@ export const getEffectiveRole = (session) => {
   
   return 'unknown';
 };
-

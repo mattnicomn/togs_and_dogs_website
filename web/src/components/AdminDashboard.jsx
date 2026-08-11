@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { signIn, getSession, getEffectiveRole } from '../api/auth';
+import { signIn, forgotPassword, confirmForgotPassword, getSession, getEffectiveRole } from '../api/auth';
 
 import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData, createAdminBooking, listAdminClientPets, getTenantInfo } from '../api/client';
 import * as XLSX from 'xlsx';
@@ -38,6 +38,12 @@ const AdminDashboard = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [challengeContext, setChallengeContext] = useState(null);
+  const [recoveryMode, setRecoveryMode] = useState('login');
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryCode, setRecoveryCode] = useState('');
+  const [recoveryNewPassword, setRecoveryNewPassword] = useState('');
+  const [recoveryConfirmPassword, setRecoveryConfirmPassword] = useState('');
+  const [recoverySuccess, setRecoverySuccess] = useState(false);
   const [googleStatus, setGoogleStatus] = useState(null);
   const [tenantInfo, setTenantInfo] = useState(null);
   const [staffList, setStaffList] = useState([]);
@@ -1237,6 +1243,108 @@ const AdminDashboard = () => {
 
     } catch (err) {
       setError(err.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openPasswordRecovery = () => {
+    setError(null);
+    setRecoverySuccess(false);
+    setRecoveryEmail(loginData.email);
+    setRecoveryCode('');
+    setRecoveryNewPassword('');
+    setRecoveryConfirmPassword('');
+    setRecoveryMode('request');
+  };
+
+  const returnToLogin = () => {
+    const email = recoveryEmail.trim();
+    setLoginData((current) => ({ ...current, email: email || current.email, password: '' }));
+    setError(null);
+    setRecoverySuccess(false);
+    setRecoveryCode('');
+    setRecoveryNewPassword('');
+    setRecoveryConfirmPassword('');
+    setRecoveryMode('login');
+  };
+
+  const returnToRecoveryRequest = () => {
+    setError(null);
+    setRecoverySuccess(false);
+    setRecoveryCode('');
+    setRecoveryNewPassword('');
+    setRecoveryConfirmPassword('');
+    setRecoveryMode('request');
+  };
+
+  const handleRequestPasswordReset = async (e) => {
+    e.preventDefault();
+    if (loading) return;
+
+    const normalizedEmail = recoveryEmail.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setError('Please enter your email address.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      await forgotPassword(normalizedEmail);
+      setRecoveryEmail(normalizedEmail);
+      setRecoveryMode('confirm');
+    } catch {
+      setError('Unable to send a reset code right now. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmPasswordReset = async (e) => {
+    e.preventDefault();
+    if (loading) return;
+
+    const normalizedEmail = recoveryEmail.trim().toLowerCase();
+    const normalizedCode = recoveryCode.trim();
+    if (!normalizedCode) {
+      setError('Please enter your verification code.');
+      return;
+    }
+    if (!recoveryNewPassword) {
+      setError('Please enter a new password.');
+      return;
+    }
+    if (!recoveryConfirmPassword) {
+      setError('Please confirm your new password.');
+      return;
+    }
+    if (recoveryNewPassword.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    if (recoveryNewPassword !== recoveryConfirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      await confirmForgotPassword(normalizedEmail, normalizedCode, recoveryNewPassword);
+      setRecoveryCode('');
+      setRecoveryNewPassword('');
+      setRecoveryConfirmPassword('');
+      setRecoverySuccess(true);
+    } catch (err) {
+      const recoveryError = String(err?.code || err?.message || '').toLowerCase();
+      if (recoveryError.includes('code mismatch') || recoveryError.includes('codemismatch') || recoveryError.includes('invalid verification code')) {
+        setError('Invalid verification code. Please check the code and try again.');
+      } else if (recoveryError.includes('expired')) {
+        setError('This verification code has expired. Please request a new one.');
+      } else {
+        setError('Unable to reset your password. Please check your code and try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -2997,8 +3105,9 @@ const AdminDashboard = () => {
             <p className="subtitle">For security, please create a new password before continuing.</p>
             <form onSubmit={handleCompleteNewPassword} className="premium-form">
               <div className="field">
-                <label>New Password</label>
+                <label htmlFor="challenge-new-password">New Password</label>
                 <input 
+                  id="challenge-new-password"
                   type="password" 
                   value={newPassword} 
                   onChange={(e) => setNewPassword(e.target.value)} 
@@ -3006,8 +3115,9 @@ const AdminDashboard = () => {
                 />
               </div>
               <div className="field">
-                <label>Confirm New Password</label>
+                <label htmlFor="challenge-confirm-password">Confirm New Password</label>
                 <input 
+                  id="challenge-confirm-password"
                   type="password" 
                   value={confirmPassword} 
                   onChange={(e) => setConfirmPassword(e.target.value)} 
@@ -3027,6 +3137,110 @@ const AdminDashboard = () => {
       );
     }
 
+    if (recoveryMode === 'request') {
+      return (
+        <div className="section auth-section">
+          <div className="card auth-card">
+            <h1>Forgot Password</h1>
+            <p className="subtitle auth-helper">Enter your email address and we&rsquo;ll send you a verification code.</p>
+            <form onSubmit={handleRequestPasswordReset} className="premium-form" noValidate>
+              <div className="field">
+                <label htmlFor="recovery-email">Email Address</label>
+                <input
+                  id="recovery-email"
+                  type="email"
+                  value={recoveryEmail}
+                  onChange={(e) => setRecoveryEmail(e.target.value)}
+                  autoComplete="username"
+                  inputMode="email"
+                  aria-required="true"
+                />
+              </div>
+              <button type="submit" className="button-primary" disabled={loading}>
+                {loading ? 'Sending...' : 'Send Reset Code'}
+              </button>
+              {error && <p className="auth-message auth-message--error" role="alert">{error}</p>}
+              <button type="button" onClick={returnToLogin} className="auth-link-button" disabled={loading}>
+                Back to Sign In
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    if (recoveryMode === 'confirm') {
+      return (
+        <div className="section auth-section">
+          <div className="card auth-card">
+            <h1>Enter Reset Code</h1>
+            <p className="subtitle auth-helper">Check your email for a verification code, then choose a new password.</p>
+            {recoverySuccess ? (
+              <div className="auth-success-panel">
+                <p className="auth-message auth-message--success" role="status" aria-live="polite">
+                  Password reset successfully. You can now sign in with your new password.
+                </p>
+                <button type="button" onClick={returnToLogin} className="button-primary">
+                  Back to Sign In
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleConfirmPasswordReset} className="premium-form" noValidate>
+                <div className="field">
+                  <label htmlFor="recovery-code">Verification Code</label>
+                  <input
+                    id="recovery-code"
+                    type="text"
+                    value={recoveryCode}
+                    onChange={(e) => setRecoveryCode(e.target.value)}
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                    aria-required="true"
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="recovery-new-password">New Password</label>
+                  <input
+                    id="recovery-new-password"
+                    type="password"
+                    value={recoveryNewPassword}
+                    onChange={(e) => setRecoveryNewPassword(e.target.value)}
+                    autoComplete="new-password"
+                    aria-describedby="recovery-password-requirement"
+                    aria-required="true"
+                  />
+                  <span id="recovery-password-requirement" className="auth-field-hint">At least 8 characters.</span>
+                </div>
+                <div className="field">
+                  <label htmlFor="recovery-confirm-password">Confirm New Password</label>
+                  <input
+                    id="recovery-confirm-password"
+                    type="password"
+                    value={recoveryConfirmPassword}
+                    onChange={(e) => setRecoveryConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                    aria-required="true"
+                  />
+                </div>
+                <button type="submit" className="button-primary" disabled={loading}>
+                  {loading ? 'Resetting...' : 'Reset Password'}
+                </button>
+                {error && <p className="auth-message auth-message--error" role="alert">{error}</p>}
+                <div className="auth-recovery-actions">
+                  <button type="button" onClick={returnToRecoveryRequest} className="auth-link-button" disabled={loading}>
+                    Request a New Code
+                  </button>
+                  <button type="button" onClick={returnToLogin} className="auth-link-button" disabled={loading}>
+                    Back to Sign In
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="section auth-section">
         <div className="card auth-card">
@@ -3035,8 +3249,9 @@ const AdminDashboard = () => {
           <form onSubmit={handleLogin} className="premium-form">
 
             <div className="field">
-              <label>Email Address</label>
+              <label htmlFor="login-email">Email Address</label>
               <input 
+                id="login-email"
                 type="email" 
                 value={loginData.email} 
                 onChange={(e) => setLoginData({...loginData, email: e.target.value})} 
@@ -3044,8 +3259,9 @@ const AdminDashboard = () => {
               />
             </div>
             <div className="field">
-              <label>Password</label>
+              <label htmlFor="login-password">Password</label>
               <input 
+                id="login-password"
                 type="password" 
                 value={loginData.password} 
                 onChange={(e) => setLoginData({...loginData, password: e.target.value})} 
@@ -3056,6 +3272,9 @@ const AdminDashboard = () => {
               {loading ? 'Verifying...' : 'Sign In'}
             </button>
             {error && <p className="error-text">{error}</p>}
+            <button type="button" onClick={openPasswordRecovery} className="auth-link-button" disabled={loading}>
+              Forgot password?
+            </button>
           </form>
         </div>
       </div>
