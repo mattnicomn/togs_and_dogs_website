@@ -87,6 +87,9 @@ const PlatformAdmin = () => {
           <p>Global multi-tenant platform operational controls</p>
         </div>
         <div className="platform-nav-actions">
+          <Link to="/platform-admin/onboarding" className="button-primary">
+            ➕ Onboard New Tenant (Preview)
+          </Link>
           <Link to="/platform-admin/audit" className="button-secondary">
             📋 View Platform Audit Log
           </Link>

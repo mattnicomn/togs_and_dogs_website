@@ -18,6 +18,7 @@ import PaymentCancel from './components/PaymentCancel';
 import PlatformAdmin from './components/PlatformAdmin';
 import PlatformTenantDetail from './components/PlatformTenantDetail';
 import PlatformAuditLog from './components/PlatformAuditLog';
+import PlatformAdminOnboarding from './components/PlatformAdminOnboarding';
 import usmhLogo from './assets/usmh-logo.png';
 import './App.css';
 
@@ -348,6 +349,11 @@ function AppContent() {
           <Route path="/platform-admin/audit" element={
             <PlatformAdminGuard>
               <PlatformAuditLog />
+            </PlatformAdminGuard>
+          } />
+          <Route path="/platform-admin/onboarding" element={
+            <PlatformAdminGuard>
+              <PlatformAdminOnboarding />
             </PlatformAdminGuard>
           } />
 

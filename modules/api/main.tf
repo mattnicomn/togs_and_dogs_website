@@ -67,6 +67,60 @@ resource "aws_api_gateway_resource" "platform_audit" {
   path_part   = "audit"
 }
 
+# Preview-only tenant onboarding routes. Both POST methods require the existing
+# Cognito authorizer and integrate only with the dedicated read-only Lambda.
+resource "aws_api_gateway_resource" "platform_onboarding" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.platform.id
+  path_part   = "onboarding"
+}
+
+resource "aws_api_gateway_resource" "platform_onboarding_validate" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.platform_onboarding.id
+  path_part   = "validate"
+}
+
+resource "aws_api_gateway_resource" "platform_onboarding_preview" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.platform_onboarding.id
+  path_part   = "preview"
+}
+
+resource "aws_api_gateway_method" "post_platform_onboarding_validate" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.platform_onboarding_validate.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_platform_onboarding_validate_lambda" {
+  rest_api_id             = aws_api_gateway_rest_api.main.id
+  resource_id             = aws_api_gateway_resource.platform_onboarding_validate.id
+  http_method             = aws_api_gateway_method.post_platform_onboarding_validate.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.platform_preview_handler_invoke_arn
+}
+
+resource "aws_api_gateway_method" "post_platform_onboarding_preview" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.platform_onboarding_preview.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_platform_onboarding_preview_lambda" {
+  rest_api_id             = aws_api_gateway_rest_api.main.id
+  resource_id             = aws_api_gateway_resource.platform_onboarding_preview.id
+  http_method             = aws_api_gateway_method.post_platform_onboarding_preview.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.platform_preview_handler_invoke_arn
+}
+
 # GET /platform/tenants
 resource "aws_api_gateway_method" "get_platform_tenants" {
   rest_api_id   = aws_api_gateway_rest_api.main.id
@@ -1203,7 +1257,10 @@ locals {
     "platform" : aws_api_gateway_resource.platform.id,
     "platform_tenants" : aws_api_gateway_resource.platform_tenants.id,
     "platform_tenants_id" : aws_api_gateway_resource.platform_tenants_id.id,
-    "platform_audit" : aws_api_gateway_resource.platform_audit.id
+    "platform_audit" : aws_api_gateway_resource.platform_audit.id,
+    "platform_onboarding" : aws_api_gateway_resource.platform_onboarding.id,
+    "platform_onboarding_validate" : aws_api_gateway_resource.platform_onboarding_validate.id,
+    "platform_onboarding_preview" : aws_api_gateway_resource.platform_onboarding_preview.id
   }
 
 
@@ -1342,6 +1399,8 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.get_platform_tenants_id_lambda,
     aws_api_gateway_integration.patch_platform_tenants_id_lambda,
     aws_api_gateway_integration.get_platform_audit_lambda,
+    aws_api_gateway_integration.post_platform_onboarding_validate_lambda,
+    aws_api_gateway_integration.post_platform_onboarding_preview_lambda,
     aws_api_gateway_integration.post_admin_staff_resend_lambda,
     aws_api_gateway_integration.post_admin_staff_reset_lambda,
     aws_api_gateway_integration.post_admin_staff_temp_pw_lambda
@@ -1426,7 +1485,14 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_method.patch_platform_tenants_id,
       aws_api_gateway_integration.patch_platform_tenants_id_lambda,
       aws_api_gateway_method.get_platform_audit,
-      aws_api_gateway_integration.get_platform_audit_lambda
+      aws_api_gateway_integration.get_platform_audit_lambda,
+      aws_api_gateway_resource.platform_onboarding,
+      aws_api_gateway_resource.platform_onboarding_validate,
+      aws_api_gateway_resource.platform_onboarding_preview,
+      aws_api_gateway_method.post_platform_onboarding_validate,
+      aws_api_gateway_integration.post_platform_onboarding_validate_lambda,
+      aws_api_gateway_method.post_platform_onboarding_preview,
+      aws_api_gateway_integration.post_platform_onboarding_preview_lambda
     ]))
   }
 
@@ -1553,4 +1619,3 @@ resource "aws_api_gateway_integration" "post_admin_send_payment_email_lambda" {
   type                    = "AWS_PROXY"
   uri                     = var.admin_handler_invoke_arn
 }
-

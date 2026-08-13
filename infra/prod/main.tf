@@ -533,6 +533,7 @@ module "api" {
   stripe_webhook_handler_invoke_arn   = aws_lambda_function.stripe_webhook.invoke_arn
   device_handler_invoke_arn           = aws_lambda_function.device.invoke_arn
   platform_handler_invoke_arn         = aws_lambda_function.platform.invoke_arn
+  platform_preview_handler_invoke_arn = aws_lambda_function.platform_preview.invoke_arn
   tags                                = local.common_tags
 }
 

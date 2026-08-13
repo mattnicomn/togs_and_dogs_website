@@ -20,3 +20,20 @@ export const updatePlatformTenant = (companyId, data) => request(`/platform/tena
  * Fetch platform-wide audit log events (up to 50, pagination supported).
  */
 export const getPlatformAudit = () => request('/platform/audit', 'GET', null, true);
+
+/**
+ * Validate onboarding fields for a proposed new tenant.
+ * Returns { valid, errors, warnings, validated_fields, no_writes }.
+ * Never writes to the database.
+ */
+export const validateOnboardingTenant = (data) =>
+  request('/platform/onboarding/validate', 'POST', data, true);
+
+/**
+ * Generate a full preview of the proposed tenant provisioning.
+ * Returns proposed_metadata, proposed_audit, tier_limits, approval_checklist,
+ * preview_hash, and no_writes: true.
+ * Never writes to the database.
+ */
+export const previewOnboardingTenant = (data) =>
+  request('/platform/onboarding/preview', 'POST', data, true);

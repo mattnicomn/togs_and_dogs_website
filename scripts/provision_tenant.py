@@ -30,58 +30,35 @@ GUARDRAILS:
 
 import argparse
 import json
+from pathlib import Path
 import sys
 import uuid
 from datetime import datetime, timezone
 
-# ---------------------------------------------------------------------------
-# Tier limit definitions (mirrors billing.py — no import to keep script standalone)
-# ---------------------------------------------------------------------------
-TIER_LIMITS = {
-    'starter': {
-        'max_active_clients': 20,
-        'max_staff': 1,
-        'max_monthly_notifications': 100,
-        'max_monthly_bookings': 50,
-        'google_calendar_enabled': False,
-        'export_enabled': False,
-        'custom_branding_enabled': False,
-        'video_evidence_enabled': False,
-    },
-    'professional': {
-        'max_active_clients': 100,
-        'max_staff': 5,
-        'max_monthly_notifications': 500,
-        'max_monthly_bookings': 250,
-        'google_calendar_enabled': True,
-        'export_enabled': True,
-        'custom_branding_enabled': False,
-        'video_evidence_enabled': False,
-    },
-    'premium': {
-        'max_active_clients': 500,
-        'max_staff': 15,
-        'max_monthly_notifications': 2000,
-        'max_monthly_bookings': 1000,
-        'google_calendar_enabled': True,
-        'export_enabled': True,
-        'custom_branding_enabled': True,
-        'video_evidence_enabled': True,
-    },
-    'enterprise': {
-        'max_active_clients': 999999,
-        'max_staff': 999999,
-        'max_monthly_notifications': 999999,
-        'max_monthly_bookings': 999999,
-        'google_calendar_enabled': True,
-        'export_enabled': True,
-        'custom_branding_enabled': True,
-        'video_evidence_enabled': True,
-    },
-}
+# Make the shared backend domain importable when this file is executed directly.
+BACKEND_SRC = Path(__file__).resolve().parents[1] / 'src' / 'backend'
+if str(BACKEND_SRC) not in sys.path:
+    sys.path.insert(0, str(BACKEND_SRC))
 
-VALID_TIERS = set(TIER_LIMITS.keys())
-VALID_STATUSES = {'active', 'trialing', 'past_due', 'canceled', 'paused', 'disabled'}
+from common.tenant_catalog import (  # noqa: E402
+    VALID_STATUSES,
+    VALID_TIERS,
+    get_all_tier_limits,
+)
+from common.tenant_provisioning import (  # noqa: E402
+    ProvisioningValidationError,
+    build_proposed_audit,
+    build_proposed_metadata,
+    validate_company_id,
+    validate_display_name,
+    validate_notes,
+    validate_status,
+    validate_tier,
+)
+
+# Backwards-compatible public symbol for existing tests/importers. This is a
+# detached copy, so mutations cannot change the canonical catalog.
+TIER_LIMITS = get_all_tier_limits()
 
 
 # ---------------------------------------------------------------------------
@@ -97,30 +74,16 @@ def build_tenant_metadata(company_id, display_name, tier='starter',
     Payment keys, OAuth tokens, and Stripe secrets are intentionally excluded.
     """
     now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-    limits = TIER_LIMITS.get(tier, TIER_LIMITS['starter'])
-    return {
-        'PK': f'TENANT#{company_id}',
-        'SK': 'METADATA',
-        'company_id': company_id,
-        'display_name': display_name,
-        'entity_type': 'TENANT',
-        'subscription_tier': tier,
-        'subscription_status': status,
-        'limits': limits,
-        'is_active': True,
-        'notes': notes or f'Provisioned via provision_tenant.py on {now}',
-        'created_at': now,
-        'updated_at': now,
-        'created_by': actor,
-        'updated_by': actor,
-        # The following fields are intentionally omitted from provisioning:
-        # - stripe_customer_id       (set by Stripe webhook)
-        # - stripe_subscription_id   (set by Stripe webhook)
-        # - owner_email              (sensitive — set manually or via Cognito)
-        # - owner_cognito_sub        (sensitive — set after Cognito user creation)
-        # - notification_email_from  (set per-tenant via platform admin)
-        # - google_calendar_*        (set after Google auth flow)
-    }
+    return build_proposed_metadata(
+        company_id=company_id,
+        display_name=display_name,
+        tier=tier,
+        status=status,
+        notes=notes,
+        actor=actor,
+        now_iso=now,
+        default_notes=f'Provisioned via provision_tenant.py on {now}',
+    )
 
 
 def build_audit_record(company_id, metadata, actor):
@@ -133,25 +96,13 @@ def build_audit_record(company_id, metadata, actor):
     exists) prevents duplicate metadata writes; duplicate audit records are benign.
     """
     now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-    audit_id = str(uuid.uuid4())
-    return {
-        'PK': 'PLATFORM_AUDIT',
-        'SK': f'ACTION#{now}#{audit_id}',
-        'entity_type': 'PLATFORM_AUDIT',
-        'action': 'PROVISION_TENANT',
-        'target_company_id': company_id,
-        'changed_fields': ['company_id', 'display_name', 'subscription_tier',
-                           'subscription_status', 'limits', 'notes'],
-        'old_values': {},
-        'new_values': {
-            'company_id': company_id,
-            'display_name': metadata['display_name'],
-            'subscription_tier': metadata['subscription_tier'],
-            'subscription_status': metadata['subscription_status'],
-        },
-        'actor': actor,
-        'timestamp': now,
-    }
+    return build_proposed_audit(
+        company_id=company_id,
+        proposed_metadata=metadata,
+        actor=actor,
+        audit_id=str(uuid.uuid4()),
+        now_iso=now,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -407,15 +358,14 @@ def main():
 
     args = parser.parse_args()
 
-    # Validate company_id format
-    import re
-    if not re.match(r'^[a-z0-9_]{3,64}$', args.company_id):
-        print("ERROR: company_id must be 3–64 characters, lowercase letters, digits, and underscores only.")
-        sys.exit(1)
-
-    # Prevent overwriting the production tenant
-    if args.company_id == 'tog_and_dogs':
-        print("ERROR: Cannot provision using reserved company_id 'tog_and_dogs' (existing production tenant).")
+    try:
+        args.company_id = validate_company_id(args.company_id)
+        args.display_name = validate_display_name(args.display_name)
+        args.tier = validate_tier(args.tier)
+        args.status = validate_status(args.status)
+        args.notes = validate_notes(args.notes)
+    except ProvisioningValidationError as exc:
+        print(f"ERROR: {exc.message}")
         sys.exit(1)
 
     if args.apply:

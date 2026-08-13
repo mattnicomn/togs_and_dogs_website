@@ -19,59 +19,33 @@ import os
 import time
 from datetime import datetime, timezone
 
+from common.tenant_catalog import (
+    ALLOWED_STATUSES as CATALOG_ALLOWED_STATUSES,
+    BLOCKED_STATUSES as CATALOG_BLOCKED_STATUSES,
+    get_all_tier_limits,
+)
+
 
 # ---------------------------------------------------------------------------
 # Tier Limits Configuration
 # ---------------------------------------------------------------------------
 
-TIER_LIMITS = {
-    'starter': {
-        'max_active_clients': 20,
-        'max_staff': 1,
-        'max_monthly_notifications': 100,
-        'max_monthly_bookings': 50,
-        'google_calendar_enabled': False,
-        'export_enabled': False,
-        'custom_branding_enabled': False,
-        'video_evidence_enabled': False,
-    },
-    'professional': {
-        'max_active_clients': 100,
-        'max_staff': 5,
-        'max_monthly_notifications': 500,
-        'max_monthly_bookings': 250,
-        'google_calendar_enabled': True,
-        'export_enabled': True,
-        'custom_branding_enabled': False,
-        'video_evidence_enabled': False,
-    },
-    'premium': {
-        'max_active_clients': 500,
-        'max_staff': 15,
-        'max_monthly_notifications': 2000,
-        'max_monthly_bookings': 1000,
-        'google_calendar_enabled': True,
-        'export_enabled': True,
-        'custom_branding_enabled': True,
-        'video_evidence_enabled': True,
-    },
-    'enterprise': {
-        'max_active_clients': 999999,
-        'max_staff': 999999,
-        'max_monthly_notifications': 999999,
-        'max_monthly_bookings': 999999,
-        'google_calendar_enabled': True,
-        'export_enabled': True,
-        'custom_branding_enabled': True,
-        'video_evidence_enabled': True,
-    },
-}
+# Preserve the long-standing public symbol while sourcing it from the canonical
+# catalog. The accessor returns a deep copy, so callers cannot mutate catalog
+# state through billing.TIER_LIMITS.
+TIER_LIMITS = get_all_tier_limits()
 
 # Statuses that allow full access
-ALLOWED_STATUSES = ('active', 'trialing')
+ALLOWED_STATUSES = tuple(
+    status for status in ('active', 'trialing')
+    if status in CATALOG_ALLOWED_STATUSES
+)
 
 # Statuses that block access entirely
-BLOCKED_STATUSES = ('canceled', 'paused', 'disabled')
+BLOCKED_STATUSES = tuple(
+    status for status in ('canceled', 'paused', 'disabled')
+    if status in CATALOG_BLOCKED_STATUSES
+)
 
 # Grace period duration in seconds (7 days)
 GRACE_PERIOD_SECONDS = 7 * 24 * 60 * 60

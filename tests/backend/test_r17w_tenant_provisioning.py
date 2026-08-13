@@ -28,6 +28,7 @@ from io import StringIO
 # Add scripts directory to path for import
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
 import provision_tenant as pt
+from common.tenant_catalog import get_all_tier_limits
 
 
 # ---------------------------------------------------------------------------
@@ -35,6 +36,9 @@ import provision_tenant as pt
 # ---------------------------------------------------------------------------
 
 class TestBuildTenantMetadata:
+
+    def test_cli_catalog_matches_shared_canonical_catalog(self):
+        assert pt.TIER_LIMITS == get_all_tier_limits()
 
     def test_required_fields_present(self):
         meta = pt.build_tenant_metadata(
@@ -120,6 +124,10 @@ class TestBuildTenantMetadata:
     def test_display_name_in_metadata(self):
         meta = pt.build_tenant_metadata('acme_pets', 'Acme Pet Sitting')
         assert meta['display_name'] == 'Acme Pet Sitting'
+
+    def test_default_notes_preserve_legacy_cli_text(self):
+        meta = pt.build_tenant_metadata('acme_pets', 'Acme Pet Sitting')
+        assert meta['notes'].startswith('Provisioned via provision_tenant.py on ')
 
 
 # ---------------------------------------------------------------------------

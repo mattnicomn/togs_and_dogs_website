@@ -77,3 +77,7 @@ variable "platform_handler_invoke_arn" {
   type        = string
 }
 
+variable "platform_preview_handler_invoke_arn" {
+  description = "Invocation ARN for the read-only Platform onboarding preview handler"
+  type        = string
+}
