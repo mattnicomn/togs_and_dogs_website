@@ -63,6 +63,15 @@ variable "postmark_webhook_secret" {
   default     = ""
 }
 
+# --- Cognito Custom Email Sender + Postmark ---
+
+variable "cognito_email_sender_package_path" {
+  type        = string
+  description = "Optional local path to the isolated Cognito Custom Email Sender Lambda zip. Build with scripts/build_cognito_email_sender_package.py before planning or applying."
+  default     = null
+  nullable    = true
+}
+
 # --- Release 12I: Stripe sandbox route and secret wiring ---
 
 variable "stripe_secret_key" {

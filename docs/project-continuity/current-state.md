@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-15 (Password Recovery Cognito E2E Pass / Email Provider Decision Recorded)
+**Last Updated:** 2026-08-15 (Cognito Custom Email Sender + Postmark Local Implementation / Not Deployed)
 
 ---
 
@@ -63,6 +63,13 @@
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
 
+- Cognito Custom Email Sender + Postmark (✅ LOCAL IMPLEMENTATION COMPLETE / NOT DEPLOYED — 2026-08-15)
+  - Added an isolated dedicated Lambda package, pinned AWS Encryption SDK dependencies, customer-managed symmetric KMS key/alias, least-privilege role, scoped Cognito invoke permission, and auth-module Custom Email Sender configuration.
+  - Supports only `CustomEmailSender_ForgotPassword`; all other triggers fail closed without delivery. Branded Postmark delivery uses `Togs & Dogs <support@usmissionhero.com>`, reply-to `support@usmissionhero.com`, and message stream `outbound`.
+  - Validation: 27/27 focused, 216/216 stable notification regression, and 862 passed / 97 unchanged baseline failures in the full backend suite versus 835 passed / the same 97 failures at archived clean HEAD. Two package builds were byte-identical; Terraform format and validate pass.
+  - No Terraform plan/apply, Cognito change, KMS grant, Postmark email, password reset, deployment, or production write occurred. Existing generic Cognito email remains active until a separately reviewed and explicitly approved deployment.
+  - See: `docs/release-notes/release-cognito-custom-email-sender-postmark.md`
+
 - Preview-Only V1 Platform Admin Tenant-Onboarding Orchestrator (✅ COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-11)
   - Platform Admin validation and preview APIs with technically enforced read-only Lambda IAM.
   - Provides tenant-input validation, existence/conflict checks, metadata preview, tier-limit preview, audit preview, hash/expiry, and downstream checklist.
@@ -83,7 +90,7 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - No backend, Lambda, Terraform, or API Gateway deployment.
   - Safe production smoke: login loads, Forgot Password visible, recovery UI opens, local validation works, Back to Sign In works. No browser errors.
   - Matthew manually validated end-to-end Cognito recovery: forgot-password request succeeded, verification email arrived, code accepted, password changed, subsequent login succeeded. Disposition: PASSWORD_RECOVERY_COGNITO_E2E_PASS.
-  - Remaining UX improvement: Cognito default verification email is generic and unbranded. Branded password-recovery email via Postmark Custom Email Sender is planned but not implemented.
+  - Remaining production UX improvement: Cognito default verification email remains generic and unbranded. The branded Postmark Custom Email Sender is locally implemented but not deployed.
   - See: `docs/release-notes/release-web-customer-self-service-password-recovery.md`
 
 - Phase 24A-9C.2 / Phase 24A-9C: Paired Remediation Builds and Revalidation (✅ PAIRED REMEDIATION BUILDS COMPLETE / REMEDIATION REVALIDATION COMPLETE / PASS — 2026-08-10)

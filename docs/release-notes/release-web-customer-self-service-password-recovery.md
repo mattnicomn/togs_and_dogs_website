@@ -95,8 +95,8 @@ Matthew manually validated the complete password recovery flow against the live 
 
 **Disposition:** PASSWORD_RECOVERY_COGNITO_E2E_PASS
 
-### Remaining UX Improvement
+### Branded Email Follow-Up
 
-The Cognito-generated verification email is functionally correct but generically branded (sent from `no-reply@verificationemail.com` with minimal context). A branded password-recovery email using Cognito Custom Email Sender + Postmark delivery is planned but not yet implemented.
+The Cognito-generated verification email is functionally correct but generically branded (sent from `no-reply@verificationemail.com` with minimal context).
 
-**Next implementation:** Cognito Custom Email Sender Lambda + KMS + Postmark — PLANNED / NOT IMPLEMENTED / NOT DEPLOYED.
+The isolated Cognito Custom Email Sender Lambda + KMS + Postmark candidate is now **LOCAL IMPLEMENTATION COMPLETE / NOT DEPLOYED**. Production still uses the Cognito default email until a separately reviewed and explicitly approved Terraform deployment. See `release-cognito-custom-email-sender-postmark.md`.

@@ -15,6 +15,35 @@ resource "aws_cognito_user_pool" "admin" {
     require_uppercase = true
   }
 
+  dynamic "lambda_config" {
+    for_each = (
+      var.custom_email_sender_lambda_arn != null &&
+      var.custom_email_sender_kms_key_arn != null
+    ) ? [true] : []
+
+    content {
+      kms_key_id = var.custom_email_sender_kms_key_arn
+
+      custom_email_sender {
+        lambda_arn     = var.custom_email_sender_lambda_arn
+        lambda_version = "V1_0"
+      }
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition = (
+        var.custom_email_sender_lambda_arn == null &&
+        var.custom_email_sender_kms_key_arn == null
+        ) || (
+        var.custom_email_sender_lambda_arn != null &&
+        var.custom_email_sender_kms_key_arn != null
+      )
+      error_message = "Custom Email Sender Lambda and KMS key ARNs must be configured together."
+    }
+  }
+
   schema {
     name                = "company_id"
     attribute_data_type = "String"
@@ -101,6 +130,5 @@ resource "aws_cognito_user_group" "platform_admin" {
   user_pool_id = aws_cognito_user_pool.admin.id
   description  = "Platform Administrator group for global management console access"
 }
-
 
 

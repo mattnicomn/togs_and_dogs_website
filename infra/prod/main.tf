@@ -3,9 +3,11 @@
 # ------------------------------------------------------------------------------
 
 module "auth" {
-  source      = "../../modules/auth"
-  name_prefix = local.name_prefix
-  tags        = local.common_tags
+  source                          = "../../modules/auth"
+  name_prefix                     = local.name_prefix
+  custom_email_sender_lambda_arn  = aws_lambda_function.cognito_email_sender.arn
+  custom_email_sender_kms_key_arn = aws_kms_key.cognito_email_sender.arn
+  tags                            = local.common_tags
 }
 
 module "secrets" {

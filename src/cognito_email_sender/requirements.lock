@@ -1,0 +1,15 @@
+# Deployment dependencies for the Python 3.11 / x86_64 Lambda package.
+# Regenerate and revalidate these pins deliberately; do not install into src/backend.
+aws-encryption-sdk==4.0.6
+attrs==26.1.0
+boto3==1.43.72
+botocore==1.43.72
+cffi==2.1.1
+cryptography==50.0.0
+jmespath==1.1.0
+pycparser==3.0
+python-dateutil==2.9.0.post0
+s3transfer==0.19.2
+six==1.17.0
+urllib3==2.7.0
+wrapt==2.3.0
