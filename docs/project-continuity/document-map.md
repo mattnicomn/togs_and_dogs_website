@@ -10,7 +10,7 @@
 |-------|----------|
 | Release notes index | `docs/release-notes/index.md` |
 | Individual release notes | `docs/release-notes/release-*.md` |
-| Web customer self-service password recovery (locally complete, committed, pushed, not deployed) | `docs/release-notes/release-web-customer-self-service-password-recovery.md` |
+| Web customer self-service password recovery (production deployed, Cognito E2E pass) | `docs/release-notes/release-web-customer-self-service-password-recovery.md` |
 | Preview V1 tenant onboarding orchestrator | `docs/release-notes/release-platform-admin-tenant-onboarding-preview-v1.md` |
 
 ## Planning Documents

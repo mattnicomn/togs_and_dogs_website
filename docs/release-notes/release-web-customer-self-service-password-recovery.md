@@ -2,12 +2,13 @@
 
 ## 1. Status
 
-- **Status:** ✅ **PRODUCTION FRONTEND DEPLOYED / SAFE SMOKE PASS / COGNITO E2E VALIDATION PENDING**
+- **Status:** ✅ **PRODUCTION FRONTEND DEPLOYED / SAFE SMOKE PASS / COGNITO E2E PASS**
 - **Date:** 2026-08-15
 - **Implementation commit:** `c85a7860c706f38ab2da7998fb7ee8621e8fcfa6`
 - **Independent review:** Kiro `IMPLEMENTATION_CORRECT` / `READY_FOR_WEB_FORGOT_PASSWORD_COMMIT_DECISION`
 - **V2 RC commit:** `4c7975d3bf9cd0ed84b0348015197034b9127dba`
 - **Independent pre-deployment review:** PASS (146/146 tests, build PASS)
+- **Cognito E2E:** PASSWORD_RECOVERY_COGNITO_E2E_PASS (Matthew manual validation)
 
 This bounded web-only release closes the customer self-service forgot-password parity gap without changing Cognito configuration, backend behavior, infrastructure, mobile code, or production systems.
 
@@ -80,9 +81,22 @@ Kiro independently reproduced the candidate and returned `IMPLEMENTATION_CORRECT
 
 Restore previous assets `index-Cbij9TXy.js` + `index-B_Bar5e4.css` to S3 and issue a new CloudFront invalidation.
 
-### Next Gate
+### Cognito E2E Validation
 
-Controlled Cognito end-to-end validation requires separate Matthew approval. This will:
-- Send a real Cognito verification code/message to a test account
-- Change the test account password
-- Validate the complete recovery flow against the live user pool
+Matthew manually validated the complete password recovery flow against the live user pool:
+
+| Step | Result |
+|------|--------|
+| Forgot Password request | ✅ Succeeded |
+| Cognito verification email | ✅ Received |
+| Verification code entry | ✅ Accepted |
+| New password set | ✅ Succeeded |
+| Subsequent login | ✅ Succeeded |
+
+**Disposition:** PASSWORD_RECOVERY_COGNITO_E2E_PASS
+
+### Remaining UX Improvement
+
+The Cognito-generated verification email is functionally correct but generically branded (sent from `no-reply@verificationemail.com` with minimal context). A branded password-recovery email using Cognito Custom Email Sender + Postmark delivery is planned but not yet implemented.
+
+**Next implementation:** Cognito Custom Email Sender Lambda + KMS + Postmark — PLANNED / NOT IMPLEMENTED / NOT DEPLOYED.

@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-15 (Web Customer Self-Service Password Recovery Production Frontend Deployed)
+**Last Updated:** 2026-08-15 (Password Recovery Cognito E2E Pass / Email Provider Decision Recorded)
 
 ---
 
@@ -13,7 +13,7 @@
 | API Gateway | ✅ Active — staff reset-password and set-temp-password routes added (22C) |
 | DynamoDB | ✅ Single table, shared-tenant model |
 | Google Calendar | ✅ One configured Google provider connection for `tog_and_dogs`; token storage/resolution is tenant-scoped (21H). `test_tenant_alpha` remains provider `none` / `not_configured`; independent providers for multiple tenants are not claimed. |
-| Postmark email | ✅ Active (notifications, payment emails) |
+| Postmark email | ✅ Active (notifications, payment emails); approved production transactional email provider |
 
 ## Mobile / TestFlight
 
@@ -76,13 +76,14 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - Includes an internal self-service gap matrix and ranked top-five automation opportunities. No tenant, user, application, integration, infrastructure, production, payment, or distribution change occurred.
   - Kiro independently reviewed the five-file documentation candidate and returned `GUIDE_CORRECT` / `READY_FOR_BUSINESS_OWNER_GUIDE_COMMIT_DECISION`. The guide is committed and pushed as repository documentation; no public publication or release is claimed.
 
-- Web Customer Self-Service Password Recovery (✅ PRODUCTION FRONTEND DEPLOYED / SAFE SMOKE PASS / COGNITO E2E PENDING — 2026-08-15)
+- Web Customer Self-Service Password Recovery (✅ PRODUCTION FRONTEND DEPLOYED / SAFE SMOKE PASS / COGNITO E2E PASS — 2026-08-15)
   - Deployed isolated V2 RC `4c7975d` onto production baseline `ed7a01f`.
   - Frontend-only: S3 sync + CloudFront invalidation `I3RWSM6SQK81OWOK1SR22J3PDE` (Completed).
   - Live assets: `index-BtB1oa0E.js`, `index-BroXJAxV.css`.
   - No backend, Lambda, Terraform, or API Gateway deployment.
   - Safe production smoke: login loads, Forgot Password visible, recovery UI opens, local validation works, Back to Sign In works. No browser errors.
-  - End-to-end Cognito recovery validation NOT yet performed (no verification message sent, no password changed). Requires separate Matthew approval.
+  - Matthew manually validated end-to-end Cognito recovery: forgot-password request succeeded, verification email arrived, code accepted, password changed, subsequent login succeeded. Disposition: PASSWORD_RECOVERY_COGNITO_E2E_PASS.
+  - Remaining UX improvement: Cognito default verification email is generic and unbranded. Branded password-recovery email via Postmark Custom Email Sender is planned but not implemented.
   - See: `docs/release-notes/release-web-customer-self-service-password-recovery.md`
 
 - Phase 24A-9C.2 / Phase 24A-9C: Paired Remediation Builds and Revalidation (✅ PAIRED REMEDIATION BUILDS COMPLETE / REMEDIATION REVALIDATION COMPLETE / PASS — 2026-08-10)

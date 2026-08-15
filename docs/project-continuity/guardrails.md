@@ -56,6 +56,15 @@
 - ❌ No password resets without approval
 - ❌ No Cognito pool schema changes without approval
 
+## Email Provider
+
+- ✅ Postmark is the approved production transactional email provider
+- ❌ AWS SES production sending was NOT approved (sandbox-only); do not pursue SES production access without explicit Matthew approval
+- ❌ Do not switch Cognito or application notifications to SES
+- ❌ Never expose Postmark tokens, Secrets Manager values, or API keys
+- ✅ For Cognito-originated email, the approved architecture is: Cognito → Custom Email Sender Lambda → Postmark
+- ✅ Existing sender identity: `support@usmissionhero.com` (verified in Postmark)
+
 ## Plan/Apply Separation
 
 - ✅ Always `terraform plan` first, report output, wait for approval

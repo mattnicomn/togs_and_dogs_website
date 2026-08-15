@@ -66,6 +66,18 @@ When AG becomes available again, return to the normal operating model.
   explicit Matthew approval.
 - Preserve the saved Phase 1B.5C-A plan unless Matthew explicitly approves replacing it.
 
+## Email Provider Guardrail
+
+- Postmark is the approved production transactional email provider.
+- AWS SES production sending was NOT approved (sandbox-only); do not pursue
+  SES production access without explicit Matthew reversal.
+- Do not switch Cognito or application notifications to SES.
+- For Cognito-originated email (password reset), the approved architecture is:
+  Cognito → Custom Email Sender Lambda → Postmark delivery.
+- Never expose Postmark tokens or Secrets Manager values.
+- Existing verified Postmark sender: `support@usmissionhero.com`.
+- Existing Postmark message stream: `outbound`.
+
 ## Task Completion Protocol
 
 Before ending any bounded task, update continuity documentation when the
