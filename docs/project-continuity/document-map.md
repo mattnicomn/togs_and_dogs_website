@@ -139,6 +139,7 @@
 | AWS budget coverage and cost visibility dashboard | `docs/planning/phase-23b-aws-budget-coverage-and-cost-visibility-dashboard.md` |
 | Phase 23B Step 1 budget coverage verification | `docs/release-notes/phase-23b-step-1-budget-coverage-verification.md` |
 | Cross-platform design system and mobile alignment | `docs/planning/phase-24a-cross-platform-design-system-and-mobile-workflow-alignment.md` |
+| Ryan cross-platform services, scheduling & workflow alignment | `docs/planning/ryan-cross-platform-services-scheduling-workflow-alignment.md` |
 | Phase 24A-1A shared token contract | `docs/release-notes/phase-24a-1a-shared-token-contract.md` |
 | Phase 24A-1B platform token adapters | `docs/release-notes/phase-24a-1b-platform-token-adapters.md` |
 | Phase 24A-2 shared constants and contracts | `docs/release-notes/phase-24a-2-shared-constants-and-contracts.md` |

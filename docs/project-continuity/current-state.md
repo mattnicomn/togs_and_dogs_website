@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-15 (Cognito Custom Email Sender + Postmark Local Implementation / Not Deployed)
+**Last Updated:** 2026-08-15 (Ryan Cross-Platform Field Feedback Captured / Implementation Not Started)
 
 ---
 
@@ -69,6 +69,18 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - Validation: 27/27 focused, 216/216 stable notification regression, and 862 passed / 97 unchanged baseline failures in the full backend suite versus 835 passed / the same 97 failures at archived clean HEAD. Two package builds were byte-identical; Terraform format and validate pass.
   - No Terraform plan/apply, Cognito change, KMS grant, Postmark email, password reset, deployment, or production write occurred. Existing generic Cognito email remains active until a separately reviewed and explicitly approved deployment.
   - See: `docs/release-notes/release-cognito-custom-email-sender-postmark.md`
+
+- Ryan Cross-Platform Services, Scheduling & Workflow Alignment (📋 ASSESSMENT COMPLETE / FIELD FEEDBACK CAPTURED / IMPLEMENTATION NOT STARTED — 2026-08-15)
+  - Ryan completed an operational platform review confirming target service model: 20-Minute Walk, Check-In (30 min, 1–3 visits/day selectable), and Overnight.
+  - Time windows confirmed: Morning (06:30–09:30), Mid-day (10:30–15:30), Evening (18:00–21:30).
+  - Check-In visits-per-day: 1/day = choose one window; 2/day = choose two distinct windows; 3/day = all three windows.
+  - Mobile dashboard cards should be tappable with navigation to their corresponding operational areas.
+  - Workflow direction: one obvious primary next action per phase; preserve RBAC/review/payment/safety gates.
+  - Cross-platform alignment rule established: service IDs, labels, durations, statuses, validations, and scheduling semantics must remain aligned across web/mobile/shared-contracts/backend/calendar.
+  - Unresolved business decisions: Check-In 1-visit and 3-visit pricing, exact Overnight hours, Walk window rules, legacy service retirement timeline.
+  - Proposed implementation order: A (contract) → B (backend) → C+D (web/mobile) → E (workflow) → F (public site).
+  - No application, shared-contract, backend, mobile, frontend, infrastructure, or production change occurred.
+  - See: `docs/planning/ryan-cross-platform-services-scheduling-workflow-alignment.md`
 
 - Preview-Only V1 Platform Admin Tenant-Onboarding Orchestrator (✅ COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-11)
   - Platform Admin validation and preview APIs with technically enforced read-only Lambda IAM.

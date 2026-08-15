@@ -78,3 +78,12 @@
 - ❌ Do not send emails to real clients during testing
 - ❌ Do not create bookings that trigger notifications unless client email is omitted
 - ✅ Use test data with no email address to prevent notification delivery
+
+## Cross-Platform Service & Workflow Alignment
+
+- ✅ Any operational service or workflow change must be assessed across: Web, Mobile, Shared contracts, Backend, Calendar/scheduling, and Notifications
+- ✅ Shared contracts (`shared/constants/`) are the canonical source of truth for service IDs, labels, durations, visit rules, and time windows
+- ❌ Do not create platform-specific duplicate service definitions (web-only or mobile-only service IDs)
+- ✅ Service IDs, labels, durations, statuses, validations, time-window definitions, and scheduling semantics must remain aligned across all platforms
+- ✅ Operational screens should expose one obvious primary next action where safe
+- ❌ Do not bypass RBAC, required human review, payment gates, cancellation confirmations, or tenant isolation for workflow convenience

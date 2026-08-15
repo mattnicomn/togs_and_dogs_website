@@ -159,3 +159,18 @@ has materially changed. Leave a resume block containing:
 - Saved Terraform plan exists and has not been applied.
 - No new work may alter, replace, or combine with that saved plan.
 - Kiro re-review is complete. Deployment preparation awaits Matthew approval.
+
+### Cross-Platform Services, Scheduling & Workflow Alignment
+
+- Ryan operational field-feedback assessment complete (2026-08-15).
+- Target services: 20-Minute Walk, Check-In (30 min, 1–3 visits/day), Overnight.
+- Time windows: Morning (06:30–09:30), Mid-day (10:30–15:30), Evening (18:00–21:30).
+- Operational business rules must remain aligned across web, mobile, shared
+  contracts, backend, calendar, and notifications.
+- Shared contracts (`shared/constants/`) are the preferred source of truth.
+- Do not create one-platform-only service definitions.
+- Expose one obvious primary next action per workflow phase where safe.
+- Preserve RBAC, review, payment, and tenant safety gates.
+- Open decisions: Check-In 1/3-visit pricing, Overnight hours, Walk window rules.
+- Next recommended slice: Slice A — Canonical service/time-window contract update.
+- No implementation has started. Deployment remains separately gated.

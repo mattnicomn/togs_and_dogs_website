@@ -58,6 +58,53 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 11 | AI-assisted onboarding | ❌ Not started; follow deterministic onboarding | Low |
 | 12 | Video visit evidence | ❌ Not started | Low |
 | 13 | Multi-location support | ❌ Not started | Future |
+| 14 | Cross-platform services, scheduling & workflow alignment | 📋 Assessment complete / field feedback captured / implementation not started | High |
+
+---
+
+## Cross-Platform Services, Scheduling & Workflow Alignment
+
+**Source:** Ryan operational platform review (2026-08-15)
+**Status:** Assessment Complete / Implementation Not Started
+
+### Target Service Model
+
+| Service | Duration | Visits/Day | Notes |
+|---------|----------|-----------|-------|
+| 20-Minute Walk | 20 min | — | Replaces legacy 30-min walk for new bookings |
+| Check-In | 30 min | 1, 2, or 3 | Selectable visits per day |
+| Overnight | TBD | — | Separate scheduling model; hours require Ryan clarification |
+
+### Time Windows
+
+| ID | Label | Hours |
+|----|-------|-------|
+| MORNING | Morning | 06:30–09:30 |
+| MIDDAY | Mid-day | 10:30–15:30 |
+| EVENING | Evening | 18:00–21:30 |
+
+### Implementation Slices
+
+| Slice | Scope | Status | Dependencies |
+|-------|-------|--------|-------------|
+| A | Canonical service/time-window contract update | Not Started | — |
+| B | Backend booking/job/calendar support | Not Started | A |
+| C | Web service-selection UX | Not Started | A, B |
+| D | Mobile parity + dashboard navigation | Not Started | A, B |
+| E | Workflow next-action simplification | Not Started | C, D |
+| F | Public website content alignment | Not Started | Ryan pricing decisions |
+
+### Open Business Decisions
+
+1. Price for Check-In 1 visit/day
+2. Confirm price for Check-In 2 visits/day ($45/day per public site)
+3. Price for Check-In 3 visits/day
+4. Exact Overnight hours/duration (public site says "12-4 hours" — ambiguous)
+5. Whether 20-Minute Walk uses Morning/Mid-day/Evening windows
+6. Whether 60-Minute Walk remains available or is retired
+7. Whether Drop-In 1HR/3HR remain available for new bookings
+8. Whether $35 deposit is still current
+9. In-app pricing automation vs admin-managed Stripe links
 
 ---
 
