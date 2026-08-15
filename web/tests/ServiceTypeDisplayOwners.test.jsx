@@ -44,6 +44,11 @@ const schedulerServiceFilterOptions = [
   ['MEET_GREET', 'Meet & Greet']
 ];
 
+const schedulerCanonicalCases = schedulerServiceFilterOptions.slice(1).map(([identifier]) => [
+  identifier,
+  SERVICE_TYPES.services[identifier].labelLong
+]);
+
 const setViewportWidth = (width) => {
   Object.defineProperty(window, 'innerWidth', {
     configurable: true,
@@ -177,13 +182,13 @@ describe('MasterScheduler service-type display compatibility', () => {
     );
   });
 
-  it('filters all seven canonical identifiers by exact service_type equality without mutation', () => {
-    const items = canonicalCases.map(([serviceType], index) => makeSchedulerItem(serviceType, index));
+  it('filters the exact current seven contract-backed options by service_type equality without mutation', () => {
+    const items = schedulerCanonicalCases.map(([serviceType], index) => makeSchedulerItem(serviceType, index));
     const before = items.map(item => ({ ...item }));
     const { container, props } = renderScheduler(items);
     const serviceFilter = getSchedulerFilter('Service');
 
-    canonicalCases.forEach(([serviceType], index) => {
+    schedulerCanonicalCases.forEach(([serviceType], index) => {
       props.onSelectPet.mockClear();
       fireEvent.change(serviceFilter, { target: { value: serviceType } });
 

@@ -65,7 +65,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 ## Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Assessment Complete / Implementation Not Started
+**Status:** Slice A Local Implementation Complete / Not Deployed / Slices B–F Deferred
 
 ### Target Service Model
 
@@ -87,7 +87,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 
 | Slice | Scope | Status | Dependencies |
 |-------|-------|--------|-------------|
-| A | Canonical service/time-window contract update | Not Started | — |
+| A | Canonical service/time-window contract update | Local Implementation Complete / Not Deployed | — |
 | B | Backend booking/job/calendar support | Not Started | A |
 | C | Web service-selection UX | Not Started | A, B |
 | D | Mobile parity + dashboard navigation | Not Started | A, B |

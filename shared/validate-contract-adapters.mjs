@@ -31,8 +31,22 @@ const SERVICE_FIELDS = [
   'label',
   'labelLong',
   'durationMinutes',
+  'durationStatus',
   'availableInIntake',
   'supportedOnMobile',
+  'lifecycle',
+  'newBookingEligibility',
+  'visitsPerDayOptions',
+  'allowedWindowIds',
+  'windowSelectionMode',
+];
+
+const WINDOW_FIELDS = [
+  'label',
+  'start',
+  'end',
+  'lifecycle',
+  'newBookingEligibility',
 ];
 
 const PYTHON_AST_EXTRACTOR = `
@@ -136,6 +150,10 @@ function assertServiceTypesShape(adapter, canonical, adapterName) {
     adapter.services !== null && typeof adapter.services === 'object' && !Array.isArray(adapter.services),
     `${adapterName} SERVICE_TYPES services must be an object`
   );
+  assert.ok(
+    adapter.windows !== null && typeof adapter.windows === 'object' && !Array.isArray(adapter.windows),
+    `${adapterName} SERVICE_TYPES windows must be an object`
+  );
   assert.deepEqual(
     Object.keys(adapter.services),
     Object.keys(canonical.services),
@@ -164,6 +182,33 @@ function assertServiceTypesShape(adapter, canonical, adapterName) {
       typeof metadata.supportedOnMobile,
       'boolean',
       `${adapterName} ${serviceId} supportedOnMobile must be a boolean`
+    );
+    assert.equal(typeof metadata.durationStatus, 'string', `${adapterName} ${serviceId} durationStatus must be a string`);
+    assert.equal(typeof metadata.lifecycle, 'string', `${adapterName} ${serviceId} lifecycle must be a string`);
+    assert.equal(
+      typeof metadata.newBookingEligibility,
+      'string',
+      `${adapterName} ${serviceId} newBookingEligibility must be a string`
+    );
+    assert.ok(Array.isArray(metadata.visitsPerDayOptions), `${adapterName} ${serviceId} visitsPerDayOptions must be an array`);
+    assert.ok(Array.isArray(metadata.allowedWindowIds), `${adapterName} ${serviceId} allowedWindowIds must be an array`);
+    assert.equal(
+      typeof metadata.windowSelectionMode,
+      'string',
+      `${adapterName} ${serviceId} windowSelectionMode must be a string`
+    );
+  }
+
+  assert.deepEqual(
+    Object.keys(adapter.windows),
+    Object.keys(canonical.windows),
+    `${adapterName} SERVICE_TYPES window membership or order differs`
+  );
+  for (const windowId of Object.keys(canonical.windows)) {
+    assert.deepEqual(
+      Object.keys(adapter.windows[windowId]),
+      WINDOW_FIELDS,
+      `${adapterName} ${windowId} metadata membership or order differs`
     );
   }
 }

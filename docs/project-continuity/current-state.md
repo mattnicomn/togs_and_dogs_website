@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-15 (Ryan Cross-Platform Field Feedback Captured / Implementation Not Started)
+**Last Updated:** 2026-08-15 (Ryan Slice A Canonical Service + Time-Window Contract Locally Complete / Not Deployed)
 
 ---
 
@@ -70,17 +70,20 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - No Terraform plan/apply, Cognito change, KMS grant, Postmark email, password reset, deployment, or production write occurred. Existing generic Cognito email remains active until a separately reviewed and explicitly approved deployment.
   - See: `docs/release-notes/release-cognito-custom-email-sender-postmark.md`
 
-- Ryan Cross-Platform Services, Scheduling & Workflow Alignment (📋 ASSESSMENT COMPLETE / FIELD FEEDBACK CAPTURED / IMPLEMENTATION NOT STARTED — 2026-08-15)
+- Ryan Cross-Platform Services, Scheduling & Workflow Alignment Slice A (✅ LOCAL IMPLEMENTATION COMPLETE / NOT DEPLOYED / UNSTAGED FOR REVIEW — 2026-08-15)
   - Ryan completed an operational platform review confirming target service model: 20-Minute Walk, Check-In (30 min, 1–3 visits/day selectable), and Overnight.
-  - Time windows confirmed: Morning (06:30–09:30), Mid-day (10:30–15:30), Evening (18:00–21:30).
+  - Slice A extends the existing canonical service contract with `WALK_20MIN`, `CHECK_IN`, lifecycle/new-booking metadata, visits/day options, allowed windows, and window-selection mode; generated Web, Mobile, and Backend adapters agree deterministically.
+  - Structured active windows are canonical as Morning `06:30–09:30`, Mid-day `10:30–15:30`, and Evening `18:00–21:30`. Legacy `AFTERNOON` and `ANYTIME` remain readable with no invented bounds.
+  - Historical service IDs remain readable and `PET_SITTING` retains its historical meaning. Existing intake flags remain unchanged, so Slice A does not alter current Web/Mobile selectors or transactions.
   - Check-In visits-per-day: 1/day = choose one window; 2/day = choose two distinct windows; 3/day = all three windows.
   - Mobile dashboard cards should be tappable with navigation to their corresponding operational areas.
   - Workflow direction: one obvious primary next action per phase; preserve RBAC/review/payment/safety gates.
   - Cross-platform alignment rule established: service IDs, labels, durations, statuses, validations, and scheduling semantics must remain aligned across web/mobile/shared-contracts/backend/calendar.
   - Unresolved business decisions: Check-In 1-visit and 3-visit pricing, exact Overnight hours, Walk window rules, legacy service retirement timeline.
-  - Proposed implementation order: A (contract) → B (backend) → C+D (web/mobile) → E (workflow) → F (public site).
-  - No application, shared-contract, backend, mobile, frontend, infrastructure, or production change occurred.
+  - Implementation order remains B (backend) → C+D (web/mobile) → E (workflow) → F (public site); those slices are deferred and require separate approval.
+  - No booking/job/calendar transaction, selector UX, pricing, infrastructure, production, deployment, or mobile-distribution change occurred.
   - See: `docs/planning/ryan-cross-platform-services-scheduling-workflow-alignment.md`
+  - See: `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md`
 
 - Preview-Only V1 Platform Admin Tenant-Onboarding Orchestrator (✅ COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-11)
   - Platform Admin validation and preview APIs with technically enforced read-only Lambda IAM.

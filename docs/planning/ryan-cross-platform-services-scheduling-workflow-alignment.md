@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Assessment Complete / Field Feedback Captured / Implementation Not Started
+**Status:** Slice A Local Implementation Complete / Not Deployed / Slices B–F Deferred
 
 ---
 
@@ -25,6 +25,20 @@ Ryan explicitly confirmed "1–3" means the number of Check-In visits PER DAY.
 | MORNING | Morning | 06:30–09:30 |
 | MIDDAY | Mid-day | 10:30–15:30 |
 | EVENING | Evening | 18:00–21:30 |
+
+## Slice A Local Contract Result
+
+Slice A is locally implemented and unstaged for independent review. The existing canonical `shared/constants/service-types.json` now contains both `services` and structured `windows`, with deterministic Web, Mobile, and Backend generated adapters.
+
+- New canonical target IDs: `WALK_20MIN` and `CHECK_IN`.
+- `CHECK_IN` encodes `[1, 2, 3]` visits/day, active windows `[MORNING, MIDDAY, EVENING]`, and `match_visits_per_day` selection mode.
+- Historical `WALK_30MIN`, `WALK_60MIN`, `DROPIN_1HR`, `DROPIN_3HR`, and `PET_SITTING` remain readable and historically labeled.
+- Undecided future eligibility for `WALK_60MIN`, `DROPIN_1HR`, and `DROPIN_3HR` is explicitly `pending`.
+- New target eligibility is separate from the unchanged legacy `availableInIntake` runtime flag, preventing premature Slice C/D selector changes.
+- Walk window policy and Overnight operational duration/window policy remain explicitly unresolved.
+- `AFTERNOON` and `ANYTIME` remain legacy-readable with no invented canonical time bounds.
+
+See `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md`.
 
 ### Check-In Window Rules
 
@@ -76,11 +90,11 @@ Each operational screen should expose one obvious primary next action where prac
 | Current ID | Current Label | Target | Change |
 |------------|-------------|--------|--------|
 | WALK_30MIN | 30-Minute Walk | WALK_20MIN "20-Minute Walk" | Rename + duration (30→20) |
-| WALK_60MIN | 60-Minute Walk | Deprecate | Remove from intake; keep for historical |
-| DROPIN_1HR | 1-Hour Drop-in | Deprecate | Merge into Check-In model |
-| DROPIN_3HR | 3-Hour Drop-in | Deprecate | Not in Ryan's model |
+| WALK_60MIN | 60-Minute Walk | Legacy; future availability pending | Keep historical; no retirement/new-booking decision yet |
+| DROPIN_1HR | 1-Hour Drop-in | Legacy; future availability pending | Keep historical; do not presume replacement/migration |
+| DROPIN_3HR | 3-Hour Drop-in | Legacy; future availability pending | Keep historical; do not presume retirement |
 | OVERNIGHT | Overnight Care | OVERNIGHT (update scheduling) | Duration/window model change |
-| PET_SITTING | Pet Sitting | CHECK_IN "Check-In" | Rename + visits-per-day model |
+| PET_SITTING | Pet Sitting | Target model adds CHECK_IN "Check-In" | Keep PET_SITTING historical meaning; do not reinterpret records |
 | MEET_GREET | Meet & Greet | Unchanged | Already excluded from intake |
 
 Legacy IDs must remain readable for historical bookings.
@@ -104,7 +118,7 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 
 | Slice | Scope | Dependencies | Status |
 |-------|-------|-------------|--------|
-| A | Canonical service/time-window contract update in `shared/constants/` | None | Not Started |
+| A | Canonical service/time-window contract update in `shared/constants/` | None | Local Implementation Complete / Not Deployed |
 | B | Backend booking/job/calendar support for visits-per-day and updated windows | A | Not Started |
 | C | Web service-selection UX (admin booking + client intake) | A, B | Not Started |
 | D | Mobile parity + dashboard navigation | A, B | Not Started |

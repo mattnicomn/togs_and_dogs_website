@@ -16,8 +16,21 @@ EXPECTED_FIELDS = (
     "label",
     "labelLong",
     "durationMinutes",
+    "durationStatus",
     "availableInIntake",
     "supportedOnMobile",
+    "lifecycle",
+    "newBookingEligibility",
+    "visitsPerDayOptions",
+    "allowedWindowIds",
+    "windowSelectionMode",
+)
+EXPECTED_WINDOW_FIELDS = (
+    "label",
+    "start",
+    "end",
+    "lifecycle",
+    "newBookingEligibility",
 )
 TARGET_MODULES = {
     "common.generated_service_types",
@@ -44,8 +57,23 @@ def test_generated_service_types_exactly_equal_canonical_contract():
         assert type(metadata["labelLong"]) is str
         assert type(metadata["durationMinutes"]) is int
         assert metadata["durationMinutes"] > 0
+        assert type(metadata["durationStatus"]) is str
         assert type(metadata["availableInIntake"]) is bool
         assert type(metadata["supportedOnMobile"]) is bool
+        assert type(metadata["lifecycle"]) is str
+        assert type(metadata["newBookingEligibility"]) is str
+        assert type(metadata["visitsPerDayOptions"]) is list
+        assert type(metadata["allowedWindowIds"]) is list
+        assert type(metadata["windowSelectionMode"]) is str
+
+    assert tuple(SERVICE_TYPES["windows"]) == tuple(canonical["windows"])
+    for metadata in SERVICE_TYPES["windows"].values():
+        assert tuple(metadata) == EXPECTED_WINDOW_FIELDS
+        assert type(metadata["label"]) is str
+        assert metadata["start"] is None or type(metadata["start"]) is str
+        assert metadata["end"] is None or type(metadata["end"]) is str
+        assert type(metadata["lifecycle"]) is str
+        assert type(metadata["newBookingEligibility"]) is str
 
 
 def test_generated_service_types_module_resolves_under_backend_common():

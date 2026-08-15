@@ -23,7 +23,38 @@ const API_PATHS_PATH = join(__dirname, 'contracts', 'api-paths.json');
 const VALID_CATEGORIES = ['neutral', 'informational', 'success', 'warning', 'danger'];
 const STATUS_ID_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 const SERVICE_ID_PATTERN = /^[A-Z][A-Z0-9_]*$/;
+const WINDOW_ID_PATTERN = /^[A-Z][A-Z0-9_]*$/;
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const API_PATH_PATTERN = /^\/[a-z][a-z0-9/_{}?=-]*$/;
+const SERVICE_FIELDS = [
+  'label',
+  'labelLong',
+  'durationMinutes',
+  'durationStatus',
+  'availableInIntake',
+  'supportedOnMobile',
+  'lifecycle',
+  'newBookingEligibility',
+  'visitsPerDayOptions',
+  'allowedWindowIds',
+  'windowSelectionMode',
+];
+const WINDOW_FIELDS = [
+  'label',
+  'start',
+  'end',
+  'lifecycle',
+  'newBookingEligibility',
+];
+const VALID_DURATION_STATUSES = new Set(['confirmed', 'historical', 'unresolved']);
+const VALID_LIFECYCLES = new Set(['active', 'legacy']);
+const VALID_NEW_BOOKING_ELIGIBILITY = new Set(['eligible', 'ineligible', 'pending']);
+const VALID_WINDOW_SELECTION_MODES = new Set([
+  'match_visits_per_day',
+  'unresolved',
+  'legacy_compatibility',
+]);
+const ACTIVE_CHECK_IN_WINDOWS = ['MORNING', 'MIDDAY', 'EVENING'];
 const EXPECTED_CLIENT_WRITE_HEALTH_FIELD_LIMITS = {
   vet_name: 100,
   vet_phone: 100,
@@ -89,6 +120,7 @@ test('required status properties exist', () => {
 test('service-types.json parses as valid JSON', async () => {
   services = JSON.parse(await readFile(SERVICES_PATH, 'utf-8'));
   assert.ok(services.services, 'Missing "services" object');
+  assert.ok(services.windows, 'Missing "windows" object');
 });
 
 test('service identifiers use UPPER_SNAKE_CASE', () => {
@@ -112,7 +144,13 @@ test('services have required properties', () => {
       `Service "${id}" must be a plain object`
     );
 
-    for (const field of ['label', 'labelLong', 'durationMinutes', 'availableInIntake', 'supportedOnMobile']) {
+    assert.deepEqual(
+      Object.keys(svc),
+      SERVICE_FIELDS,
+      `Service "${id}" field membership or order differs`
+    );
+
+    for (const field of SERVICE_FIELDS) {
       assert.ok(field in svc, `Service "${id}" missing ${field}`);
       assert.notEqual(svc[field], null, `Service "${id}" ${field} must not be null`);
       assert.notEqual(svc[field], undefined, `Service "${id}" ${field} must not be undefined`);
@@ -143,7 +181,157 @@ test('services have required properties', () => {
       'boolean',
       `Service "${id}" supportedOnMobile must be a boolean`
     );
+    assert.ok(
+      VALID_DURATION_STATUSES.has(svc.durationStatus),
+      `Service "${id}" has invalid durationStatus "${svc.durationStatus}"`
+    );
+    assert.ok(
+      VALID_LIFECYCLES.has(svc.lifecycle),
+      `Service "${id}" has invalid lifecycle "${svc.lifecycle}"`
+    );
+    assert.ok(
+      VALID_NEW_BOOKING_ELIGIBILITY.has(svc.newBookingEligibility),
+      `Service "${id}" has invalid newBookingEligibility "${svc.newBookingEligibility}"`
+    );
+    assert.ok(
+      VALID_WINDOW_SELECTION_MODES.has(svc.windowSelectionMode),
+      `Service "${id}" has invalid windowSelectionMode "${svc.windowSelectionMode}"`
+    );
+    assert.ok(Array.isArray(svc.visitsPerDayOptions), `Service "${id}" visitsPerDayOptions must be an array`);
+    assert.equal(
+      svc.visitsPerDayOptions.length,
+      new Set(svc.visitsPerDayOptions).size,
+      `Service "${id}" visitsPerDayOptions must be unique`
+    );
+    for (const option of svc.visitsPerDayOptions) {
+      assert.ok(Number.isInteger(option) && option > 0, `Service "${id}" visit options must be positive integers`);
+    }
+    assert.ok(Array.isArray(svc.allowedWindowIds), `Service "${id}" allowedWindowIds must be an array`);
+    assert.equal(
+      svc.allowedWindowIds.length,
+      new Set(svc.allowedWindowIds).size,
+      `Service "${id}" allowedWindowIds must be distinct`
+    );
+    for (const windowId of svc.allowedWindowIds) {
+      assert.ok(windowId in services.windows, `Service "${id}" references unknown window "${windowId}"`);
+    }
+    if (svc.lifecycle === 'legacy') {
+      assert.notEqual(
+        svc.newBookingEligibility,
+        'eligible',
+        `Legacy service "${id}" must not claim approved new-booking eligibility`
+      );
+    }
   }
+});
+
+test('Ryan Slice A target services and unresolved policies are exact', () => {
+  const walk = services.services.WALK_20MIN;
+  assert.equal(walk.label, '20-Min Walk');
+  assert.equal(walk.labelLong, '20-Minute Walk');
+  assert.equal(walk.durationMinutes, 20);
+  assert.equal(walk.lifecycle, 'active');
+  assert.equal(walk.newBookingEligibility, 'eligible');
+  assert.deepEqual(walk.allowedWindowIds, []);
+  assert.equal(walk.windowSelectionMode, 'unresolved');
+
+  const checkIn = services.services.CHECK_IN;
+  assert.equal(checkIn.label, 'Check-In');
+  assert.equal(checkIn.labelLong, '30-Minute Check-In');
+  assert.equal(checkIn.durationMinutes, 30);
+  assert.deepEqual(checkIn.visitsPerDayOptions, [1, 2, 3]);
+  assert.deepEqual(checkIn.allowedWindowIds, ACTIVE_CHECK_IN_WINDOWS);
+  assert.equal(checkIn.windowSelectionMode, 'match_visits_per_day');
+
+  const overnight = services.services.OVERNIGHT;
+  assert.equal(overnight.lifecycle, 'active');
+  assert.equal(overnight.durationStatus, 'unresolved');
+  assert.deepEqual(overnight.allowedWindowIds, []);
+  assert.equal(overnight.windowSelectionMode, 'unresolved');
+
+  assert.equal(services.services.MEET_GREET.availableInIntake, false);
+  assert.equal(services.services.MEET_GREET.supportedOnMobile, true);
+});
+
+test('legacy services remain readable without reinterpreting PET_SITTING', () => {
+  const expectedLegacy = [
+    'WALK_30MIN',
+    'WALK_60MIN',
+    'DROPIN_1HR',
+    'DROPIN_3HR',
+    'PET_SITTING',
+  ];
+
+  for (const id of expectedLegacy) {
+    assert.ok(services.services[id], `Missing historical service "${id}"`);
+    assert.equal(services.services[id].lifecycle, 'legacy');
+  }
+  assert.equal(services.services.PET_SITTING.labelLong, 'Pet Sitting');
+  assert.notEqual(services.services.PET_SITTING.labelLong, services.services.CHECK_IN.labelLong);
+  assert.equal(services.services.WALK_60MIN.newBookingEligibility, 'pending');
+  assert.equal(services.services.DROPIN_1HR.newBookingEligibility, 'pending');
+  assert.equal(services.services.DROPIN_3HR.newBookingEligibility, 'pending');
+});
+
+test('visit windows use exact structured active values and preserve legacy IDs', () => {
+  assert.deepEqual(Object.keys(services.windows), [
+    'MORNING',
+    'MIDDAY',
+    'EVENING',
+    'AFTERNOON',
+    'ANYTIME',
+  ]);
+
+  for (const [id, window] of Object.entries(services.windows)) {
+    assert.match(id, WINDOW_ID_PATTERN, `Window "${id}" does not match UPPER_SNAKE_CASE`);
+    assert.deepEqual(Object.keys(window), WINDOW_FIELDS, `Window "${id}" field membership or order differs`);
+    assert.ok(typeof window.label === 'string' && window.label.trim(), `Window "${id}" label must be non-empty`);
+    assert.ok(VALID_LIFECYCLES.has(window.lifecycle), `Window "${id}" lifecycle is invalid`);
+    assert.ok(
+      VALID_NEW_BOOKING_ELIGIBILITY.has(window.newBookingEligibility),
+      `Window "${id}" newBookingEligibility is invalid`
+    );
+  }
+
+  assert.deepEqual(services.windows.MORNING, {
+    label: 'Morning', start: '06:30', end: '09:30', lifecycle: 'active', newBookingEligibility: 'eligible',
+  });
+  assert.deepEqual(services.windows.MIDDAY, {
+    label: 'Mid-day', start: '10:30', end: '15:30', lifecycle: 'active', newBookingEligibility: 'eligible',
+  });
+  assert.deepEqual(services.windows.EVENING, {
+    label: 'Evening', start: '18:00', end: '21:30', lifecycle: 'active', newBookingEligibility: 'eligible',
+  });
+
+  for (const id of ACTIVE_CHECK_IN_WINDOWS) {
+    const window = services.windows[id];
+    assert.match(window.start, TIME_PATTERN, `Window "${id}" start must be HH:mm`);
+    assert.match(window.end, TIME_PATTERN, `Window "${id}" end must be HH:mm`);
+    assert.ok(window.start < window.end, `Window "${id}" start must precede end`);
+  }
+  for (const id of ['AFTERNOON', 'ANYTIME']) {
+    assert.equal(services.windows[id].lifecycle, 'legacy');
+    assert.equal(services.windows[id].newBookingEligibility, 'ineligible');
+    assert.equal(services.windows[id].start, null);
+    assert.equal(services.windows[id].end, null);
+  }
+});
+
+test('CHECK_IN metadata deterministically enforces count, distinctness, and active membership', () => {
+  const checkIn = services.services.CHECK_IN;
+  const isValidSelection = (visitsPerDay, selectedWindowIds) => (
+    checkIn.visitsPerDayOptions.includes(visitsPerDay)
+    && selectedWindowIds.length === visitsPerDay
+    && new Set(selectedWindowIds).size === selectedWindowIds.length
+    && selectedWindowIds.every((id) => checkIn.allowedWindowIds.includes(id))
+  );
+
+  assert.equal(isValidSelection(1, ['MORNING']), true);
+  assert.equal(isValidSelection(2, ['MORNING', 'EVENING']), true);
+  assert.equal(isValidSelection(2, ['MORNING', 'MORNING']), false);
+  assert.equal(isValidSelection(3, ACTIVE_CHECK_IN_WINDOWS), true);
+  assert.equal(isValidSelection(3, ['MORNING', 'MIDDAY', 'AFTERNOON']), false);
+  assert.equal(isValidSelection(4, ACTIVE_CHECK_IN_WINDOWS), false);
 });
 
 // --- Pet Fields ---

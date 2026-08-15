@@ -43,7 +43,16 @@ describe('Phase 24A-2A Web Contract Adapters', () => {
       vet_phone: 100,
     });
     expect(REQUEST_STATUSES.statuses.APPROVED).toBeDefined();
-    expect(SERVICE_TYPES.services.WALK_60MIN).toBeDefined();
+    expect(SERVICE_TYPES.services.WALK_20MIN.durationMinutes).toBe(20);
+    expect(SERVICE_TYPES.services.CHECK_IN.visitsPerDayOptions).toEqual([1, 2, 3]);
+    expect(SERVICE_TYPES.services.WALK_60MIN.lifecycle).toBe('legacy');
+    expect(SERVICE_TYPES.windows.MORNING).toEqual({
+      label: 'Morning',
+      start: '06:30',
+      end: '09:30',
+      lifecycle: 'active',
+      newBookingEligibility: 'eligible',
+    });
   });
 });
 

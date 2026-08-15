@@ -238,54 +238,167 @@ export const REQUEST_STATUSES = {
 } as const;
 export const SERVICE_TYPES = {
   "services": {
+    "WALK_20MIN": {
+      "label": "20-Min Walk",
+      "labelLong": "20-Minute Walk",
+      "durationMinutes": 20,
+      "durationStatus": "confirmed",
+      "availableInIntake": false,
+      "supportedOnMobile": true,
+      "lifecycle": "active",
+      "newBookingEligibility": "eligible",
+      "visitsPerDayOptions": [],
+      "allowedWindowIds": [],
+      "windowSelectionMode": "unresolved"
+    },
+    "CHECK_IN": {
+      "label": "Check-In",
+      "labelLong": "30-Minute Check-In",
+      "durationMinutes": 30,
+      "durationStatus": "confirmed",
+      "availableInIntake": false,
+      "supportedOnMobile": true,
+      "lifecycle": "active",
+      "newBookingEligibility": "eligible",
+      "visitsPerDayOptions": [
+        1,
+        2,
+        3
+      ],
+      "allowedWindowIds": [
+        "MORNING",
+        "MIDDAY",
+        "EVENING"
+      ],
+      "windowSelectionMode": "match_visits_per_day"
+    },
     "WALK_30MIN": {
       "label": "30-Min Walk",
       "labelLong": "30-Minute Walk",
       "durationMinutes": 30,
+      "durationStatus": "historical",
       "availableInIntake": true,
-      "supportedOnMobile": true
+      "supportedOnMobile": true,
+      "lifecycle": "legacy",
+      "newBookingEligibility": "ineligible",
+      "visitsPerDayOptions": [],
+      "allowedWindowIds": [],
+      "windowSelectionMode": "legacy_compatibility"
     },
     "WALK_60MIN": {
       "label": "60-Min Walk",
       "labelLong": "60-Minute Walk",
       "durationMinutes": 60,
+      "durationStatus": "historical",
       "availableInIntake": true,
-      "supportedOnMobile": true
+      "supportedOnMobile": true,
+      "lifecycle": "legacy",
+      "newBookingEligibility": "pending",
+      "visitsPerDayOptions": [],
+      "allowedWindowIds": [],
+      "windowSelectionMode": "legacy_compatibility"
     },
     "DROPIN_1HR": {
       "label": "1-Hour Drop-in",
       "labelLong": "1-Hour Drop-in",
       "durationMinutes": 60,
+      "durationStatus": "historical",
       "availableInIntake": true,
-      "supportedOnMobile": true
+      "supportedOnMobile": true,
+      "lifecycle": "legacy",
+      "newBookingEligibility": "pending",
+      "visitsPerDayOptions": [],
+      "allowedWindowIds": [],
+      "windowSelectionMode": "legacy_compatibility"
     },
     "DROPIN_3HR": {
       "label": "3-Hour Drop-in",
       "labelLong": "3-Hour Drop-in",
       "durationMinutes": 180,
+      "durationStatus": "historical",
       "availableInIntake": true,
-      "supportedOnMobile": true
+      "supportedOnMobile": true,
+      "lifecycle": "legacy",
+      "newBookingEligibility": "pending",
+      "visitsPerDayOptions": [],
+      "allowedWindowIds": [],
+      "windowSelectionMode": "legacy_compatibility"
     },
     "OVERNIGHT": {
       "label": "Overnight Care",
       "labelLong": "Overnight Care",
       "durationMinutes": 720,
+      "durationStatus": "unresolved",
       "availableInIntake": true,
-      "supportedOnMobile": true
+      "supportedOnMobile": true,
+      "lifecycle": "active",
+      "newBookingEligibility": "eligible",
+      "visitsPerDayOptions": [],
+      "allowedWindowIds": [],
+      "windowSelectionMode": "unresolved"
     },
     "PET_SITTING": {
       "label": "Pet Sitting",
       "labelLong": "Pet Sitting",
       "durationMinutes": 60,
+      "durationStatus": "historical",
       "availableInIntake": true,
-      "supportedOnMobile": true
+      "supportedOnMobile": true,
+      "lifecycle": "legacy",
+      "newBookingEligibility": "ineligible",
+      "visitsPerDayOptions": [],
+      "allowedWindowIds": [],
+      "windowSelectionMode": "legacy_compatibility"
     },
     "MEET_GREET": {
       "label": "Meet & Greet",
       "labelLong": "Meet & Greet",
       "durationMinutes": 45,
+      "durationStatus": "confirmed",
       "availableInIntake": false,
-      "supportedOnMobile": true
+      "supportedOnMobile": true,
+      "lifecycle": "active",
+      "newBookingEligibility": "ineligible",
+      "visitsPerDayOptions": [],
+      "allowedWindowIds": [],
+      "windowSelectionMode": "legacy_compatibility"
+    }
+  },
+  "windows": {
+    "MORNING": {
+      "label": "Morning",
+      "start": "06:30",
+      "end": "09:30",
+      "lifecycle": "active",
+      "newBookingEligibility": "eligible"
+    },
+    "MIDDAY": {
+      "label": "Mid-day",
+      "start": "10:30",
+      "end": "15:30",
+      "lifecycle": "active",
+      "newBookingEligibility": "eligible"
+    },
+    "EVENING": {
+      "label": "Evening",
+      "start": "18:00",
+      "end": "21:30",
+      "lifecycle": "active",
+      "newBookingEligibility": "eligible"
+    },
+    "AFTERNOON": {
+      "label": "Afternoon",
+      "start": null,
+      "end": null,
+      "lifecycle": "legacy",
+      "newBookingEligibility": "ineligible"
+    },
+    "ANYTIME": {
+      "label": "Anytime",
+      "start": null,
+      "end": null,
+      "lifecycle": "legacy",
+      "newBookingEligibility": "ineligible"
     }
   }
 } as const;

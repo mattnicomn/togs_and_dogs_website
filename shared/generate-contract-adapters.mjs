@@ -7,6 +7,9 @@
  *  - mobile/src/contracts/generatedContracts.ts
  *  - src/backend/common/generated_service_types.py
  *
+ * SERVICE_TYPES retains its established export name and contains both the
+ * canonical `services` and `windows` roots from service-types.json.
+ *
  * Built-in Node.js modules only. No external dependencies required.
  * Run: node shared/generate-contract-adapters.mjs
  */
@@ -21,7 +24,7 @@ const ROOT_DIR = join(__dirname, '..');
 const API_PATHS_FILE = join(__dirname, 'contracts', 'api-paths.json');
 const PET_FIELDS_FILE = join(__dirname, 'constants', 'pet-fields.json');
 const STATUSES_FILE = join(__dirname, 'constants', 'request-statuses.json');
-const SERVICES_FILE = join(__dirname, 'constants', 'service-types.json');
+const SERVICE_CONTRACT_FILE = join(__dirname, 'constants', 'service-types.json');
 
 const WEB_OUTPUT_DIR = join(ROOT_DIR, 'web', 'src', 'generated');
 const WEB_OUTPUT_FILE = join(WEB_OUTPUT_DIR, 'contracts.js');
@@ -106,12 +109,12 @@ async function main() {
   const apiPathsRaw = await readFile(API_PATHS_FILE, 'utf-8');
   const petFieldsRaw = await readFile(PET_FIELDS_FILE, 'utf-8');
   const statusesRaw = await readFile(STATUSES_FILE, 'utf-8');
-  const servicesRaw = await readFile(SERVICES_FILE, 'utf-8');
+  const serviceContractRaw = await readFile(SERVICE_CONTRACT_FILE, 'utf-8');
 
   const apiPaths = JSON.parse(apiPathsRaw);
   const petFields = JSON.parse(petFieldsRaw);
   const statuses = JSON.parse(statusesRaw);
-  const services = JSON.parse(servicesRaw);
+  const serviceContract = JSON.parse(serviceContractRaw);
 
   // Filter out internal metadata keys starting with _
   const cleanObj = (obj) => {
@@ -127,7 +130,7 @@ async function main() {
   const cleanApiPaths = cleanObj(apiPaths);
   const cleanPetFields = cleanObj(petFields);
   const cleanStatuses = cleanObj(statuses);
-  const cleanServices = cleanObj(services);
+  const cleanServiceContract = cleanObj(serviceContract);
 
   // --- Web Adapter Generation (ESM) ---
   const webContent = `${HEADER_NOTICE}
@@ -135,7 +138,7 @@ async function main() {
 export const API_PATHS = ${JSON.stringify(cleanApiPaths, null, 2)};
 export const PET_FIELDS = ${JSON.stringify(cleanPetFields, null, 2)};
 export const REQUEST_STATUSES = ${JSON.stringify(cleanStatuses, null, 2)};
-export const SERVICE_TYPES = ${JSON.stringify(cleanServices, null, 2)};
+export const SERVICE_TYPES = ${JSON.stringify(cleanServiceContract, null, 2)};
 
 /**
  * Safe path builder helper for parameterized route templates (e.g., '/client/pets/{petId}').
@@ -161,7 +164,7 @@ export function buildPath(template, params = {}) {
 export const API_PATHS = ${JSON.stringify(cleanApiPaths, null, 2)} as const;
 export const PET_FIELDS = ${JSON.stringify(cleanPetFields, null, 2)} as const;
 export const REQUEST_STATUSES = ${JSON.stringify(cleanStatuses, null, 2)} as const;
-export const SERVICE_TYPES = ${JSON.stringify(cleanServices, null, 2)} as const;
+export const SERVICE_TYPES = ${JSON.stringify(cleanServiceContract, null, 2)} as const;
 
 /**
  * Safe path builder helper for parameterized route templates (e.g., '/client/pets/{petId}').
@@ -184,7 +187,7 @@ export function buildPath(template: string, params: Record<string, string | numb
   // --- Backend Adapter Generation (Python) ---
   const backendContent = `${PYTHON_HEADER_NOTICE}
 
-SERVICE_TYPES = ${serializePythonLiteral(cleanServices)}
+SERVICE_TYPES = ${serializePythonLiteral(cleanServiceContract)}
 `;
 
   await mkdir(WEB_OUTPUT_DIR, { recursive: true });
