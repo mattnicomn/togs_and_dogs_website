@@ -2,10 +2,12 @@
 
 ## 1. Status
 
-- **Status:** **LOCAL IMPLEMENTATION COMPLETE / COMMITTED / PUSHED / NOT DEPLOYED**
-- **Date:** 2026-08-11
+- **Status:** ✅ **PRODUCTION FRONTEND DEPLOYED / SAFE SMOKE PASS / COGNITO E2E VALIDATION PENDING**
+- **Date:** 2026-08-15
 - **Implementation commit:** `c85a7860c706f38ab2da7998fb7ee8621e8fcfa6`
 - **Independent review:** Kiro `IMPLEMENTATION_CORRECT` / `READY_FOR_WEB_FORGOT_PASSWORD_COMMIT_DECISION`
+- **V2 RC commit:** `4c7975d3bf9cd0ed84b0348015197034b9127dba`
+- **Independent pre-deployment review:** PASS (146/146 tests, build PASS)
 
 This bounded web-only release closes the customer self-service forgot-password parity gap without changing Cognito configuration, backend behavior, infrastructure, mobile code, or production systems.
 
@@ -42,6 +44,45 @@ No Cognito user-pool or app-client configuration changed. No administrator Cogni
 
 Kiro independently reproduced the candidate and returned `IMPLEMENTATION_CORRECT` with no findings.
 
-## 5. Deployment Gate
+## 5. Production Deployment
 
-This feature is committed and pushed but **not deployed**. Customers cannot use it in production until Matthew separately approves a scoped web production deployment and its validation/rollback plan.
+### Deployment Details
+
+- **Production baseline before:** `ed7a01f5530e22219b430d961156599dd381fd64`
+- **Deployed V2 RC:** `4c7975d3bf9cd0ed84b0348015197034b9127dba`
+- **Independent pre-deployment review:** PASS (146/146 tests, build PASS)
+- **Deployment type:** Frontend-only (no backend, Lambda, Terraform, or API Gateway)
+- **S3 bucket:** `s3://togs-and-dogs-prod-toganddogs-hosting`
+- **CloudFront distribution:** `E35L00QPA2IRCY`
+- **CloudFront invalidation:** `I3RWSM6SQK81OWOK1SR22J3PDE` (Completed)
+- **Live assets:** `index-BtB1oa0E.js`, `index-BroXJAxV.css`
+
+### Safe Smoke Results
+
+| Check | Result |
+|-------|--------|
+| Login page loads | ✅ PASS |
+| Forgot Password link visible | ✅ PASS |
+| Recovery UI opens | ✅ PASS |
+| Local validation works | ✅ PASS |
+| Back to Sign In works | ✅ PASS |
+| Browser errors | ✅ None |
+
+### NOT Performed
+
+- Cognito verification message NOT sent (no real email/SMS triggered)
+- Password NOT changed for any account
+- No backend deployment
+- No Terraform apply
+- No API Gateway change
+
+### Rollback
+
+Restore previous assets `index-Cbij9TXy.js` + `index-B_Bar5e4.css` to S3 and issue a new CloudFront invalidation.
+
+### Next Gate
+
+Controlled Cognito end-to-end validation requires separate Matthew approval. This will:
+- Send a real Cognito verification code/message to a test account
+- Change the test account password
+- Validate the complete recovery flow against the live user pool

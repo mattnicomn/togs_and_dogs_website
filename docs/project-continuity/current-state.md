@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-11 (Business Owner Getting Started Guide Committed and Pushed)
+**Last Updated:** 2026-08-15 (Web Customer Self-Service Password Recovery Production Frontend Deployed)
 
 ---
 
@@ -76,11 +76,13 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - Includes an internal self-service gap matrix and ranked top-five automation opportunities. No tenant, user, application, integration, infrastructure, production, payment, or distribution change occurred.
   - Kiro independently reviewed the five-file documentation candidate and returned `GUIDE_CORRECT` / `READY_FOR_BUSINESS_OWNER_GUIDE_COMMIT_DECISION`. The guide is committed and pushed as repository documentation; no public publication or release is claimed.
 
-- Web Customer Self-Service Password Recovery (🔗 LOCAL IMPLEMENTATION COMPLETE / COMMITTED / PUSHED / NOT DEPLOYED / KIRO IMPLEMENTATION_CORRECT — 2026-08-11)
-  - Added a web-only Forgot password flow to the existing shared login shell: request verification code, confirm code plus new password, success state, and return to sign-in.
-  - Uses the existing customer Cognito user pool and standard self-service SDK operations. No Cognito configuration/user, backend, infrastructure, mobile, production-data, tenant, or deployment change occurred.
-  - Validation: 13/13 focused, 24/24 relevant AdminDashboard/auth, 251/251 Vitest across 21 files, 99/99 legacy / 350 combined web tests, successful 109-module build, targeted lint clean, and clean diff check. Kiro returned `IMPLEMENTATION_CORRECT`.
-  - Implementation commit: `c85a7860c706f38ab2da7998fb7ee8621e8fcfa6`. Production deployment remains separately gated.
+- Web Customer Self-Service Password Recovery (✅ PRODUCTION FRONTEND DEPLOYED / SAFE SMOKE PASS / COGNITO E2E PENDING — 2026-08-15)
+  - Deployed isolated V2 RC `4c7975d` onto production baseline `ed7a01f`.
+  - Frontend-only: S3 sync + CloudFront invalidation `I3RWSM6SQK81OWOK1SR22J3PDE` (Completed).
+  - Live assets: `index-BtB1oa0E.js`, `index-BroXJAxV.css`.
+  - No backend, Lambda, Terraform, or API Gateway deployment.
+  - Safe production smoke: login loads, Forgot Password visible, recovery UI opens, local validation works, Back to Sign In works. No browser errors.
+  - End-to-end Cognito recovery validation NOT yet performed (no verification message sent, no password changed). Requires separate Matthew approval.
   - See: `docs/release-notes/release-web-customer-self-service-password-recovery.md`
 
 - Phase 24A-9C.2 / Phase 24A-9C: Paired Remediation Builds and Revalidation (✅ PAIRED REMEDIATION BUILDS COMPLETE / REMEDIATION REVALIDATION COMPLETE / PASS — 2026-08-10)
