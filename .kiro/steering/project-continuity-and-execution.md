@@ -163,6 +163,7 @@ has materially changed. Leave a resume block containing:
 ### Cross-Platform Services, Scheduling & Workflow Alignment
 
 - Ryan operational field-feedback assessment complete (2026-08-15).
+- Ryan physical Android internal-testing install confirmed (2026-08-15).
 - Target services: 20-Minute Walk, Check-In (30 min, 1–3 visits/day), Overnight.
 - Time windows: Morning (06:30–09:30), Mid-day (10:30–15:30), Evening (18:00–21:30).
 - Operational business rules must remain aligned across web, mobile, shared
@@ -172,7 +173,8 @@ has materially changed. Leave a resume block containing:
 - Expose one obvious primary next action per workflow phase where safe.
 - Preserve RBAC, review, payment, and tenant safety gates.
 - Open decisions: Check-In 1/3-visit pricing, Overnight hours, Walk window rules.
-- Slice A canonical service/time-window contract is locally implemented and not deployed.
-- Slice B Check-In request/job/Calendar semantics are locally implemented, not deployed, and unstaged for independent review.
-- Slice B uses generated metadata for strict new Check-In writes, deterministically expands dates × windows, assigns stable job/Calendar occurrence identities, creates one exact-time event per child, and preserves legacy reads plus booking-level notification batching.
-- Next gate: independent Slice B review. Slices C–F and any deployment remain separately gated.
+- Slice A: COMMITTED / PUSHED / NOT DEPLOYED (`53818bc`).
+- Slice B: COMMITTED / PUSHED / NOT DEPLOYED (`37bb806`). Both independently reviewed (Kiro: IMPLEMENTATION_CORRECT).
+- Next recommended implementation: Slice D — Mobile parity + dashboard navigation.
+- Slices C–F and any deployment remain separately gated.
+- Nonblocking hardening: add explicit simulated mid-batch partial-write/retry test for Check-In occurrences.

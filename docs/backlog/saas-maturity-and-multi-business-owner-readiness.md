@@ -52,7 +52,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 5 | Payment terms/refund policy published | ⚠️ Draft exists | Medium |
 | 6 | Business-owner Getting Started guide | ✅ LOCALLY COMPLETE / `GUIDE_CORRECT` / COMMITTED / PUSHED / NOT PUBLIC | High |
 | 7 | Self-service staff/client invites | 🧭 Requires product, security, and Cognito design | Medium |
-| 8 | Ryan external testing | ⏸ Paused; requires explicit Matthew approval | Medium |
+| 8 | Ryan external testing | ✅ Android internal testing resumed; physical install confirmed; operational review completed (2026-08-15). Full historical smoke matrix not re-executed. | Medium |
 | 9 | Apple Beta App Review outcome | ❓ UNKNOWN / NOT VERIFIED | Medium |
 | 10 | Analytics dashboard | ❌ Not started; lower sequence | Low |
 | 11 | AI-assisted onboarding | ❌ Not started; follow deterministic onboarding | Low |
@@ -87,10 +87,10 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 
 | Slice | Scope | Status | Dependencies |
 |-------|-------|--------|-------------|
-| A | Canonical service/time-window contract update | Local Implementation Complete / Not Deployed | — |
-| B | Backend booking/job/calendar support | Local Implementation Complete / Not Deployed / Unstaged for Review | A |
+| A | Canonical service/time-window contract update | Committed / Pushed / Not Deployed | — |
+| B | Backend booking/job/calendar support | Committed / Pushed / Not Deployed | A |
 | C | Web service-selection UX | Not Started | A, B |
-| D | Mobile parity + dashboard navigation | Not Started | A, B |
+| D | Mobile parity + dashboard navigation | Not Started (Recommended Next) | A, B |
 | E | Workflow next-action simplification | Not Started | C, D |
 | F | Public website content alignment | Not Started | Ryan pricing decisions |
 
