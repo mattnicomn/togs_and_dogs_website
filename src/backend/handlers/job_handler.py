@@ -4,6 +4,11 @@ from datetime import datetime, timezone, timedelta
 import boto3
 from common.db import put_item, get_item, table
 from common.status import JobStatus
+from common.check_in import (
+    CHECK_IN_SERVICE_TYPE,
+    CheckInValidationError,
+    validate_check_in_booking_fields,
+)
 
 MAX_MULTI_DAY_OCCURRENCES = 14
 
@@ -27,6 +32,12 @@ def handler(event, context):
         if not request_item:
             print(f"Error: Request REQ#{request_id} not found")
             return {"error": "Request not found"}
+
+        try:
+            check_in_fields = validate_check_in_booking_fields(request_item)
+        except CheckInValidationError as exc:
+            print(f"Error: Invalid CHECK_IN request REQ#{request_id}: {exc}")
+            return {"error": str(exc)}
 
         # Idempotency Guard
         existing_job_id = request_item.get('job_id')
@@ -103,13 +114,57 @@ def handler(event, context):
             job_dates = [start_date_str] if start_date_str else [None]
 
         is_multi_day = len(job_dates) > 1
+        is_check_in = request_item.get('service_type') == CHECK_IN_SERVICE_TYPE
+        occurrence_windows = check_in_fields['visit_windows'] if check_in_fields else [None]
+        occurrences = [
+            (occurrence_date, occurrence_window)
+            for occurrence_date in job_dates
+            for occurrence_window in occurrence_windows
+        ]
+        total_occurrences = len(occurrences)
+        uses_child_calendar_sync = is_multi_day or is_check_in
         created_job_ids = []
         first_job_id = None
 
         event_id = event.get('google_event_id') or request_item.get('google_event_id')
 
-        for idx, occurrence_date in enumerate(job_dates):
-            job_id = str(uuid.uuid4())
+        for idx, (occurrence_date, occurrence_window) in enumerate(occurrences):
+            if is_check_in:
+                logical_occurrence = (
+                    f"togs-and-dogs:check-in:{request_id}:"
+                    f"{occurrence_date or ''}:{occurrence_window}"
+                )
+                job_id = str(uuid.uuid5(uuid.NAMESPACE_URL, logical_occurrence))
+                existing_job = get_item(f"JOB#{job_id}", f"REQ#{request_id}")
+                if existing_job:
+                    if (
+                        existing_job.get('calendar_event_id')
+                        and not existing_job.get('google_event_id')
+                    ):
+                        try:
+                            from common.google_calendar import sync_calendar_event
+                            cal_res = sync_calendar_event(existing_job)
+                            if cal_res and cal_res.get('event_id'):
+                                table.update_item(
+                                    Key={'PK': existing_job['PK'], 'SK': existing_job['SK']},
+                                    UpdateExpression="SET google_event_id = :gid",
+                                    ExpressionAttributeValues={":gid": cal_res['event_id']}
+                                )
+                        except Exception as e:
+                            print(
+                                f"WARNING: CHECK_IN calendar recovery failed for "
+                                f"JOB#{job_id}: {e}"
+                            )
+                    if first_job_id is None:
+                        first_job_id = job_id
+                    created_job_ids.append(job_id)
+                    print(
+                        f"INFO: Existing CHECK_IN occurrence JOB#{job_id} "
+                        f"for {occurrence_date} {occurrence_window}; reusing."
+                    )
+                    continue
+            else:
+                job_id = str(uuid.uuid4())
             
             # 2. Create the Job record linked to the PET
             item = {
@@ -126,8 +181,8 @@ def handler(event, context):
                 'service_type': request_item.get('service_type'),
                 'start_date': occurrence_date if occurrence_date else request_item.get('start_date'),
                 'end_date': occurrence_date if is_multi_day else request_item.get('end_date'),
-                'visit_window': request_item.get('visit_window'),
-                'visit_windows': request_item.get('visit_windows'),
+                'visit_window': occurrence_window if is_check_in else request_item.get('visit_window'),
+                'visit_windows': [occurrence_window] if is_check_in else request_item.get('visit_windows'),
                 'preferred_sitter': request_item.get('preferred_sitter'),
                 'preferred_sitter_name': request_item.get('preferred_sitter_name'),
                 'pet_info': request_item.get('pet_info'),
@@ -140,27 +195,51 @@ def handler(event, context):
                     "note": f"Automatically created from approved request. Linked Pet: {pet_id}"
                 }]
             }
+
+            if is_check_in:
+                item['visits_per_day'] = check_in_fields['visits_per_day']
+                item['booking_visit_windows'] = check_in_fields['visit_windows']
+                item['occurrence_window'] = occurrence_window
+                # Google Calendar accepts caller-selected IDs using base32hex
+                # characters. This stable ID makes insert replay conflict-safe.
+                item['calendar_event_id'] = f"td{uuid.UUID(job_id).hex}"
             
-            if is_multi_day:
+            if uses_child_calendar_sync:
                 item['occurrence_date'] = occurrence_date
                 item['scheduled_date'] = occurrence_date
                 item['occurrence_index'] = idx + 1
-                item['total_occurrences'] = len(job_dates)
-                item['is_multi_day'] = True
+                item['total_occurrences'] = total_occurrences
+                if is_multi_day:
+                    item['is_multi_day'] = True
                 
-                # R7E Phase 1A: Sync each child JOB directly
+                # CHECK_IN persists its deterministic child before the external
+                # Calendar write so a failed DynamoDB put cannot orphan an event.
+                if is_check_in and not put_item(item):
+                    print(
+                        f"WARNING: Failed to save CHECK_IN job {job_id} "
+                        f"for {occurrence_date} {occurrence_window}"
+                    )
+                    continue
+
+                # R7E/Slice B: Multi-day and CHECK_IN occurrences sync as children.
                 try:
                     from common.google_calendar import sync_calendar_event
                     cal_res = sync_calendar_event(item)
                     if cal_res and cal_res.get('event_id'):
                         item['google_event_id'] = cal_res['event_id']
+                        if is_check_in:
+                            table.update_item(
+                                Key={'PK': item['PK'], 'SK': item['SK']},
+                                UpdateExpression="SET google_event_id = :gid",
+                                ExpressionAttributeValues={":gid": cal_res['event_id']}
+                            )
                 except Exception as e:
                     print(f"WARNING: Multi-day child JOB calendar sync failed for date {occurrence_date}: {e}")
             elif event_id:
                 # Do not inherit google_event_id for multi-day jobs (handled individually above)
                 item['google_event_id'] = event_id
             
-            if put_item(item):
+            if is_check_in or put_item(item):
                 if first_job_id is None:
                     first_job_id = job_id
                 created_job_ids.append(job_id)
@@ -168,7 +247,7 @@ def handler(event, context):
             else:
                 print(f"WARNING: Failed to save job {job_id} for date {occurrence_date}")
 
-            if is_multi_day and idx < len(job_dates) - 1:
+            if uses_child_calendar_sync and idx < total_occurrences - 1:
                 time.sleep(0.1) # 100ms delay between calls
                 
         if not created_job_ids:
@@ -181,7 +260,10 @@ def handler(event, context):
             if is_multi_day:
                 update_expr += ", is_multi_day = :imd, total_occurrences = :to"
                 expr_vals[":imd"] = True
-                expr_vals[":to"] = len(job_dates)
+                expr_vals[":to"] = total_occurrences
+            elif is_check_in:
+                update_expr += ", total_occurrences = :to"
+                expr_vals[":to"] = total_occurrences
 
             table.update_item(
                 Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},

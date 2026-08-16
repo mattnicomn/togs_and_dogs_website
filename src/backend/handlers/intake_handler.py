@@ -7,12 +7,15 @@ from common.db import put_item, get_item, table
 from common.response import success, bad_request, internal_error, error
 from common.status import RequestStatus, WorkflowType
 from common.notifications import notify_event
+from common.check_in import CheckInValidationError, validate_check_in_booking_fields
+from common.service_contract import ALL_WINDOW_IDS
 
 sfn = boto3.client('stepfunctions')
 STATE_MACHINE_ARN = os.environ.get('STATE_MACHINE_ARN')
 
-# Release 2: Valid visit window values for multi-select validation.
-VALID_VISIT_WINDOWS = ['MORNING', 'MIDDAY', 'AFTERNOON', 'EVENING', 'ANYTIME']
+# Release 2 compatibility: all contract-known windows remain readable for
+# non-Check-In services. New CHECK_IN writes use the stricter contract rule.
+VALID_VISIT_WINDOWS = ALL_WINDOW_IDS
 
 
 def _handle_staff_options(event):
@@ -102,6 +105,19 @@ def _generate_pet_names_string(body):
     return body.get('pet_names') or ''
 
 
+def _validated_booking_windows(body):
+    """Return persisted window fields, enforcing CHECK_IN writes only."""
+    check_in_fields = validate_check_in_booking_fields(body)
+    if check_in_fields:
+        return check_in_fields
+    normalized = _normalize_visit_windows(body)
+    return {
+        'visits_per_day': None,
+        'visit_window': body.get('visit_window', 'ANYTIME'),
+        'visit_windows': normalized,
+    }
+
+
 def _handle_admin_created_booking(event, body):
     """
     Release 6F: Admin-created booking for offline/repeat clients.
@@ -167,6 +183,11 @@ def _handle_admin_created_booking(event, body):
     if not pet_names and not pet_ids:
         return bad_request("At least one pet is required. Select pets or provide pet_names.", event)
 
+    try:
+        booking_windows = _validated_booking_windows(body)
+    except CheckInValidationError as exc:
+        return bad_request(str(exc), event)
+
     # 3. Tenant isolation: verify client belongs to admin's company
     client_profile = get_item(f"COMPANY#{company_id}", f"CLIENT#{client_id}")
     if not client_profile:
@@ -202,8 +223,8 @@ def _handle_admin_created_booking(event, body):
         'start_date': start_date,
         'end_date': end_date,
         'selected_dates': selected_dates if selected_dates and isinstance(selected_dates, list) else None,
-        'visit_window': body.get('visit_window', 'ANYTIME'),
-        'visit_windows': _normalize_visit_windows(body),
+        'visit_window': booking_windows['visit_window'],
+        'visit_windows': booking_windows['visit_windows'],
         'preferred_time': body.get('preferred_time') or None,
         'timing_notes': body.get('timing_notes') or None,
         'preferred_sitter': body.get('preferred_sitter') or None,
@@ -226,6 +247,8 @@ def _handle_admin_created_booking(event, body):
         'linked_client_profile_id': client_id,
         'client_profile_link_status': 'ADMIN_CREATED',
     }
+    if booking_windows['visits_per_day'] is not None:
+        item['visits_per_day'] = booking_windows['visits_per_day']
     if is_test:
         item['is_test_booking'] = True
 
@@ -270,6 +293,9 @@ def _handle_admin_created_booking(event, body):
         if item.get('end_date') and item.get('start_date') != item.get('end_date'):
             is_multi_day_req = True
             
+        if item.get('service_type') == 'CHECK_IN':
+            is_multi_day_req = True
+
         if not is_multi_day_req:
             from common.google_calendar import sync_calendar_event
             calendar_result = sync_calendar_event(item)
@@ -282,7 +308,7 @@ def _handle_admin_created_booking(event, body):
                 print(f"INFO: [AdminBooking] Calendar event created: {calendar_result['event_id']}")
         else:
             print(f"INFO: [AdminBooking] Suppressing parent REQ calendar sync for multi-day booking")
-            calendar_result = {"status": "skipped", "message": "Multi-day jobs sync their own calendar events."}
+            calendar_result = {"status": "skipped", "message": "Child jobs sync their own calendar events."}
     except Exception as cal_err:
         calendar_result = {"status": "calendar_failed", "message": str(cal_err)}
         print(f"WARNING: [AdminBooking] Calendar sync failed: {cal_err}")
@@ -411,6 +437,11 @@ def handler(event, context):
         if missing:
             return bad_request(f"Missing or invalid required fields: {', '.join(missing)}", event)
 
+        try:
+            booking_windows = _validated_booking_windows(body)
+        except CheckInValidationError as exc:
+            return bad_request(str(exc), event)
+
         if workflow_type == WorkflowType.CUSTOMER_INTAKE:
             acceptance_errors = []
             if body.get('accepted_terms') is not True:
@@ -480,8 +511,8 @@ def handler(event, context):
             'selected_dates': selected_dates if selected_dates and isinstance(selected_dates, list) else None,
             # Release 2: visit_windows (array) for multi-select support.
             # Legacy visit_window (string) preserved for backward compatibility.
-            'visit_window': body.get('visit_window', 'ANYTIME'),
-            'visit_windows': _normalize_visit_windows(body),
+            'visit_window': booking_windows['visit_window'],
+            'visit_windows': booking_windows['visit_windows'],
             'preferred_time': body.get('preferred_time'),
             'timing_notes': body.get('timing_notes'),
             # Release 2: Preferred sitter — informational only, does NOT auto-assign.
@@ -501,6 +532,8 @@ def handler(event, context):
             'created_at': datetime.utcnow().isoformat(),
             'entity_type': 'REQUEST'
         }
+        if booking_windows['visits_per_day'] is not None:
+            item['visits_per_day'] = booking_windows['visits_per_day']
         if is_test:
             item['is_test_booking'] = True
         

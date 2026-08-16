@@ -172,6 +172,7 @@ has materially changed. Leave a resume block containing:
 - Expose one obvious primary next action per workflow phase where safe.
 - Preserve RBAC, review, payment, and tenant safety gates.
 - Open decisions: Check-In 1/3-visit pricing, Overnight hours, Walk window rules.
-- Slice A canonical service/time-window contract is locally implemented, not deployed, and unstaged for independent review.
-- It adds `WALK_20MIN`, `CHECK_IN`, structured active windows, Check-In visit/window metadata, and explicit legacy/unresolved states while preserving current intake flags and transactional behavior.
-- Next gate: independent Slice A review. Slice B backend booking/job/calendar support requires separate explicit approval. Deployment remains separately gated.
+- Slice A canonical service/time-window contract is locally implemented and not deployed.
+- Slice B Check-In request/job/Calendar semantics are locally implemented, not deployed, and unstaged for independent review.
+- Slice B uses generated metadata for strict new Check-In writes, deterministically expands dates × windows, assigns stable job/Calendar occurrence identities, creates one exact-time event per child, and preserves legacy reads plus booking-level notification batching.
+- Next gate: independent Slice B review. Slices C–F and any deployment remain separately gated.

@@ -120,7 +120,7 @@ def _targeted_imports(path):
 
 
 def test_exactly_one_approved_backend_runtime_consumer_of_generated_service_types():
-    approved_path = (BACKEND_DIR / "common" / "google_calendar.py").resolve()
+    approved_path = (BACKEND_DIR / "common" / "service_contract.py").resolve()
     consumers = []
 
     for path in sorted(BACKEND_DIR.rglob("*.py")):

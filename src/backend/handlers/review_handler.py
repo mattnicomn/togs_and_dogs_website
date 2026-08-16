@@ -298,6 +298,8 @@ def handler(event, context):
                         is_multi_day_req = True
                     if request_item.get('job_ids'):
                         is_multi_day_req = True
+                    if request_item.get('service_type') == 'CHECK_IN':
+                        is_multi_day_req = True
                         
                     if not is_multi_day_req:
                         print(f"INFO: [Req:{request_id}] Attempting Google Calendar sync (Status: {new_status})")
@@ -322,7 +324,7 @@ def handler(event, context):
                             )
                     else:
                         print(f"INFO: [Req:{request_id}] Suppressing parent REQ Google Calendar sync for multi-day request.")
-                        calendar_result = {"status": "skipped", "message": "Multi-day jobs sync their own calendar events."}
+                        calendar_result = {"status": "skipped", "message": "Child jobs sync their own calendar events."}
                 except Exception as sync_err:
                     print(f"WARNING: [Req:{request_id}] Google Calendar sync failed: {sync_err}")
                     calendar_result = {"status": "calendar_failed", "message": str(sync_err)}

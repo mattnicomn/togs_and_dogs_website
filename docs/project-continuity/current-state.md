@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-15 (Ryan Slice A Canonical Service + Time-Window Contract Locally Complete / Not Deployed)
+**Last Updated:** 2026-08-15 (Ryan Slice B Check-In Transactions Locally Complete / Not Deployed)
 
 ---
 
@@ -70,7 +70,7 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - No Terraform plan/apply, Cognito change, KMS grant, Postmark email, password reset, deployment, or production write occurred. Existing generic Cognito email remains active until a separately reviewed and explicitly approved deployment.
   - See: `docs/release-notes/release-cognito-custom-email-sender-postmark.md`
 
-- Ryan Cross-Platform Services, Scheduling & Workflow Alignment Slice A (✅ LOCAL IMPLEMENTATION COMPLETE / NOT DEPLOYED / UNSTAGED FOR REVIEW — 2026-08-15)
+- Ryan Cross-Platform Services, Scheduling & Workflow Alignment Slices A–B (✅ LOCAL IMPLEMENTATION COMPLETE / NOT DEPLOYED / SLICE B UNSTAGED FOR REVIEW — 2026-08-15)
   - Ryan completed an operational platform review confirming target service model: 20-Minute Walk, Check-In (30 min, 1–3 visits/day selectable), and Overnight.
   - Slice A extends the existing canonical service contract with `WALK_20MIN`, `CHECK_IN`, lifecycle/new-booking metadata, visits/day options, allowed windows, and window-selection mode; generated Web, Mobile, and Backend adapters agree deterministically.
   - Structured active windows are canonical as Morning `06:30–09:30`, Mid-day `10:30–15:30`, and Evening `18:00–21:30`. Legacy `AFTERNOON` and `ANYTIME` remain readable with no invented bounds.
@@ -84,6 +84,12 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - No booking/job/calendar transaction, selector UX, pricing, infrastructure, production, deployment, or mobile-distribution change occurred.
   - See: `docs/planning/ryan-cross-platform-services-scheduling-workflow-alignment.md`
   - See: `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md`
+  - Slice B now validates new `CHECK_IN` writes from the generated contract, persists `visits_per_day` plus canonical ordered `visit_windows`, and expands selected dates × windows into deterministic child jobs.
+  - Each Check-In child has stable request/date/window job and Calendar identities, one occurrence-specific window, and one event at 06:30, 10:30, or 18:00 for 30 minutes. Replay reuses logical jobs/events rather than multiplying them.
+  - Parent Check-In Calendar sync is suppressed; child jobs own events. Existing assignment notification batching remains once per booking operation. Legacy `WALK_30MIN`, `PET_SITTING`, `AFTERNOON`, and `ANYTIME` compatibility remains; no Walk/Overnight policy was added.
+  - Slice B validation: 31 focused tests pass; affected multi-day/Calendar/admin/generated-contract regressions and 73 assignment/notification tests pass; full backend is 911 passed / the same 97 environment-baseline failures, with zero candidate-only failures.
+  - Slices C Web UX, D Mobile parity/navigation, E workflow simplification, F public-site/pricing, deployment, and production writes remain deferred and separately gated.
+  - See: `docs/release-notes/ryan-slice-b-check-in-booking-job-calendar-semantics.md`
 
 - Preview-Only V1 Platform Admin Tenant-Onboarding Orchestrator (✅ COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-11)
   - Platform Admin validation and preview APIs with technically enforced read-only Lambda IAM.

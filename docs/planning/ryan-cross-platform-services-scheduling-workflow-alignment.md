@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slice A Local Implementation Complete / Not Deployed / Slices B–F Deferred
+**Status:** Slices A–B Local Implementation Complete / Not Deployed / Slices C–F Deferred
 
 ---
 
@@ -28,7 +28,7 @@ Ryan explicitly confirmed "1–3" means the number of Check-In visits PER DAY.
 
 ## Slice A Local Contract Result
 
-Slice A is locally implemented and unstaged for independent review. The existing canonical `shared/constants/service-types.json` now contains both `services` and structured `windows`, with deterministic Web, Mobile, and Backend generated adapters.
+Slice A is locally implemented and committed. The existing canonical `shared/constants/service-types.json` contains both `services` and structured `windows`, with deterministic Web, Mobile, and Backend generated adapters.
 
 - New canonical target IDs: `WALK_20MIN` and `CHECK_IN`.
 - `CHECK_IN` encodes `[1, 2, 3]` visits/day, active windows `[MORNING, MIDDAY, EVENING]`, and `match_visits_per_day` selection mode.
@@ -39,6 +39,12 @@ Slice A is locally implemented and unstaged for independent review. The existing
 - `AFTERNOON` and `ANYTIME` remain legacy-readable with no invented canonical time bounds.
 
 See `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md`.
+
+## Slice B Local Transactional Result
+
+Slice B is locally implemented, not deployed, and unstaged for independent review. New `CHECK_IN` writes require contract-valid `visits_per_day` and distinct `visit_windows`; ordered dates × ordered windows produce deterministic child jobs and one canonical-time Calendar event per child. Stable job and Calendar occurrence identities make replay duplicate-safe. Legacy services/windows remain readable, booking-level notification batching is preserved, and Walk/Overnight policy is unchanged.
+
+See `docs/release-notes/ryan-slice-b-check-in-booking-job-calendar-semantics.md`.
 
 ### Check-In Window Rules
 
@@ -119,7 +125,7 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | Slice | Scope | Dependencies | Status |
 |-------|-------|-------------|--------|
 | A | Canonical service/time-window contract update in `shared/constants/` | None | Local Implementation Complete / Not Deployed |
-| B | Backend booking/job/calendar support for visits-per-day and updated windows | A | Not Started |
+| B | Backend booking/job/calendar support for visits-per-day and updated windows | A | Local Implementation Complete / Not Deployed / Unstaged for Review |
 | C | Web service-selection UX (admin booking + client intake) | A, B | Not Started |
 | D | Mobile parity + dashboard navigation | A, B | Not Started |
 | E | Workflow next-action simplification | C, D | Not Started |

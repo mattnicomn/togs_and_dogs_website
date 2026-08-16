@@ -6,7 +6,8 @@ import urllib.parse
 import urllib.error
 import boto3
 from datetime import datetime
-from common.generated_service_types import SERVICE_TYPES
+from common.service_contract import SERVICE_METADATA, WINDOW_METADATA
+from common.check_in import check_in_window_start
 
 secrets = boto3.client('secretsmanager')
 
@@ -219,8 +220,6 @@ def _get_valid_token(request_id="UNKNOWN", company_id=None):
 
     return _refresh_access_token(tokens, request_id, company_id)
 
-SERVICE_METADATA = SERVICE_TYPES["services"]
-
 SERVICE_DURATIONS = {
     service_type: metadata["durationMinutes"]
     for service_type, metadata in SERVICE_METADATA.items()
@@ -264,7 +263,7 @@ def _build_event_body(item, assigned_worker=None):
     color_id = SERVICE_COLORS.get(service_type, '8')
     friendly_service_name = FRIENDLY_SERVICE_NAMES.get(service_type, service_type)
 
-    resolved_start_hour = None
+    resolved_start_time = None
     window_label = "All Day"
 
     if not scheduled_time:
@@ -273,11 +272,21 @@ def _build_event_body(item, assigned_worker=None):
             single_window = item.get('visit_window', 'ANYTIME')
             windows = [single_window] if single_window else ['ANYTIME']
 
-        for w in windows:
-            if w in WINDOW_START_HOURS:
-                resolved_start_hour = WINDOW_START_HOURS[w]
-                window_label = w.capitalize()
-                break
+        if service_type == 'CHECK_IN':
+            for w in windows:
+                canonical_start = check_in_window_start(w)
+                if canonical_start:
+                    resolved_start_time = canonical_start
+                    window_label = WINDOW_METADATA[w]['label']
+                    break
+        else:
+            # Historical scheduling compatibility. Walk/Overnight policy remains
+            # unresolved; do not apply the new Check-In timing model to them.
+            for w in windows:
+                if w in WINDOW_START_HOURS:
+                    resolved_start_time = f"{WINDOW_START_HOURS[w]:02d}:00"
+                    window_label = w.capitalize()
+                    break
     else:
         window_label = "Exact Time"
 
@@ -289,7 +298,7 @@ def _build_event_body(item, assigned_worker=None):
     source = item.get('source', '')
     source_label = "Admin Created" if source == 'admin_created' else "Client Booking"
 
-    timing_note = "⏰ Estimated from booking window\n" if resolved_start_hour is not None else ""
+    timing_note = "⏰ Estimated from booking window\n" if resolved_start_time is not None else ""
 
     description = (
         f"Client: {client_name}\n"
@@ -335,9 +344,9 @@ def _build_event_body(item, assigned_worker=None):
             return None, "invalid_time_format"
 
     # Case 2: Inferred time from visit window
-    elif resolved_start_hour is not None:
+    elif resolved_start_time is not None:
         try:
-            start_dt_str = f"{scheduled_date}T{resolved_start_hour:02d}:00:00"
+            start_dt_str = f"{scheduled_date}T{resolved_start_time}:00"
             start_dt = datetime.fromisoformat(start_dt_str)
             
             from datetime import timedelta
@@ -352,7 +361,7 @@ def _build_event_body(item, assigned_worker=None):
             }
             return body, None
         except Exception as e:
-            print(f"WARNING: Failed to parse window timing ({scheduled_date} hr:{resolved_start_hour}): {e}")
+            print(f"WARNING: Failed to parse window timing ({scheduled_date} {resolved_start_time}): {e}")
             return None, "invalid_time_format"
 
     # Case 3: All-day fallback
@@ -444,6 +453,12 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
             "message": f"Calendar sync skipped: {skip_reason.replace('_', ' ')}."
         }
     
+    # CHECK_IN child jobs may provide a stable, API-compatible event ID. Google
+    # treats a repeated insert of that ID as a conflict rather than a duplicate.
+    requested_event_id = item.get('calendar_event_id') if not google_event_id else None
+    if requested_event_id:
+        event_body['id'] = requested_event_id
+
     # Determine URL and method
     if google_event_id:
         print(f"INFO: [Req:{request_id}] Updating Calendar Event: {google_event_id}")
@@ -476,6 +491,17 @@ def sync_calendar_event(item, google_event_id=None, assigned_worker=None):
 
         except urllib.error.HTTPError as he:
             err_body = he.read().decode()
+
+            if he.code == 409 and requested_event_id:
+                print(
+                    f"INFO: [Req:{request_id}] Deterministic Calendar Event "
+                    f"already exists: {requested_event_id}"
+                )
+                return {
+                    "status": "calendar_existing",
+                    "event_id": requested_event_id,
+                    "message": "Calendar event already exists."
+                }
             
             # Handle 404 if event was deleted externally (not retryable — re-create instead)
             if he.code == 404 and google_event_id:

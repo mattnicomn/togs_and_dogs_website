@@ -58,14 +58,14 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 11 | AI-assisted onboarding | ❌ Not started; follow deterministic onboarding | Low |
 | 12 | Video visit evidence | ❌ Not started | Low |
 | 13 | Multi-location support | ❌ Not started | Future |
-| 14 | Cross-platform services, scheduling & workflow alignment | 📋 Assessment complete / field feedback captured / implementation not started | High |
+| 14 | Cross-platform services, scheduling & workflow alignment | 🛠️ Slices A–B locally complete / not deployed / C–F deferred | High |
 
 ---
 
 ## Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slice A Local Implementation Complete / Not Deployed / Slices B–F Deferred
+**Status:** Slices A–B Local Implementation Complete / Not Deployed / Slices C–F Deferred
 
 ### Target Service Model
 
@@ -88,7 +88,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | Slice | Scope | Status | Dependencies |
 |-------|-------|--------|-------------|
 | A | Canonical service/time-window contract update | Local Implementation Complete / Not Deployed | — |
-| B | Backend booking/job/calendar support | Not Started | A |
+| B | Backend booking/job/calendar support | Local Implementation Complete / Not Deployed / Unstaged for Review | A |
 | C | Web service-selection UX | Not Started | A, B |
 | D | Mobile parity + dashboard navigation | Not Started | A, B |
 | E | Workflow next-action simplification | Not Started | C, D |
