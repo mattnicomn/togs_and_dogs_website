@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-17 (Ryan Slice D1 Mobile Dashboard Navigation Committed / Pushed / Not Built, Distributed, or Deployed)
+**Last Updated:** 2026-08-17 (Ryan Slice D2 Mobile Check-In Intake Parity Committed / Pushed / Not Built, Distributed, or Deployed)
 
 ---
 
@@ -69,19 +69,22 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - No Terraform plan/apply, Cognito change, KMS grant, Postmark email, password reset, deployment, or production write occurred. Existing generic Cognito email remains active until a separately reviewed and explicitly approved deployment.
   - See: `docs/release-notes/release-cognito-custom-email-sender-postmark.md`
 
-- Ryan Cross-Platform Services, Scheduling & Workflow Alignment Slices A–B + D1 (✅ COMMITTED / PUSHED / NOT DEPLOYED; D1 NOT BUILT OR DISTRIBUTED — 2026-08-17)
+- Ryan Cross-Platform Services, Scheduling & Workflow Alignment Slices A–B + D1–D2 (✅ COMMITTED / PUSHED / NOT DEPLOYED; D1–D2 NOT BUILT OR DISTRIBUTED — 2026-08-17)
   - Ryan completed an operational platform review confirming target service model: 20-Minute Walk, Check-In (30 min, 1–3 visits/day selectable), and Overnight.
   - Slice A (`53818bc`) extends the canonical service contract with `WALK_20MIN`, `CHECK_IN`, lifecycle/new-booking metadata, visits/day options, allowed windows, and window-selection mode; generated Web, Mobile, and Backend adapters agree deterministically. Independently reviewed (Kiro: IMPLEMENTATION_CORRECT).
   - Slice B (`37bb806`) validates new CHECK_IN writes, persists `visits_per_day` + canonical ordered `visit_windows`, expands selected dates × windows into deterministic child jobs with stable UUIDv5 identities, one Calendar event per child at canonical 06:30/10:30/18:00 starts for 30 minutes, idempotent replay, and 409-conflict handling. Independently reviewed (Kiro: IMPLEMENTATION_CORRECT).
   - Ryan's physical Android internal-testing install confirmed and operational review completed (2026-08-15).
   - Slice D1 makes the five existing admin/owner dashboard statistic cards accessible touch targets. Pending Review and Needs Sitter open Requests with transient canonical `PENDING_REVIEW`/`APPROVED` filters; Scheduled, Today's Visits, and This Week's Visits open the existing Schedule. The current Schedule has no admin date/range route parameter, so no unsupported today/week focus was invented.
   - D1 validation: focused dashboard/request/schedule/navigator 10/10, TypeScript pass, and full mobile 115/115 across 13 suites. It has not been built, distributed, deployed, or received by Ryan.
+  - Slice D2 locally wires customer Mobile intake to active/mobile-supported/new-booking-eligible service metadata and contract-derived Check-In visits/day/windows. It submits canonical ordered `visit_windows` plus `visits_per_day` for Check-In and omits both for Walk/Overnight. State resets, review copy, and accessibility are covered.
+  - D2 validation: focused Intake 23/23, TypeScript pass, and full mobile 123/123 across 13 suites. Independent review returned `RYAN_SLICE_D2_IMPLEMENTATION_CORRECT`; D2 is committed and pushed but has not been built, distributed, deployed, or received by Ryan. The current Android versionCode 4 contains neither D1 nor D2.
   - Legacy service/window compatibility preserved. Walk and Overnight policies remain unresolved.
-  - Slices C Web UX, D2 Mobile service/intake parity, E workflow simplification, and F public-site/pricing remain NOT STARTED and separately gated.
+  - Slice C Web UX is required before cross-platform release. Slices C, E workflow simplification, and F public-site/pricing remain NOT STARTED and separately gated.
   - No production deployment, booking, job, Calendar mutation, or pricing change occurred.
   - See: `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md`
   - See: `docs/release-notes/ryan-slice-b-check-in-booking-job-calendar-semantics.md`
   - See: `docs/release-notes/ryan-slice-d1-mobile-dashboard-navigation.md`
+  - See: `docs/release-notes/ryan-slice-d2-mobile-check-in-intake-parity.md`
 
 - Preview-Only V1 Platform Admin Tenant-Onboarding Orchestrator (✅ COMMITTED AND PUSHED / NOT DEPLOYED — 2026-08-11)
   - Platform Admin validation and preview APIs with technically enforced read-only Lambda IAM.
@@ -388,7 +391,7 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
 - React/Vite remains the web framework. Expo/React Native remains mobile.
 - No website rewrite to React Native Web.
 - Mobile pet editing API (PUT /client/pets/{petId}) was deployed 2026-07-28 and validated 2026-07-30 via Phase 1B.5C-A. Phase 24A-5 (Mobile My Pets Editing) is 100% LOCALLY COMPLETE (committed and pushed).
-- Phase 24A-1A–9C are complete within their approved boundaries. The committed Slice D1 mobile source passes 115/115 tests across 13 suites and is not included in the current internal builds.
+- Phase 24A-1A–9C are complete within their approved boundaries. Slice D2 is committed and pushed and the mobile source passes 123/123 tests across 13 suites; unbuilt D1/D2 source is not included in the current internal builds.
 - Corrected iOS Build 6 and Android versionCode 4 are internally distributed and revalidated. No public Apple App Store or Google Play Production release, Ryan expansion, or additional EAS work is approved.
 - Ryan's physical Android install and operational review are confirmed; the full historical remediation smoke matrix was not rerun, and Phase 24A-9D formal production-write validation remains separately gated.
 - Web customer self-service password recovery is locally complete, committed, and pushed; deployment remains separately gated.

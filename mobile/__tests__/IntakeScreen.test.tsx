@@ -76,32 +76,48 @@ describe('IntakeScreen Component Tests', () => {
     });
   });
 
-  test('2. derives exactly 6 canonical intake service options from SERVICE_TYPES contract', async () => {
+  test('2. derives exactly 3 target intake service options from canonical booking eligibility', async () => {
     const canonicalIntakeServices = Object.entries(SERVICE_TYPES.services)
-      .filter(([, s]) => s.availableInIntake === true);
+      .filter(([, service]) => (
+        service.supportedOnMobile === true
+        && service.lifecycle === 'active'
+        && service.newBookingEligibility === 'eligible'
+      ));
 
-    expect(canonicalIntakeServices.length).toBe(6);
+    expect(canonicalIntakeServices.map(([key]) => key)).toEqual([
+      'WALK_20MIN',
+      'CHECK_IN',
+      'OVERNIGHT',
+    ]);
 
     await render(<IntakeScreen />);
 
     await waitFor(() => {
-      expect(screen.getByText('30-Min Walk')).toBeTruthy();
-      expect(screen.getByText('60-Min Walk')).toBeTruthy();
-      expect(screen.getByText('1-Hour Drop-in')).toBeTruthy();
-      expect(screen.getByText('3-Hour Drop-in')).toBeTruthy();
-      expect(screen.getByText('Overnight Care')).toBeTruthy();
-      expect(screen.getByText('Pet Sitting')).toBeTruthy();
+      canonicalIntakeServices.forEach(([, service]) => {
+        expect(screen.getByText(service.labelLong)).toBeTruthy();
+      });
     });
   });
 
-  test('3. excludes MEET_GREET service option from customer intake UI', async () => {
-    const meetGreetConfig = SERVICE_TYPES.services.MEET_GREET;
-    expect(meetGreetConfig.availableInIntake).toBe(false);
+  test('3. excludes legacy and non-new-booking services from customer intake UI', async () => {
+    const unavailableForNewBookings = [
+      SERVICE_TYPES.services.WALK_30MIN,
+      SERVICE_TYPES.services.WALK_60MIN,
+      SERVICE_TYPES.services.DROPIN_1HR,
+      SERVICE_TYPES.services.DROPIN_3HR,
+      SERVICE_TYPES.services.PET_SITTING,
+      SERVICE_TYPES.services.MEET_GREET,
+    ];
+    unavailableForNewBookings.forEach((service) => {
+      expect(service.newBookingEligibility).not.toBe('eligible');
+    });
 
     await render(<IntakeScreen />);
 
     await waitFor(() => {
-      expect(screen.queryByText('Meet & Greet')).toBeNull();
+      unavailableForNewBookings.forEach((service) => {
+        expect(screen.queryByText(service.labelLong)).toBeNull();
+      });
     });
   });
 
@@ -231,7 +247,9 @@ describe('IntakeScreen Component Tests', () => {
 
       expect(submittedPayload.client_email).toBe('client@example.com');
       expect(submittedPayload.client_name).toBeTruthy();
-      expect(submittedPayload.service_type).toBe('PET_SITTING');
+      expect(submittedPayload.service_type).toBe('WALK_20MIN');
+      expect(submittedPayload.visits_per_day).toBeUndefined();
+      expect(submittedPayload.visit_windows).toBeUndefined();
       expect(Array.isArray(submittedPayload.selected_dates)).toBe(true);
       expect(submittedPayload.selected_dates.length).toBeGreaterThan(0);
       expect(submittedPayload.start_date).toBeTruthy();
@@ -338,9 +356,9 @@ describe('IntakeScreen Component Tests', () => {
     await render(<IntakeScreen />);
 
     await waitFor(() => {
-      const sittingText = screen.getByText('Pet Sitting');
-      expect(sittingText.parent!.props.accessibilityRole).toBe('button');
-      expect(sittingText.parent!.props.accessibilityState.selected).toBe(true);
+      const walkOption = screen.getByLabelText('Select service 20-Minute Walk');
+      expect(walkOption.props.accessibilityRole).toBe('button');
+      expect(walkOption.props.accessibilityState.selected).toBe(true);
     });
 
     const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
@@ -352,9 +370,19 @@ describe('IntakeScreen Component Tests', () => {
       expect(dateChips[0].props.accessibilityState.selected).toBe(true);
     });
 
-    const windowOption = screen.getByText(/Morning/);
-    expect(windowOption.parent!.props.accessibilityRole).toBe('button');
-    expect(windowOption.parent!.props.accessibilityState.selected).toBe(true);
+    await fireEvent.press(screen.getByLabelText('Select service 30-Minute Check-In'));
+    const visitsOption = screen.getByLabelText('1 visit per day');
+    expect(visitsOption.props.accessibilityRole).toBe('button');
+    expect(visitsOption.props.accessibilityState.selected).toBe(false);
+
+    await fireEvent.press(visitsOption);
+    const windowOption = screen.getByLabelText('Morning, 6:30 AM to 9:30 AM');
+    expect(windowOption.props.accessibilityRole).toBe('button');
+    expect(windowOption.props.accessibilityState.selected).toBe(false);
+    expect(windowOption.props.accessibilityState.disabled).toBe(false);
+
+    await fireEvent.press(windowOption);
+    expect(windowOption.props.accessibilityState.selected).toBe(true);
   });
 
   test('12. exposes checkbox role and checked accessibility state on policy agreement row', async () => {
@@ -465,6 +493,220 @@ describe('IntakeScreen Component Tests', () => {
       expect(successTitle.props.accessibilityRole).toBe('header');
       expect(screen.getByText('View My Bookings')).toBeTruthy();
     });
+  });
+});
+
+describe('IntakeScreen - Ryan Slice D2 Check-In intake parity', () => {
+  const dateLabelPattern = /^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/;
+  const morningLabel = 'Morning, 6:30 AM to 9:30 AM';
+  const middayLabel = 'Mid-day, 10:30 AM to 3:30 PM';
+  const eveningLabel = 'Evening, 6:00 PM to 9:30 PM';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetClientPets.mockResolvedValue([
+      { id: 'PET-1', name: 'Buster', species: 'DOG', breed: 'Golden Retriever' },
+    ]);
+    mockGetStaffOptions.mockResolvedValue({ staff_options: [] });
+    mockSubmitClientRequest.mockResolvedValue({ request_id: 'REQ-D2' });
+  });
+
+  const selectCheckIn = async () => {
+    await fireEvent.press(screen.getByLabelText('Select service 30-Minute Check-In'));
+  };
+
+  const selectFirstDate = async () => {
+    const dateChips = await screen.findAllByLabelText(dateLabelPattern);
+    await fireEvent.press(dateChips[0]);
+    await screen.findByText(/Selected \(1\)/);
+  };
+
+  const advanceToReview = async () => {
+    await fireEvent.press(screen.getByLabelText('Continue →'));
+    await screen.findByText('Select Pets');
+    await screen.findByText(/Buster/);
+    await fireEvent.press(screen.getByLabelText('Continue →'));
+    await screen.findByText('Review Booking Request');
+  };
+
+  const submitReviewedRequest = async () => {
+    await fireEvent.press(screen.getByLabelText('Accept Tog & Dogs Terms of Service and Privacy Policy'));
+    await fireEvent.press(screen.getByLabelText('Submit Booking Request'));
+    await waitFor(() => expect(mockSubmitClientRequest).toHaveBeenCalledTimes(1));
+    return mockSubmitClientRequest.mock.calls[0][0];
+  };
+
+  test('derives Check-In count/window controls and display metadata from the canonical contract', async () => {
+    await render(<IntakeScreen />);
+    await selectCheckIn();
+
+    expect(SERVICE_TYPES.services.CHECK_IN.visitsPerDayOptions).toEqual([1, 2, 3]);
+    expect(SERVICE_TYPES.services.CHECK_IN.allowedWindowIds).toEqual(['MORNING', 'MIDDAY', 'EVENING']);
+    expect(SERVICE_TYPES.services.CHECK_IN.durationMinutes).toBe(30);
+
+    SERVICE_TYPES.services.CHECK_IN.visitsPerDayOptions.forEach((count) => {
+      const control = screen.getByLabelText(`${count} visit${count === 1 ? '' : 's'} per day`);
+      expect(control.props.accessibilityRole).toBe('button');
+      expect(control.props.accessibilityState.selected).toBe(false);
+    });
+
+    [morningLabel, middayLabel, eveningLabel].forEach((label) => {
+      const control = screen.getByLabelText(label);
+      expect(control.props.accessibilityRole).toBe('button');
+      expect(control.props.accessibilityState.disabled).toBe(true);
+    });
+    expect(screen.queryByLabelText(/Afternoon/i)).toBeNull();
+    expect(screen.queryByLabelText(/Any.?time/i)).toBeNull();
+  });
+
+  test('submits a valid 1/day Check-In with one canonical window and review summary', async () => {
+    await render(<IntakeScreen />);
+    await selectCheckIn();
+    await fireEvent.press(screen.getByLabelText('1 visit per day'));
+    await fireEvent.press(screen.getByLabelText(morningLabel));
+    await selectFirstDate();
+    await advanceToReview();
+
+    expect(screen.getByText('Check-In')).toBeTruthy();
+    expect(screen.getByText('30 minutes')).toBeTruthy();
+    expect(screen.getByText('Visits per day:')).toBeTruthy();
+    expect(screen.getByText('1')).toBeTruthy();
+    expect(screen.getByText('Visit windows:')).toBeTruthy();
+    expect(screen.getByText('Morning')).toBeTruthy();
+
+    const payload = await submitReviewedRequest();
+    expect(payload).toEqual(expect.objectContaining({
+      service_type: 'CHECK_IN',
+      visits_per_day: 1,
+      visit_windows: ['MORNING'],
+      selected_dates: [expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)],
+      accepted_terms: true,
+      accepted_privacy: true,
+    }));
+    expect(payload.visit_window).toBeUndefined();
+    expect(payload.status).toBeUndefined();
+  });
+
+  test('caps 2/day Check-In at two distinct windows and submits canonical order', async () => {
+    await render(<IntakeScreen />);
+    await selectCheckIn();
+    await fireEvent.press(screen.getByLabelText('2 visits per day'));
+    await fireEvent.press(screen.getByLabelText(eveningLabel));
+    await fireEvent.press(screen.getByLabelText(morningLabel));
+
+    const midday = screen.getByLabelText(middayLabel);
+    expect(midday.props.accessibilityState.selected).toBe(false);
+    expect(midday.props.accessibilityState.disabled).toBe(true);
+    await fireEvent.press(midday);
+    expect(midday.props.accessibilityState.selected).toBe(false);
+
+    await selectFirstDate();
+    await advanceToReview();
+    expect(screen.getByText('Morning, Evening')).toBeTruthy();
+
+    const payload = await submitReviewedRequest();
+    expect(payload.visits_per_day).toBe(2);
+    expect(payload.visit_windows).toEqual(['MORNING', 'EVENING']);
+    expect(new Set(payload.visit_windows).size).toBe(2);
+  });
+
+  test('auto-selects all canonical windows for a 3/day Check-In', async () => {
+    await render(<IntakeScreen />);
+    await selectCheckIn();
+    await fireEvent.press(screen.getByLabelText('3 visits per day'));
+
+    [morningLabel, middayLabel, eveningLabel].forEach((label) => {
+      const control = screen.getByLabelText(label);
+      expect(control.props.accessibilityState.selected).toBe(true);
+      expect(control.props.accessibilityState.disabled).toBe(true);
+    });
+    expect(screen.getByText('All three daily windows are used automatically.')).toBeTruthy();
+
+    await selectFirstDate();
+    await advanceToReview();
+    expect(screen.getByText('Morning, Mid-day, Evening')).toBeTruthy();
+
+    const payload = await submitReviewedRequest();
+    expect(payload.visits_per_day).toBe(3);
+    expect(payload.visit_windows).toEqual(['MORNING', 'MIDDAY', 'EVENING']);
+  });
+
+  test('requires a visit count and the exact number of windows before continuing', async () => {
+    await render(<IntakeScreen />);
+    await selectCheckIn();
+    await fireEvent.press(screen.getByLabelText('Continue →'));
+    expect(await screen.findByText('⚠️ Choose how many visits you need each day.')).toBeTruthy();
+
+    await fireEvent.press(screen.getByLabelText('2 visits per day'));
+    await fireEvent.press(screen.getByLabelText(morningLabel));
+    await fireEvent.press(screen.getByLabelText('Continue →'));
+    expect(await screen.findByText('⚠️ Choose 2 visit windows.')).toBeTruthy();
+
+    await fireEvent.press(screen.getByLabelText(morningLabel));
+    expect(screen.getByLabelText(morningLabel).props.accessibilityState.selected).toBe(false);
+    await fireEvent.press(screen.getByLabelText(morningLabel));
+    expect(screen.getByLabelText(morningLabel).props.accessibilityState.selected).toBe(true);
+  });
+
+  test('normalizes window state safely across 2 to 1 to 3 visit transitions', async () => {
+    await render(<IntakeScreen />);
+    await selectCheckIn();
+    await fireEvent.press(screen.getByLabelText('2 visits per day'));
+    await fireEvent.press(screen.getByLabelText(morningLabel));
+    await fireEvent.press(screen.getByLabelText(eveningLabel));
+
+    await fireEvent.press(screen.getByLabelText('1 visit per day'));
+    expect(screen.getByLabelText(morningLabel).props.accessibilityState.selected).toBe(true);
+    expect(screen.getByLabelText(eveningLabel).props.accessibilityState.selected).toBe(false);
+
+    await fireEvent.press(screen.getByLabelText('3 visits per day'));
+    [morningLabel, middayLabel, eveningLabel].forEach((label) => {
+      expect(screen.getByLabelText(label).props.accessibilityState.selected).toBe(true);
+    });
+  });
+
+  test('clears Check-In state when switching to Walk and when switching back', async () => {
+    await render(<IntakeScreen />);
+    await selectCheckIn();
+    await fireEvent.press(screen.getByLabelText('2 visits per day'));
+    await fireEvent.press(screen.getByLabelText(morningLabel));
+    await fireEvent.press(screen.getByLabelText(eveningLabel));
+    await fireEvent.press(screen.getByLabelText('Select service 20-Minute Walk'));
+
+    expect(screen.queryByText('2. Visits per day')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Select service 30-Minute Check-In'));
+    expect(screen.getByLabelText('2 visits per day').props.accessibilityState.selected).toBe(false);
+    expect(screen.getByLabelText(morningLabel).props.accessibilityState.selected).toBe(false);
+
+    await fireEvent.press(screen.getByLabelText('Select service 20-Minute Walk'));
+    await selectFirstDate();
+    await advanceToReview();
+    expect(screen.getByText('20-Min Walk')).toBeTruthy();
+    expect(screen.getByText('20 minutes')).toBeTruthy();
+
+    const payload = await submitReviewedRequest();
+    expect(payload.service_type).toBe('WALK_20MIN');
+    expect(payload.visits_per_day).toBeUndefined();
+    expect(payload.visit_windows).toBeUndefined();
+  });
+
+  test('clears Check-In fields for Overnight without exposing unresolved duration', async () => {
+    await render(<IntakeScreen />);
+    await selectCheckIn();
+    await fireEvent.press(screen.getByLabelText('3 visits per day'));
+    await fireEvent.press(screen.getByLabelText('Select service Overnight Care'));
+
+    expect(screen.queryByText('2. Visits per day')).toBeNull();
+    await selectFirstDate();
+    await advanceToReview();
+    expect(screen.getByText('Overnight Care')).toBeTruthy();
+    expect(screen.queryByText('720 minutes')).toBeNull();
+    expect(screen.queryByText('Visits per day:')).toBeNull();
+
+    const payload = await submitReviewedRequest();
+    expect(payload.service_type).toBe('OVERNIGHT');
+    expect(payload.visits_per_day).toBeUndefined();
+    expect(payload.visit_windows).toBeUndefined();
   });
 });
 

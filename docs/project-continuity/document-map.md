@@ -14,6 +14,7 @@
 | Preview V1 tenant onboarding orchestrator | `docs/release-notes/release-platform-admin-tenant-onboarding-preview-v1.md` |
 | Ryan Slice B Check-In booking/job/Calendar semantics | `docs/release-notes/ryan-slice-b-check-in-booking-job-calendar-semantics.md` |
 | Ryan Slice D1 mobile dashboard navigation | `docs/release-notes/ryan-slice-d1-mobile-dashboard-navigation.md` |
+| Ryan Slice D2 mobile Check-In intake parity | `docs/release-notes/ryan-slice-d2-mobile-check-in-intake-parity.md` |
 
 ## Planning Documents
 

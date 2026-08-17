@@ -58,14 +58,14 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 11 | AI-assisted onboarding | ❌ Not started; follow deterministic onboarding | Low |
 | 12 | Video visit evidence | ❌ Not started | Low |
 | 13 | Multi-location support | ❌ Not started | Future |
-| 14 | Cross-platform services, scheduling & workflow alignment | 🛠️ Slices A–B and D1 committed/pushed/not deployed; D1 not built/distributed; C, D2, E, F deferred | High |
+| 14 | Cross-platform services, scheduling & workflow alignment | 🛠️ A–B and D1–D2 committed/pushed; none deployed; D1–D2 not built/distributed; C, E, F deferred | High |
 
 ---
 
 ## Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–B and D1 Committed / Pushed / Not Deployed; D1 Not Built or Distributed; Slices C, D2, E, and F Deferred
+**Status:** Slices A–B and D1–D2 Committed / Pushed / Not Deployed; D1–D2 Not Built or Distributed; Slices C, E, and F Deferred
 
 ### Target Service Model
 
@@ -91,7 +91,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | B | Backend booking/job/calendar support | Committed / Pushed / Not Deployed | A |
 | C | Web service-selection UX | Not Started | A, B |
 | D1 | Mobile dashboard navigation | Committed / Pushed / Not Built / Not Distributed / Not Deployed | A, B |
-| D2 | Mobile service-selection/intake parity | Not Started | A, B |
+| D2 | Mobile service-selection/intake parity | Committed / Pushed / Not Built / Not Distributed / Not Deployed | A, B |
 | E | Workflow next-action simplification | Not Started | C, D1, D2 |
 | F | Public website content alignment | Not Started | Ryan pricing decisions |
 

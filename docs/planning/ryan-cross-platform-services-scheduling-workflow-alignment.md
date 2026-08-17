@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–B and D1 Committed / Pushed / Not Deployed; D1 Not Built or Distributed; Slices C, D2, E, and F Deferred
+**Status:** Slices A–B and D1–D2 Committed / Pushed / Not Deployed; D1–D2 Not Built or Distributed; Slices C, E, and F Deferred
 
 ---
 
@@ -82,6 +82,18 @@ See `docs/release-notes/ryan-slice-d1-mobile-dashboard-navigation.md`.
 
 ---
 
+## Slice D2 Local Mobile Intake Result
+
+Slice D2 is committed and pushed but not built, distributed, or deployed. Independent review returned `RYAN_SLICE_D2_IMPLEMENTATION_CORRECT`. Mobile customer intake now presents the active, mobile-supported services whose canonical `newBookingEligibility` is `eligible`: 20-Minute Walk, Check-In, and Overnight. Check-In alone consumes contract-derived visits/day options, active allowed windows, window labels, and structured times; it submits canonical ordered `visits_per_day` and `visit_windows`. Changing counts or services normalizes or clears Check-In-only state, and Walk/Overnight payloads omit those fields.
+
+The existing Web customer intake remains on the unchanged `availableInIntake` model. Slice C must implement the target service selector, Check-In visits/day and multi-window collection, payload semantics, and review display before a cross-platform release. This temporary difference is implementation sequencing only; D2 must not be deployed alone without separate approval.
+
+Validation: focused Intake 23/23, TypeScript pass, and full Mobile 123/123 across 13 suites. D2 has not been built, distributed, deployed, or received by Ryan. Walk windows, Overnight timing/duration, pricing, deposits, and legacy eligibility decisions remain unresolved.
+
+See `docs/release-notes/ryan-slice-d2-mobile-check-in-intake-parity.md`.
+
+---
+
 ## Workflow Simplification Direction
 
 Each operational screen should expose one obvious primary next action where practical.
@@ -134,7 +146,7 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | B | Backend booking/job/calendar support for visits-per-day and updated windows | A | Committed / Pushed / Not Deployed |
 | C | Web service-selection UX (admin booking + client intake) | A, B | Not Started |
 | D1 | Mobile dashboard navigation | A, B | Committed / Pushed / Not Built / Not Distributed / Not Deployed |
-| D2 | Mobile service-selection/intake parity | A, B | Not Started |
+| D2 | Mobile service-selection/intake parity | A, B | Committed / Pushed / Not Built / Not Distributed / Not Deployed |
 | E | Workflow next-action simplification | C, D1, D2 | Not Started |
 | F | Public website content alignment (toganddogs.com) | Ryan pricing decisions | Not Started |
 

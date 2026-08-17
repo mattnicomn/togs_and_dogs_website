@@ -17,17 +17,38 @@ import { submitClientRequest, getClientPets, getStaffOptions } from '../api/clie
 import { COLORS } from '../theme/colors';
 import { SERVICE_TYPES, PET_FIELDS } from '../contracts/generatedContracts';
 
-// Derive 6 canonical intake service options where availableInIntake === true
+// D2 uses the target booking-eligibility contract. The legacy
+// availableInIntake flag remains unchanged for pre-D2 platform compatibility.
 const INTAKE_SERVICE_OPTIONS = Object.entries(SERVICE_TYPES.services)
-  .filter(([, s]) => s.availableInIntake === true)
-  .map(([key, s]) => ({ key, label: s.label || key, labelLong: s.labelLong }));
+  .filter(([, service]) => (
+    service.supportedOnMobile === true
+    && service.lifecycle === 'active'
+    && service.newBookingEligibility === 'eligible'
+  ))
+  .map(([key, service]) => ({
+    key,
+    label: service.label,
+    labelLong: service.labelLong,
+    durationMinutes: service.durationMinutes,
+    durationStatus: service.durationStatus,
+  }));
 
-const VISIT_WINDOW_OPTIONS = [
-  { key: 'MORNING', label: 'Morning (8am - 12pm)' },
-  { key: 'AFTERNOON', label: 'Afternoon (12pm - 4pm)' },
-  { key: 'EVENING', label: 'Evening (4pm - 8pm)' },
-  { key: 'ANYTIME', label: 'Anytime' },
-];
+const INITIAL_SERVICE_TYPE = INTAKE_SERVICE_OPTIONS[0]?.key || '';
+
+const formatCanonicalTime = (value: string | null) => {
+  if (!value) return '';
+  const [hourValue, minute] = value.split(':');
+  const hour = Number(hourValue);
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${minute} ${suffix}`;
+};
+
+const formatCanonicalWindowRange = (start: string | null, end: string | null) => {
+  const formattedStart = formatCanonicalTime(start);
+  const formattedEnd = formatCanonicalTime(end);
+  return formattedStart && formattedEnd ? `${formattedStart}–${formattedEnd}` : '';
+};
 
 const TERMS_VERSION = '1.0';
 const PRIVACY_VERSION = '1.0';
@@ -44,10 +65,11 @@ export const IntakeScreen = () => {
   // Form State
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState(typeof user === 'string' ? user : '');
-  const [serviceType, setServiceType] = useState('PET_SITTING');
+  const [serviceType, setServiceType] = useState(INITIAL_SERVICE_TYPE);
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [customDateInput, setCustomDateInput] = useState('');
-  const [visitWindows, setVisitWindows] = useState<string[]>(['MORNING']);
+  const [visitsPerDay, setVisitsPerDay] = useState<number | null>(null);
+  const [visitWindows, setVisitWindows] = useState<string[]>([]);
   const [timingNotes, setTimingNotes] = useState('');
   const [preferredSitter, setPreferredSitter] = useState('');
 
@@ -68,6 +90,27 @@ export const IntakeScreen = () => {
 
   // Policy Agreement State
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+
+  const selectedService = SERVICE_TYPES.services[serviceType as keyof typeof SERVICE_TYPES.services];
+  const usesContractVisitWindows = selectedService?.windowSelectionMode === 'match_visits_per_day';
+  const allowedVisitWindows = usesContractVisitWindows ? [...selectedService.allowedWindowIds] : [];
+  const checkInWindowOptions = allowedVisitWindows
+    .map((key) => {
+      const metadata = SERVICE_TYPES.windows[key as keyof typeof SERVICE_TYPES.windows];
+      if (
+        !metadata
+        || metadata.lifecycle !== 'active'
+        || metadata.newBookingEligibility !== 'eligible'
+      ) {
+        return null;
+      }
+      return {
+        key,
+        label: metadata.label,
+        range: formatCanonicalWindowRange(metadata.start, metadata.end),
+      };
+    })
+    .filter((window): window is NonNullable<typeof window> => window !== null);
 
   useEffect(() => {
     let isMounted = true;
@@ -144,14 +187,39 @@ export const IntakeScreen = () => {
     }
   };
 
-  const toggleVisitWindow = (key: string) => {
-    if (visitWindows.includes(key)) {
-      if (visitWindows.length > 1) {
-        setVisitWindows(visitWindows.filter((w) => w !== key));
-      }
-    } else {
-      setVisitWindows([...visitWindows, key]);
+  const selectService = (key: string) => {
+    setServiceType(key);
+    setVisitsPerDay(null);
+    setVisitWindows([]);
+    setError(null);
+  };
+
+  const selectVisitsPerDay = (count: number) => {
+    if (!(selectedService?.visitsPerDayOptions as readonly number[] | undefined)?.includes(count)) {
+      return;
     }
+
+    setVisitsPerDay(count);
+    if (count === allowedVisitWindows.length) {
+      setVisitWindows([...allowedVisitWindows]);
+    } else {
+      setVisitWindows(allowedVisitWindows.filter((window) => visitWindows.includes(window)).slice(0, count));
+    }
+    setError(null);
+  };
+
+  const toggleVisitWindow = (key: string) => {
+    if (!usesContractVisitWindows || !visitsPerDay || !(allowedVisitWindows as readonly string[]).includes(key)) {
+      return;
+    }
+
+    if (visitWindows.includes(key)) {
+      setVisitWindows(visitWindows.filter((window) => window !== key));
+    } else if (visitWindows.length < visitsPerDay) {
+      const selected = new Set([...visitWindows, key]);
+      setVisitWindows(allowedVisitWindows.filter((window) => selected.has(window)));
+    }
+    setError(null);
   };
 
   const togglePetSelection = (petName: string) => {
@@ -167,12 +235,16 @@ export const IntakeScreen = () => {
       setError('Please select a service type.');
       return false;
     }
-    if (selectedDates.length === 0) {
-      setError('Please select at least one visit date.');
+    if (usesContractVisitWindows && visitsPerDay === null) {
+      setError('Choose how many visits you need each day.');
       return false;
     }
-    if (visitWindows.length === 0) {
-      setError('Please select at least one visit window.');
+    if (usesContractVisitWindows && visitWindows.length !== visitsPerDay) {
+      setError(`Choose ${visitsPerDay} visit window${visitsPerDay === 1 ? '' : 's'}.`);
+      return false;
+    }
+    if (selectedDates.length === 0) {
+      setError('Please select at least one visit date.');
       return false;
     }
     setError(null);
@@ -241,14 +313,19 @@ export const IntakeScreen = () => {
         });
       }
 
+      const checkInPayload = usesContractVisitWindows ? {
+        visits_per_day: visitsPerDay,
+        visit_windows: allowedVisitWindows.filter((window) => visitWindows.includes(window)),
+      } : {};
+
       const payload = {
         client_name: clientName.trim() || 'Valued Client',
         client_email: clientEmail.trim() || (typeof user === 'string' ? user : ''),
         service_type: serviceType,
+        ...checkInPayload,
         selected_dates: sortedDates,
         start_date: startDate,
         end_date: endDate,
-        visit_windows: visitWindows,
         timing_notes: timingNotes.substring(0, 500),
         preferred_sitter: preferredSitter,
         pets: petsPayload,
@@ -359,19 +436,108 @@ export const IntakeScreen = () => {
                   <TouchableOpacity
                     key={item.key}
                     style={[styles.serviceOption, isSelected && styles.serviceOptionSelected]}
-                    onPress={() => setServiceType(item.key)}
+                    onPress={() => selectService(item.key)}
                     accessibilityRole="button"
+                    accessibilityLabel={`Select service ${item.labelLong}`}
                     accessibilityState={{ selected: isSelected }}
                   >
                     <Text style={[styles.serviceOptionLabel, isSelected && styles.serviceOptionLabelSelected]}>
-                      {item.label}
+                      {item.labelLong}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
 
-            <Text style={[styles.sectionTitle, { marginTop: 24 }]} accessibilityRole="header">2. Visit Dates</Text>
+            {usesContractVisitWindows && (
+              <View>
+                <Text style={[styles.sectionTitle, { marginTop: 24 }]} accessibilityRole="header">
+                  2. Visits per day
+                </Text>
+                <Text
+                  style={styles.fieldHint}
+                  accessibilityLabel={visitsPerDay === null
+                    ? 'Choose how many Check-In visits you need each day'
+                    : `${visitsPerDay} Check-In visit${visitsPerDay === 1 ? '' : 's'} per day selected`}
+                >
+                  Choose how many Check-In visits you need each day.
+                </Text>
+                <View style={styles.visitsPerDayRow}>
+                  {selectedService.visitsPerDayOptions.map((count) => {
+                    const isSelected = visitsPerDay === count;
+                    return (
+                      <TouchableOpacity
+                        key={count}
+                        style={[styles.visitsPerDayOption, isSelected && styles.visitsPerDayOptionSelected]}
+                        onPress={() => selectVisitsPerDay(count)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${count} visit${count === 1 ? '' : 's'} per day`}
+                        accessibilityHint="Sets the number of daily Check-In visits"
+                        accessibilityState={{ selected: isSelected }}
+                      >
+                        <Text style={[styles.visitsPerDayText, isSelected && styles.visitsPerDayTextSelected]}>
+                          {count}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={[styles.sectionTitle, { marginTop: 24 }]} accessibilityRole="header">
+                  3. Preferred visit window{visitsPerDay === 1 ? '' : 's'}
+                </Text>
+                <Text
+                  style={styles.fieldHint}
+                  accessibilityLabel={visitsPerDay === null
+                    ? 'Select visits per day before choosing visit windows'
+                    : visitsPerDay === allowedVisitWindows.length
+                      ? 'All three canonical visit windows are selected automatically'
+                      : `Choose exactly ${visitsPerDay} visit window${visitsPerDay === 1 ? '' : 's'}`}
+                >
+                  {visitsPerDay === null
+                    ? 'Select visits per day first.'
+                    : visitsPerDay === allowedVisitWindows.length
+                      ? 'All three daily windows are used automatically.'
+                      : `Choose ${visitsPerDay} window${visitsPerDay === 1 ? '' : 's'} (${visitWindows.length} selected).`}
+                </Text>
+                {checkInWindowOptions.map((window) => {
+                  const isSelected = visitWindows.includes(window.key);
+                  const isAllWindowsRule = visitsPerDay === allowedVisitWindows.length;
+                  const isDisabled = visitsPerDay === null
+                    || isAllWindowsRule
+                    || (!isSelected && visitWindows.length >= visitsPerDay);
+                  return (
+                    <TouchableOpacity
+                      key={window.key}
+                      style={[
+                        styles.windowOption,
+                        isSelected && styles.windowOptionSelected,
+                        isDisabled && !isSelected && styles.optionDisabled,
+                      ]}
+                      onPress={() => toggleVisitWindow(window.key)}
+                      disabled={isDisabled}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${window.label}, ${window.range.replace('–', ' to ')}`}
+                      accessibilityHint={isAllWindowsRule
+                        ? 'Selected automatically for three visits per day'
+                        : `Choose ${visitsPerDay || 0} visit window${visitsPerDay === 1 ? '' : 's'}`}
+                      accessibilityState={{ selected: isSelected, disabled: isDisabled }}
+                    >
+                      <Text style={[styles.windowOptionLabel, isSelected && styles.windowOptionLabelSelected]}>
+                        {isSelected ? '☑ ' : '☐ '} {window.label}
+                      </Text>
+                      <Text style={[styles.windowOptionRange, isSelected && styles.windowOptionRangeSelected]}>
+                        {window.range}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            <Text style={[styles.sectionTitle, { marginTop: 24 }]} accessibilityRole="header">
+              {usesContractVisitWindows ? '4. Visit Dates' : '2. Visit Dates'}
+            </Text>
             <Text style={styles.fieldHint}>Tap to select upcoming care dates ({selectedDates.length} selected)</Text>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.datesScroll}>
@@ -419,24 +585,6 @@ export const IntakeScreen = () => {
                 <Text style={styles.selectedDatesList}>{selectedDates.join(', ')}</Text>
               </View>
             )}
-
-            <Text style={[styles.sectionTitle, { marginTop: 24 }]} accessibilityRole="header">3. Visit Windows</Text>
-            {VISIT_WINDOW_OPTIONS.map((win) => {
-              const isSelected = visitWindows.includes(win.key);
-              return (
-                <TouchableOpacity
-                  key={win.key}
-                  style={[styles.windowOption, isSelected && styles.windowOptionSelected]}
-                  onPress={() => toggleVisitWindow(win.key)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: isSelected }}
-                >
-                  <Text style={[styles.windowOptionLabel, isSelected && styles.windowOptionLabelSelected]}>
-                    {isSelected ? '☑ ' : '☐ '} {win.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
 
             <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Timing Notes (Optional)</Text>
             <TextInput
@@ -582,18 +730,39 @@ export const IntakeScreen = () => {
               <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Service:</Text>
                 <Text style={styles.reviewVal}>
-                  {INTAKE_SERVICE_OPTIONS.find((s) => s.key === serviceType)?.label || serviceType}
+                  {INTAKE_SERVICE_OPTIONS.find((service) => service.key === serviceType)?.label || serviceType}
                 </Text>
               </View>
+
+              {selectedService?.durationStatus === 'confirmed' && (
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Duration:</Text>
+                  <Text style={styles.reviewVal}>{selectedService.durationMinutes} minutes</Text>
+                </View>
+              )}
+
+              {usesContractVisitWindows && (
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Visits per day:</Text>
+                  <Text style={styles.reviewVal}>{visitsPerDay}</Text>
+                </View>
+              )}
+
+              {usesContractVisitWindows && (
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Visit windows:</Text>
+                  <Text style={styles.reviewVal}>
+                    {checkInWindowOptions
+                      .filter((window) => visitWindows.includes(window.key))
+                      .map((window) => window.label)
+                      .join(', ')}
+                  </Text>
+                </View>
+              )}
 
               <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Dates ({selectedDates.length}):</Text>
                 <Text style={styles.reviewVal}>{selectedDates.join(', ')}</Text>
-              </View>
-
-              <View style={styles.reviewRow}>
-                <Text style={styles.reviewLabel}>Windows:</Text>
-                <Text style={styles.reviewVal}>{visitWindows.join(', ')}</Text>
               </View>
 
               <View style={styles.reviewRow}>
@@ -810,6 +979,32 @@ const styles = StyleSheet.create({
   serviceOptionLabelSelected: {
     color: COLORS.primary,
   },
+  visitsPerDayRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  visitsPerDayOption: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.cardBg,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
+    borderRadius: 8,
+  },
+  visitsPerDayOptionSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  visitsPerDayText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  visitsPerDayTextSelected: {
+    color: COLORS.white,
+  },
   datesScroll: {
     flexDirection: 'row',
     marginBottom: 12,
@@ -906,6 +1101,17 @@ const styles = StyleSheet.create({
   windowOptionLabelSelected: {
     color: COLORS.primary,
     fontWeight: '700',
+  },
+  windowOptionRange: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  windowOptionRangeSelected: {
+    color: COLORS.primary,
+  },
+  optionDisabled: {
+    opacity: 0.5,
   },
   textInput: {
     backgroundColor: COLORS.cardBg,
