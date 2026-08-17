@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–B and D1–D2 Committed / Pushed / Not Deployed; D1–D2 Not Built or Distributed; Slices C, E, and F Deferred
+**Status:** Slices A–C and D1–D2 Committed / Pushed / Not Deployed; D1–D2 Not Built or Distributed; Slices E and F Deferred
 
 ---
 
@@ -94,6 +94,18 @@ See `docs/release-notes/ryan-slice-d2-mobile-check-in-intake-parity.md`.
 
 ---
 
+## Slice C Local Web Intake Result
+
+Slice C is committed and pushed but not deployed after independent review returned `RYAN_SLICE_C_IMPLEMENTATION_CORRECT`. Web customer intake now uses the canonical active/new-booking-eligible interpretation and presents `WALK_20MIN`, `CHECK_IN`, and `OVERNIGHT`. The generated contract supplies Check-In visits/day, allowed windows, labels, structured times, exact count behavior, canonical ordering, confirmed duration, and review display.
+
+Check-In submits `visits_per_day` plus ordered `visit_windows`; Walk and Overnight omit all Check-In-only fields. Count/service transitions deterministically normalize or clear hidden state. Overnight does not surface the unresolved 720-minute compatibility duration, and neither Walk nor Overnight receives an invented scheduling policy. The contract has no `supportedOnWeb` field, so Web needs no platform-specific allowlist; `availableInIntake` remains unchanged transitional compatibility metadata with no remaining Web runtime consumer.
+
+Validation: focused IntakeForm 18/18, full Web 99/99 legacy plus 271/271 Vitest across 22 files, and Vite build success with 110 modules transformed. No shared/generated, backend, Mobile, production, deployment, distribution, pricing, Calendar, or public-site change occurred.
+
+See `docs/release-notes/ryan-slice-c-web-check-in-intake-parity.md`.
+
+---
+
 ## Workflow Simplification Direction
 
 Each operational screen should expose one obvious primary next action where practical.
@@ -144,7 +156,7 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 |-------|-------|-------------|--------|
 | A | Canonical service/time-window contract update in `shared/constants/` | None | Local Implementation Complete / Not Deployed |
 | B | Backend booking/job/calendar support for visits-per-day and updated windows | A | Committed / Pushed / Not Deployed |
-| C | Web service-selection UX (admin booking + client intake) | A, B | Not Started |
+| C | Web customer intake Check-In parity | A, B | Committed / Pushed / Not Deployed |
 | D1 | Mobile dashboard navigation | A, B | Committed / Pushed / Not Built / Not Distributed / Not Deployed |
 | D2 | Mobile service-selection/intake parity | A, B | Committed / Pushed / Not Built / Not Distributed / Not Deployed |
 | E | Workflow next-action simplification | C, D1, D2 | Not Started |

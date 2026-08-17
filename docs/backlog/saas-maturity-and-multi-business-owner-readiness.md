@@ -58,14 +58,14 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 11 | AI-assisted onboarding | ❌ Not started; follow deterministic onboarding | Low |
 | 12 | Video visit evidence | ❌ Not started | Low |
 | 13 | Multi-location support | ❌ Not started | Future |
-| 14 | Cross-platform services, scheduling & workflow alignment | 🛠️ A–B and D1–D2 committed/pushed; none deployed; D1–D2 not built/distributed; C, E, F deferred | High |
+| 14 | Cross-platform services, scheduling & workflow alignment | 🛠️ A–C and D1–D2 committed/pushed; none deployed; D1–D2 not built/distributed; E/F deferred | High |
 
 ---
 
 ## Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–B and D1–D2 Committed / Pushed / Not Deployed; D1–D2 Not Built or Distributed; Slices C, E, and F Deferred
+**Status:** Slices A–C and D1–D2 Committed / Pushed / Not Deployed; D1–D2 Not Built or Distributed; Slices E and F Deferred
 
 ### Target Service Model
 
@@ -89,7 +89,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 |-------|-------|--------|-------------|
 | A | Canonical service/time-window contract update | Committed / Pushed / Not Deployed | — |
 | B | Backend booking/job/calendar support | Committed / Pushed / Not Deployed | A |
-| C | Web service-selection UX | Not Started | A, B |
+| C | Web customer intake Check-In parity | Committed / Pushed / Not Deployed | A, B |
 | D1 | Mobile dashboard navigation | Committed / Pushed / Not Built / Not Distributed / Not Deployed | A, B |
 | D2 | Mobile service-selection/intake parity | Committed / Pushed / Not Built / Not Distributed / Not Deployed | A, B |
 | E | Workflow next-action simplification | Not Started | C, D1, D2 |
@@ -233,3 +233,5 @@ The dated update log below is historical chronology. Statements such as “stric
 **Updated 2026-08-11 (Business-owner guide closeout):** The authoritative repository-only Business Owner Getting Started guide is locally complete at `docs/operations/business-owner-getting-started.md`, independently reviewed by Kiro (`GUIDE_CORRECT`), committed, and pushed. It documents the current assisted onboarding model, role and workflow boundaries, payment/mobile limitations, self-service gap matrix, and ranked automation opportunities. The guide is not publicly published. This documentation closeout does not authorize tenant/user creation, deployment, live payments, mobile distribution, or self-service onboarding.
 
 **Updated 2026-08-11 (Preview V1 Onboarding Orchestrator):** A preview-only Platform Admin tenant-onboarding orchestrator is committed and pushed (not deployed). It provides deterministic validation, conflict detection, metadata preview, and approval checklist generation through a technically enforced read-only Lambda. No Apply/Create capability exists in V1. Persistent onboarding requests, approval workflow, first-owner provisioning, Calendar onboarding, Stripe subscriptions, and public signup remain deferred and approval-gated. The assisted tenant-onboarding model now has validated preview tooling but remains non-self-service.
+
+**Updated 2026-08-17 (Ryan Slice C Web intake parity):** Web customer intake is aligned to the canonical active/new-booking-eligible service model and generated Check-In visits/day/window metadata. Focused 18/18, full Web 99/99 legacy plus 271/271 Vitest, and the Vite build pass. Independent review returned `RYAN_SLICE_C_IMPLEMENTATION_CORRECT`; Slice C is committed and pushed but not deployed. Admin Check-In booking creation, Walk scheduling, Overnight timing, pricing, workflow simplification, public-site alignment, and all cross-platform deployment/distribution remain separately gated.

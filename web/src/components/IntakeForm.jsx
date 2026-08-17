@@ -7,8 +7,38 @@ import { SERVICE_TYPES } from '../generated/contracts';
 import DatePickerGrid from './DatePickerGrid';
 import './IntakeForm.css';
 
+// Web and Mobile share the canonical new-booking eligibility interpretation.
+// The contract does not currently expose a Web-specific support flag; unlike
+// Mobile, Web therefore needs no additional platform-capability predicate.
 const intakeServiceTypes = Object.entries(SERVICE_TYPES.services)
-  .filter(([, service]) => service.availableInIntake === true);
+  .filter(([, service]) => (
+    service.lifecycle === 'active'
+    && service.newBookingEligibility === 'eligible'
+  ));
+
+const initialServiceType = intakeServiceTypes[0]?.[0] || '';
+
+const formatCanonicalTime = (value) => {
+  if (!value) return '';
+  const [hourValue, minute] = value.split(':');
+  const hour = Number(hourValue);
+  return `${hour % 12 || 12}:${minute} ${hour >= 12 ? 'PM' : 'AM'}`;
+};
+
+const getCheckInModel = (serviceType) => {
+  const service = SERVICE_TYPES.services[serviceType];
+  if (service?.windowSelectionMode !== 'match_visits_per_day') return null;
+
+  const windows = service.allowedWindowIds
+    .map((id) => ({ id, ...SERVICE_TYPES.windows[id] }))
+    .filter((window) => (
+      window.label
+      && window.lifecycle === 'active'
+      && window.newBookingEligibility === 'eligible'
+    ));
+
+  return { service, windows };
+};
 
 const IntakeForm = () => {
   const [step, setStep] = useState(1);
@@ -33,7 +63,8 @@ const IntakeForm = () => {
     // Release 4: Household-level vet/emergency
     vet_info: {},
     emergency_contact: {},
-    service_type: 'PET_SITTING',
+    service_type: initialServiceType,
+    visits_per_day: null,
     accepted_terms: false
   });
   const [status, setStatus] = useState({ type: '', message: '', requestId: '' });
@@ -42,6 +73,10 @@ const IntakeForm = () => {
   // Release 2: Staff options for preferred sitter dropdown
   const [staffOptions, setStaffOptions] = useState([]);
   const [staffOptionsLoading, setStaffOptionsLoading] = useState(false);
+  const selectedService = SERVICE_TYPES.services[formData.service_type];
+  const checkInModel = getCheckInModel(formData.service_type);
+  const usesCheckInSchedule = checkInModel !== null;
+  const hasValidationErrors = Object.values(validationErrors).some(Boolean);
 
   useEffect(() => {
     getSession().then(s => {
@@ -82,8 +117,13 @@ const IntakeForm = () => {
           ? "You entered a date range, but no visit dates are selected yet. Click 'Select Dates from Range' or select dates manually on the calendar below."
           : "Please select at least one visit date on the calendar, or enter a Start Date and End Date and click 'Select Dates from Range'.";
       }
-      if (!formData.visit_windows || formData.visit_windows.length === 0) {
-        errors.visit_windows = "Please select at least one preferred visit window.";
+      if (usesCheckInSchedule) {
+        const visitsPerDayOptions = checkInModel.service.visitsPerDayOptions;
+        if (!visitsPerDayOptions.includes(formData.visits_per_day)) {
+          errors.visits_per_day = "Choose how many Check-In visits you need each day.";
+        } else if (formData.visit_windows.length !== formData.visits_per_day) {
+          errors.visit_windows = `Choose exactly ${formData.visits_per_day} visit window${formData.visits_per_day === 1 ? '' : 's'}.`;
+        }
       }
     }
     if (currentStep === 3) {
@@ -119,6 +159,67 @@ const IntakeForm = () => {
     window.scrollTo(0, 0);
   };
 
+  const handleServiceChange = (serviceType) => {
+    setFormData((previous) => ({
+      ...previous,
+      service_type: serviceType,
+      visits_per_day: null,
+      visit_windows: [],
+      visit_window: ''
+    }));
+    setValidationErrors((previous) => ({
+      ...previous,
+      service_type: null,
+      visits_per_day: null,
+      visit_windows: null
+    }));
+  };
+
+  const handleVisitsPerDayChange = (count) => {
+    if (!checkInModel?.service.visitsPerDayOptions.includes(count)) return;
+
+    const allowedWindowIds = checkInModel.windows.map((window) => window.id);
+    setFormData((previous) => {
+      const retainedWindows = allowedWindowIds
+        .filter((windowId) => previous.visit_windows.includes(windowId))
+        .slice(0, count);
+      return {
+        ...previous,
+        visits_per_day: count,
+        visit_windows: count === allowedWindowIds.length
+          ? allowedWindowIds
+          : retainedWindows,
+        visit_window: ''
+      };
+    });
+    setValidationErrors((previous) => ({
+      ...previous,
+      visits_per_day: null,
+      visit_windows: null
+    }));
+  };
+
+  const handleVisitWindowChange = (windowId) => {
+    if (!checkInModel || !formData.visits_per_day) return;
+
+    const allowedWindowIds = checkInModel.windows.map((window) => window.id);
+    if (!allowedWindowIds.includes(windowId)) return;
+
+    setFormData((previous) => {
+      const isSelected = previous.visit_windows.includes(windowId);
+      const selected = new Set(isSelected
+        ? previous.visit_windows.filter((id) => id !== windowId)
+        : [...previous.visit_windows, windowId]);
+      if (!isSelected && previous.visit_windows.length >= previous.visits_per_day) return previous;
+      return {
+        ...previous,
+        visit_windows: allowedWindowIds.filter((id) => selected.has(id)),
+        visit_window: ''
+      };
+    });
+    setValidationErrors((previous) => ({ ...previous, visit_windows: null }));
+  };
+
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
     if (!validateStep(step)) {
@@ -139,6 +240,16 @@ const IntakeForm = () => {
       const role = getEffectiveRole(s);
       
       let payload = { ...formData };
+
+      if (usesCheckInSchedule) {
+        const allowedWindowIds = checkInModel.windows.map((window) => window.id);
+        payload.visit_windows = allowedWindowIds.filter((windowId) => payload.visit_windows.includes(windowId));
+        delete payload.visit_window;
+      } else {
+        delete payload.visits_per_day;
+        delete payload.visit_windows;
+        delete payload.visit_window;
+      }
       
       const sorted = [...(payload.selected_dates || [])].sort();
       payload.selected_dates = sorted;
@@ -218,7 +329,7 @@ const IntakeForm = () => {
             {step === 1 && (
               <div className="form-step-content">
                 <h3 style={{ marginBottom: '24px' }}>How can we reach you?</h3>
-                {Object.keys(validationErrors).length > 0 && (
+                {hasValidationErrors && (
                   <div className="validation-summary-error" style={{ color: 'var(--accent-red, #f44336)', backgroundColor: 'rgba(244, 67, 54, 0.1)', border: '1px solid var(--accent-red, #f44336)', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '0.9rem', fontWeight: '500' }}>
                     ⚠️ Please fill in all required contact fields below.
                   </div>
@@ -273,33 +384,34 @@ const IntakeForm = () => {
             {step === 2 && (
               <div className="form-step-content">
                 <h3 style={{ marginBottom: '24px' }}>When do you need care?</h3>
-                {Object.keys(validationErrors).length > 0 && (
+                {hasValidationErrors && (
                   <div className="validation-summary-error" style={{ color: 'var(--accent-red, #f44336)', backgroundColor: 'rgba(244, 67, 54, 0.1)', border: '1px solid var(--accent-red, #f44336)', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '0.9rem', fontWeight: '500' }}>
                     <div style={{ fontWeight: '600', marginBottom: validationErrors.selected_dates && validationErrors.visit_windows ? '8px' : '0' }}>
                       ⚠️ Please complete the highlighted schedule fields below.
                     </div>
-                    {validationErrors.selected_dates && validationErrors.visit_windows && (
+                    {validationErrors.selected_dates && (validationErrors.visits_per_day || validationErrors.visit_windows) && (
                       <ul style={{ margin: '0 0 0 20px', padding: '0', listStyleType: 'disc' }}>
                         <li>Visit Dates</li>
-                        <li>Preferred Visit Windows</li>
+                        {validationErrors.visits_per_day && <li>Visits per Day</li>}
+                        {validationErrors.visit_windows && <li>Preferred Visit Windows</li>}
                       </ul>
                     )}
                   </div>
                 )}
                 <div className={`field ${validationErrors.service_type ? 'field-error' : ''}`} style={{ marginBottom: '24px' }}>
-                  <label>Service Type *</label>
+                  <label htmlFor="intake-service-type">Service Type *</label>
                   <select 
+                    id="intake-service-type"
                     value={formData.service_type}
-                    onChange={(e) => {
-                      setFormData({...formData, service_type: e.target.value});
-                      if (validationErrors.service_type) setValidationErrors(prev => ({ ...prev, service_type: null }));
-                    }}
+                    onChange={(e) => handleServiceChange(e.target.value)}
+                    aria-invalid={Boolean(validationErrors.service_type)}
+                    aria-describedby={validationErrors.service_type ? 'service-type-error' : undefined}
                   >
                     {intakeServiceTypes.map(([identifier, service]) => (
                       <option key={identifier} value={identifier}>{service.labelLong}</option>
                     ))}
                   </select>
-                  {validationErrors.service_type && <span className="error-text" style={{ color: 'var(--accent-red, #f44336)', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>{validationErrors.service_type}</span>}
+                  {validationErrors.service_type && <span id="service-type-error" className="error-text" style={{ color: 'var(--accent-red, #f44336)', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>{validationErrors.service_type}</span>}
                 </div>
 
                 <div className={`field ${validationErrors.selected_dates ? 'field-error' : ''}`} style={{ marginBottom: '24px' }}>
@@ -409,74 +521,93 @@ const IntakeForm = () => {
                   </div>
                 </div>
 
-                {/* Release 2: Multi-select visit window checkboxes */}
-                <div className={`field ${validationErrors.visit_windows ? 'field-error error-highlight' : ''}`} style={{ marginBottom: '24px' }}>
-                  <label>Preferred Visit Windows *</label>
-                  <p className="field-hint" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                    Select one or more time windows that work for you.
-                  </p>
-                  {validationErrors.visit_windows && (
-                    <div className="validation-error-alert" style={{ color: 'var(--accent-red, #f44336)', fontSize: '0.9rem', marginBottom: '10px', fontWeight: '500' }}>
-                      ⚠️ {validationErrors.visit_windows}
-                    </div>
-                  )}
-                  <div className="visit-window-checkboxes" style={{ 
-                    display: 'flex', 
-                    flexWrap: 'wrap', 
-                    gap: '10px',
-                    border: validationErrors.visit_windows ? '2px solid var(--accent-red, #f44336)' : '1px dashed transparent',
-                    padding: validationErrors.visit_windows ? '12px' : '0',
-                    borderRadius: validationErrors.visit_windows ? '8px' : '0',
-                    backgroundColor: validationErrors.visit_windows ? 'rgba(244, 67, 54, 0.03)' : 'transparent'
-                  }}>
-                    {[
-                      { value: 'MORNING', label: 'Morning (7–10 AM)' },
-                      { value: 'MIDDAY', label: 'Midday (11 AM–2 PM)' },
-                      { value: 'AFTERNOON', label: 'Afternoon (3–6 PM)' },
-                      { value: 'EVENING', label: 'Evening (7–10 PM)' },
-                      { value: 'ANYTIME', label: 'Anytime (Flexible)' },
-                    ].map(opt => {
-                      const isChecked = formData.visit_windows.includes(opt.value);
-                      return (
-                        <label 
-                          key={opt.value} 
-                          className={`visit-window-chip ${isChecked ? 'selected' : ''}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {
-                              let newWindows;
-                              if (opt.value === 'ANYTIME') {
-                                newWindows = isChecked ? [] : ['ANYTIME'];
-                              } else {
-                                const withoutAnytime = formData.visit_windows.filter(w => w !== 'ANYTIME');
-                                if (isChecked) {
-                                  newWindows = withoutAnytime.filter(w => w !== opt.value);
-                                } else {
-                                  newWindows = [...withoutAnytime, opt.value];
-                                }
-                              }
-                              
-                              if (newWindows.length > 0) {
-                                setValidationErrors(prev => ({ ...prev, visit_windows: null }));
-                              }
-                              
-                              setFormData({
-                                ...formData, 
-                                visit_windows: newWindows,
-                                visit_window: newWindows.includes('ANYTIME') ? 'ANYTIME' : (newWindows[0] || '')
-                              });
-                            }}
-                            style={{ display: 'none' }}
-                          />
-                          <span>{isChecked ? '✓' : ''}</span>
-                          <span>{opt.label}</span>
-                        </label>
-                      );
-                    })}
+                {usesCheckInSchedule && (
+                  <div className="check-in-schedule" aria-label="Check-In schedule">
+                    <fieldset
+                      className={`field check-in-fieldset ${validationErrors.visits_per_day ? 'field-error error-highlight' : ''}`}
+                      aria-describedby={validationErrors.visits_per_day ? 'visits-per-day-error' : 'visits-per-day-hint'}
+                    >
+                      <legend>Visits per Day *</legend>
+                      <p id="visits-per-day-hint" className="field-hint">
+                        Choose how many Check-In visits you need each day.
+                      </p>
+                      {validationErrors.visits_per_day && (
+                        <div id="visits-per-day-error" className="validation-error-alert" role="alert">
+                          ⚠️ {validationErrors.visits_per_day}
+                        </div>
+                      )}
+                      <div className="visits-per-day-options">
+                        {checkInModel.service.visitsPerDayOptions.map((count) => (
+                          <label
+                            key={count}
+                            className={`selection-chip ${formData.visits_per_day === count ? 'selected' : ''}`}
+                          >
+                            <input
+                              className="selection-chip-input"
+                              type="radio"
+                              name="visits-per-day"
+                              value={count}
+                              checked={formData.visits_per_day === count}
+                              onChange={() => handleVisitsPerDayChange(count)}
+                              aria-label={`${count} visit${count === 1 ? '' : 's'} per day`}
+                            />
+                            <span>{count}</span>
+                            <span className="sr-only"> visit{count === 1 ? '' : 's'} per day</span>
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+
+                    <fieldset
+                      className={`field check-in-fieldset ${validationErrors.visit_windows ? 'field-error error-highlight' : ''}`}
+                      aria-describedby={validationErrors.visit_windows ? 'visit-windows-error' : 'visit-windows-hint'}
+                    >
+                      <legend>Preferred Visit Window{formData.visits_per_day === 1 ? '' : 's'} *</legend>
+                      <p id="visit-windows-hint" className="field-hint">
+                        {!formData.visits_per_day
+                          ? 'Choose visits per day first.'
+                          : formData.visits_per_day === checkInModel.windows.length
+                            ? 'All daily windows are selected automatically.'
+                            : `Choose exactly ${formData.visits_per_day} window${formData.visits_per_day === 1 ? '' : 's'} (${formData.visit_windows.length} selected).`}
+                      </p>
+                      {validationErrors.visit_windows && (
+                        <div id="visit-windows-error" className="validation-error-alert" role="alert">
+                          ⚠️ {validationErrors.visit_windows}
+                        </div>
+                      )}
+                      <div className="visit-window-checkboxes">
+                        {checkInModel.windows.map((window) => {
+                          const isChecked = formData.visit_windows.includes(window.id);
+                          const allWindowsSelected = formData.visits_per_day === checkInModel.windows.length;
+                          const isDisabled = !formData.visits_per_day
+                            || allWindowsSelected
+                            || (!isChecked && formData.visit_windows.length >= formData.visits_per_day);
+                          const timeRange = `${formatCanonicalTime(window.start)}–${formatCanonicalTime(window.end)}`;
+                          return (
+                            <label
+                              key={window.id}
+                              className={`visit-window-chip ${isChecked ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`}
+                            >
+                              <input
+                                className="selection-chip-input"
+                                type="checkbox"
+                                checked={isChecked}
+                                disabled={isDisabled}
+                                onChange={() => handleVisitWindowChange(window.id)}
+                                aria-label={`${window.label}, ${timeRange.replace('–', ' to ')}`}
+                              />
+                              <span aria-hidden="true">{isChecked ? '✓' : ''}</span>
+                              <span>
+                                <strong>{window.label}</strong>
+                                <small>{timeRange}</small>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </fieldset>
                   </div>
-                </div>
+                )}
 
                 {/* Release 2: Preferred Sitter — informational only, does NOT auto-assign */}
                 {staffOptions.length > 0 && (
@@ -525,7 +656,48 @@ const IntakeForm = () => {
             {step === 3 && (
               <div className="form-step-content">
                 <h3 style={{ marginBottom: '24px' }}>Tell us about your pets</h3>
-                {Object.keys(validationErrors).length > 0 && (
+                <section className="request-review-card" aria-labelledby="request-review-heading">
+                  <h4 id="request-review-heading">Request Summary</h4>
+                  <dl className="request-review-list">
+                    <div>
+                      <dt>Service</dt>
+                      <dd>{selectedService?.label || formData.service_type}</dd>
+                    </div>
+                    {selectedService?.durationStatus === 'confirmed' && (
+                      <div>
+                        <dt>Duration</dt>
+                        <dd>{selectedService.durationMinutes} minutes</dd>
+                      </div>
+                    )}
+                    {usesCheckInSchedule && (
+                      <>
+                        <div>
+                          <dt>Visits per day</dt>
+                          <dd>{formData.visits_per_day}</dd>
+                        </div>
+                        <div>
+                          <dt>Visit windows</dt>
+                          <dd>
+                            <ul>
+                              {checkInModel.windows
+                                .filter((window) => formData.visit_windows.includes(window.id))
+                                .map((window) => (
+                                  <li key={window.id}>
+                                    {window.label} <span>({formatCanonicalTime(window.start)}–{formatCanonicalTime(window.end)})</span>
+                                  </li>
+                                ))}
+                            </ul>
+                          </dd>
+                        </div>
+                      </>
+                    )}
+                    <div>
+                      <dt>Visit dates</dt>
+                      <dd>{[...(formData.selected_dates || [])].sort().join(', ')}</dd>
+                    </div>
+                  </dl>
+                </section>
+                {hasValidationErrors && (
                   <div className="validation-summary-error" style={{ color: 'var(--accent-red, #f44336)', backgroundColor: 'rgba(244, 67, 54, 0.1)', border: '1px solid var(--accent-red, #f44336)', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '0.9rem', fontWeight: '500' }}>
                     ⚠️ Please provide details for at least one pet.
                   </div>

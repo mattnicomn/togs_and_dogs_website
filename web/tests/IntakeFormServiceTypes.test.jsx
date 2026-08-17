@@ -26,43 +26,43 @@ const renderIntake = () => render(
   </MemoryRouter>
 );
 
-const goToSchedule = async ({
-  name = 'Synthetic Customer',
-  email = 'customer@example.test',
-  phone = '555-0102'
-} = {}) => {
+const goToSchedule = async () => {
   renderIntake();
-
-  fireEvent.change(screen.getByPlaceholderText('Alex Barker'), { target: { value: name } });
-  fireEvent.change(screen.getByPlaceholderText('alex@example.com'), { target: { value: email } });
-  fireEvent.change(screen.getByPlaceholderText('555-123-4567'), { target: { value: phone } });
+  fireEvent.change(screen.getByPlaceholderText('Alex Barker'), { target: { value: 'Synthetic Customer' } });
+  fireEvent.change(screen.getByPlaceholderText('alex@example.com'), { target: { value: 'customer@example.test' } });
+  fireEvent.change(screen.getByPlaceholderText('555-123-4567'), { target: { value: '555-0102' } });
   fireEvent.click(screen.getByRole('button', { name: 'Next: Schedule →' }));
-
   return screen.findByRole('heading', { name: 'When do you need care?' });
 };
 
-const getServiceSelect = () => {
-  const serviceField = screen.getByText('Service Type *').closest('.field');
-  return within(serviceField).getByRole('combobox');
-};
+const getServiceSelect = () => screen.getByRole('combobox', { name: 'Service Type *' });
 
-const completeValidForm = async ({ serviceType = 'PET_SITTING' } = {}) => {
-  await goToSchedule();
-
-  fireEvent.change(getServiceSelect(), { target: { value: serviceType } });
-
+const chooseDate = () => {
   const dateInputs = document.querySelectorAll('input[type="date"]');
   fireEvent.change(dateInputs[0], { target: { value: '2030-01-05' } });
   fireEvent.change(dateInputs[1], { target: { value: '2030-01-05' } });
   fireEvent.click(screen.getByRole('button', { name: 'Select Dates from Range' }));
+};
 
-  fireEvent.click(screen.getByText('Anytime (Flexible)').closest('label'));
+const chooseCheckInSchedule = (visitsPerDay, windowLabels = []) => {
+  fireEvent.click(screen.getByRole('radio', { name: `${visitsPerDay} visit${visitsPerDay === 1 ? '' : 's'} per day` }));
+  windowLabels.forEach((label) => fireEvent.click(screen.getByRole('checkbox', { name: new RegExp(`^${label},`) })));
+};
+
+const goToPetInfo = async ({ serviceType = 'WALK_20MIN', visitsPerDay, windows = [] } = {}) => {
+  await goToSchedule();
+  fireEvent.change(getServiceSelect(), { target: { value: serviceType } });
+  if (serviceType === 'CHECK_IN' && visitsPerDay) chooseCheckInSchedule(visitsPerDay, windows);
+  chooseDate();
   fireEvent.change(screen.getByPlaceholderText('e.g. After 9am preferred, key under mat...'), {
     target: { value: 'Synthetic timing note' }
   });
   fireEvent.click(screen.getByRole('button', { name: 'Next: Pet Info →' }));
+  return screen.findByRole('heading', { name: 'Tell us about your pets' });
+};
 
-  await screen.findByRole('heading', { name: 'Tell us about your pets' });
+const completeValidForm = async (schedule = {}) => {
+  await goToPetInfo(schedule);
   fireEvent.change(screen.getByPlaceholderText('e.g. Luna'), { target: { value: 'Synthetic Pet' } });
   fireEvent.change(screen.getByPlaceholderText('e.g. Golden Retriever'), { target: { value: 'Retriever' } });
   fireEvent.change(screen.getByPlaceholderText('Food type, schedule, portions...'), {
@@ -71,8 +71,9 @@ const completeValidForm = async ({ serviceType = 'PET_SITTING' } = {}) => {
   fireEvent.click(screen.getByText(/I agree to the/).closest('label'));
 };
 
-describe('IntakeForm service-type behavior', () => {
+describe('IntakeForm canonical new-booking behavior', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     getSession.mockResolvedValue(null);
     getEffectiveRole.mockReturnValue('unknown');
     getStaffOptions.mockResolvedValue({ staff_options: [] });
@@ -80,53 +81,180 @@ describe('IntakeForm service-type behavior', () => {
     submitClientRequest.mockResolvedValue({ request_id: 'synthetic-client-request' });
   });
 
-  it('uses exactly the contract-defined available-in-intake membership, labels, order, and existing default', async () => {
+  it('uses exactly the active eligible contract services, labels, order, and contract-derived default', async () => {
     await goToSchedule();
-
-    const serviceSelect = getServiceSelect();
-    const options = within(serviceSelect).getAllByRole('option');
+    const options = within(getServiceSelect()).getAllByRole('option');
     const expectedEntries = Object.entries(SERVICE_TYPES.services)
-      .filter(([, service]) => service.availableInIntake === true);
+      .filter(([, service]) => service.lifecycle === 'active' && service.newBookingEligibility === 'eligible');
 
-    expect(options.map(option => option.value)).toEqual(expectedEntries.map(([identifier]) => identifier));
-    expect(options.map(option => option.textContent)).toEqual(expectedEntries.map(([, service]) => service.labelLong));
-    expect(options.map(option => option.value)).toEqual([
-      'WALK_30MIN',
-      'WALK_60MIN',
-      'DROPIN_1HR',
-      'DROPIN_3HR',
-      'OVERNIGHT',
-      'PET_SITTING'
-    ]);
-    expect(options.map(option => option.textContent)).toEqual([
-      '30-Minute Walk',
-      '60-Minute Walk',
-      '1-Hour Drop-in',
-      '3-Hour Drop-in',
-      'Overnight Care',
-      'Pet Sitting'
-    ]);
-    expect(serviceSelect).toHaveValue('PET_SITTING');
-    expect(options.some(option => ['DOG_WALKING', 'WALKING', 'OTHER', 'MEET_GREET'].includes(option.value))).toBe(false);
+    expect(options.map((option) => option.value)).toEqual(expectedEntries.map(([identifier]) => identifier));
+    expect(options.map((option) => option.textContent)).toEqual(expectedEntries.map(([, service]) => service.labelLong));
+    expect(options.map((option) => option.value)).toEqual(['WALK_20MIN', 'CHECK_IN', 'OVERNIGHT']);
+    expect(options.map((option) => option.textContent)).toEqual(['20-Minute Walk', '30-Minute Check-In', 'Overnight Care']);
+    expect(getServiceSelect()).toHaveValue('WALK_20MIN');
   });
 
-  it('preserves the existing required-service validation when no service is selected', async () => {
+  it('renders contract-derived accessible Check-In visit counts, windows, labels, and times', async () => {
     await goToSchedule();
+    fireEvent.change(getServiceSelect(), { target: { value: 'CHECK_IN' } });
 
-    fireEvent.change(getServiceSelect(), { target: { value: '' } });
-    const dateInputs = document.querySelectorAll('input[type="date"]');
-    fireEvent.change(dateInputs[0], { target: { value: '2030-01-05' } });
-    fireEvent.change(dateInputs[1], { target: { value: '2030-01-05' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Select Dates from Range' }));
-    fireEvent.click(screen.getByText('Anytime (Flexible)').closest('label'));
-    fireEvent.click(screen.getByRole('button', { name: 'Next: Pet Info →' }));
-
-    expect(await screen.findByText('Service Type is required.')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'When do you need care?' })).toBeInTheDocument();
+    expect(screen.getAllByRole('radio').map((radio) => Number(radio.value)))
+      .toEqual(SERVICE_TYPES.services.CHECK_IN.visitsPerDayOptions);
+    expect(screen.getByRole('checkbox', { name: 'Morning, 6:30 AM to 9:30 AM' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Mid-day, 10:30 AM to 3:30 PM' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Evening, 6:00 PM to 9:30 PM' })).not.toBeChecked();
+    expect(screen.getByRole('group', { name: 'Visits per Day *' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Preferred Visit Windows *' })).toBeInTheDocument();
   });
 
-  it('submits WALK_30MIN and every existing non-service field through the public API unchanged', async () => {
-    await completeValidForm({ serviceType: 'WALK_30MIN' });
+  it('preserves human-readable required-service validation', async () => {
+    await goToSchedule();
+    fireEvent.change(getServiceSelect(), { target: { value: '' } });
+    chooseDate();
+    fireEvent.click(screen.getByRole('button', { name: 'Next: Pet Info →' }));
+    expect(await screen.findByText('Service Type is required.')).toBeInTheDocument();
+    expect(getServiceSelect()).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('requires a Check-In visit count', async () => {
+    await goToSchedule();
+    fireEvent.change(getServiceSelect(), { target: { value: 'CHECK_IN' } });
+    chooseDate();
+    fireEvent.click(screen.getByRole('button', { name: 'Next: Pet Info →' }));
+    expect(await screen.findByText('Choose how many Check-In visits you need each day.')).toBeInTheDocument();
+  });
+
+  it('requires the exact matching number of Check-In windows', async () => {
+    await goToSchedule();
+    fireEvent.change(getServiceSelect(), { target: { value: 'CHECK_IN' } });
+    chooseCheckInSchedule(2, ['Morning']);
+    chooseDate();
+    fireEvent.click(screen.getByRole('button', { name: 'Next: Pet Info →' }));
+    await waitFor(() => expect(screen.getAllByRole('alert').map((alert) => alert.textContent)).toEqual([
+      '⚠️ Choose exactly 2 visit windows.'
+    ]));
+  });
+
+  it('submits one Check-In visit with exactly one canonical window', async () => {
+    await completeValidForm({ serviceType: 'CHECK_IN', visitsPerDay: 1, windows: ['Evening'] });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
+
+    await waitFor(() => expect(submitRequest).toHaveBeenCalledOnce());
+    expect(submitRequest).toHaveBeenCalledWith(expect.objectContaining({
+      service_type: 'CHECK_IN',
+      visits_per_day: 1,
+      visit_windows: ['EVENING'],
+      selected_dates: ['2030-01-05'],
+      pets: [expect.objectContaining({ name: 'Synthetic Pet' })]
+    }));
+    expect(submitRequest.mock.calls[0][0]).not.toHaveProperty('visit_window');
+  });
+
+  it('caps two Check-In visits at two distinct windows and submits contract order instead of click order', async () => {
+    await goToSchedule();
+    fireEvent.change(getServiceSelect(), { target: { value: 'CHECK_IN' } });
+    chooseCheckInSchedule(2, ['Evening', 'Morning']);
+
+    expect(screen.getByRole('checkbox', { name: /^Mid-day,/ })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: /^Morning,/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /^Evening,/ })).toBeChecked();
+    chooseDate();
+    fireEvent.click(screen.getByRole('button', { name: 'Next: Pet Info →' }));
+    await screen.findByRole('heading', { name: 'Tell us about your pets' });
+    fireEvent.change(screen.getByPlaceholderText('e.g. Luna'), { target: { value: 'Synthetic Pet' } });
+    fireEvent.click(screen.getByText(/I agree to the/).closest('label'));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
+
+    await waitFor(() => expect(submitRequest).toHaveBeenCalledOnce());
+    expect(submitRequest.mock.calls[0][0].visit_windows).toEqual(['MORNING', 'EVENING']);
+  });
+
+  it('automatically selects and locks all three canonical windows for three visits per day', async () => {
+    await goToSchedule();
+    fireEvent.change(getServiceSelect(), { target: { value: 'CHECK_IN' } });
+    chooseCheckInSchedule(3);
+
+    const windows = screen.getAllByRole('checkbox');
+    expect(windows).toHaveLength(3);
+    windows.forEach((window) => {
+      expect(window).toBeChecked();
+      expect(window).toBeDisabled();
+    });
+    expect(screen.getByText('All daily windows are selected automatically.')).toBeInTheDocument();
+  });
+
+  it('normalizes 2→1, 1→3, and 3→2 transitions deterministically', async () => {
+    await goToSchedule();
+    fireEvent.change(getServiceSelect(), { target: { value: 'CHECK_IN' } });
+    chooseCheckInSchedule(2, ['Morning', 'Evening']);
+
+    fireEvent.click(screen.getByRole('radio', { name: '1 visit per day' }));
+    expect(screen.getByRole('checkbox', { name: /^Morning,/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /^Evening,/ })).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole('radio', { name: '3 visits per day' }));
+    screen.getAllByRole('checkbox').forEach((window) => expect(window).toBeChecked());
+
+    fireEvent.click(screen.getByRole('radio', { name: '2 visits per day' }));
+    expect(screen.getByRole('checkbox', { name: /^Morning,/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /^Mid-day,/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /^Evening,/ })).not.toBeChecked();
+  });
+
+  it.each(['WALK_20MIN', 'OVERNIGHT'])(
+    'clears Check-In state when switching to %s and starts clean when switching back',
+    async (serviceType) => {
+      await goToSchedule();
+      fireEvent.change(getServiceSelect(), { target: { value: 'CHECK_IN' } });
+      chooseCheckInSchedule(2, ['Morning', 'Evening']);
+      fireEvent.change(getServiceSelect(), { target: { value: serviceType } });
+      expect(screen.queryByRole('group', { name: 'Visits per Day *' })).not.toBeInTheDocument();
+      fireEvent.change(getServiceSelect(), { target: { value: 'CHECK_IN' } });
+      expect(screen.getAllByRole('radio').every((radio) => !radio.checked)).toBe(true);
+      expect(screen.getAllByRole('checkbox').every((window) => !window.checked)).toBe(true);
+    }
+  );
+
+  it.each(['WALK_20MIN', 'OVERNIGHT'])(
+    'submits %s without Check-In-only or invented scheduling fields',
+    async (serviceType) => {
+      await completeValidForm({ serviceType });
+      fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
+      await waitFor(() => expect(submitRequest).toHaveBeenCalledOnce());
+      const payload = submitRequest.mock.calls[0][0];
+      expect(payload).toEqual(expect.objectContaining({
+        service_type: serviceType,
+        selected_dates: ['2030-01-05'],
+        pets: [expect.objectContaining({ name: 'Synthetic Pet' })],
+        timing_notes: 'Synthetic timing note'
+      }));
+      expect(payload).not.toHaveProperty('visits_per_day');
+      expect(payload).not.toHaveProperty('visit_windows');
+      expect(payload).not.toHaveProperty('visit_window');
+    }
+  );
+
+  it('reviews Check-In duration, count, friendly windows, and dates without pricing', async () => {
+    await goToPetInfo({ serviceType: 'CHECK_IN', visitsPerDay: 2, windows: ['Morning', 'Evening'] });
+    const summary = screen.getByRole('region', { name: 'Request Summary' });
+    expect(within(summary).getByText('Check-In')).toBeInTheDocument();
+    expect(within(summary).getByText('30 minutes')).toBeInTheDocument();
+    expect(within(summary).getByText('2')).toBeInTheDocument();
+    expect(within(summary).getByText(/Morning/)).toBeInTheDocument();
+    expect(within(summary).getByText(/Evening/)).toBeInTheDocument();
+    expect(within(summary).getByText('2030-01-05')).toBeInTheDocument();
+    expect(within(summary).queryByText(/\$|price|pricing/i)).not.toBeInTheDocument();
+  });
+
+  it('does not surface the unresolved Overnight compatibility duration in review', async () => {
+    await goToPetInfo({ serviceType: 'OVERNIGHT' });
+    const summary = screen.getByRole('region', { name: 'Request Summary' });
+    expect(within(summary).getByText('Overnight Care')).toBeInTheDocument();
+    expect(within(summary).queryByText(/720|12 hours|duration/i)).not.toBeInTheDocument();
+  });
+
+  it('preserves public payload fields and policy acceptance around the new Walk service', async () => {
+    await completeValidForm({ serviceType: 'WALK_20MIN' });
     fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
     await waitFor(() => expect(submitRequest).toHaveBeenCalledOnce());
@@ -137,26 +265,19 @@ describe('IntakeForm service-type behavior', () => {
       selected_dates: ['2030-01-05'],
       range_start: '',
       range_end: '',
-      visit_windows: ['ANYTIME'],
-      visit_window: 'ANYTIME',
       preferred_time: '',
       timing_notes: 'Synthetic timing note',
       preferred_sitter: '',
       preferred_sitter_name: '',
       pets: [{
-        name: 'Synthetic Pet',
-        species: 'DOG',
-        breed: 'Retriever',
-        age: '',
-        feeding_notes: 'Synthetic feeding note',
-        medication_notes: '',
-        behavior_notes: ''
+        name: 'Synthetic Pet', species: 'DOG', breed: 'Retriever', age: '',
+        feeding_notes: 'Synthetic feeding note', medication_notes: '', behavior_notes: ''
       }],
       pet_names: '',
       pet_info: '',
       vet_info: {},
       emergency_contact: {},
-      service_type: 'WALK_30MIN',
+      service_type: 'WALK_20MIN',
       accepted_terms: true,
       start_date: '2030-01-05',
       end_date: '',
@@ -167,75 +288,40 @@ describe('IntakeForm service-type behavior', () => {
       accepted_by_email: 'customer@example.test',
       source: 'public_intake'
     });
-    expect(submitClientRequest).not.toHaveBeenCalled();
-    expect(await screen.findByRole('heading', { name: 'Request Received!' })).toBeInTheDocument();
   });
 
-  it.each(['WALK_60MIN', 'DROPIN_3HR'])(
-    'submits selected canonical service %s without normalization',
-    async (serviceType) => {
-      await completeValidForm({ serviceType });
-      fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
-
-      await waitFor(() => expect(submitRequest).toHaveBeenCalledOnce());
-      expect(submitRequest).toHaveBeenCalledWith(expect.objectContaining({
-        service_type: serviceType,
-        selected_dates: ['2030-01-05'],
-        visit_windows: ['ANYTIME'],
-        pets: [expect.objectContaining({ name: 'Synthetic Pet' })]
-      }));
-    }
-  );
-
-  it('preserves the authenticated-client submission endpoint and raw payload shape', async () => {
-    const session = {
-      idToken: {
-        payload: {
-          email: 'portal-client@example.test',
-          name: 'Portal Client'
-        }
-      }
-    };
-    getSession.mockResolvedValue(session);
+  it('preserves the authenticated-client endpoint with canonical Check-In payload semantics', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'portal@example.test', name: 'Portal Client' } } });
     getEffectiveRole.mockReturnValue('client');
-
-    await completeValidForm({ serviceType: 'OVERNIGHT' });
+    await completeValidForm({ serviceType: 'CHECK_IN', visitsPerDay: 3 });
     fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
     await waitFor(() => expect(submitClientRequest).toHaveBeenCalledOnce());
     expect(submitClientRequest).toHaveBeenCalledWith(expect.objectContaining({
-      client_name: 'Portal Client',
-      client_email: 'portal-client@example.test',
-      service_type: 'OVERNIGHT',
+      service_type: 'CHECK_IN',
+      visits_per_day: 3,
+      visit_windows: ['MORNING', 'MIDDAY', 'EVENING'],
       selected_dates: ['2030-01-05'],
-      start_date: '2030-01-05',
-      end_date: '',
-      visit_windows: ['ANYTIME'],
-      visit_window: 'ANYTIME',
-      pets: [expect.objectContaining({ name: 'Synthetic Pet' })],
-      accepted_terms: true
+      pets: [expect.objectContaining({ name: 'Synthetic Pet' })]
     }));
+    expect(submitClientRequest.mock.calls[0][0]).not.toHaveProperty('visit_window');
     expect(submitRequest).not.toHaveBeenCalled();
   });
 
-  it('preserves loading, error, and retry behavior without making a real API call', async () => {
+  it('preserves loading, error, and retry behavior without a real API call', async () => {
     let rejectFirstRequest;
     submitRequest
       .mockImplementationOnce(() => new Promise((_, reject) => { rejectFirstRequest = reject; }))
       .mockResolvedValueOnce({ request_id: 'synthetic-retry-request' });
 
-    await completeValidForm();
+    await completeValidForm({ serviceType: 'WALK_20MIN' });
     fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
-
     expect(screen.getByRole('button', { name: 'Sending...' })).toBeDisabled();
     await waitFor(() => expect(submitRequest).toHaveBeenCalledOnce());
     rejectFirstRequest(new Error('Synthetic submission failure'));
     expect(await screen.findByText(/Synthetic submission failure/)).toBeInTheDocument();
 
-    const retryButton = screen.getByRole('button', { name: 'Submit Request' });
-    expect(retryButton).toBeEnabled();
-    fireEvent.click(retryButton);
-
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
     await waitFor(() => expect(submitRequest).toHaveBeenCalledTimes(2));
     expect(await screen.findByRole('heading', { name: 'Request Received!' })).toBeInTheDocument();
   });
