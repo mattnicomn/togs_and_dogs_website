@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,7 +10,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { ContentContainer } from '../components/ContentContainer';
 import { getAdminRequests } from '../api/client';
 import { RequestCard } from '../components/RequestCard';
@@ -18,31 +19,39 @@ import { PetRequest } from '../types';
 import { COLORS } from '../theme/colors';
 import { useAuth } from '../auth/useAuth';
 import { useStaff } from '../hooks/useStaff';
+import {
+  AdminTabParamList,
+  REQUEST_LIST_FILTERS,
+  RequestListFilter,
+} from '../navigation/types';
 
 interface FilterPill {
   label: string;
-  status: string;
+  status: RequestListFilter;
 }
 
 export const RequestListScreen = () => {
   const { logout } = useAuth();
+  const navigation = useNavigation<BottomTabNavigationProp<AdminTabParamList, 'Requests'>>();
+  const route = useRoute<RouteProp<AdminTabParamList, 'Requests'>>();
   const { staff, isLoading: isStaffLoading, error: staffError, refresh: refreshStaff } = useStaff();
   const [requests, setRequests] = useState<PetRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState('PENDING_REVIEW');
+  const [activeFilter, setActiveFilter] = useState<RequestListFilter>(REQUEST_LIST_FILTERS.pendingReview);
+  const activeFilterRef = useRef<RequestListFilter>(REQUEST_LIST_FILTERS.pendingReview);
 
   const filters: FilterPill[] = [
-    { label: 'Pending', status: 'PENDING_REVIEW' },
-    { label: 'Approved', status: 'APPROVED' },
-    { label: 'Assigned', status: 'ASSIGNED' },
-    { label: 'All Active', status: 'ALL' },
-    { label: 'Completed', status: 'COMPLETED' },
-    { label: 'Cancelled', status: 'CANCELLED' },
+    { label: 'Pending', status: REQUEST_LIST_FILTERS.pendingReview },
+    { label: 'Approved', status: REQUEST_LIST_FILTERS.approved },
+    { label: 'Assigned', status: REQUEST_LIST_FILTERS.assigned },
+    { label: 'All Active', status: REQUEST_LIST_FILTERS.all },
+    { label: 'Completed', status: REQUEST_LIST_FILTERS.completed },
+    { label: 'Cancelled', status: REQUEST_LIST_FILTERS.cancelled },
   ];
 
-  const fetchRequests = useCallback(async (filterStatus: string, showRefreshingIndicator = false) => {
+  const fetchRequests = useCallback(async (filterStatus: RequestListFilter, showRefreshingIndicator = false) => {
     if (showRefreshingIndicator) {
       setIsRefreshing(true);
     } else {
@@ -77,16 +86,32 @@ export const RequestListScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      fetchRequests(activeFilter);
-    }, [activeFilter, fetchRequests])
+      const requestedFilter = route.params?.initialFilter;
+      const nextFilter = requestedFilter || activeFilterRef.current;
+
+      activeFilterRef.current = nextFilter;
+      setActiveFilter(nextFilter);
+      fetchRequests(nextFilter);
+
+      return () => {
+        if (requestedFilter) {
+          navigation.setParams({ initialFilter: undefined });
+        }
+      };
+    }, [fetchRequests, navigation, route.params?.initialFilter])
   );
 
   const handleRefresh = () => {
-    fetchRequests(activeFilter, true);
+    fetchRequests(activeFilterRef.current, true);
   };
 
-  const handleFilterChange = (status: string) => {
+  const handleFilterChange = (status: RequestListFilter) => {
+    if (status === activeFilterRef.current) {
+      return;
+    }
+    activeFilterRef.current = status;
     setActiveFilter(status);
+    fetchRequests(status);
   };
 
   // Stable header + filter pills rendered outside VirtualizedList context

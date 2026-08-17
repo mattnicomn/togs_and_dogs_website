@@ -5,11 +5,14 @@ import { ContentContainer } from '../components/ContentContainer';
 import { useAuth } from '../auth/useAuth';
 import { getAdminRequests } from '../api/client';
 import { COLORS } from '../theme/colors';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { PetRequest } from '../types';
+import { AdminTabParamList, REQUEST_LIST_FILTERS } from '../navigation/types';
 
 export const DashboardScreen = () => {
   const { user, role, logout } = useAuth();
+  const navigation = useNavigation<BottomTabNavigationProp<AdminTabParamList, 'Dashboard'>>();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
   const [stats, setStats] = useState<{
@@ -27,8 +30,8 @@ export const DashboardScreen = () => {
       const data = await getAdminRequests('ALL');
       const list: PetRequest[] = Array.isArray(data) ? data : data.requests || [];
       
-      const pending = list.filter(r => r.status === 'PENDING_REVIEW').length;
-      const approved = list.filter(r => r.status === 'APPROVED').length;
+      const pending = list.filter(r => r.status === REQUEST_LIST_FILTERS.pendingReview).length;
+      const approved = list.filter(r => r.status === REQUEST_LIST_FILTERS.approved).length;
       const assigned = list.filter(r => r.status === 'ASSIGNED' || r.status === 'SCHEDULED' || r.status === 'JOB_CREATED').length;
       
       const getLocalDateString = (d: Date) => {
@@ -101,7 +104,14 @@ export const DashboardScreen = () => {
           <View style={styles.statsGrid}>
             {/* Row 1 */}
             <View style={isTablet ? styles.statsRow : styles.statsRowColumn}>
-              <View style={styles.statCardHalf}>
+              <TouchableOpacity
+                style={styles.statCardHalf}
+                onPress={() => navigation.navigate('Requests', { initialFilter: REQUEST_LIST_FILTERS.pendingReview })}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Pending Review"
+                accessibilityHint="Opens requests filtered to pending review"
+              >
                 <Text style={styles.statLabel}>Pending Review</Text>
                 {isLoading ? (
                   <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
@@ -109,9 +119,16 @@ export const DashboardScreen = () => {
                   <Text style={styles.statValue}>{stats !== null ? stats.pending : '--'}</Text>
                 )}
                 <Text style={styles.statSubText}>Intake queue items</Text>
-              </View>
+              </TouchableOpacity>
 
-              <View style={styles.statCardHalf}>
+              <TouchableOpacity
+                style={styles.statCardHalf}
+                onPress={() => navigation.navigate('Requests', { initialFilter: REQUEST_LIST_FILTERS.approved })}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Needs Sitter"
+                accessibilityHint="Opens approved requests that need assignment"
+              >
                 <Text style={styles.statLabel}>Needs Sitter</Text>
                 {isLoading ? (
                   <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
@@ -119,12 +136,19 @@ export const DashboardScreen = () => {
                   <Text style={styles.statValue}>{stats !== null ? stats.approved : '--'}</Text>
                 )}
                 <Text style={styles.statSubText}>Approved requests</Text>
-              </View>
+              </TouchableOpacity>
             </View>
 
             {/* Row 2 */}
             <View style={isTablet ? styles.statsRow : styles.statsRowColumn}>
-              <View style={styles.statCardHalf}>
+              <TouchableOpacity
+                style={styles.statCardHalf}
+                onPress={() => navigation.navigate('Schedule')}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Scheduled"
+                accessibilityHint="Opens the dispatch schedule"
+              >
                 <Text style={styles.statLabel}>Scheduled</Text>
                 {isLoading ? (
                   <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
@@ -132,9 +156,16 @@ export const DashboardScreen = () => {
                   <Text style={styles.statValue}>{stats !== null ? stats.assigned : '--'}</Text>
                 )}
                 <Text style={styles.statSubText}>Assigned bookings</Text>
-              </View>
+              </TouchableOpacity>
 
-              <View style={styles.statCardHalf}>
+              <TouchableOpacity
+                style={styles.statCardHalf}
+                onPress={() => navigation.navigate('Schedule')}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Today's Visits"
+                accessibilityHint="Opens the dispatch schedule"
+              >
                 <Text style={styles.statLabel}>Today's Visits</Text>
                 {isLoading ? (
                   <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
@@ -142,11 +173,18 @@ export const DashboardScreen = () => {
                   <Text style={[styles.statValue, { color: COLORS.success }]}>{stats !== null ? stats.todayVisits : '--'}</Text>
                 )}
                 <Text style={styles.statSubText}>Scheduled for today</Text>
-              </View>
+              </TouchableOpacity>
             </View>
 
           {/* Row 3 - Full Width */}
-          <View style={styles.statCardFull}>
+          <TouchableOpacity
+            style={styles.statCardFull}
+            onPress={() => navigation.navigate('Schedule')}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="This Week's Visits"
+            accessibilityHint="Opens the dispatch schedule"
+          >
             <Text style={styles.statLabel}>This Week's Visits</Text>
             {isLoading ? (
               <ActivityIndicator color={COLORS.primary} size="small" style={styles.spinner} />
@@ -154,7 +192,7 @@ export const DashboardScreen = () => {
               <Text style={[styles.statValue, { color: COLORS.primary }]}>{stats !== null ? stats.weekVisits : '--'}</Text>
             )}
             <Text style={styles.statSubText}>Next 7 days visits</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.card}>

@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–B Local Implementation Complete / Not Deployed / Slices C–F Deferred
+**Status:** Slices A–B and D1 Committed / Pushed / Not Deployed; D1 Not Built or Distributed; Slices C, D2, E, and F Deferred
 
 ---
 
@@ -42,7 +42,7 @@ See `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md`.
 
 ## Slice B Local Transactional Result
 
-Slice B is locally implemented, not deployed, and unstaged for independent review. New `CHECK_IN` writes require contract-valid `visits_per_day` and distinct `visit_windows`; ordered dates × ordered windows produce deterministic child jobs and one canonical-time Calendar event per child. Stable job and Calendar occurrence identities make replay duplicate-safe. Legacy services/windows remain readable, booking-level notification batching is preserved, and Walk/Overnight policy is unchanged.
+Slice B is committed and pushed but not deployed. New `CHECK_IN` writes require contract-valid `visits_per_day` and distinct `visit_windows`; ordered dates × ordered windows produce deterministic child jobs and one canonical-time Calendar event per child. Stable job and Calendar occurrence identities make replay duplicate-safe. Legacy services/windows remain readable, booking-level notification batching is preserved, and Walk/Overnight policy is unchanged.
 
 See `docs/release-notes/ryan-slice-b-check-in-booking-job-calendar-semantics.md`.
 
@@ -73,6 +73,12 @@ Ryan wants dashboard/home stat cards to be tappable:
 | Scheduled | Schedule |
 | Today's Visits | Schedule (today) |
 | This Week's Visits | Schedule |
+
+### Slice D1 Local Dashboard Navigation Result
+
+Slice D1 is committed and pushed but not built, distributed, or deployed. Pending Review and Needs Sitter navigate to the existing Requests tab with transient contract-checked `PENDING_REVIEW` and `APPROVED` filters. Scheduled, Today's Visits, and This Week's Visits navigate to the existing Schedule tab. Because the current admin/owner Schedule has no date/range route contract, D1 does not invent today/week parameters; date-focused navigation remains deferred. All five cards have button semantics, meaningful labels and hints, and unchanged full-card visual surfaces.
+
+See `docs/release-notes/ryan-slice-d1-mobile-dashboard-navigation.md`.
 
 ---
 
@@ -125,10 +131,11 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | Slice | Scope | Dependencies | Status |
 |-------|-------|-------------|--------|
 | A | Canonical service/time-window contract update in `shared/constants/` | None | Local Implementation Complete / Not Deployed |
-| B | Backend booking/job/calendar support for visits-per-day and updated windows | A | Local Implementation Complete / Not Deployed / Unstaged for Review |
+| B | Backend booking/job/calendar support for visits-per-day and updated windows | A | Committed / Pushed / Not Deployed |
 | C | Web service-selection UX (admin booking + client intake) | A, B | Not Started |
-| D | Mobile parity + dashboard navigation | A, B | Not Started |
-| E | Workflow next-action simplification | C, D | Not Started |
+| D1 | Mobile dashboard navigation | A, B | Committed / Pushed / Not Built / Not Distributed / Not Deployed |
+| D2 | Mobile service-selection/intake parity | A, B | Not Started |
+| E | Workflow next-action simplification | C, D1, D2 | Not Started |
 | F | Public website content alignment (toganddogs.com) | Ryan pricing decisions | Not Started |
 
 **Recommended order:** A → B → C + D (parallel) → E → F

@@ -58,14 +58,14 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 11 | AI-assisted onboarding | ❌ Not started; follow deterministic onboarding | Low |
 | 12 | Video visit evidence | ❌ Not started | Low |
 | 13 | Multi-location support | ❌ Not started | Future |
-| 14 | Cross-platform services, scheduling & workflow alignment | 🛠️ Slices A–B locally complete / not deployed / C–F deferred | High |
+| 14 | Cross-platform services, scheduling & workflow alignment | 🛠️ Slices A–B and D1 committed/pushed/not deployed; D1 not built/distributed; C, D2, E, F deferred | High |
 
 ---
 
 ## Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–B Local Implementation Complete / Not Deployed / Slices C–F Deferred
+**Status:** Slices A–B and D1 Committed / Pushed / Not Deployed; D1 Not Built or Distributed; Slices C, D2, E, and F Deferred
 
 ### Target Service Model
 
@@ -90,8 +90,9 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | A | Canonical service/time-window contract update | Committed / Pushed / Not Deployed | — |
 | B | Backend booking/job/calendar support | Committed / Pushed / Not Deployed | A |
 | C | Web service-selection UX | Not Started | A, B |
-| D | Mobile parity + dashboard navigation | Not Started (Recommended Next) | A, B |
-| E | Workflow next-action simplification | Not Started | C, D |
+| D1 | Mobile dashboard navigation | Committed / Pushed / Not Built / Not Distributed / Not Deployed | A, B |
+| D2 | Mobile service-selection/intake parity | Not Started | A, B |
+| E | Workflow next-action simplification | Not Started | C, D1, D2 |
 | F | Public website content alignment | Not Started | Ryan pricing decisions |
 
 ### Open Business Decisions
@@ -115,7 +116,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | Core operations | 9/10 | Booking, scheduling, assignment, completion all working |
 | Tenant isolation | 9/10 | Strict multi mode, entitlements, two-tenant isolation, branding, and disabled-tenant enforcement validated |
 | Payments | 6/10 | Sandbox-complete; live blocked on EIN |
-| Mobile | 8/10 | Corrected iOS Build 6 and Android versionCode 4 internally distributed and revalidated; physical Android remains unconfirmed; Ryan paused |
+| Mobile | 8/10 | Corrected iOS Build 6 and Android versionCode 4 internally distributed and revalidated; Ryan's physical Android install and operational review are confirmed; full historical smoke matrix was not rerun |
 | Documentation | 8/10 | Ops guides, policies (draft), release notes comprehensive |
 | Maintainability | 5/10 | Requires developer/Matthew for many admin tasks |
 | Self-service | 3/10 | Web customer password recovery is locally complete but not deployed; onboarding, invites, billing, and settings remain limited |

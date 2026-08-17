@@ -12,13 +12,15 @@ import { BookingsScreen } from '../screens/BookingsScreen';
 import { RequestDetailScreen } from '../screens/RequestDetailScreen';
 import { IntakeScreen } from '../screens/IntakeScreen';
 import { COLORS } from '../theme/colors';
+import { AdminTabParamList } from './types';
 
+const AdminTab = createBottomTabNavigator<AdminTabParamList>();
 const Tab = createBottomTabNavigator();
 
 // Admin / Owner Tab Navigator
 const AdminTabs = () => {
   return (
-    <Tab.Navigator
+    <AdminTab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: COLORS.primary,
@@ -36,7 +38,7 @@ const AdminTabs = () => {
         },
       }}
     >
-      <Tab.Screen
+      <AdminTab.Screen
         name="Dashboard"
         component={DashboardScreen}
         options={{
@@ -46,7 +48,7 @@ const AdminTabs = () => {
           ),
         }}
       />
-      <Tab.Screen
+      <AdminTab.Screen
         name="Requests"
         component={RequestListScreen}
         options={{
@@ -56,7 +58,7 @@ const AdminTabs = () => {
           ),
         }}
       />
-      <Tab.Screen
+      <AdminTab.Screen
         name="Schedule"
         component={ScheduleScreen}
         options={{
@@ -66,7 +68,7 @@ const AdminTabs = () => {
           ),
         }}
       />
-    </Tab.Navigator>
+    </AdminTab.Navigator>
   );
 };
 
