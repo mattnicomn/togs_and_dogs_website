@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as XLSX from 'xlsx';
 import AdminDashboard from '../src/components/AdminDashboard';
+import { SERVICE_TYPES } from '../src/generated/contracts';
 import { getEffectiveRole, getSession } from '../src/api/auth';
 import {
   createAdminBooking,
@@ -123,6 +124,27 @@ const openRequestList = async () => {
 
 const getSheetRows = name => xlsxState.sheets.find(sheet => sheet.name === name)?.sheet.rows;
 
+const openNewVisit = async () => {
+  await renderDashboard();
+  fireEvent.click(screen.getByRole('button', { name: '+ New Visit' }));
+  return screen.getByRole('heading', { name: 'Create Visit for Client' }).closest('.modal-content');
+};
+
+const getNewVisitServiceSelect = () => {
+  const serviceField = screen.getByText('Service Type *').closest('.field');
+  return within(serviceField).getByRole('combobox');
+};
+
+const selectClientPetAndDate = async (modal, date = '2030-01-05') => {
+  const clientField = screen.getByText('Client *').closest('.field');
+  fireEvent.change(within(clientField).getByRole('combobox'), { target: { value: 'client-1' } });
+  fireEvent.click(await screen.findByRole('checkbox', { name: /Synthetic Pet/ }));
+  const rangeInputs = modal.querySelectorAll('input[type="date"]');
+  fireEvent.change(rangeInputs[0], { target: { value: date } });
+  fireEvent.change(rangeInputs[1], { target: { value: date } });
+  fireEvent.click(within(modal).getByRole('button', { name: 'Apply' }));
+};
+
 describe('AdminDashboard service-type behavior', () => {
   const mockSession = {
     getIdToken: () => ({
@@ -197,45 +219,23 @@ describe('AdminDashboard service-type behavior', () => {
     expect(screen.queryByText('Pet 0 (Client 0)')).not.toBeInTheDocument();
   });
 
-  it('keeps the seven-option selector and sends the selected raw identifier unchanged', async () => {
-    await renderDashboard();
-    fireEvent.click(screen.getByRole('button', { name: '+ New Visit' }));
-
-    const serviceField = screen.getByText('Service Type *').closest('.field');
-    const serviceSelect = within(serviceField).getByRole('combobox');
+  it('derives the complete admin catalog from the contract and preserves legacy raw payload behavior', async () => {
+    const modal = await openNewVisit();
+    const serviceSelect = getNewVisitServiceSelect();
     const options = within(serviceSelect).getAllByRole('option');
-    expect(options.map(option => option.value)).toEqual([
-      'PET_SITTING',
-      'WALK_30MIN',
-      'WALK_60MIN',
-      'DROPIN_1HR',
-      'DROPIN_3HR',
-      'OVERNIGHT',
-      'MEET_GREET'
-    ]);
-    expect(options.map(option => option.textContent)).toEqual([
-      'Pet Sitting',
-      '30-Minute Walk',
-      '60-Minute Walk',
-      '1-Hour Drop-in',
-      '3-Hour Drop-in',
-      'Overnight Care',
-      'Meet & Greet'
-    ]);
+    expect(options.map(option => option.value)).toEqual(Object.keys(SERVICE_TYPES.services));
+    expect(options.map(option => option.textContent)).toEqual(
+      Object.values(SERVICE_TYPES.services).map(service => service.labelLong)
+    );
     expect(serviceSelect).toHaveValue('PET_SITTING');
+    expect(options.some(option => option.value === 'WALK_20MIN')).toBe(true);
+    expect(options.some(option => option.value === 'CHECK_IN')).toBe(true);
+    expect(options.some(option => option.value === 'OVERNIGHT')).toBe(true);
     expect(options.some(option => option.value === 'MEET_GREET')).toBe(true);
     expect(options.some(option => ['DOG_WALKING', 'WALKING', 'OTHER'].includes(option.value))).toBe(false);
 
-    const clientField = screen.getByText('Client *').closest('.field');
-    fireEvent.change(within(clientField).getByRole('combobox'), { target: { value: 'client-1' } });
-    fireEvent.click(await screen.findByRole('checkbox', { name: /Synthetic Pet/ }));
+    await selectClientPetAndDate(modal);
     fireEvent.change(serviceSelect, { target: { value: 'WALK_60MIN' } });
-
-    const modal = screen.getByRole('heading', { name: 'Create Visit for Client' }).closest('.modal-content');
-    const rangeInputs = modal.querySelectorAll('input[type="date"]');
-    fireEvent.change(rangeInputs[0], { target: { value: '2030-01-05' } });
-    fireEvent.change(rangeInputs[1], { target: { value: '2030-01-05' } });
-    fireEvent.click(within(modal).getByRole('button', { name: 'Apply' }));
     fireEvent.click(within(modal).getByRole('button', { name: 'Create Visit' }));
 
     await waitFor(() => {
@@ -254,6 +254,171 @@ describe('AdminDashboard service-type behavior', () => {
         start_date: '2030-01-05'
       });
     });
+  });
+
+  it('renders accessible contract-driven Check-In visits and canonical windows', async () => {
+    await openNewVisit();
+    fireEvent.change(getNewVisitServiceSelect(), { target: { value: 'CHECK_IN' } });
+
+    const visitsGroup = screen.getByRole('group', { name: 'Visits per day *' });
+    expect(within(visitsGroup).getAllByRole('radio').map(radio => radio.value)).toEqual(['1', '2', '3']);
+
+    const windowsGroup = screen.getByRole('group', { name: 'Visit windows *' });
+    expect(within(windowsGroup).getByRole('checkbox', { name: 'Morning, 6:30 AM to 9:30 AM' })).toBeDisabled();
+    expect(within(windowsGroup).getByRole('checkbox', { name: 'Mid-day, 10:30 AM to 3:30 PM' })).toBeDisabled();
+    expect(within(windowsGroup).getByRole('checkbox', { name: 'Evening, 6:00 PM to 9:30 PM' })).toBeDisabled();
+    expect(screen.queryByText('Visit Window')).not.toBeInTheDocument();
+  });
+
+  it('submits one-window Check-In with the exact preserved admin payload and no status', async () => {
+    getStaff.mockResolvedValue({
+      staff: [{ staff_id: 'staff-1', display_name: 'Sitter One', email: 'sitter@example.test', is_active: true, is_assignable: true }]
+    });
+    const modal = await openNewVisit();
+    await selectClientPetAndDate(modal);
+    fireEvent.change(getNewVisitServiceSelect(), { target: { value: 'CHECK_IN' } });
+    fireEvent.click(screen.getByRole('radio', { name: '1' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Evening, 6:00 PM to 9:30 PM' }));
+
+    const notesField = screen.getByText('Notes / Details').closest('.field');
+    fireEvent.change(within(notesField).getByRole('textbox'), { target: { value: 'Use side gate.' } });
+    const sitterField = screen.getByText('Preferred Sitter').closest('.field');
+    fireEvent.change(within(sitterField).getByRole('combobox'), { target: { value: 'sitter@example.test' } });
+    fireEvent.click(within(modal).getByRole('button', { name: 'Create Visit' }));
+
+    await waitFor(() => expect(createAdminBooking).toHaveBeenCalledOnce());
+    expect(createAdminBooking).toHaveBeenCalledWith({
+      client_id: 'client-1',
+      client_name: 'Synthetic Client',
+      client_email: 'client@example.test',
+      client_phone: '555-0100',
+      pet_names: 'Synthetic Pet',
+      pet_ids: ['pet-1'],
+      service_type: 'CHECK_IN',
+      details: 'Use side gate.',
+      preferred_sitter: 'sitter@example.test',
+      selected_dates: ['2030-01-05'],
+      start_date: '2030-01-05',
+      visits_per_day: 1,
+      visit_windows: ['EVENING']
+    });
+    expect(createAdminBooking.mock.calls[0][0]).not.toHaveProperty('visit_window');
+    expect(createAdminBooking.mock.calls[0][0]).not.toHaveProperty('status');
+  });
+
+  it('limits two-visit Check-In to two windows and submits canonical order', async () => {
+    const modal = await openNewVisit();
+    await selectClientPetAndDate(modal);
+    fireEvent.change(getNewVisitServiceSelect(), { target: { value: 'CHECK_IN' } });
+    fireEvent.click(screen.getByRole('radio', { name: '2' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Evening, 6:00 PM to 9:30 PM' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Morning, 6:30 AM to 9:30 AM' }));
+    expect(screen.getByRole('checkbox', { name: 'Mid-day, 10:30 AM to 3:30 PM' })).toBeDisabled();
+    fireEvent.click(within(modal).getByRole('button', { name: 'Create Visit' }));
+
+    await waitFor(() => expect(createAdminBooking).toHaveBeenCalledOnce());
+    expect(createAdminBooking.mock.calls[0][0]).toMatchObject({
+      service_type: 'CHECK_IN',
+      visits_per_day: 2,
+      visit_windows: ['MORNING', 'EVENING']
+    });
+  });
+
+  it('automatically selects all three canonical windows for three visits', async () => {
+    const modal = await openNewVisit();
+    await selectClientPetAndDate(modal);
+    fireEvent.change(getNewVisitServiceSelect(), { target: { value: 'CHECK_IN' } });
+    fireEvent.click(screen.getByRole('radio', { name: '3' }));
+
+    const checkboxes = screen.getAllByRole('checkbox').filter(input => input.getAttribute('aria-label')?.includes(' to '));
+    expect(checkboxes).toHaveLength(3);
+    checkboxes.forEach(checkbox => {
+      expect(checkbox).toBeChecked();
+      expect(checkbox).toBeDisabled();
+    });
+    fireEvent.click(within(modal).getByRole('button', { name: 'Create Visit' }));
+    await waitFor(() => expect(createAdminBooking).toHaveBeenCalledOnce());
+    expect(createAdminBooking.mock.calls[0][0]).toMatchObject({
+      visits_per_day: 3,
+      visit_windows: ['MORNING', 'MIDDAY', 'EVENING']
+    });
+  });
+
+  it('normalizes 2→1, 1→3, and 3→2 in canonical order', async () => {
+    await openNewVisit();
+    fireEvent.change(getNewVisitServiceSelect(), { target: { value: 'CHECK_IN' } });
+    fireEvent.click(screen.getByRole('radio', { name: '2' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Evening, 6:00 PM to 9:30 PM' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Morning, 6:30 AM to 9:30 AM' }));
+
+    fireEvent.click(screen.getByRole('radio', { name: '1' }));
+    expect(screen.getByRole('checkbox', { name: 'Morning, 6:30 AM to 9:30 AM' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Evening, 6:00 PM to 9:30 PM' })).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole('radio', { name: '3' }));
+    screen.getAllByRole('checkbox').filter(input => input.getAttribute('aria-label')?.includes(' to ')).forEach(checkbox => {
+      expect(checkbox).toBeChecked();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: '2' }));
+    expect(screen.getByRole('checkbox', { name: 'Morning, 6:30 AM to 9:30 AM' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Mid-day, 10:30 AM to 3:30 PM' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Evening, 6:00 PM to 9:30 PM' })).not.toBeChecked();
+  });
+
+  it.each(['WALK_20MIN', 'OVERNIGHT'])('clears Check-In state for %s and omits every Check-In-only field', async (serviceType) => {
+    const modal = await openNewVisit();
+    await selectClientPetAndDate(modal);
+    const serviceSelect = getNewVisitServiceSelect();
+    fireEvent.change(serviceSelect, { target: { value: 'CHECK_IN' } });
+    fireEvent.click(screen.getByRole('radio', { name: '2' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Morning, 6:30 AM to 9:30 AM' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Evening, 6:00 PM to 9:30 PM' }));
+
+    fireEvent.change(serviceSelect, { target: { value: serviceType } });
+    expect(screen.queryByRole('group', { name: 'Visits per day *' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Visit Window')).not.toBeInTheDocument();
+    fireEvent.click(within(modal).getByRole('button', { name: 'Create Visit' }));
+
+    await waitFor(() => expect(createAdminBooking).toHaveBeenCalledOnce());
+    const payload = createAdminBooking.mock.calls[0][0];
+    expect(payload.service_type).toBe(serviceType);
+    expect(payload).not.toHaveProperty('visits_per_day');
+    expect(payload).not.toHaveProperty('visit_windows');
+    expect(payload).not.toHaveProperty('visit_window');
+  });
+
+  it('returns from Walk or Overnight to a clean Check-In schedule', async () => {
+    await openNewVisit();
+    const serviceSelect = getNewVisitServiceSelect();
+    fireEvent.change(serviceSelect, { target: { value: 'CHECK_IN' } });
+    fireEvent.click(screen.getByRole('radio', { name: '3' }));
+    fireEvent.change(serviceSelect, { target: { value: 'WALK_20MIN' } });
+    fireEvent.change(serviceSelect, { target: { value: 'CHECK_IN' } });
+    expect(screen.getAllByRole('radio').filter(radio => radio.name === 'admin-visits-per-day')).toHaveLength(3);
+    expect(screen.getAllByRole('radio').filter(radio => radio.name === 'admin-visits-per-day').every(radio => !radio.checked)).toBe(true);
+    fireEvent.change(serviceSelect, { target: { value: 'OVERNIGHT' } });
+    fireEvent.change(serviceSelect, { target: { value: 'CHECK_IN' } });
+    screen.getAllByRole('checkbox').filter(input => input.getAttribute('aria-label')?.includes(' to ')).forEach(checkbox => {
+      expect(checkbox).not.toBeChecked();
+      expect(checkbox).toBeDisabled();
+    });
+  });
+
+  it('shows associated human-readable errors for missing count and exact window count', async () => {
+    const modal = await openNewVisit();
+    await selectClientPetAndDate(modal);
+    fireEvent.change(getNewVisitServiceSelect(), { target: { value: 'CHECK_IN' } });
+    fireEvent.click(within(modal).getByRole('button', { name: 'Create Visit' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose how many Check-In visits are needed each day.');
+    expect(createAdminBooking).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('radio', { name: '2' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Morning, 6:30 AM to 9:30 AM' }));
+    fireEvent.click(within(modal).getByRole('button', { name: 'Create Visit' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose exactly 2 visit windows.');
+    expect(screen.getByRole('group', { name: 'Visit windows *' })).toHaveAttribute('aria-describedby', 'admin-check-in-schedule-error');
+    expect(createAdminBooking).not.toHaveBeenCalled();
   });
 
   it('keeps dispatch-friendly labels and raw request export values unchanged', async () => {

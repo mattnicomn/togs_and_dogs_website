@@ -24,6 +24,50 @@ import '../Admin.css';
 // Release 6H Phase 2: Removed hardcoded PROTECTED_SUBS/PROTECTED_EMAILS.
 // Protection is now determined by the backend-provided `is_protected` field on staff/client profiles.
 
+// Admin creation intentionally has a broader compatibility catalog than customer
+// intake. Every canonical contract entry remains available here: target services
+// support current operations, while legacy entries preserve staff-managed bookings.
+const adminServiceTypes = Object.entries(SERVICE_TYPES.services);
+const checkInServiceType = adminServiceTypes.find(([, service]) => (
+  service.windowSelectionMode === 'match_visits_per_day'
+));
+const checkInServiceId = checkInServiceType?.[0] || '';
+
+const formatCanonicalTime = (value) => {
+  if (!value) return '';
+  const [hourValue, minute] = value.split(':');
+  const hour = Number(hourValue);
+  return `${hour % 12 || 12}:${minute} ${hour >= 12 ? 'PM' : 'AM'}`;
+};
+
+const getAdminCheckInModel = (serviceType) => {
+  const service = SERVICE_TYPES.services[serviceType];
+  if (service?.windowSelectionMode !== 'match_visits_per_day') return null;
+
+  const windows = service.allowedWindowIds
+    .map((id) => ({ id, ...SERVICE_TYPES.windows[id] }))
+    .filter((window) => (
+      window.label
+      && window.lifecycle === 'active'
+      && window.newBookingEligibility === 'eligible'
+    ));
+
+  return { service, windows };
+};
+
+const getInitialAdminVisitWindows = (serviceType) => (
+  SERVICE_TYPES.services[serviceType]?.windowSelectionMode === 'legacy_compatibility'
+    ? ['ANYTIME']
+    : []
+);
+
+const createInitialNewVisitForm = () => ({
+  client_id: '', client_name: '', client_email: '', client_phone: '',
+  pet_names: '', pet_ids: [], service_type: 'PET_SITTING',
+  selected_dates: [], range_start: '', range_end: '', visit_windows: ['ANYTIME'],
+  visits_per_day: null, details: '', preferred_sitter: ''
+});
+
 const AdminDashboard = () => {
 
   const [allRequests, setAllRequests] = useState([]); // Master pool for all records
@@ -157,14 +201,10 @@ const AdminDashboard = () => {
   };
   // Release 6F: New Visit modal for admin-created bookings
   const [newVisitModal, setNewVisitModal] = useState(false);
-  const [newVisitForm, setNewVisitForm] = useState({
-    client_id: '', client_name: '', client_email: '', client_phone: '',
-    pet_names: '', pet_ids: [], service_type: 'PET_SITTING',
-    selected_dates: [], range_start: '', range_end: '', visit_windows: ['ANYTIME'],
-    details: '', preferred_sitter: ''
-  });
+  const [newVisitForm, setNewVisitForm] = useState(createInitialNewVisitForm);
   const [newVisitClientPets, setNewVisitClientPets] = useState([]);
   const [isCreatingVisit, setIsCreatingVisit] = useState(false);
+  const [newVisitScheduleError, setNewVisitScheduleError] = useState('');
   const [isAddingPetInline, setIsAddingPetInline] = useState(false);
   const [inlinePetForm, setInlinePetForm] = useState({ name: '', species: 'DOG', breed: '', age: '' });
   const [isSavingPetInline, setIsSavingPetInline] = useState(false);
@@ -2872,12 +2912,8 @@ const AdminDashboard = () => {
   // Release 6F: New Visit modal handlers
   const handleCloseNewVisitModal = () => {
     setNewVisitModal(false);
-    setNewVisitForm({
-      client_id: '', client_name: '', client_email: '', client_phone: '',
-      pet_names: '', pet_ids: [], service_type: 'PET_SITTING',
-      selected_dates: [], range_start: '', range_end: '', visit_windows: ['ANYTIME'],
-      details: '', preferred_sitter: ''
-    });
+    setNewVisitForm(createInitialNewVisitForm());
+    setNewVisitScheduleError('');
     setNewVisitClientPets([]);
     setIsAddingPetInline(false);
     setInlinePetForm({ name: '', species: 'DOG', breed: '', age: '' });
@@ -2968,11 +3004,72 @@ const AdminDashboard = () => {
     });
   };
 
+  const handleNewVisitServiceChange = (serviceType) => {
+    setNewVisitScheduleError('');
+    setNewVisitForm(prev => ({
+      ...prev,
+      service_type: serviceType,
+      visits_per_day: null,
+      visit_windows: getInitialAdminVisitWindows(serviceType)
+    }));
+  };
+
+  const handleNewVisitCountChange = (visitsPerDay) => {
+    const model = getAdminCheckInModel(newVisitForm.service_type);
+    if (!model || !model.service.visitsPerDayOptions.includes(visitsPerDay)) return;
+
+    setNewVisitScheduleError('');
+    setNewVisitForm(prev => {
+      const selected = model.windows
+        .map(window => window.id)
+        .filter(id => prev.visit_windows.includes(id));
+      return {
+        ...prev,
+        visits_per_day: visitsPerDay,
+        visit_windows: visitsPerDay === model.windows.length
+          ? model.windows.map(window => window.id)
+          : selected.slice(0, visitsPerDay)
+      };
+    });
+  };
+
+  const handleNewVisitWindowToggle = (windowId) => {
+    const model = getAdminCheckInModel(newVisitForm.service_type);
+    if (!model || !newVisitForm.visits_per_day) return;
+
+    setNewVisitScheduleError('');
+    setNewVisitForm(prev => {
+      const selected = prev.visit_windows.includes(windowId)
+        ? prev.visit_windows.filter(id => id !== windowId)
+        : prev.visit_windows.length < prev.visits_per_day
+          ? [...prev.visit_windows, windowId]
+          : prev.visit_windows;
+      const canonical = model.windows
+        .map(window => window.id)
+        .filter(id => selected.includes(id));
+      return { ...prev, visit_windows: canonical };
+    });
+  };
+
   const handleNewVisitSubmit = async () => {
     if (!newVisitForm.client_id) { showNotification("Please select a client.", "error"); return; }
     if (!newVisitForm.pet_names && newVisitForm.pet_ids.length === 0) { showNotification("Please select at least one pet.", "error"); return; }
     if (newVisitForm.selected_dates.length === 0) {
       showNotification("Please select at least one date.", "error"); return;
+    }
+
+    const checkInModel = getAdminCheckInModel(newVisitForm.service_type);
+    if (checkInModel) {
+      if (!checkInModel.service.visitsPerDayOptions.includes(newVisitForm.visits_per_day)) {
+        setNewVisitScheduleError('Choose how many Check-In visits are needed each day.');
+        return;
+      }
+      if (newVisitForm.visit_windows.length !== newVisitForm.visits_per_day) {
+        setNewVisitScheduleError(
+          `Choose exactly ${newVisitForm.visits_per_day} visit window${newVisitForm.visits_per_day === 1 ? '' : 's'}.`
+        );
+        return;
+      }
     }
 
     const sorted = [...newVisitForm.selected_dates].sort();
@@ -2985,12 +3082,20 @@ const AdminDashboard = () => {
       pet_names: newVisitForm.pet_names,
       pet_ids: newVisitForm.pet_ids,
       service_type: newVisitForm.service_type,
-      visit_windows: newVisitForm.visit_windows,
       details: newVisitForm.details || undefined,
       preferred_sitter: newVisitForm.preferred_sitter || undefined,
       selected_dates: sorted,
       start_date: sorted[0]
     };
+
+    if (checkInModel) {
+      payload.visits_per_day = newVisitForm.visits_per_day;
+      payload.visit_windows = checkInModel.windows
+        .map(window => window.id)
+        .filter(id => newVisitForm.visit_windows.includes(id));
+    } else if (SERVICE_TYPES.services[newVisitForm.service_type]?.windowSelectionMode === 'legacy_compatibility') {
+      payload.visit_windows = newVisitForm.visit_windows;
+    }
 
     if (sorted.length > 1) {
       payload.end_date = sorted[sorted.length - 1];
@@ -5901,16 +6006,12 @@ const AdminDashboard = () => {
                 <label>Service Type *</label>
                 <select
                   value={newVisitForm.service_type}
-                  onChange={(e) => setNewVisitForm(prev => ({ ...prev, service_type: e.target.value }))}
+                  onChange={(e) => handleNewVisitServiceChange(e.target.value)}
                   style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
                 >
-                  <option value="PET_SITTING">{SERVICE_TYPES.services.PET_SITTING.labelLong}</option>
-                  <option value="WALK_30MIN">{SERVICE_TYPES.services.WALK_30MIN.labelLong}</option>
-                  <option value="WALK_60MIN">{SERVICE_TYPES.services.WALK_60MIN.labelLong}</option>
-                  <option value="DROPIN_1HR">{SERVICE_TYPES.services.DROPIN_1HR.labelLong}</option>
-                  <option value="DROPIN_3HR">{SERVICE_TYPES.services.DROPIN_3HR.labelLong}</option>
-                  <option value="OVERNIGHT">{SERVICE_TYPES.services.OVERNIGHT.labelLong}</option>
-                  <option value="MEET_GREET">{SERVICE_TYPES.services.MEET_GREET.labelLong}</option>
+                  {adminServiceTypes.map(([identifier, service]) => (
+                    <option key={identifier} value={identifier}>{service.labelLong}</option>
+                  ))}
                 </select>
               </div>
 
@@ -6012,21 +6113,87 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              {/* Visit Window */}
-              <div className="field" style={{ marginBottom: '16px' }}>
-                <label>Visit Window</label>
-                <select
-                  value={newVisitForm.visit_windows[0] || 'ANYTIME'}
-                  onChange={(e) => setNewVisitForm(prev => ({ ...prev, visit_windows: [e.target.value] }))}
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
-                >
-                  <option value="ANYTIME">Anytime</option>
-                  <option value="MORNING">Morning</option>
-                  <option value="MIDDAY">Midday</option>
-                  <option value="AFTERNOON">Afternoon</option>
-                  <option value="EVENING">Evening</option>
-                </select>
-              </div>
+              {newVisitForm.service_type === checkInServiceId && (() => {
+                const model = getAdminCheckInModel(newVisitForm.service_type);
+                if (!model) return null;
+                const exactCountReached = newVisitForm.visit_windows.length >= newVisitForm.visits_per_day;
+                return (
+                  <div className="admin-check-in-schedule">
+                    <fieldset className="admin-check-in-fieldset">
+                      <legend>Visits per day *</legend>
+                      <div className="admin-check-in-options">
+                        {model.service.visitsPerDayOptions.map(visits => (
+                          <label key={visits} className="admin-check-in-option">
+                            <input
+                              type="radio"
+                              name="admin-visits-per-day"
+                              value={visits}
+                              checked={newVisitForm.visits_per_day === visits}
+                              onChange={() => handleNewVisitCountChange(visits)}
+                              aria-describedby={newVisitScheduleError ? 'admin-check-in-schedule-error' : undefined}
+                            />
+                            {visits}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+
+                    <fieldset
+                      className="admin-check-in-fieldset"
+                      aria-describedby={newVisitScheduleError ? 'admin-check-in-schedule-error' : undefined}
+                    >
+                      <legend>Visit windows *</legend>
+                      <div className="admin-check-in-options admin-check-in-window-options">
+                        {model.windows.map(window => {
+                          const checked = newVisitForm.visit_windows.includes(window.id);
+                          const disabled = (
+                            !newVisitForm.visits_per_day
+                            || newVisitForm.visits_per_day === model.windows.length
+                            || (!checked && exactCountReached)
+                          );
+                          return (
+                            <label key={window.id} className={`admin-check-in-option admin-check-in-window ${disabled ? 'disabled' : ''}`}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={disabled}
+                                onChange={() => handleNewVisitWindowToggle(window.id)}
+                                aria-label={`${window.label}, ${formatCanonicalTime(window.start)} to ${formatCanonicalTime(window.end)}`}
+                              />
+                              <span>
+                                <strong>{window.label}</strong>
+                                <small>{formatCanonicalTime(window.start)}–{formatCanonicalTime(window.end)}</small>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </fieldset>
+                    {newVisitScheduleError && (
+                      <p id="admin-check-in-schedule-error" className="admin-check-in-error" role="alert">
+                        {newVisitScheduleError}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {SERVICE_TYPES.services[newVisitForm.service_type]?.windowSelectionMode === 'legacy_compatibility' && (
+                <div className="field" style={{ marginBottom: '16px' }}>
+                  <label>Visit Window</label>
+                  <select
+                    value={newVisitForm.visit_windows[0] || 'ANYTIME'}
+                    onChange={(e) => setNewVisitForm(prev => ({ ...prev, visit_windows: [e.target.value] }))}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}
+                  >
+                    <option value="ANYTIME">Anytime</option>
+                    <option value="MORNING">Morning</option>
+                    <option value="MIDDAY">Midday</option>
+                    <option value="AFTERNOON">Afternoon</option>
+                    <option value="EVENING">Evening</option>
+                  </select>
+                </div>
+              )}
 
               {/* Notes */}
               <div className="field" style={{ marginBottom: '16px' }}>

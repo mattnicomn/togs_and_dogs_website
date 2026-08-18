@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–C and D1–D2 Committed / Pushed / Not Deployed; D1–D2 Not Built or Distributed; Slices E and F Deferred
+**Status:** Slices A–C, C1, and D1–D2 Committed / Pushed / Not Deployed; D1–D2 Not Built or Distributed; Slices E and F Deferred
 
 ---
 
@@ -106,6 +106,20 @@ See `docs/release-notes/ryan-slice-c-web-check-in-intake-parity.md`.
 
 ---
 
+## Slice C1 Local Admin Creation Result
+
+Slice C1 is committed and pushed but not deployed after independent review returned `RYAN_SLICE_C1_IMPLEMENTATION_CORRECT`. The existing owner/admin New Visit modal derives the complete canonical catalog from generated `SERVICE_TYPES`, adding the target Walk and Check-In entries while preserving the seven prior staff-managed compatibility services and `PET_SITTING` default.
+
+Check-In alone renders contract-derived 1/2/3 visits and Morning/Mid-day/Evening structured windows, enforces the exact selected-window count, normalizes count/service transitions, and submits canonical ordered `visits_per_day` plus `visit_windows`. Walk and Overnight omit Check-In-only fields and receive no invented timing or pricing policy. Legacy compatibility services retain their existing single-window behavior.
+
+The real API path is the existing authenticated `/client/requests` admin branch. It immediately creates an `APPROVED` `VISIT_BOOKING` for a tenant-scoped existing/offline client and asynchronously invokes jobs. Slice B already validates this path and owns date×window child jobs plus Calendar events, so no backend change was required. Creation notification, later assignment notification batching, preferred-sitter semantics, RBAC, and tenant isolation are unchanged.
+
+Validation: AdminDashboard 13/13, combined C1 + Slice C 31/31, full Web 280/280 Vitest plus 99/99 legacy, successful 110-module build, and focused Slice B backend 31/31. No deployment, production write, Calendar event, notification, Mobile, shared/generated, backend, infrastructure, or public-site action occurred.
+
+See `docs/release-notes/ryan-slice-c1-admin-check-in-creation-parity.md`.
+
+---
+
 ## Workflow Simplification Direction
 
 Each operational screen should expose one obvious primary next action where practical.
@@ -157,6 +171,7 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | A | Canonical service/time-window contract update in `shared/constants/` | None | Local Implementation Complete / Not Deployed |
 | B | Backend booking/job/calendar support for visits-per-day and updated windows | A | Committed / Pushed / Not Deployed |
 | C | Web customer intake Check-In parity | A, B | Committed / Pushed / Not Deployed |
+| C1 | Web Admin Check-In creation parity | A, B, C | Committed / Pushed / Not Deployed |
 | D1 | Mobile dashboard navigation | A, B | Committed / Pushed / Not Built / Not Distributed / Not Deployed |
 | D2 | Mobile service-selection/intake parity | A, B | Committed / Pushed / Not Built / Not Distributed / Not Deployed |
 | E | Workflow next-action simplification | C, D1, D2 | Not Started |

@@ -3102,6 +3102,71 @@
   border-radius: 12px;
 }
 
+/* Ryan Slice C1: contract-driven Check-In controls in the existing New Visit modal. */
+.admin-check-in-schedule {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.admin-check-in-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+}
+
+.admin-check-in-fieldset legend {
+  padding: 0 6px;
+  color: var(--text-main);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.admin-check-in-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-check-in-option {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.admin-check-in-window-options {
+  flex-direction: column;
+}
+
+.admin-check-in-window span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-check-in-window small {
+  color: var(--text-muted);
+}
+
+.admin-check-in-option.disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.admin-check-in-error {
+  margin: 0;
+  color: var(--accent-red, #c62828);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-delay: -1ms !important;

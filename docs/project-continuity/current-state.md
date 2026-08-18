@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-17 (Ryan Slice C Web Check-In Intake Parity Committed / Pushed / Not Deployed)
+**Last Updated:** 2026-08-17 (Ryan Slice C1 Admin Check-In Creation Parity Committed / Pushed / Not Deployed)
 
 ---
 
@@ -69,7 +69,7 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - No Terraform plan/apply, Cognito change, KMS grant, Postmark email, password reset, deployment, or production write occurred. Existing generic Cognito email remains active until a separately reviewed and explicitly approved deployment.
   - See: `docs/release-notes/release-cognito-custom-email-sender-postmark.md`
 
-- Ryan Cross-Platform Services, Scheduling & Workflow Alignment Slices A–B + C + D1–D2 (✅ COMMITTED / PUSHED / NOT DEPLOYED; D1–D2 NOT BUILT OR DISTRIBUTED — 2026-08-17)
+- Ryan Cross-Platform Services, Scheduling & Workflow Alignment Slices A–C + C1 + D1–D2 (✅ COMMITTED / PUSHED / NOT DEPLOYED; D1–D2 NOT BUILT OR DISTRIBUTED — 2026-08-17)
   - Ryan completed an operational platform review confirming target service model: 20-Minute Walk, Check-In (30 min, 1–3 visits/day selectable), and Overnight.
   - Slice A (`53818bc`) extends the canonical service contract with `WALK_20MIN`, `CHECK_IN`, lifecycle/new-booking metadata, visits/day options, allowed windows, and window-selection mode; generated Web, Mobile, and Backend adapters agree deterministically. Independently reviewed (Kiro: IMPLEMENTATION_CORRECT).
   - Slice B (`37bb806`) validates new CHECK_IN writes, persists `visits_per_day` + canonical ordered `visit_windows`, expands selected dates × windows into deterministic child jobs with stable UUIDv5 identities, one Calendar event per child at canonical 06:30/10:30/18:00 starts for 30 minutes, idempotent replay, and 409-conflict handling. Independently reviewed (Kiro: IMPLEMENTATION_CORRECT).
@@ -80,12 +80,16 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - D2 validation: focused Intake 23/23, TypeScript pass, and full mobile 123/123 across 13 suites. Independent review returned `RYAN_SLICE_D2_IMPLEMENTATION_CORRECT`; D2 is committed and pushed but has not been built, distributed, deployed, or received by Ryan. The current Android versionCode 4 contains neither D1 nor D2.
   - Slice C locally wires Web customer intake to canonical active/new-booking-eligible service metadata: `WALK_20MIN`, `CHECK_IN`, and `OVERNIGHT`. The generated contract supplies Check-In visits/day, active windows, labels, times, exact count rules, canonical ordering, confirmed duration, review display, and accessibility semantics. Check-In payloads carry `visits_per_day` plus ordered `visit_windows`; Walk/Overnight omit Check-In-only fields.
   - Slice C validation: focused IntakeForm 18/18, full Web 99/99 legacy plus 271/271 Vitest across 22 files, and Vite build success with 110 modules transformed. Independent review returned `RYAN_SLICE_C_IMPLEMENTATION_CORRECT`; Slice C is committed and pushed but not deployed. No shared/generated, backend, Mobile, production, public-site, or distribution change occurred.
+  - Slice C1 locally closes the staff/admin creation gap in the existing owner/admin New Visit modal. The modal derives all nine canonical admin options from generated `SERVICE_TYPES`, preserves the seven prior options and `PET_SITTING` default, and adds contract-driven Check-In visits/day plus canonical structured windows. Check-In payloads preserve client, pets, dates, sitter preference, and notes while adding numeric `visits_per_day` and ordered `visit_windows`; Walk/Overnight omit all Check-In-only fields.
+  - The actual admin path remains authenticated `POST /client/requests` with `source: admin_created`, producing an immediate `APPROVED` `VISIT_BOOKING` for a tenant-scoped existing/offline client. Slice B already handles validation, date×window jobs, Calendar child events, and replay safety; backend change was not required. Notification and assignment semantics remain unchanged.
+  - C1 validation: AdminDashboard 13/13, combined C1 + Slice C 31/31, full Web 280/280 Vitest plus 99/99 legacy, successful 110-module build, and focused Slice B backend 31/31. Independent review returned `RYAN_SLICE_C1_IMPLEMENTATION_CORRECT`; C1 is committed and pushed but not deployed.
   - Legacy service/window compatibility preserved. Walk and Overnight policies remain unresolved.
-  - Slice C deployment remains separately gated before cross-platform release. Slice E workflow simplification and Slice F public-site/pricing remain NOT STARTED and separately gated. Admin booking-creation Check-In UX is deferred to a separately reviewed C1/admin slice.
+  - Slice C/C1 deployment remains separately gated before cross-platform release. Slice E workflow simplification and Slice F public-site/pricing remain NOT STARTED and separately gated.
   - No production deployment, booking, job, Calendar mutation, or pricing change occurred.
   - See: `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md`
   - See: `docs/release-notes/ryan-slice-b-check-in-booking-job-calendar-semantics.md`
   - See: `docs/release-notes/ryan-slice-c-web-check-in-intake-parity.md`
+  - See: `docs/release-notes/ryan-slice-c1-admin-check-in-creation-parity.md`
   - See: `docs/release-notes/ryan-slice-d1-mobile-dashboard-navigation.md`
   - See: `docs/release-notes/ryan-slice-d2-mobile-check-in-intake-parity.md`
 
