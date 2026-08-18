@@ -31,6 +31,7 @@ This folder contains everything a new AI assistant needs to understand the Togs 
 - Resuming work after a long gap
 - Handing off to a different AI model or assistant
 - Reviewing project direction before making decisions
+- **Rolling over to a fresh session** after a major milestone or when a conversation grows too large (see `continuity-maintenance-checklist.md` for the rollover process)
 
 ---
 

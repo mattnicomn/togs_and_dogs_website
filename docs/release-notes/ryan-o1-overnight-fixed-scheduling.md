@@ -1,7 +1,9 @@
 # Ryan Cross-Platform Alignment O1 — Overnight Fixed 9PM–7AM Scheduling
 
 **Date:** 2026-08-18  
-**Status:** LOCAL IMPLEMENTATION COMPLETE / NOT DEPLOYED / AWAITING INDEPENDENT REVIEW  
+**Status:** ✅ COMMITTED / PUSHED / NOT DEPLOYED  
+**Commit:** `46bb6b87e5d5a191017d12aad66e81ff58945a15`  
+**Independent Review:** Kiro `RYAN_O1_OVERNIGHT_FIXED_SCHEDULING_IMPLEMENTATION_CORRECT`  
 **Starting SHA:** `c51828ec2ad592bdfbf4243a6ca06bd1bea3ccae`
 
 ## Approved Decision
@@ -36,7 +38,7 @@ Before O1, the shared Overnight entry retained a 720-minute unresolved compatibi
 
 Historical unmarked Overnight records remain readable and retain the pre-O1 720-minute/all-day or exact-time interpretation. Existing legacy `visit_window`/`visit_windows` values are not migrated. Check-In and W1 Walk scheduling remain unchanged.
 
-O1 is local-only, unstaged, not deployed, not built or distributed for Mobile, not received by Ryan, and awaiting independent review. No production request, booking, job, DynamoDB write, Calendar mutation, notification, deployment, Terraform, EAS, Cognito, Postmark, Stripe, tenant, or public-site action occurred.
+O1 has been independently reviewed (Kiro: `RYAN_O1_OVERNIGHT_FIXED_SCHEDULING_IMPLEMENTATION_CORRECT`), committed (`46bb6b87e5d5a191017d12aad66e81ff58945a15`), and pushed. It is NOT DEPLOYED, not built or distributed for Mobile, and not received by Ryan. No production request, booking, job, DynamoDB write, Calendar mutation, notification, deployment, Terraform, EAS, Cognito, Postmark, Stripe, tenant, or public-site action occurred.
 
 ## Local Validation
 
@@ -56,3 +58,8 @@ O1 is local-only, unstaged, not deployed, not built or distributed for Mobile, n
 ## Remaining Gates
 
 Check-In pricing, Walk pricing, Overnight pricing, deposit policy, legacy-service retirement, Stripe automation, Slice E, Slice F, deployment, and Mobile build/distribution remain unresolved or separately approval-gated.
+
+## Disposition
+
+**Independent Review:** `RYAN_O1_OVERNIGHT_FIXED_SCHEDULING_IMPLEMENTATION_CORRECT`  
+**Final Status:** `RYAN_O1_OVERNIGHT_FIXED_SCHEDULING_COMMITTED_PUSHED_NOT_DEPLOYED`

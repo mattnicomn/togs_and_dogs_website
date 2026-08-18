@@ -12,6 +12,14 @@ FIRST: Read the following files in the repository before suggesting any actions:
 2. docs/project-continuity/guardrails.md
 3. docs/project-continuity/agent-operating-model.md
 
+STARTUP VERIFICATION:
+- Verify repository state: branch, HEAD commit, synchronization with origin/main, working tree status.
+- Summarize the latest completed production release and current active work.
+- Identify the next recommended action.
+- State blockers and approval gates.
+- If continuity docs appear stale vs release notes, follow the staleness rule (release notes win).
+- Request only the latest relevant Kiro/Codex output if needed — do not require the full previous conversation.
+
 RULES:
 - Do not deploy, build, or change production without Matthew's explicit approval.
 - Do not commit secrets, tokens, passwords, .tfplan, terraform.tfvars, screenshots, or credentials.
@@ -51,7 +59,7 @@ CURRENT STATE SUMMARY (verify against docs/project-continuity/current-state.md):
 - Email provider decision: Postmark is the approved production transactional email provider. AWS SES production access was denied and SES remains sandbox-only. Do not recommend or pursue SES for production delivery. For Cognito-originated email, prefer Cognito Custom Email Sender Lambda → Postmark architecture.
 - Cognito Custom Email Sender + Postmark is COMMITTED / PUSHED / NOT DEPLOYED. Isolated deterministic Lambda package, pinned AWS Encryption SDK, customer-managed KMS key/alias, dedicated least-privilege IAM, ForgotPassword-only fail-closed handler, scoped Cognito invocation, and branded Postmark delivery. Independently reviewed (Kiro: IMPLEMENTATION_CORRECT). Focused 27/27 and stable notification 216/216 pass. Terraform format and validate pass. Any Terraform plan/apply, Cognito change, KMS grant, production email validation, or deployment requires separate explicit Matthew approval.
 - Continuity reconciliation is complete. The repository-only business-owner Getting Started guide is locally complete at `docs/operations/business-owner-getting-started.md`, independently reviewed by Kiro (`GUIDE_CORRECT`), committed, and pushed; it is not public. Preview-Only V1 Platform Admin Tenant-Onboarding Orchestrator is locally complete, validated, committed, and pushed. It is NOT DEPLOYED. No Apply/Create capability exists. Additional tenant provisioning remains approval-gated. The Cognito Custom Email Sender + Postmark is COMMITTED / PUSHED / NOT DEPLOYED; its Terraform plan/apply and production validation remain separately gated.
-- Ryan cross-platform services, scheduling & workflow alignment: SLICES A–C, C1, D1–D2, RELEASE-READINESS R1, AND W1 WALK CANONICAL SCHEDULING ARE COMMITTED / PUSHED / NOT DEPLOYED; D1–D2/W1 ARE NOT BUILT OR DISTRIBUTED. O1 OVERNIGHT FIXED SCHEDULING IS LOCAL IMPLEMENTATION COMPLETE / NOT DEPLOYED / AWAITING INDEPENDENT REVIEW and remains unstaged. O1 uses contract-owned local 21:00 on each selected start-date through local 07:00 the following date, 600-minute nominal duration, no scheduling selector, one deterministic child per start-date, explicit marker-based history separation, and DST-safe wall-clock Calendar construction. Unmarked historical Overnight retains 720-minute/all-day or exact-time interpretation. Validation is shared 23/23, adapters 9/9, affected backend 90/90, focused Web 52/52, full Web 286/286 plus legacy 99/99/build, and Mobile typecheck/Intake 28/28/combined Intake+D1 34/34/full 128/128. Current internal builds contain none of D1/D2/W1/O1. Pricing, deposits, legacy availability, tenant creation, production writes, Stripe work, Slice E/F, Mobile build/distribution, independent O1 review, and deployment remain separately gated.
+- Ryan cross-platform services, scheduling & workflow alignment: SLICES A–C, C1, D1–D2, RELEASE-READINESS R1, W1 WALK, AND O1 OVERNIGHT ARE ALL COMMITTED / PUSHED / NOT DEPLOYED; D1–D2/W1/O1 ARE NOT BUILT OR DISTRIBUTED. O1 uses contract-owned local 21:00 on each selected start-date through local 07:00 the following date, 600-minute nominal duration, no scheduling selector, one deterministic child per start-date, explicit marker-based history separation, and DST-safe wall-clock Calendar construction. Independently reviewed (Kiro: IMPLEMENTATION_CORRECT). Current internal builds contain none of D1/D2/W1/O1. Pricing, deposits, legacy availability, tenant creation, production writes, Stripe work, Slice E/F, Mobile build/distribution, and deployment remain separately gated. Next recommended implementation: Slice E (workflow next-action simplification) or controlled test-release planning.
 
 Please read the continuity docs and confirm you understand the current state before proceeding with any recommendations.
 ```

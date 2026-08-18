@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-18 (Ryan O1 Overnight Fixed Scheduling Local / Awaiting Independent Review)
+**Last Updated:** 2026-08-18 (Ryan O1 Overnight Fixed Scheduling Committed / Pushed / Not Deployed)
 
 ---
 
@@ -62,13 +62,13 @@
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
 
-- Ryan O1 Overnight Fixed 9PM–7AM Scheduling (🛠️ LOCAL IMPLEMENTATION COMPLETE / NOT DEPLOYED / AWAITING INDEPENDENT REVIEW — 2026-08-18)
+- Ryan O1 Overnight Fixed 9PM–7AM Scheduling (✅ COMMITTED / PUSHED / NOT DEPLOYED — 2026-08-18)
   - Matthew approved fixed `OVERNIGHT` service from local 21:00 on each selected start-date through local 07:00 on the following calendar date. Nominal duration is 600 minutes / 10 hours; there is no visits/day, selectable window, custom time, custom range, or pricing behavior.
   - The generic shared contract now represents fixed schedules and retains `legacyDurationMinutes: 720`. Generated Web, Mobile, and Backend adapters are deterministic. Backend-derived `canonical_schedule_mode: fixed` is the persisted new/history boundary; unmarked historical records retain their legacy 720-minute/all-day or exact-time Calendar interpretation without migration.
   - New customer/Admin writes reject client-supplied scheduling fields and derive contract values. Job creation emits one stable UUIDv5 child per selected start-date, with selected-date 21:00, next-date 07:00, stable Calendar identity, and replay convergence. Calendar builds the two local wall clocks independently, preserving 21:00→07:00 across ordinary, spring-forward, and fall-back nights.
   - Web customer, Admin New Visit, Mobile Intake, and MasterScheduler show the fixed schedule and following-morning meaning without a selector. Existing client/pet/date/sitter/notes, immediate Admin `APPROVED`/`VISIT_BOOKING`, assignment, cancellation, and booking-level notification behavior remain intact.
-  - Validation: shared 23/23; adapters 9/9; O1 backend 22/22; combined O1/W1/Slice A/Slice B/R1 backend 90/90; focused Web 52/52; full Web 286/286 plus legacy 99/99 and 110-module build; Mobile typecheck, focused Intake 28/28, combined Intake/D1 34/34, and full Mobile 128/128.
-  - All changes are local and unstaged for independent review. No deployment, Mobile build/distribution, production write, Calendar mutation, notification send, infrastructure, Cognito, tenant, Stripe, or public-site action occurred. Pricing, deposit, legacy retirement, Stripe automation, Slice E, Slice F, deployment, and Mobile build/distribution remain gated.
+  - Independent review returned `RYAN_O1_OVERNIGHT_FIXED_SCHEDULING_IMPLEMENTATION_CORRECT`. Validation: shared 23/23; adapters 9/9; O1 backend 22/22; combined O1/W1/Slice A/Slice B/R1 backend 90/90; focused Web 52/52; full Web 286/286 plus legacy 99/99 and 110-module build; Mobile typecheck, focused Intake 28/28, combined Intake/D1 34/34, and full Mobile 128/128.
+  - No deployment, Mobile build/distribution, production write, Calendar mutation, notification send, infrastructure, Cognito, tenant, Stripe, or public-site action occurred. Pricing, deposit, legacy retirement, Stripe automation, Slice E, Slice F, deployment, and Mobile build/distribution remain gated.
   - See: `docs/release-notes/ryan-o1-overnight-fixed-scheduling.md`
 
 - Ryan W1 20-Minute Walk Canonical Scheduling (✅ COMMITTED / PUSHED / NOT DEPLOYED — 2026-08-17)
@@ -109,7 +109,7 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - Slice C1 locally closes the staff/admin creation gap in the existing owner/admin New Visit modal. The modal derives all nine canonical admin options from generated `SERVICE_TYPES`, preserves the seven prior options and `PET_SITTING` default, and adds contract-driven Check-In visits/day plus canonical structured windows. Check-In payloads preserve client, pets, dates, sitter preference, and notes while adding numeric `visits_per_day` and ordered `visit_windows`; Walk/Overnight omit all Check-In-only fields.
   - The actual admin path remains authenticated `POST /client/requests` with `source: admin_created`, producing an immediate `APPROVED` `VISIT_BOOKING` for a tenant-scoped existing/offline client. Slice B already handles validation, date×window jobs, Calendar child events, and replay safety; backend change was not required. Notification and assignment semantics remain unchanged.
   - C1 validation: AdminDashboard 13/13, combined C1 + Slice C 31/31, full Web 280/280 Vitest plus 99/99 legacy, successful 110-module build, and focused Slice B backend 31/31. Independent review returned `RYAN_SLICE_C1_IMPLEMENTATION_CORRECT`; C1 is committed and pushed but not deployed.
-  - Legacy service/window compatibility is preserved. W1 resolves new `WALK_20MIN` window scheduling, and local O1 now resolves new `OVERNIGHT` fixed 21:00→07:00 scheduling while preserving unmarked history.
+  - Legacy service/window compatibility is preserved. W1 resolves new `WALK_20MIN` window scheduling, and committed/pushed O1 resolves new `OVERNIGHT` fixed 21:00→07:00 scheduling while preserving unmarked history.
   - Slice C/C1 deployment remains separately gated before cross-platform release. Slice E workflow simplification and Slice F public-site/pricing remain NOT STARTED and separately gated.
   - No production deployment, booking, job, Calendar mutation, or pricing change occurred.
   - See: `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md`

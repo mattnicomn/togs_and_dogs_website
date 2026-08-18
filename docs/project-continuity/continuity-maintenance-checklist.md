@@ -67,10 +67,54 @@ When starting a new AI chat/session:
 | # | Step |
 |---|------|
 | 1 | New session reads `docs/project-continuity/` first |
-| 2 | New session summarizes current state before proposing action |
-| 3 | New session asks for latest AG/Kiro output if unclear |
-| 4 | Do NOT paste huge chat history — use continuity docs instead |
-| 5 | If continuity docs seem outdated, ask Matthew to confirm current state |
+| 2 | New session verifies repository Git state (branch, HEAD, working tree) |
+| 3 | New session summarizes current state and latest completed milestone |
+| 4 | New session identifies next recommended action |
+| 5 | New session states blockers and approval gates |
+| 6 | New session asks for latest Kiro/Codex output if unclear |
+| 7 | Do NOT paste huge chat history — use continuity docs instead |
+| 8 | Provide only the latest relevant Kiro/Codex output, not entire previous conversations |
+| 9 | If continuity docs seem outdated, ask Matthew to confirm current state |
+
+---
+
+## ChatGPT Session Rollover Checkpoint
+
+Starting a fresh ChatGPT session is normal project hygiene, not a loss of continuity. The repository documentation is the source of truth — not any single conversation.
+
+### When to roll over to a new session
+
+- ✅ A major implementation milestone is completed (e.g., a slice or group of slices committed)
+- ✅ An independent review or major audit/closeout is completed
+- ✅ A major release-planning phase is completed
+- ✅ The current conversation has become large, sluggish, or error-prone
+- ✅ Responses are noticeably slower or large copy/pastes fail
+- ✅ Context is becoming difficult to manage or navigate
+- ✅ The chat has covered several major releases or implementation slices
+- ✅ A clean milestone creates a natural handoff point
+
+### Rollover process
+
+1. Finish the current bounded task or establish a safe stopping point
+2. Ensure relevant release notes and continuity docs accurately reflect current state
+3. Verify Git state and record the latest committed SHA
+4. Record in continuity docs:
+   - Latest completed release/milestone
+   - Current candidate or next task
+   - Deployment/build/distribution state
+   - Blockers and approval gates
+   - Any pending Kiro/Codex output reference
+5. Start a fresh ChatGPT conversation in the same project
+6. Have the new session read the continuity docs before recommending actions
+7. Provide only the latest relevant Kiro/Codex output when needed (not the full old conversation)
+8. Have the new session verify repository state before proceeding
+
+### What NOT to do at rollover
+
+- ❌ Do NOT paste the entire previous conversation into the new session
+- ❌ Do NOT rely on the new session remembering prior context
+- ❌ Do NOT skip updating continuity docs before rolling over
+- ❌ Do NOT leave uncommitted work without documenting its state
 
 ---
 

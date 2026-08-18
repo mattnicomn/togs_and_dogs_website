@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–C, C1, D1–D2, R1 Hardening, and W1 Committed / Pushed / Not Deployed; O1 Local Implementation Complete / Awaiting Independent Review / Not Deployed; D1–D2/W1/O1 Not Built or Distributed; Slices E and F Deferred
+**Status:** Slices A–C, C1, D1–D2, R1 Hardening, W1, and O1 Committed / Pushed / Not Deployed; D1–D2/W1/O1 Not Built or Distributed; Slices E and F Deferred
 
 ---
 
@@ -35,7 +35,7 @@ Slice A is locally implemented and committed. The existing canonical `shared/con
 - Historical `WALK_30MIN`, `WALK_60MIN`, `DROPIN_1HR`, `DROPIN_3HR`, and `PET_SITTING` remain readable and historically labeled.
 - Undecided future eligibility for `WALK_60MIN`, `DROPIN_1HR`, and `DROPIN_3HR` is explicitly `pending`.
 - New target eligibility is separate from the unchanged legacy `availableInIntake` runtime flag, preventing premature Slice C/D selector changes.
-- W1 resolved new 20-Minute Walk scheduling. O1 now resolves new Overnight scheduling locally as fixed 21:00→07:00 the following local date, while unmarked historical Overnight records retain legacy compatibility.
+- W1 resolved new 20-Minute Walk scheduling. O1 resolved new Overnight scheduling as fixed 21:00→07:00 the following local date (committed/pushed/not deployed), while unmarked historical Overnight records retain legacy compatibility.
 - `AFTERNOON` and `ANYTIME` remain legacy-readable with no invented canonical time bounds.
 
 See `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md`.
@@ -54,7 +54,7 @@ See `docs/release-notes/ryan-slice-b-check-in-booking-job-calendar-semantics.md`
 
 ### Overnight
 
-Matthew approved a separate fixed Overnight scheduling model: each selected date is the local start date, service runs 21:00 through 07:00 on the following local date, and nominal duration is 600 minutes. Overnight does not inherit Check-In windows and exposes no time/window selector. O1 is locally implemented and awaiting independent review; it is not deployed.
+Matthew approved a separate fixed Overnight scheduling model: each selected date is the local start date, service runs 21:00 through 07:00 on the following local date, and nominal duration is 600 minutes. Overnight does not inherit Check-In windows and exposes no time/window selector. O1 is committed, pushed, and not deployed.
 
 ### Walk
 
@@ -88,7 +88,7 @@ Slice D2 is committed and pushed but not built, distributed, or deployed. Indepe
 
 Web Slice C and admin Slice C1 are now committed and pushed but not deployed. They consume the same canonical target service and Check-In metadata without changing Mobile source. D2 remains absent from the current internal builds and must not be distributed or deployed without a separately reviewed cross-platform release decision.
 
-Validation at D2 closeout was focused Intake 23/23, TypeScript pass, and full Mobile 123/123 across 13 suites. D2 has not been built, distributed, deployed, or received by Ryan. W1 resolved new Walk scheduling, and O1 now locally overlays the approved fixed Overnight schedule. Overnight pricing, deposits, and legacy eligibility decisions remain unresolved.
+Validation at D2 closeout was focused Intake 23/23, TypeScript pass, and full Mobile 123/123 across 13 suites. D2 has not been built, distributed, deployed, or received by Ryan. W1 resolved new Walk scheduling, and O1 resolved the approved fixed Overnight schedule (committed/pushed/not deployed). Overnight pricing, deposits, and legacy eligibility decisions remain unresolved.
 
 See `docs/release-notes/ryan-slice-d2-mobile-check-in-intake-parity.md`.
 
@@ -126,7 +126,7 @@ R1 is committed and pushed but not deployed after independent review returned `R
 
 Real-handler backend characterization proves: a simulated interruption during 3 dates × 2 windows converges on retry to exactly six stable Check-In children with no duplicates; six-child cancellation cascades consistently, deduplicates Calendar event IDs, and tolerates existing already-gone semantics; and 2 dates × 3 windows assignment reaches all six children with one `STAFF_ASSIGNED` and one `VISIT_SCHEDULED` notification for the batch.
 
-R1 added no scheduling business policy. W1 subsequently resolved new Walk windows/start time, and O1 now locally resolves new Overnight hours/duration. Pricing, deposits, and legacy retirement remain explicit decision gates. No deployment, production validation/write, Mobile build, or distribution occurred.
+R1 added no scheduling business policy. W1 subsequently resolved new Walk windows/start time, and O1 resolved new Overnight hours/duration (committed/pushed/not deployed). Pricing, deposits, and legacy retirement remain explicit decision gates. No deployment, production validation/write, Mobile build, or distribution occurred.
 
 See `docs/release-notes/ryan-release-readiness-hardening-r1.md`.
 
@@ -142,13 +142,13 @@ See `docs/release-notes/ryan-w1-walk-canonical-scheduling-windows.md`.
 
 ---
 
-## O1 Overnight Fixed Scheduling Local Result
+## O1 Overnight Fixed Scheduling Result
 
-O1 is local implementation complete, not deployed, and awaiting independent review. Matthew approved fixed `OVERNIGHT` service from local 21:00 on each selected start-date through local 07:00 on the following date, with 600-minute nominal duration and no visits/day, selectable window, custom time, or custom range.
+O1 is committed, pushed, independently reviewed as correct, and not deployed. Matthew approved fixed `OVERNIGHT` service from local 21:00 on each selected start-date through local 07:00 on the following date, with 600-minute nominal duration and no visits/day, selectable window, custom time, or custom range.
 
 The generic contract and regenerated adapters express the fixed schedule. New-write validation rejects client scheduling fields and persists a backend-owned fixed marker. That marker distinguishes new O1 records from unmarked historical Overnight records, which retain legacy 720-minute/all-day or exact-time compatibility without migration. One deterministic child is created per selected start-date. Calendar constructs the start and following-date end as separate local wall clocks, preserving 21:00→07:00 across DST changes. Web customer, Admin, Mobile, and MasterScheduler show the fixed following-morning context; payload, assignment, cancellation, and booking-level notifications retain their existing surrounding behavior.
 
-Validation: shared 23/23, adapters 9/9, focused O1 backend 22/22, affected backend 90/90, focused Web 52/52, full Web 286/286 plus legacy 99/99/build, and Mobile typecheck/Intake 28/28/combined Intake+D1 34/34/full 128/128. O1 remains unstaged and has not been built, distributed, deployed, received by Ryan, or exercised against production systems.
+Validation: shared 23/23, adapters 9/9, focused O1 backend 22/22, affected backend 90/90, focused Web 52/52, full Web 286/286 plus legacy 99/99/build, and Mobile typecheck/Intake 28/28/combined Intake+D1 34/34/full 128/128. Independent review returned `RYAN_O1_OVERNIGHT_FIXED_SCHEDULING_IMPLEMENTATION_CORRECT`. O1 has not been built, distributed, deployed, received by Ryan, or exercised against production systems.
 
 See `docs/release-notes/ryan-o1-overnight-fixed-scheduling.md`.
 
@@ -177,7 +177,7 @@ Each operational screen should expose one obvious primary next action where prac
 | WALK_60MIN | 60-Minute Walk | Legacy; future availability pending | Keep historical; no retirement/new-booking decision yet |
 | DROPIN_1HR | 1-Hour Drop-in | Legacy; future availability pending | Keep historical; do not presume replacement/migration |
 | DROPIN_3HR | 3-Hour Drop-in | Legacy; future availability pending | Keep historical; do not presume retirement |
-| OVERNIGHT | Overnight Care | OVERNIGHT fixed 21:00→07:00 next day | O1 local; historical records unchanged |
+| OVERNIGHT | Overnight Care | OVERNIGHT fixed 21:00→07:00 next day | O1 committed/pushed/not deployed; historical records unchanged |
 | PET_SITTING | Pet Sitting | Target model adds CHECK_IN "Check-In" | Keep PET_SITTING historical meaning; do not reinterpret records |
 | MEET_GREET | Meet & Greet | Unchanged | Already excluded from intake |
 
@@ -210,7 +210,7 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | D2 | Mobile service-selection/intake parity | A, B | Committed / Pushed / Not Built / Not Distributed / Not Deployed |
 | R1 | Scheduler parity + Check-In resiliency hardening | A–C, C1, D1–D2 | Committed / Pushed / Not Deployed |
 | W1 | 20-Minute Walk canonical scheduling windows | A–C1, D2, R1 | Committed / Pushed / Not Deployed |
-| O1 | Overnight fixed 21:00→07:00 next-day scheduling | A–C1, D2, R1, W1 | Local Complete / Awaiting Independent Review / Not Deployed |
+| O1 | Overnight fixed 21:00→07:00 next-day scheduling | A–C1, D2, R1, W1 | Committed / Pushed / Not Deployed |
 | E | Workflow next-action simplification | C, D1, D2 | Not Started |
 | F | Public website content alignment (toganddogs.com) | Ryan pricing decisions | Not Started |
 
