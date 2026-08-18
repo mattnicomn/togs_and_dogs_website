@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { getKnownServiceTypeLabel } from '../utils/serviceLabels.js';
-import { REQUEST_STATUSES } from '../generated/contracts.js';
+import { REQUEST_STATUSES, SERVICE_TYPES } from '../generated/contracts.js';
 import '../Admin.css';
+
+const schedulerServiceOptions = Object.entries(SERVICE_TYPES.services).map(
+  ([value, service]) => ({ value, label: service.labelLong })
+);
 
 const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [] }) => {
   const [viewMode, setViewMode] = useState('DAY'); // DAY or WEEK
@@ -166,13 +170,9 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
           <label>Service</label>
           <select value={filters.service} onChange={(e) => setFilters({...filters, service: e.target.value})}>
             <option value="ALL">All Services</option>
-            <option value="WALK_30MIN">30m Walk</option>
-            <option value="WALK_60MIN">60m Walk</option>
-            <option value="DROPIN_1HR">1hr Drop-in</option>
-            <option value="DROPIN_3HR">3hr Drop-in</option>
-            <option value="OVERNIGHT">Overnight</option>
-            <option value="PET_SITTING">Pet Sitting</option>
-            <option value="MEET_GREET">Meet &amp; Greet</option>
+            {schedulerServiceOptions.map(service => (
+              <option key={service.value} value={service.value}>{service.label}</option>
+            ))}
           </select>
         </div>
         <div className="filter-actions">

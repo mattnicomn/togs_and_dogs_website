@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–C, C1, and D1–D2 Committed / Pushed / Not Deployed; D1–D2 Not Built or Distributed; Slices E and F Deferred
+**Status:** Slices A–C, C1, D1–D2, and R1 Hardening Committed / Pushed / Not Deployed; D1–D2 Not Built or Distributed; Slices E and F Deferred
 
 ---
 
@@ -86,7 +86,7 @@ See `docs/release-notes/ryan-slice-d1-mobile-dashboard-navigation.md`.
 
 Slice D2 is committed and pushed but not built, distributed, or deployed. Independent review returned `RYAN_SLICE_D2_IMPLEMENTATION_CORRECT`. Mobile customer intake now presents the active, mobile-supported services whose canonical `newBookingEligibility` is `eligible`: 20-Minute Walk, Check-In, and Overnight. Check-In alone consumes contract-derived visits/day options, active allowed windows, window labels, and structured times; it submits canonical ordered `visits_per_day` and `visit_windows`. Changing counts or services normalizes or clears Check-In-only state, and Walk/Overnight payloads omit those fields.
 
-The existing Web customer intake remains on the unchanged `availableInIntake` model. Slice C must implement the target service selector, Check-In visits/day and multi-window collection, payload semantics, and review display before a cross-platform release. This temporary difference is implementation sequencing only; D2 must not be deployed alone without separate approval.
+Web Slice C and admin Slice C1 are now committed and pushed but not deployed. They consume the same canonical target service and Check-In metadata without changing Mobile source. D2 remains absent from the current internal builds and must not be distributed or deployed without a separately reviewed cross-platform release decision.
 
 Validation: focused Intake 23/23, TypeScript pass, and full Mobile 123/123 across 13 suites. D2 has not been built, distributed, deployed, or received by Ryan. Walk windows, Overnight timing/duration, pricing, deposits, and legacy eligibility decisions remain unresolved.
 
@@ -117,6 +117,18 @@ The real API path is the existing authenticated `/client/requests` admin branch.
 Validation: AdminDashboard 13/13, combined C1 + Slice C 31/31, full Web 280/280 Vitest plus 99/99 legacy, successful 110-module build, and focused Slice B backend 31/31. No deployment, production write, Calendar event, notification, Mobile, shared/generated, backend, infrastructure, or public-site action occurred.
 
 See `docs/release-notes/ryan-slice-c1-admin-check-in-creation-parity.md`.
+
+---
+
+## Release Readiness Hardening R1 Local Result
+
+R1 is committed and pushed but not deployed after independent review returned `RYAN_RELEASE_READINESS_HARDENING_R1_IMPLEMENTATION_CORRECT`. The Web MasterScheduler now derives its complete readable operational/history filter catalog from generated `SERVICE_TYPES`, so target `WALK_20MIN`, `CHECK_IN`, and `OVERNIGHT` records are directly filterable alongside the retained legacy services. `All Services`, exact case-sensitive filtering, canonical display labels, occurrence data, and existing selection/action handoff remain unchanged.
+
+Real-handler backend characterization proves: a simulated interruption during 3 dates × 2 windows converges on retry to exactly six stable Check-In children with no duplicates; six-child cancellation cascades consistently, deduplicates Calendar event IDs, and tolerates existing already-gone semantics; and 2 dates × 3 windows assignment reaches all six children with one `STAFF_ASSIGNED` and one `VISIT_SCHEDULED` notification for the batch.
+
+R1 adds no scheduling business policy. Walk windows/start time, Overnight duration/hours, pricing, deposits, and legacy retirement remain explicit decision gates. No deployment, production validation/write, Mobile build, or distribution occurred.
+
+See `docs/release-notes/ryan-release-readiness-hardening-r1.md`.
 
 ---
 
@@ -168,12 +180,13 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 
 | Slice | Scope | Dependencies | Status |
 |-------|-------|-------------|--------|
-| A | Canonical service/time-window contract update in `shared/constants/` | None | Local Implementation Complete / Not Deployed |
+| A | Canonical service/time-window contract update in `shared/constants/` | None | Committed / Pushed / Not Deployed |
 | B | Backend booking/job/calendar support for visits-per-day and updated windows | A | Committed / Pushed / Not Deployed |
 | C | Web customer intake Check-In parity | A, B | Committed / Pushed / Not Deployed |
 | C1 | Web Admin Check-In creation parity | A, B, C | Committed / Pushed / Not Deployed |
 | D1 | Mobile dashboard navigation | A, B | Committed / Pushed / Not Built / Not Distributed / Not Deployed |
 | D2 | Mobile service-selection/intake parity | A, B | Committed / Pushed / Not Built / Not Distributed / Not Deployed |
+| R1 | Scheduler parity + Check-In resiliency hardening | A–C, C1, D1–D2 | Committed / Pushed / Not Deployed |
 | E | Workflow next-action simplification | C, D1, D2 | Not Started |
 | F | Public website content alignment (toganddogs.com) | Ryan pricing decisions | Not Started |
 

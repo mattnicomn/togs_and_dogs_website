@@ -35,13 +35,10 @@ const legacyCases = [
 
 const schedulerServiceFilterOptions = [
   ['ALL', 'All Services'],
-  ['WALK_30MIN', '30m Walk'],
-  ['WALK_60MIN', '60m Walk'],
-  ['DROPIN_1HR', '1hr Drop-in'],
-  ['DROPIN_3HR', '3hr Drop-in'],
-  ['OVERNIGHT', 'Overnight'],
-  ['PET_SITTING', 'Pet Sitting'],
-  ['MEET_GREET', 'Meet & Greet']
+  ...Object.entries(SERVICE_TYPES.services).map(([identifier, service]) => [
+    identifier,
+    service.labelLong
+  ])
 ];
 
 const schedulerCanonicalCases = schedulerServiceFilterOptions.slice(1).map(([identifier]) => [
@@ -172,7 +169,7 @@ describe('MasterScheduler service-type display compatibility', () => {
     vi.restoreAllMocks();
   });
 
-  it('exposes the exact static canonical service-filter membership, labels, order, and ALL default', () => {
+  it('exposes the complete contract-backed service-filter membership, labels, order, and ALL default', () => {
     renderScheduler([]);
     const serviceFilter = getSchedulerFilter('Service');
 
@@ -182,7 +179,7 @@ describe('MasterScheduler service-type display compatibility', () => {
     );
   });
 
-  it('filters the exact current seven contract-backed options by service_type equality without mutation', () => {
+  it('filters every canonical contract option by service_type equality without mutation', () => {
     const items = schedulerCanonicalCases.map(([serviceType], index) => makeSchedulerItem(serviceType, index));
     const before = items.map(item => ({ ...item }));
     const { container, props } = renderScheduler(items);
@@ -199,6 +196,42 @@ describe('MasterScheduler service-type display compatibility', () => {
       expect(props.onSelectPet).toHaveBeenCalledTimes(1);
       expect(props.onSelectPet).toHaveBeenCalledWith(items[index]);
     });
+
+    expect(items).toEqual(before);
+  });
+
+  it('filters target services while preserving Check-In occurrence scheduling data and selection actions', () => {
+    const items = [
+      makeSchedulerItem('WALK_20MIN', 0, { start_time: '08:15' }),
+      makeSchedulerItem('CHECK_IN', 1, {
+        start_date: '2030-01-05',
+        start_time: '10:30',
+        occurrence_window: 'MIDDAY',
+        visit_window: 'MIDDAY'
+      }),
+      makeSchedulerItem('OVERNIGHT', 2, { window_start: '21:00' })
+    ];
+    const before = items.map(item => ({ ...item }));
+    const { container, props } = renderScheduler(items);
+    const serviceFilter = getSchedulerFilter('Service');
+
+    expect(Array.from(container.querySelectorAll('.visit-pet'), node => node.textContent)).toEqual([
+      'Scheduler Pet 0',
+      'Scheduler Pet 1',
+      'Scheduler Pet 2'
+    ]);
+
+    fireEvent.change(serviceFilter, { target: { value: 'CHECK_IN' } });
+    expect(container.querySelector('.visit-pet')).toHaveTextContent('Scheduler Pet 1');
+    expect(container.querySelector('.visit-type')).toHaveTextContent('30-Minute Check-In');
+    expect(container.querySelector('.visit-time')).toHaveTextContent('2030-01-05');
+    fireEvent.click(container.querySelector('.scheduled-visit'));
+    expect(props.onSelectPet).toHaveBeenCalledWith(items[1]);
+
+    fireEvent.change(serviceFilter, { target: { value: 'WALK_20MIN' } });
+    expect(container.querySelector('.visit-pet')).toHaveTextContent('Scheduler Pet 0');
+    fireEvent.change(serviceFilter, { target: { value: 'OVERNIGHT' } });
+    expect(container.querySelector('.visit-pet')).toHaveTextContent('Scheduler Pet 2');
 
     expect(items).toEqual(before);
   });

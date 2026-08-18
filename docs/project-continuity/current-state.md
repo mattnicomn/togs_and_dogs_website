@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-17 (Ryan Slice C1 Admin Check-In Creation Parity Committed / Pushed / Not Deployed)
+**Last Updated:** 2026-08-17 (Ryan Release Readiness Hardening R1 Committed / Pushed / Not Deployed)
 
 ---
 
@@ -61,6 +61,13 @@
 ## Current Work and Latest Closeouts
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
+
+- Ryan Cross-Platform Release Readiness Hardening R1 (✅ COMMITTED / PUSHED / NOT DEPLOYED — 2026-08-17)
+  - MasterScheduler service filtering now derives the complete nine-service operational/history catalog from generated `SERVICE_TYPES`, including `WALK_20MIN`, `CHECK_IN`, and `OVERNIGHT`, while preserving `All Services`, legacy service options, canonical labels, exact case-sensitive equality, and existing actions.
+  - New real-handler backend tests prove a simulated mid-batch interruption across 3 dates × 2 Check-In windows retries to exactly six deterministic children with stable identities and no duplicates; cancellation reaches all six children, deduplicates Calendar IDs, and tolerates already-gone results; assignment reaches all six children and emits one `STAFF_ASSIGNED` plus one `VISIT_SCHEDULED` for the batch.
+  - Independent review returned `RYAN_RELEASE_READINESS_HARDENING_R1_IMPLEMENTATION_CORRECT`. Final validation: R1 backend 3/3; Scheduler focused 16/16; Slice C 18/18; C1 13/13; full Web 281/281 plus 99/99 legacy; Web build 110 modules; Mobile typecheck, focused D1/D2 29/29, and full Mobile 123/123; diff checks pass.
+  - No Walk timing, Overnight duration/hours, pricing, deposit, or legacy-retirement policy was chosen. No deployment, Mobile build/distribution, production validation/write, Calendar mutation, notification, or infrastructure action occurred.
+  - See: `docs/release-notes/ryan-release-readiness-hardening-r1.md`
 
 - Cognito Custom Email Sender + Postmark (✅ LOCAL IMPLEMENTATION COMPLETE / NOT DEPLOYED — 2026-08-15)
   - Added an isolated dedicated Lambda package, pinned AWS Encryption SDK dependencies, customer-managed symmetric KMS key/alias, least-privilege role, scoped Cognito invoke permission, and auth-module Custom Email Sender configuration.

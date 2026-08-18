@@ -12,10 +12,13 @@
 | Individual release notes | `docs/release-notes/release-*.md` |
 | Web customer self-service password recovery (production deployed, Cognito E2E pass) | `docs/release-notes/release-web-customer-self-service-password-recovery.md` |
 | Preview V1 tenant onboarding orchestrator | `docs/release-notes/release-platform-admin-tenant-onboarding-preview-v1.md` |
+| Ryan Slice A canonical service/time-window contract | `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md` |
 | Ryan Slice B Check-In booking/job/Calendar semantics | `docs/release-notes/ryan-slice-b-check-in-booking-job-calendar-semantics.md` |
 | Ryan Slice C Web Check-In intake parity | `docs/release-notes/ryan-slice-c-web-check-in-intake-parity.md` |
+| Ryan Slice C1 Admin Check-In creation parity | `docs/release-notes/ryan-slice-c1-admin-check-in-creation-parity.md` |
 | Ryan Slice D1 mobile dashboard navigation | `docs/release-notes/ryan-slice-d1-mobile-dashboard-navigation.md` |
 | Ryan Slice D2 mobile Check-In intake parity | `docs/release-notes/ryan-slice-d2-mobile-check-in-intake-parity.md` |
+| Ryan release-readiness hardening R1 | `docs/release-notes/ryan-release-readiness-hardening-r1.md` |
 
 ## Planning Documents
 

@@ -58,14 +58,14 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 11 | AI-assisted onboarding | ❌ Not started; follow deterministic onboarding | Low |
 | 12 | Video visit evidence | ❌ Not started | Low |
 | 13 | Multi-location support | ❌ Not started | Future |
-| 14 | Cross-platform services, scheduling & workflow alignment | 🛠️ A–C, C1, and D1–D2 committed/pushed; none deployed; D1–D2 not built/distributed; E/F deferred | High |
+| 14 | Cross-platform services, scheduling & workflow alignment | 🛠️ A–C, C1, D1–D2, and R1 hardening committed/pushed; none deployed; D1–D2 not built/distributed; E/F deferred | High |
 
 ---
 
 ## Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–C, C1, and D1–D2 Committed / Pushed / Not Deployed; D1–D2 Not Built or Distributed; Slices E and F Deferred
+**Status:** Slices A–C, C1, D1–D2, and R1 Hardening Committed / Pushed / Not Deployed; D1–D2 Not Built or Distributed; Slices E and F Deferred
 
 ### Target Service Model
 
@@ -93,6 +93,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | C1 | Web Admin Check-In creation parity | Committed / Pushed / Not Deployed | A, B, C |
 | D1 | Mobile dashboard navigation | Committed / Pushed / Not Built / Not Distributed / Not Deployed | A, B |
 | D2 | Mobile service-selection/intake parity | Committed / Pushed / Not Built / Not Distributed / Not Deployed | A, B |
+| R1 | Scheduler parity + Check-In resiliency hardening | Committed / Pushed / Not Deployed | A–C, C1, D1–D2 |
 | E | Workflow next-action simplification | Not Started | C, D1, D2 |
 | F | Public website content alignment | Not Started | Ryan pricing decisions |
 
@@ -238,3 +239,5 @@ The dated update log below is historical chronology. Statements such as “stric
 **Updated 2026-08-17 (Ryan Slice C Web intake parity):** Web customer intake is aligned to the canonical active/new-booking-eligible service model and generated Check-In visits/day/window metadata. Focused 18/18, full Web 99/99 legacy plus 271/271 Vitest, and the Vite build pass. Independent review returned `RYAN_SLICE_C_IMPLEMENTATION_CORRECT`; Slice C is committed and pushed but not deployed. Admin Check-In booking creation, Walk scheduling, Overnight timing, pricing, workflow simplification, public-site alignment, and all cross-platform deployment/distribution remain separately gated.
 
 **Updated 2026-08-17 (Ryan Slice C1 Admin creation parity):** The existing owner/admin New Visit modal now derives the complete broader admin catalog from generated service metadata and can submit contract-valid Check-In visits/day plus ordered multi-window semantics for existing/offline clients. It preserves immediate `APPROVED` / `VISIT_BOOKING` behavior, client/pet/date/sitter fields, tenant/RBAC boundaries, legacy admin services, notification behavior, and the Slice B jobs/Calendar path. Admin 13/13, combined C1 + Slice C 31/31, full Web 280/280 Vitest plus 99/99 legacy, build, and Slice B backend 31/31 pass. Independent review returned `RYAN_SLICE_C1_IMPLEMENTATION_CORRECT`; C1 is committed and pushed but not deployed. Walk/Overnight policy, pricing, E/F, and deployment remain gated.
+
+**Updated 2026-08-17 (Ryan release-readiness hardening R1):** MasterScheduler filter membership now consumes the complete generated canonical service catalog while retaining operational legacy services and exact filtering. New real-handler tests cover interrupted Check-In batch retry convergence, multi-window cancellation/Calendar-ID deduplication, and six-child assignment with booking-level notification batching. Independent review returned `RYAN_RELEASE_READINESS_HARDENING_R1_IMPLEMENTATION_CORRECT`. Final validation: R1 backend 3/3, Scheduler 16/16, Slice C 18/18, C1 13/13, Web 281/281 plus legacy 99/99 and build, and Mobile typecheck/focused/full regression pass. R1 is committed and pushed but not deployed; E/F and all unresolved Walk/Overnight/pricing decisions remain gated.
