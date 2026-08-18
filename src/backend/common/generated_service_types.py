@@ -14,8 +14,12 @@ SERVICE_TYPES = {
             "lifecycle": "active",
             "newBookingEligibility": "eligible",
             "visitsPerDayOptions": [],
-            "allowedWindowIds": [],
-            "windowSelectionMode": "unresolved",
+            "allowedWindowIds": [
+                "MORNING",
+                "MIDDAY",
+                "EVENING",
+            ],
+            "windowSelectionMode": "exactly_one",
         },
         "CHECK_IN": {
             "label": "Check-In",

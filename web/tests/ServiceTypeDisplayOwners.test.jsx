@@ -202,7 +202,9 @@ describe('MasterScheduler service-type display compatibility', () => {
 
   it('filters target services while preserving Check-In occurrence scheduling data and selection actions', () => {
     const items = [
-      makeSchedulerItem('WALK_20MIN', 0, { start_time: '08:15' }),
+      makeSchedulerItem('WALK_20MIN', 0, {
+        start_time: '06:30', occurrence_window: 'MORNING', visit_window: 'MORNING'
+      }),
       makeSchedulerItem('CHECK_IN', 1, {
         start_date: '2030-01-05',
         start_time: '10:30',
@@ -230,6 +232,11 @@ describe('MasterScheduler service-type display compatibility', () => {
 
     fireEvent.change(serviceFilter, { target: { value: 'WALK_20MIN' } });
     expect(container.querySelector('.visit-pet')).toHaveTextContent('Scheduler Pet 0');
+    expect(container.querySelector('.visit-type')).toHaveTextContent('20-Minute Walk');
+    expect(container.querySelector('.visit-time')).toHaveTextContent('06:30');
+    expect(container.querySelector('.visit-window')).toHaveTextContent('Morning');
+    fireEvent.click(container.querySelector('.scheduled-visit'));
+    expect(props.onSelectPet).toHaveBeenCalledWith(items[0]);
     fireEvent.change(serviceFilter, { target: { value: 'OVERNIGHT' } });
     expect(container.querySelector('.visit-pet')).toHaveTextContent('Scheduler Pet 2');
 

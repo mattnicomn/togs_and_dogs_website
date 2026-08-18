@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–C, C1, D1–D2, and R1 Hardening Committed / Pushed / Not Deployed; D1–D2 Not Built or Distributed; Slices E and F Deferred
+**Status:** Slices A–C, C1, D1–D2, R1 Hardening, and W1 Committed / Pushed / Not Deployed; D1–D2/W1 Not Built or Distributed; Slices E and F Deferred
 
 ---
 
@@ -35,7 +35,7 @@ Slice A is locally implemented and committed. The existing canonical `shared/con
 - Historical `WALK_30MIN`, `WALK_60MIN`, `DROPIN_1HR`, `DROPIN_3HR`, and `PET_SITTING` remain readable and historically labeled.
 - Undecided future eligibility for `WALK_60MIN`, `DROPIN_1HR`, and `DROPIN_3HR` is explicitly `pending`.
 - New target eligibility is separate from the unchanged legacy `availableInIntake` runtime flag, preventing premature Slice C/D selector changes.
-- Walk window policy and Overnight operational duration/window policy remain explicitly unresolved.
+- W1 subsequently resolved new 20-Minute Walk scheduling; Overnight operational duration/window policy remains explicitly unresolved.
 - `AFTERNOON` and `ANYTIME` remain legacy-readable with no invented canonical time bounds.
 
 See `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md`.
@@ -88,7 +88,7 @@ Slice D2 is committed and pushed but not built, distributed, or deployed. Indepe
 
 Web Slice C and admin Slice C1 are now committed and pushed but not deployed. They consume the same canonical target service and Check-In metadata without changing Mobile source. D2 remains absent from the current internal builds and must not be distributed or deployed without a separately reviewed cross-platform release decision.
 
-Validation: focused Intake 23/23, TypeScript pass, and full Mobile 123/123 across 13 suites. D2 has not been built, distributed, deployed, or received by Ryan. Walk windows, Overnight timing/duration, pricing, deposits, and legacy eligibility decisions remain unresolved.
+Validation: focused Intake 23/23, TypeScript pass, and full Mobile 123/123 across 13 suites. D2 has not been built, distributed, deployed, or received by Ryan. W1 subsequently resolved new 20-Minute Walk scheduling; Overnight timing/duration, pricing, deposits, and legacy eligibility decisions remain unresolved.
 
 See `docs/release-notes/ryan-slice-d2-mobile-check-in-intake-parity.md`.
 
@@ -126,9 +126,19 @@ R1 is committed and pushed but not deployed after independent review returned `R
 
 Real-handler backend characterization proves: a simulated interruption during 3 dates × 2 windows converges on retry to exactly six stable Check-In children with no duplicates; six-child cancellation cascades consistently, deduplicates Calendar event IDs, and tolerates existing already-gone semantics; and 2 dates × 3 windows assignment reaches all six children with one `STAFF_ASSIGNED` and one `VISIT_SCHEDULED` notification for the batch.
 
-R1 adds no scheduling business policy. Walk windows/start time, Overnight duration/hours, pricing, deposits, and legacy retirement remain explicit decision gates. No deployment, production validation/write, Mobile build, or distribution occurred.
+R1 added no scheduling business policy. W1 subsequently resolved new 20-Minute Walk windows/start time; Overnight duration/hours, pricing, deposits, and legacy retirement remain explicit decision gates. No deployment, production validation/write, Mobile build, or distribution occurred.
 
 See `docs/release-notes/ryan-release-readiness-hardening-r1.md`.
+
+---
+
+## W1 20-Minute Walk Canonical Scheduling Local Result
+
+W1 is committed and pushed, not deployed, and independently reviewed as `RYAN_W1_WALK_CANONICAL_SCHEDULING_IMPLEMENTATION_CORRECT`. Matthew and Ryan approved exactly one canonical Morning (06:30–09:30), Mid-day (10:30–15:30), or Evening (18:00–21:30) window for each new `WALK_20MIN` request. The same window applies to every selected date; no per-date window model was introduced.
+
+The shared contract and generated adapters now express `windowSelectionMode: exactly_one`. Web customer, Web Admin New Visit, and Mobile intake provide contract-derived single-selection controls and `visit_windows: [<canonical ID>]` without `visits_per_day`. Backend new-write validation, deterministic one-child-per-date creation, stable Calendar identity, exact canonical start, and 20-minute duration are aligned. Legacy Walk/window reads and booking-level assignment notification batching remain intact.
+
+See `docs/release-notes/ryan-w1-walk-canonical-scheduling-windows.md`.
 
 ---
 
@@ -187,6 +197,7 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | D1 | Mobile dashboard navigation | A, B | Committed / Pushed / Not Built / Not Distributed / Not Deployed |
 | D2 | Mobile service-selection/intake parity | A, B | Committed / Pushed / Not Built / Not Distributed / Not Deployed |
 | R1 | Scheduler parity + Check-In resiliency hardening | A–C, C1, D1–D2 | Committed / Pushed / Not Deployed |
+| W1 | 20-Minute Walk canonical scheduling windows | A–C1, D2, R1 | Committed / Pushed / Not Deployed |
 | E | Workflow next-action simplification | C, D1, D2 | Not Started |
 | F | Public website content alignment (toganddogs.com) | Ryan pricing decisions | Not Started |
 
@@ -202,11 +213,10 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | 2 | Confirm price for Check-In 2 visits/day ($45/day) | Ryan | Slice F |
 | 3 | Price for Check-In 3 visits/day | Ryan | Slice F |
 | 4 | Exact Overnight hours/duration | Ryan | Slice A/B |
-| 5 | Whether 20-Minute Walk uses Morning/Mid-day/Evening windows | Ryan | Slice A |
-| 6 | Whether 60-Minute Walk remains or is retired | Ryan | Slice A |
-| 7 | Whether Drop-In 1HR/3HR remain for new bookings | Ryan | Slice A |
-| 8 | Whether $35 deposit is still current | Ryan | Slice F |
-| 9 | In-app pricing automation vs admin Stripe links | Matthew/Ryan | Future |
+| 5 | Whether 60-Minute Walk remains or is retired | Ryan | Slice A |
+| 6 | Whether Drop-In 1HR/3HR remain for new bookings | Ryan | Slice A |
+| 7 | Whether $35 deposit is still current | Ryan | Slice F |
+| 8 | In-app pricing automation vs admin Stripe links | Matthew/Ryan | Future |
 
 Pricing does NOT block Slice A contract work. Slice A can proceed with service IDs, labels, durations, and window definitions without resolving pricing.
 

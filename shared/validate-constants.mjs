@@ -50,11 +50,12 @@ const VALID_DURATION_STATUSES = new Set(['confirmed', 'historical', 'unresolved'
 const VALID_LIFECYCLES = new Set(['active', 'legacy']);
 const VALID_NEW_BOOKING_ELIGIBILITY = new Set(['eligible', 'ineligible', 'pending']);
 const VALID_WINDOW_SELECTION_MODES = new Set([
+  'exactly_one',
   'match_visits_per_day',
   'unresolved',
   'legacy_compatibility',
 ]);
-const ACTIVE_CHECK_IN_WINDOWS = ['MORNING', 'MIDDAY', 'EVENING'];
+const ACTIVE_CANONICAL_WINDOWS = ['MORNING', 'MIDDAY', 'EVENING'];
 const EXPECTED_CLIENT_WRITE_HEALTH_FIELD_LIMITS = {
   vet_name: 100,
   vet_phone: 100,
@@ -225,22 +226,22 @@ test('services have required properties', () => {
   }
 });
 
-test('Ryan Slice A target services and unresolved policies are exact', () => {
+test('Ryan target services and scheduling policies are exact', () => {
   const walk = services.services.WALK_20MIN;
   assert.equal(walk.label, '20-Min Walk');
   assert.equal(walk.labelLong, '20-Minute Walk');
   assert.equal(walk.durationMinutes, 20);
   assert.equal(walk.lifecycle, 'active');
   assert.equal(walk.newBookingEligibility, 'eligible');
-  assert.deepEqual(walk.allowedWindowIds, []);
-  assert.equal(walk.windowSelectionMode, 'unresolved');
+  assert.deepEqual(walk.allowedWindowIds, ACTIVE_CANONICAL_WINDOWS);
+  assert.equal(walk.windowSelectionMode, 'exactly_one');
 
   const checkIn = services.services.CHECK_IN;
   assert.equal(checkIn.label, 'Check-In');
   assert.equal(checkIn.labelLong, '30-Minute Check-In');
   assert.equal(checkIn.durationMinutes, 30);
   assert.deepEqual(checkIn.visitsPerDayOptions, [1, 2, 3]);
-  assert.deepEqual(checkIn.allowedWindowIds, ACTIVE_CHECK_IN_WINDOWS);
+  assert.deepEqual(checkIn.allowedWindowIds, ACTIVE_CANONICAL_WINDOWS);
   assert.equal(checkIn.windowSelectionMode, 'match_visits_per_day');
 
   const overnight = services.services.OVERNIGHT;
@@ -303,7 +304,7 @@ test('visit windows use exact structured active values and preserve legacy IDs',
     label: 'Evening', start: '18:00', end: '21:30', lifecycle: 'active', newBookingEligibility: 'eligible',
   });
 
-  for (const id of ACTIVE_CHECK_IN_WINDOWS) {
+  for (const id of ACTIVE_CANONICAL_WINDOWS) {
     const window = services.windows[id];
     assert.match(window.start, TIME_PATTERN, `Window "${id}" start must be HH:mm`);
     assert.match(window.end, TIME_PATTERN, `Window "${id}" end must be HH:mm`);
@@ -329,9 +330,27 @@ test('CHECK_IN metadata deterministically enforces count, distinctness, and acti
   assert.equal(isValidSelection(1, ['MORNING']), true);
   assert.equal(isValidSelection(2, ['MORNING', 'EVENING']), true);
   assert.equal(isValidSelection(2, ['MORNING', 'MORNING']), false);
-  assert.equal(isValidSelection(3, ACTIVE_CHECK_IN_WINDOWS), true);
+  assert.equal(isValidSelection(3, ACTIVE_CANONICAL_WINDOWS), true);
   assert.equal(isValidSelection(3, ['MORNING', 'MIDDAY', 'AFTERNOON']), false);
-  assert.equal(isValidSelection(4, ACTIVE_CHECK_IN_WINDOWS), false);
+  assert.equal(isValidSelection(4, ACTIVE_CANONICAL_WINDOWS), false);
+});
+
+test('WALK_20MIN metadata requires exactly one active canonical window', () => {
+  const walk = services.services.WALK_20MIN;
+  const isValidSelection = (selectedWindowIds) => (
+    walk.windowSelectionMode === 'exactly_one'
+    && selectedWindowIds.length === 1
+    && walk.allowedWindowIds.includes(selectedWindowIds[0])
+  );
+
+  assert.equal(walk.durationMinutes, 20);
+  assert.equal(walk.durationStatus, 'confirmed');
+  assert.equal(isValidSelection(['MORNING']), true);
+  assert.equal(isValidSelection(['MIDDAY']), true);
+  assert.equal(isValidSelection(['EVENING']), true);
+  assert.equal(isValidSelection([]), false);
+  assert.equal(isValidSelection(['MORNING', 'EVENING']), false);
+  assert.equal(isValidSelection(['AFTERNOON']), false);
 });
 
 // --- Pet Fields ---

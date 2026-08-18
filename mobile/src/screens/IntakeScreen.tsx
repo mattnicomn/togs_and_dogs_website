@@ -92,9 +92,11 @@ export const IntakeScreen = () => {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const selectedService = SERVICE_TYPES.services[serviceType as keyof typeof SERVICE_TYPES.services];
-  const usesContractVisitWindows = selectedService?.windowSelectionMode === 'match_visits_per_day';
-  const allowedVisitWindows = usesContractVisitWindows ? [...selectedService.allowedWindowIds] : [];
-  const checkInWindowOptions = allowedVisitWindows
+  const usesCheckInSchedule = selectedService?.windowSelectionMode === 'match_visits_per_day';
+  const usesExactWindowSchedule = selectedService?.windowSelectionMode === 'exactly_one';
+  const usesCanonicalVisitWindows = usesCheckInSchedule || usesExactWindowSchedule;
+  const allowedVisitWindows = usesCanonicalVisitWindows ? [...selectedService.allowedWindowIds] : [];
+  const canonicalWindowOptions = allowedVisitWindows
     .map((key) => {
       const metadata = SERVICE_TYPES.windows[key as keyof typeof SERVICE_TYPES.windows];
       if (
@@ -209,9 +211,17 @@ export const IntakeScreen = () => {
   };
 
   const toggleVisitWindow = (key: string) => {
-    if (!usesContractVisitWindows || !visitsPerDay || !(allowedVisitWindows as readonly string[]).includes(key)) {
+    if (!usesCanonicalVisitWindows || !(allowedVisitWindows as readonly string[]).includes(key)) {
       return;
     }
+
+    if (usesExactWindowSchedule) {
+      setVisitsPerDay(null);
+      setVisitWindows([key]);
+      setError(null);
+      return;
+    }
+    if (!visitsPerDay) return;
 
     if (visitWindows.includes(key)) {
       setVisitWindows(visitWindows.filter((window) => window !== key));
@@ -235,12 +245,16 @@ export const IntakeScreen = () => {
       setError('Please select a service type.');
       return false;
     }
-    if (usesContractVisitWindows && visitsPerDay === null) {
+    if (usesCheckInSchedule && visitsPerDay === null) {
       setError('Choose how many visits you need each day.');
       return false;
     }
-    if (usesContractVisitWindows && visitWindows.length !== visitsPerDay) {
+    if (usesCheckInSchedule && visitWindows.length !== visitsPerDay) {
       setError(`Choose ${visitsPerDay} visit window${visitsPerDay === 1 ? '' : 's'}.`);
+      return false;
+    }
+    if (usesExactWindowSchedule && visitWindows.length !== 1) {
+      setError('Choose exactly one visit window.');
       return false;
     }
     if (selectedDates.length === 0) {
@@ -313,15 +327,18 @@ export const IntakeScreen = () => {
         });
       }
 
-      const checkInPayload = usesContractVisitWindows ? {
-        visits_per_day: visitsPerDay,
+      const canonicalWindowPayload = usesCanonicalVisitWindows ? {
         visit_windows: allowedVisitWindows.filter((window) => visitWindows.includes(window)),
+      } : {};
+      const checkInPayload = usesCheckInSchedule ? {
+        visits_per_day: visitsPerDay,
       } : {};
 
       const payload = {
         client_name: clientName.trim() || 'Valued Client',
         client_email: clientEmail.trim() || (typeof user === 'string' ? user : ''),
         service_type: serviceType,
+        ...canonicalWindowPayload,
         ...checkInPayload,
         selected_dates: sortedDates,
         start_date: startDate,
@@ -449,7 +466,7 @@ export const IntakeScreen = () => {
               })}
             </View>
 
-            {usesContractVisitWindows && (
+            {usesCheckInSchedule && (
               <View>
                 <Text style={[styles.sectionTitle, { marginTop: 24 }]} accessibilityRole="header">
                   2. Visits per day
@@ -500,7 +517,7 @@ export const IntakeScreen = () => {
                       ? 'All three daily windows are used automatically.'
                       : `Choose ${visitsPerDay} window${visitsPerDay === 1 ? '' : 's'} (${visitWindows.length} selected).`}
                 </Text>
-                {checkInWindowOptions.map((window) => {
+                {canonicalWindowOptions.map((window) => {
                   const isSelected = visitWindows.includes(window.key);
                   const isAllWindowsRule = visitsPerDay === allowedVisitWindows.length;
                   const isDisabled = visitsPerDay === null
@@ -535,8 +552,40 @@ export const IntakeScreen = () => {
               </View>
             )}
 
+            {usesExactWindowSchedule && (
+              <View>
+                <Text style={[styles.sectionTitle, { marginTop: 24 }]} accessibilityRole="header">
+                  2. Preferred visit window
+                </Text>
+                <Text style={styles.fieldHint}>
+                  Choose one window. It applies to every selected date.
+                </Text>
+                {canonicalWindowOptions.map((window) => {
+                  const isSelected = visitWindows[0] === window.key;
+                  return (
+                    <TouchableOpacity
+                      key={window.key}
+                      style={[styles.windowOption, isSelected && styles.windowOptionSelected]}
+                      onPress={() => toggleVisitWindow(window.key)}
+                      accessibilityRole="radio"
+                      accessibilityLabel={`${window.label}, ${window.range.replace('–', ' to ')}`}
+                      accessibilityHint="Selects this window for every Walk date"
+                      accessibilityState={{ selected: isSelected, checked: isSelected }}
+                    >
+                      <Text style={[styles.windowOptionLabel, isSelected && styles.windowOptionLabelSelected]}>
+                        {isSelected ? '◉ ' : '○ '} {window.label}
+                      </Text>
+                      <Text style={[styles.windowOptionRange, isSelected && styles.windowOptionRangeSelected]}>
+                        {window.range}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
             <Text style={[styles.sectionTitle, { marginTop: 24 }]} accessibilityRole="header">
-              {usesContractVisitWindows ? '4. Visit Dates' : '2. Visit Dates'}
+              {usesCheckInSchedule ? '4. Visit Dates' : usesExactWindowSchedule ? '3. Visit Dates' : '2. Visit Dates'}
             </Text>
             <Text style={styles.fieldHint}>Tap to select upcoming care dates ({selectedDates.length} selected)</Text>
 
@@ -741,20 +790,22 @@ export const IntakeScreen = () => {
                 </View>
               )}
 
-              {usesContractVisitWindows && (
+              {usesCheckInSchedule && (
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>Visits per day:</Text>
                   <Text style={styles.reviewVal}>{visitsPerDay}</Text>
                 </View>
               )}
 
-              {usesContractVisitWindows && (
+              {usesCanonicalVisitWindows && (
                 <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>Visit windows:</Text>
+                  <Text style={styles.reviewLabel}>Visit window{usesCheckInSchedule ? 's' : ''}:</Text>
                   <Text style={styles.reviewVal}>
-                    {checkInWindowOptions
+                    {canonicalWindowOptions
                       .filter((window) => visitWindows.includes(window.key))
-                      .map((window) => window.label)
+                      .map((window) => usesExactWindowSchedule
+                        ? `${window.label} (${window.range})`
+                        : window.label)
                       .join(', ')}
                   </Text>
                 </View>

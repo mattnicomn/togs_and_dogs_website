@@ -25,9 +25,9 @@ const formatCanonicalTime = (value) => {
   return `${hour % 12 || 12}:${minute} ${hour >= 12 ? 'PM' : 'AM'}`;
 };
 
-const getCheckInModel = (serviceType) => {
+const getCanonicalWindowModel = (serviceType) => {
   const service = SERVICE_TYPES.services[serviceType];
-  if (service?.windowSelectionMode !== 'match_visits_per_day') return null;
+  if (!['match_visits_per_day', 'exactly_one'].includes(service?.windowSelectionMode)) return null;
 
   const windows = service.allowedWindowIds
     .map((id) => ({ id, ...SERVICE_TYPES.windows[id] }))
@@ -74,8 +74,9 @@ const IntakeForm = () => {
   const [staffOptions, setStaffOptions] = useState([]);
   const [staffOptionsLoading, setStaffOptionsLoading] = useState(false);
   const selectedService = SERVICE_TYPES.services[formData.service_type];
-  const checkInModel = getCheckInModel(formData.service_type);
-  const usesCheckInSchedule = checkInModel !== null;
+  const canonicalWindowModel = getCanonicalWindowModel(formData.service_type);
+  const usesCheckInSchedule = selectedService?.windowSelectionMode === 'match_visits_per_day';
+  const usesExactWindowSchedule = selectedService?.windowSelectionMode === 'exactly_one';
   const hasValidationErrors = Object.values(validationErrors).some(Boolean);
 
   useEffect(() => {
@@ -118,12 +119,15 @@ const IntakeForm = () => {
           : "Please select at least one visit date on the calendar, or enter a Start Date and End Date and click 'Select Dates from Range'.";
       }
       if (usesCheckInSchedule) {
-        const visitsPerDayOptions = checkInModel.service.visitsPerDayOptions;
+        const visitsPerDayOptions = canonicalWindowModel.service.visitsPerDayOptions;
         if (!visitsPerDayOptions.includes(formData.visits_per_day)) {
           errors.visits_per_day = "Choose how many Check-In visits you need each day.";
         } else if (formData.visit_windows.length !== formData.visits_per_day) {
           errors.visit_windows = `Choose exactly ${formData.visits_per_day} visit window${formData.visits_per_day === 1 ? '' : 's'}.`;
         }
+      }
+      if (usesExactWindowSchedule && formData.visit_windows.length !== 1) {
+        errors.visit_windows = "Choose exactly one visit window.";
       }
     }
     if (currentStep === 3) {
@@ -176,9 +180,9 @@ const IntakeForm = () => {
   };
 
   const handleVisitsPerDayChange = (count) => {
-    if (!checkInModel?.service.visitsPerDayOptions.includes(count)) return;
+    if (!canonicalWindowModel?.service.visitsPerDayOptions.includes(count)) return;
 
-    const allowedWindowIds = checkInModel.windows.map((window) => window.id);
+    const allowedWindowIds = canonicalWindowModel.windows.map((window) => window.id);
     setFormData((previous) => {
       const retainedWindows = allowedWindowIds
         .filter((windowId) => previous.visit_windows.includes(windowId))
@@ -200,9 +204,9 @@ const IntakeForm = () => {
   };
 
   const handleVisitWindowChange = (windowId) => {
-    if (!checkInModel || !formData.visits_per_day) return;
+    if (!canonicalWindowModel || !formData.visits_per_day) return;
 
-    const allowedWindowIds = checkInModel.windows.map((window) => window.id);
+    const allowedWindowIds = canonicalWindowModel.windows.map((window) => window.id);
     if (!allowedWindowIds.includes(windowId)) return;
 
     setFormData((previous) => {
@@ -217,6 +221,18 @@ const IntakeForm = () => {
         visit_window: ''
       };
     });
+    setValidationErrors((previous) => ({ ...previous, visit_windows: null }));
+  };
+
+  const handleExactVisitWindowChange = (windowId) => {
+    if (!usesExactWindowSchedule || !canonicalWindowModel) return;
+    if (!canonicalWindowModel.windows.some((window) => window.id === windowId)) return;
+    setFormData((previous) => ({
+      ...previous,
+      visits_per_day: null,
+      visit_windows: [windowId],
+      visit_window: ''
+    }));
     setValidationErrors((previous) => ({ ...previous, visit_windows: null }));
   };
 
@@ -241,10 +257,11 @@ const IntakeForm = () => {
       
       let payload = { ...formData };
 
-      if (usesCheckInSchedule) {
-        const allowedWindowIds = checkInModel.windows.map((window) => window.id);
+      if (canonicalWindowModel) {
+        const allowedWindowIds = canonicalWindowModel.windows.map((window) => window.id);
         payload.visit_windows = allowedWindowIds.filter((windowId) => payload.visit_windows.includes(windowId));
         delete payload.visit_window;
+        if (!usesCheckInSchedule) delete payload.visits_per_day;
       } else {
         delete payload.visits_per_day;
         delete payload.visit_windows;
@@ -537,7 +554,7 @@ const IntakeForm = () => {
                         </div>
                       )}
                       <div className="visits-per-day-options">
-                        {checkInModel.service.visitsPerDayOptions.map((count) => (
+                        {canonicalWindowModel.service.visitsPerDayOptions.map((count) => (
                           <label
                             key={count}
                             className={`selection-chip ${formData.visits_per_day === count ? 'selected' : ''}`}
@@ -566,7 +583,7 @@ const IntakeForm = () => {
                       <p id="visit-windows-hint" className="field-hint">
                         {!formData.visits_per_day
                           ? 'Choose visits per day first.'
-                          : formData.visits_per_day === checkInModel.windows.length
+                          : formData.visits_per_day === canonicalWindowModel.windows.length
                             ? 'All daily windows are selected automatically.'
                             : `Choose exactly ${formData.visits_per_day} window${formData.visits_per_day === 1 ? '' : 's'} (${formData.visit_windows.length} selected).`}
                       </p>
@@ -576,9 +593,9 @@ const IntakeForm = () => {
                         </div>
                       )}
                       <div className="visit-window-checkboxes">
-                        {checkInModel.windows.map((window) => {
+                        {canonicalWindowModel.windows.map((window) => {
                           const isChecked = formData.visit_windows.includes(window.id);
-                          const allWindowsSelected = formData.visits_per_day === checkInModel.windows.length;
+                          const allWindowsSelected = formData.visits_per_day === canonicalWindowModel.windows.length;
                           const isDisabled = !formData.visits_per_day
                             || allWindowsSelected
                             || (!isChecked && formData.visit_windows.length >= formData.visits_per_day);
@@ -607,6 +624,47 @@ const IntakeForm = () => {
                       </div>
                     </fieldset>
                   </div>
+                )}
+
+                {usesExactWindowSchedule && canonicalWindowModel && (
+                  <fieldset
+                    className={`field check-in-fieldset ${validationErrors.visit_windows ? 'field-error error-highlight' : ''}`}
+                    aria-describedby={validationErrors.visit_windows ? 'walk-window-error' : 'walk-window-hint'}
+                  >
+                    <legend>Preferred Visit Window *</legend>
+                    <p id="walk-window-hint" className="field-hint">
+                      Choose one window. It applies to every selected date.
+                    </p>
+                    {validationErrors.visit_windows && (
+                      <div id="walk-window-error" className="validation-error-alert" role="alert">
+                        ⚠️ {validationErrors.visit_windows}
+                      </div>
+                    )}
+                    <div className="visit-window-checkboxes">
+                      {canonicalWindowModel.windows.map((window) => {
+                        const isChecked = formData.visit_windows[0] === window.id;
+                        const timeRange = `${formatCanonicalTime(window.start)}–${formatCanonicalTime(window.end)}`;
+                        return (
+                          <label key={window.id} className={`visit-window-chip ${isChecked ? 'selected' : ''}`}>
+                            <input
+                              className="selection-chip-input"
+                              type="radio"
+                              name="walk-visit-window"
+                              value={window.id}
+                              checked={isChecked}
+                              onChange={() => handleExactVisitWindowChange(window.id)}
+                              aria-label={`${window.label}, ${timeRange.replace('–', ' to ')}`}
+                            />
+                            <span aria-hidden="true">{isChecked ? '✓' : ''}</span>
+                            <span>
+                              <strong>{window.label}</strong>
+                              <small>{timeRange}</small>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
                 )}
 
                 {/* Release 2: Preferred Sitter — informational only, does NOT auto-assign */}
@@ -679,7 +737,7 @@ const IntakeForm = () => {
                           <dt>Visit windows</dt>
                           <dd>
                             <ul>
-                              {checkInModel.windows
+                              {canonicalWindowModel.windows
                                 .filter((window) => formData.visit_windows.includes(window.id))
                                 .map((window) => (
                                   <li key={window.id}>
@@ -690,6 +748,17 @@ const IntakeForm = () => {
                           </dd>
                         </div>
                       </>
+                    )}
+                    {usesExactWindowSchedule && canonicalWindowModel && (
+                      <div>
+                        <dt>Visit window</dt>
+                        <dd>
+                          {canonicalWindowModel.windows
+                            .filter((window) => formData.visit_windows.includes(window.id))
+                            .map((window) => `${window.label} (${formatCanonicalTime(window.start)}–${formatCanonicalTime(window.end)})`)
+                            .join('')}
+                        </dd>
+                      </div>
                     )}
                     <div>
                       <dt>Visit dates</dt>

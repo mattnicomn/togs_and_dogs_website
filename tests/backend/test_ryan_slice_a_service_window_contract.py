@@ -130,10 +130,10 @@ def test_check_in_three_visits_resolve_to_all_three_active_windows():
     assert not _valid_check_in_selection(3, ["MORNING", "MIDDAY", "AFTERNOON"])
 
 
-def test_walk_window_policy_remains_explicitly_unresolved():
+def test_walk_window_policy_uses_exactly_one_active_canonical_window():
     metadata = SERVICES["WALK_20MIN"]
-    assert metadata["allowedWindowIds"] == []
-    assert metadata["windowSelectionMode"] == "unresolved"
+    assert metadata["allowedWindowIds"] == list(ACTIVE_WINDOWS)
+    assert metadata["windowSelectionMode"] == "exactly_one"
 
 
 def test_overnight_duration_and_window_policy_remain_explicitly_unresolved():

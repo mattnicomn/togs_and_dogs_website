@@ -366,7 +366,7 @@ describe('AdminDashboard service-type behavior', () => {
     expect(screen.getByRole('checkbox', { name: 'Evening, 6:00 PM to 9:30 PM' })).not.toBeChecked();
   });
 
-  it.each(['WALK_20MIN', 'OVERNIGHT'])('clears Check-In state for %s and omits every Check-In-only field', async (serviceType) => {
+  it.each(['OVERNIGHT'])('clears Check-In state for %s and omits every Check-In-only field', async (serviceType) => {
     const modal = await openNewVisit();
     await selectClientPetAndDate(modal);
     const serviceSelect = getNewVisitServiceSelect();
@@ -386,6 +386,53 @@ describe('AdminDashboard service-type behavior', () => {
     expect(payload).not.toHaveProperty('visits_per_day');
     expect(payload).not.toHaveProperty('visit_windows');
     expect(payload).not.toHaveProperty('visit_window');
+  });
+
+  it('renders and submits the exactly-one canonical Walk window with the preserved admin workflow payload', async () => {
+    getStaff.mockResolvedValue({
+      staff: [{ staff_id: 'staff-1', display_name: 'Sitter One', email: 'sitter@example.test', is_active: true, is_assignable: true }]
+    });
+    const modal = await openNewVisit();
+    await selectClientPetAndDate(modal);
+    fireEvent.change(getNewVisitServiceSelect(), { target: { value: 'WALK_20MIN' } });
+
+    const group = screen.getByRole('group', { name: 'Visit window *' });
+    expect(within(group).getByRole('radio', { name: 'Morning, 6:30 AM to 9:30 AM' })).not.toBeChecked();
+    expect(within(group).getByRole('radio', { name: 'Mid-day, 10:30 AM to 3:30 PM' })).not.toBeChecked();
+    expect(within(group).getByRole('radio', { name: 'Evening, 6:00 PM to 9:30 PM' })).not.toBeChecked();
+
+    fireEvent.click(within(modal).getByRole('button', { name: 'Create Visit' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose exactly one visit window.');
+    expect(createAdminBooking).not.toHaveBeenCalled();
+
+    fireEvent.click(within(group).getByRole('radio', { name: /^Morning,/ }));
+    fireEvent.click(within(group).getByRole('radio', { name: /^Evening,/ }));
+    expect(within(group).getByRole('radio', { name: /^Morning,/ })).not.toBeChecked();
+    expect(within(group).getByRole('radio', { name: /^Evening,/ })).toBeChecked();
+
+    const notesField = screen.getByText('Notes / Details').closest('.field');
+    fireEvent.change(within(notesField).getByRole('textbox'), { target: { value: 'Use side gate.' } });
+    const sitterField = screen.getByText('Preferred Sitter').closest('.field');
+    fireEvent.change(within(sitterField).getByRole('combobox'), { target: { value: 'sitter@example.test' } });
+    fireEvent.click(within(modal).getByRole('button', { name: 'Create Visit' }));
+
+    await waitFor(() => expect(createAdminBooking).toHaveBeenCalledOnce());
+    expect(createAdminBooking).toHaveBeenCalledWith({
+      client_id: 'client-1',
+      client_name: 'Synthetic Client',
+      client_email: 'client@example.test',
+      client_phone: '555-0100',
+      pet_names: 'Synthetic Pet',
+      pet_ids: ['pet-1'],
+      service_type: 'WALK_20MIN',
+      details: 'Use side gate.',
+      preferred_sitter: 'sitter@example.test',
+      selected_dates: ['2030-01-05'],
+      start_date: '2030-01-05',
+      visit_windows: ['EVENING']
+    });
+    expect(createAdminBooking.mock.calls[0][0]).not.toHaveProperty('visits_per_day');
+    expect(createAdminBooking.mock.calls[0][0]).not.toHaveProperty('status');
   });
 
   it('returns from Walk or Overnight to a clean Check-In schedule', async () => {

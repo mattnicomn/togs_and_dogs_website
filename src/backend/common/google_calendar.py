@@ -7,7 +7,7 @@ import urllib.error
 import boto3
 from datetime import datetime
 from common.service_contract import SERVICE_METADATA, WINDOW_METADATA
-from common.check_in import check_in_window_start
+from common.check_in import canonical_window_start
 
 secrets = boto3.client('secretsmanager')
 
@@ -272,16 +272,24 @@ def _build_event_body(item, assigned_worker=None):
             single_window = item.get('visit_window', 'ANYTIME')
             windows = [single_window] if single_window else ['ANYTIME']
 
-        if service_type == 'CHECK_IN':
+        selection_mode = SERVICE_METADATA.get(service_type, {}).get('windowSelectionMode')
+        uses_canonical_timing = (
+            selection_mode == 'match_visits_per_day'
+            or (
+                selection_mode == 'exactly_one'
+                and item.get('occurrence_window') in windows
+            )
+        )
+        if uses_canonical_timing:
             for w in windows:
-                canonical_start = check_in_window_start(w)
+                canonical_start = canonical_window_start(service_type, w)
                 if canonical_start:
                     resolved_start_time = canonical_start
                     window_label = WINDOW_METADATA[w]['label']
                     break
         else:
-            # Historical scheduling compatibility. Walk/Overnight policy remains
-            # unresolved; do not apply the new Check-In timing model to them.
+            # Historical scheduling compatibility for services without canonical
+            # new-write window semantics.
             for w in windows:
                 if w in WINDOW_START_HOURS:
                     resolved_start_time = f"{WINDOW_START_HOURS[w]:02d}:00"

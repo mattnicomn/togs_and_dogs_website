@@ -7,7 +7,7 @@ from common.db import put_item, get_item, table
 from common.response import success, bad_request, internal_error, error
 from common.status import RequestStatus, WorkflowType
 from common.notifications import notify_event
-from common.check_in import CheckInValidationError, validate_check_in_booking_fields
+from common.check_in import BookingWindowValidationError, validate_booking_window_fields
 from common.service_contract import ALL_WINDOW_IDS
 
 sfn = boto3.client('stepfunctions')
@@ -106,10 +106,10 @@ def _generate_pet_names_string(body):
 
 
 def _validated_booking_windows(body):
-    """Return persisted window fields, enforcing CHECK_IN writes only."""
-    check_in_fields = validate_check_in_booking_fields(body)
-    if check_in_fields:
-        return check_in_fields
+    """Return persisted fields, enforcing canonical new-write window contracts."""
+    canonical_fields = validate_booking_window_fields(body)
+    if canonical_fields:
+        return canonical_fields
     normalized = _normalize_visit_windows(body)
     return {
         'visits_per_day': None,
@@ -185,7 +185,7 @@ def _handle_admin_created_booking(event, body):
 
     try:
         booking_windows = _validated_booking_windows(body)
-    except CheckInValidationError as exc:
+    except BookingWindowValidationError as exc:
         return bad_request(str(exc), event)
 
     # 3. Tenant isolation: verify client belongs to admin's company
@@ -293,7 +293,7 @@ def _handle_admin_created_booking(event, body):
         if item.get('end_date') and item.get('start_date') != item.get('end_date'):
             is_multi_day_req = True
             
-        if item.get('service_type') == 'CHECK_IN':
+        if item.get('service_type') in ('CHECK_IN', 'WALK_20MIN'):
             is_multi_day_req = True
 
         if not is_multi_day_req:
@@ -439,7 +439,7 @@ def handler(event, context):
 
         try:
             booking_windows = _validated_booking_windows(body)
-        except CheckInValidationError as exc:
+        except BookingWindowValidationError as exc:
             return bad_request(str(exc), event)
 
         if workflow_type == WorkflowType.CUSTOMER_INTAKE:

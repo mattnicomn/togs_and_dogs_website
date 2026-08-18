@@ -262,23 +262,22 @@ def test_check_in_calendar_uses_canonical_start_and_duration(window, start, end)
     assert body["end"]["dateTime"].endswith(end)
 
 
-def test_walk_and_overnight_do_not_receive_check_in_transaction_rules():
+def test_non_check_in_services_do_not_receive_check_in_transaction_rules():
     assert validate_check_in_booking_fields({"service_type": "WALK_20MIN"}) is None
     assert validate_check_in_booking_fields({"service_type": "OVERNIGHT"}) is None
 
-    for service_type in ("WALK_20MIN", "OVERNIGHT"):
-        body, skip = _build_event_body(
-            {
-                "request_id": f"req-{service_type}",
-                "client_name": "Legacy Client",
-                "pet_names": "Scout",
-                "service_type": service_type,
-                "start_date": "2026-08-20",
-                "visit_windows": ["MORNING"],
-            }
-        )
-        assert skip is None
-        assert body["start"]["dateTime"].endswith("08:00:00")
+    body, skip = _build_event_body(
+        {
+            "request_id": "req-overnight",
+            "client_name": "Legacy Client",
+            "pet_names": "Scout",
+            "service_type": "OVERNIGHT",
+            "start_date": "2026-08-20",
+            "visit_windows": ["MORNING"],
+        }
+    )
+    assert skip is None
+    assert body["start"]["dateTime"].endswith("08:00:00")
 
 
 @pytest.mark.parametrize("window", ["AFTERNOON", "ANYTIME"])

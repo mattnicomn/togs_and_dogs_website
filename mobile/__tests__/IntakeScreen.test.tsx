@@ -55,6 +55,10 @@ import { IntakeScreen } from '../src/screens/IntakeScreen';
 import { SERVICE_TYPES } from '../src/contracts/generatedContracts';
 
 describe('IntakeScreen Component Tests', () => {
+  const selectDefaultWalkWindow = async () => {
+    await fireEvent.press(screen.getByLabelText('Morning, 6:30 AM to 9:30 AM'));
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetClientPets.mockResolvedValue([
@@ -123,6 +127,7 @@ describe('IntakeScreen Component Tests', () => {
 
   test('4. validates step 1 required fields (date selection required)', async () => {
     await render(<IntakeScreen />);
+    await selectDefaultWalkWindow();
 
     await waitFor(() => {
       expect(screen.getByText('Continue →')).toBeTruthy();
@@ -138,6 +143,7 @@ describe('IntakeScreen Component Tests', () => {
 
   test('5. progresses to Step 2 after valid date selection', async () => {
     await render(<IntakeScreen />);
+    await selectDefaultWalkWindow();
 
     const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
     expect(dateChips.length).toBeGreaterThan(0);
@@ -173,6 +179,7 @@ describe('IntakeScreen Component Tests', () => {
 
   test('7. validates terms acceptance before submission on Step 3', async () => {
     await render(<IntakeScreen />);
+    await selectDefaultWalkWindow();
 
     const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
     fireEvent.press(dateChips[0]);
@@ -209,6 +216,7 @@ describe('IntakeScreen Component Tests', () => {
     mockSubmitClientRequest.mockResolvedValue({ request_id: 'REQ-998877' });
 
     await render(<IntakeScreen />);
+    await selectDefaultWalkWindow();
 
     const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
     fireEvent.press(dateChips[0]);
@@ -249,7 +257,7 @@ describe('IntakeScreen Component Tests', () => {
       expect(submittedPayload.client_name).toBeTruthy();
       expect(submittedPayload.service_type).toBe('WALK_20MIN');
       expect(submittedPayload.visits_per_day).toBeUndefined();
-      expect(submittedPayload.visit_windows).toBeUndefined();
+      expect(submittedPayload.visit_windows).toEqual(['MORNING']);
       expect(Array.isArray(submittedPayload.selected_dates)).toBe(true);
       expect(submittedPayload.selected_dates.length).toBeGreaterThan(0);
       expect(submittedPayload.start_date).toBeTruthy();
@@ -270,6 +278,7 @@ describe('IntakeScreen Component Tests', () => {
     mockSubmitClientRequest.mockRejectedValue(new Error('Network error: Unable to connect'));
 
     await render(<IntakeScreen />);
+    await selectDefaultWalkWindow();
 
     const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
     fireEvent.press(dateChips[0]);
@@ -311,6 +320,7 @@ describe('IntakeScreen Component Tests', () => {
     mockSubmitClientRequest.mockResolvedValue({ request_id: 'REQ-112233' });
 
     await render(<IntakeScreen />);
+    await selectDefaultWalkWindow();
 
     const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
     fireEvent.press(dateChips[0]);
@@ -387,6 +397,7 @@ describe('IntakeScreen Component Tests', () => {
 
   test('12. exposes checkbox role and checked accessibility state on policy agreement row', async () => {
     await render(<IntakeScreen />);
+    await selectDefaultWalkWindow();
 
     const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
     fireEvent.press(dateChips[0]);
@@ -423,6 +434,7 @@ describe('IntakeScreen Component Tests', () => {
 
   test('13. exposes disabled accessibility state on submit button when terms unaccepted', async () => {
     await render(<IntakeScreen />);
+    await selectDefaultWalkWindow();
 
     const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
     fireEvent.press(dateChips[0]);
@@ -455,6 +467,7 @@ describe('IntakeScreen Component Tests', () => {
     mockSubmitClientRequest.mockResolvedValue({ request_id: 'REQ-778899' });
 
     await render(<IntakeScreen />);
+    await selectDefaultWalkWindow();
 
     const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
     fireEvent.press(dateChips[0]);
@@ -679,6 +692,7 @@ describe('IntakeScreen - Ryan Slice D2 Check-In intake parity', () => {
     expect(screen.getByLabelText(morningLabel).props.accessibilityState.selected).toBe(false);
 
     await fireEvent.press(screen.getByLabelText('Select service 20-Minute Walk'));
+    await fireEvent.press(screen.getByLabelText(morningLabel));
     await selectFirstDate();
     await advanceToReview();
     expect(screen.getByText('20-Min Walk')).toBeTruthy();
@@ -687,7 +701,7 @@ describe('IntakeScreen - Ryan Slice D2 Check-In intake parity', () => {
     const payload = await submitReviewedRequest();
     expect(payload.service_type).toBe('WALK_20MIN');
     expect(payload.visits_per_day).toBeUndefined();
-    expect(payload.visit_windows).toBeUndefined();
+    expect(payload.visit_windows).toEqual(['MORNING']);
   });
 
   test('clears Check-In fields for Overnight without exposing unresolved duration', async () => {
@@ -707,6 +721,103 @@ describe('IntakeScreen - Ryan Slice D2 Check-In intake parity', () => {
     expect(payload.service_type).toBe('OVERNIGHT');
     expect(payload.visits_per_day).toBeUndefined();
     expect(payload.visit_windows).toBeUndefined();
+  });
+});
+
+describe('IntakeScreen - Ryan W1 Walk canonical scheduling', () => {
+  const dateLabelPattern = /^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/;
+  const morningLabel = 'Morning, 6:30 AM to 9:30 AM';
+  const middayLabel = 'Mid-day, 10:30 AM to 3:30 PM';
+  const eveningLabel = 'Evening, 6:00 PM to 9:30 PM';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetClientPets.mockResolvedValue([
+      { id: 'PET-1', name: 'Buster', species: 'DOG', breed: 'Golden Retriever' },
+    ]);
+    mockGetStaffOptions.mockResolvedValue({ staff_options: [] });
+    mockSubmitClientRequest.mockResolvedValue({ request_id: 'REQ-W1' });
+  });
+
+  const selectDateAndAdvanceToReview = async () => {
+    const dateChips = await screen.findAllByLabelText(dateLabelPattern);
+    await fireEvent.press(dateChips[0]);
+    await fireEvent.press(screen.getByLabelText('Continue →'));
+    await screen.findByText('Select Pets');
+    await screen.findByText(/Buster/);
+    await fireEvent.press(screen.getByLabelText('Continue →'));
+    await screen.findByText('Review Booking Request');
+  };
+
+  test('derives three exactly-one Walk radios and canonical ranges from the generated contract', async () => {
+    await render(<IntakeScreen />);
+
+    expect(SERVICE_TYPES.services.WALK_20MIN.durationMinutes).toBe(20);
+    expect(SERVICE_TYPES.services.WALK_20MIN.windowSelectionMode).toBe('exactly_one');
+    expect(SERVICE_TYPES.services.WALK_20MIN.allowedWindowIds).toEqual(['MORNING', 'MIDDAY', 'EVENING']);
+    [morningLabel, middayLabel, eveningLabel].forEach((label) => {
+      const control = screen.getByLabelText(label);
+      expect(control.props.accessibilityRole).toBe('radio');
+      expect(control.props.accessibilityState.selected).toBe(false);
+      expect(control.props.accessibilityState.checked).toBe(false);
+    });
+    expect(screen.queryByText('2. Visits per day')).toBeNull();
+  });
+
+  test('requires one Walk window and atomically replaces Morning with Mid-day then Evening', async () => {
+    await render(<IntakeScreen />);
+    await fireEvent.press(screen.getByLabelText('Continue →'));
+    expect(await screen.findByText('⚠️ Choose exactly one visit window.')).toBeTruthy();
+
+    await fireEvent.press(screen.getByLabelText(morningLabel));
+    expect(screen.getByLabelText(morningLabel).props.accessibilityState.checked).toBe(true);
+    await fireEvent.press(screen.getByLabelText(middayLabel));
+    expect(screen.getByLabelText(morningLabel).props.accessibilityState.checked).toBe(false);
+    expect(screen.getByLabelText(middayLabel).props.accessibilityState.checked).toBe(true);
+    await fireEvent.press(screen.getByLabelText(eveningLabel));
+    expect(screen.getByLabelText(middayLabel).props.accessibilityState.checked).toBe(false);
+    expect(screen.getByLabelText(eveningLabel).props.accessibilityState.checked).toBe(true);
+  });
+
+  test('reviews and submits one canonical Walk window without visits_per_day', async () => {
+    await render(<IntakeScreen />);
+    await fireEvent.press(screen.getByLabelText(middayLabel));
+    await selectDateAndAdvanceToReview();
+
+    expect(screen.getByText('20-Min Walk')).toBeTruthy();
+    expect(screen.getByText('20 minutes')).toBeTruthy();
+    expect(screen.getByText('Visit window:')).toBeTruthy();
+    expect(screen.getByText('Mid-day (10:30 AM–3:30 PM)')).toBeTruthy();
+    expect(screen.queryByText('Visits per day:')).toBeNull();
+
+    await fireEvent.press(screen.getByLabelText('Accept Tog & Dogs Terms of Service and Privacy Policy'));
+    await fireEvent.press(screen.getByLabelText('Submit Booking Request'));
+    await waitFor(() => expect(mockSubmitClientRequest).toHaveBeenCalledTimes(1));
+    const payload = mockSubmitClientRequest.mock.calls[0][0];
+    expect(payload.service_type).toBe('WALK_20MIN');
+    expect(payload.visit_windows).toEqual(['MIDDAY']);
+    expect(payload.visits_per_day).toBeUndefined();
+    expect(payload.visit_window).toBeUndefined();
+  });
+
+  test('clears incompatible state across Walk, Check-In, Overnight, and Walk transitions', async () => {
+    await render(<IntakeScreen />);
+    await fireEvent.press(screen.getByLabelText(eveningLabel));
+    await fireEvent.press(screen.getByLabelText('Select service 30-Minute Check-In'));
+    expect(screen.getByLabelText('1 visit per day').props.accessibilityState.selected).toBe(false);
+    expect(screen.getByLabelText(eveningLabel).props.accessibilityState.selected).toBe(false);
+
+    await fireEvent.press(screen.getByLabelText('2 visits per day'));
+    await fireEvent.press(screen.getByLabelText(morningLabel));
+    await fireEvent.press(screen.getByLabelText(eveningLabel));
+    await fireEvent.press(screen.getByLabelText('Select service Overnight Care'));
+    expect(screen.queryByLabelText(morningLabel)).toBeNull();
+    expect(screen.queryByText('2. Visits per day')).toBeNull();
+
+    await fireEvent.press(screen.getByLabelText('Select service 20-Minute Walk'));
+    expect(screen.getByLabelText(morningLabel).props.accessibilityState.checked).toBe(false);
+    expect(screen.getByLabelText(middayLabel).props.accessibilityState.checked).toBe(false);
+    expect(screen.getByLabelText(eveningLabel).props.accessibilityState.checked).toBe(false);
   });
 });
 

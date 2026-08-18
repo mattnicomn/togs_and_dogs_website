@@ -40,9 +40,9 @@ const formatCanonicalTime = (value) => {
   return `${hour % 12 || 12}:${minute} ${hour >= 12 ? 'PM' : 'AM'}`;
 };
 
-const getAdminCheckInModel = (serviceType) => {
+const getAdminCanonicalWindowModel = (serviceType) => {
   const service = SERVICE_TYPES.services[serviceType];
-  if (service?.windowSelectionMode !== 'match_visits_per_day') return null;
+  if (!['match_visits_per_day', 'exactly_one'].includes(service?.windowSelectionMode)) return null;
 
   const windows = service.allowedWindowIds
     .map((id) => ({ id, ...SERVICE_TYPES.windows[id] }))
@@ -53,6 +53,11 @@ const getAdminCheckInModel = (serviceType) => {
     ));
 
   return { service, windows };
+};
+
+const getAdminCheckInModel = (serviceType) => {
+  const model = getAdminCanonicalWindowModel(serviceType);
+  return model?.service.windowSelectionMode === 'match_visits_per_day' ? model : null;
 };
 
 const getInitialAdminVisitWindows = (serviceType) => (
@@ -3051,6 +3056,14 @@ const AdminDashboard = () => {
     });
   };
 
+  const handleNewVisitExactWindowChange = (windowId) => {
+    const model = getAdminCanonicalWindowModel(newVisitForm.service_type);
+    if (model?.service.windowSelectionMode !== 'exactly_one') return;
+    if (!model.windows.some(window => window.id === windowId)) return;
+    setNewVisitScheduleError('');
+    setNewVisitForm(prev => ({ ...prev, visits_per_day: null, visit_windows: [windowId] }));
+  };
+
   const handleNewVisitSubmit = async () => {
     if (!newVisitForm.client_id) { showNotification("Please select a client.", "error"); return; }
     if (!newVisitForm.pet_names && newVisitForm.pet_ids.length === 0) { showNotification("Please select at least one pet.", "error"); return; }
@@ -3059,6 +3072,7 @@ const AdminDashboard = () => {
     }
 
     const checkInModel = getAdminCheckInModel(newVisitForm.service_type);
+    const canonicalWindowModel = getAdminCanonicalWindowModel(newVisitForm.service_type);
     if (checkInModel) {
       if (!checkInModel.service.visitsPerDayOptions.includes(newVisitForm.visits_per_day)) {
         setNewVisitScheduleError('Choose how many Check-In visits are needed each day.');
@@ -3070,6 +3084,10 @@ const AdminDashboard = () => {
         );
         return;
       }
+    } else if (canonicalWindowModel?.service.windowSelectionMode === 'exactly_one'
+      && newVisitForm.visit_windows.length !== 1) {
+      setNewVisitScheduleError('Choose exactly one visit window.');
+      return;
     }
 
     const sorted = [...newVisitForm.selected_dates].sort();
@@ -3091,6 +3109,10 @@ const AdminDashboard = () => {
     if (checkInModel) {
       payload.visits_per_day = newVisitForm.visits_per_day;
       payload.visit_windows = checkInModel.windows
+        .map(window => window.id)
+        .filter(id => newVisitForm.visit_windows.includes(id));
+    } else if (canonicalWindowModel?.service.windowSelectionMode === 'exactly_one') {
+      payload.visit_windows = canonicalWindowModel.windows
         .map(window => window.id)
         .filter(id => newVisitForm.visit_windows.includes(id));
     } else if (SERVICE_TYPES.services[newVisitForm.service_type]?.windowSelectionMode === 'legacy_compatibility') {
@@ -6171,6 +6193,48 @@ const AdminDashboard = () => {
                     </fieldset>
                     {newVisitScheduleError && (
                       <p id="admin-check-in-schedule-error" className="admin-check-in-error" role="alert">
+                        {newVisitScheduleError}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {SERVICE_TYPES.services[newVisitForm.service_type]?.windowSelectionMode === 'exactly_one' && (() => {
+                const model = getAdminCanonicalWindowModel(newVisitForm.service_type);
+                if (!model) return null;
+                return (
+                  <div className="admin-check-in-schedule">
+                    <fieldset
+                      className="admin-check-in-fieldset"
+                      aria-describedby={newVisitScheduleError ? 'admin-walk-schedule-error' : 'admin-walk-schedule-hint'}
+                    >
+                      <legend>Visit window *</legend>
+                      <p id="admin-walk-schedule-hint">Choose one window for every selected date.</p>
+                      <div className="admin-check-in-options admin-check-in-window-options">
+                        {model.windows.map(window => {
+                          const checked = newVisitForm.visit_windows[0] === window.id;
+                          return (
+                            <label key={window.id} className="admin-check-in-option admin-check-in-window">
+                              <input
+                                type="radio"
+                                name="admin-walk-window"
+                                value={window.id}
+                                checked={checked}
+                                onChange={() => handleNewVisitExactWindowChange(window.id)}
+                                aria-label={`${window.label}, ${formatCanonicalTime(window.start)} to ${formatCanonicalTime(window.end)}`}
+                              />
+                              <span>
+                                <strong>{window.label}</strong>
+                                <small>{formatCanonicalTime(window.start)}–{formatCanonicalTime(window.end)}</small>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </fieldset>
+                    {newVisitScheduleError && (
+                      <p id="admin-walk-schedule-error" className="admin-check-in-error" role="alert">
                         {newVisitScheduleError}
                       </p>
                     )}

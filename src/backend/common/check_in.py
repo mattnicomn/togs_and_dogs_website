@@ -1,17 +1,26 @@
-"""Contract-driven Check-In booking validation and occurrence helpers."""
+"""Contract-driven canonical booking-window validation and helpers."""
 
 from common.service_contract import SERVICE_METADATA, WINDOW_METADATA
 
 
 CHECK_IN_SERVICE_TYPE = "CHECK_IN"
+WALK_SERVICE_TYPE = "WALK_20MIN"
 
 
-class CheckInValidationError(ValueError):
+class BookingWindowValidationError(ValueError):
+    """Raised when a new canonical booking-window write violates the contract."""
+
+
+class CheckInValidationError(BookingWindowValidationError):
     """Raised when a new Check-In transactional write violates the contract."""
 
 
 def _check_in_metadata():
     return SERVICE_METADATA[CHECK_IN_SERVICE_TYPE]
+
+
+def _walk_metadata():
+    return SERVICE_METADATA[WALK_SERVICE_TYPE]
 
 
 def validate_check_in_booking_fields(record):
@@ -69,10 +78,65 @@ def validate_check_in_booking_fields(record):
     }
 
 
-def check_in_window_start(window_id):
-    """Return the canonical ``HH:mm`` start for an allowed Check-In window."""
-    metadata = _check_in_metadata()
-    if window_id not in metadata["allowedWindowIds"]:
+def validate_walk_booking_fields(record):
+    """Return canonical 20-Minute Walk fields, or ``None`` for another service."""
+    if record.get("service_type") != WALK_SERVICE_TYPE:
+        return None
+
+    metadata = _walk_metadata()
+    visit_windows = record.get("visit_windows")
+    allowed_windows = metadata["allowedWindowIds"]
+
+    if metadata.get("windowSelectionMode") != "exactly_one":
+        raise BookingWindowValidationError(
+            "WALK_20MIN window selection contract is unsupported."
+        )
+    if not isinstance(visit_windows, list) or not visit_windows:
+        raise BookingWindowValidationError(
+            "WALK_20MIN requires exactly one canonical visit_windows entry."
+        )
+    if any(not isinstance(window, str) for window in visit_windows):
+        raise BookingWindowValidationError(
+            "WALK_20MIN visit_windows must contain canonical window identifiers."
+        )
+    if len(set(visit_windows)) != len(visit_windows):
+        raise BookingWindowValidationError("WALK_20MIN visit_windows must be distinct.")
+    if len(visit_windows) != 1:
+        raise BookingWindowValidationError(
+            "WALK_20MIN requires exactly one canonical visit_windows entry."
+        )
+    if visit_windows[0] not in allowed_windows:
+        raise BookingWindowValidationError(
+            "WALK_20MIN visit_windows contains a window not allowed by the canonical contract."
+        )
+    if record.get("visits_per_day") is not None:
+        raise BookingWindowValidationError("WALK_20MIN does not accept visits_per_day.")
+
+    window_id = visit_windows[0]
+    return {
+        "visits_per_day": None,
+        "visit_windows": [window_id],
+        "visit_window": window_id,
+    }
+
+
+def validate_booking_window_fields(record):
+    """Validate a new write for any service with canonical window semantics."""
+    check_in_fields = validate_check_in_booking_fields(record)
+    if check_in_fields:
+        return check_in_fields
+    return validate_walk_booking_fields(record)
+
+
+def canonical_window_start(service_type, window_id):
+    """Return an allowed canonical ``HH:mm`` start for a service window."""
+    metadata = SERVICE_METADATA.get(service_type) or {}
+    if metadata.get("windowSelectionMode") not in {
+        "match_visits_per_day",
+        "exactly_one",
+    }:
+        return None
+    if window_id not in metadata.get("allowedWindowIds", []):
         return None
     window = WINDOW_METADATA.get(window_id) or {}
     if (
@@ -81,3 +145,8 @@ def check_in_window_start(window_id):
     ):
         return None
     return window.get("start")
+
+
+def check_in_window_start(window_id):
+    """Return the canonical ``HH:mm`` start for an allowed Check-In window."""
+    return canonical_window_start(CHECK_IN_SERVICE_TYPE, window_id)

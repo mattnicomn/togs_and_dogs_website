@@ -6,8 +6,10 @@ from common.db import put_item, get_item, table
 from common.status import JobStatus
 from common.check_in import (
     CHECK_IN_SERVICE_TYPE,
-    CheckInValidationError,
-    validate_check_in_booking_fields,
+    WALK_SERVICE_TYPE,
+    BookingWindowValidationError,
+    canonical_window_start,
+    validate_booking_window_fields,
 )
 
 MAX_MULTI_DAY_OCCURRENCES = 14
@@ -34,9 +36,9 @@ def handler(event, context):
             return {"error": "Request not found"}
 
         try:
-            check_in_fields = validate_check_in_booking_fields(request_item)
-        except CheckInValidationError as exc:
-            print(f"Error: Invalid CHECK_IN request REQ#{request_id}: {exc}")
+            canonical_window_fields = validate_booking_window_fields(request_item)
+        except BookingWindowValidationError as exc:
+            print(f"Error: Invalid canonical-window request REQ#{request_id}: {exc}")
             return {"error": str(exc)}
 
         # Idempotency Guard
@@ -115,23 +117,26 @@ def handler(event, context):
 
         is_multi_day = len(job_dates) > 1
         is_check_in = request_item.get('service_type') == CHECK_IN_SERVICE_TYPE
-        occurrence_windows = check_in_fields['visit_windows'] if check_in_fields else [None]
+        is_walk = request_item.get('service_type') == WALK_SERVICE_TYPE
+        uses_canonical_occurrences = is_check_in or is_walk
+        occurrence_windows = canonical_window_fields['visit_windows'] if canonical_window_fields else [None]
         occurrences = [
             (occurrence_date, occurrence_window)
             for occurrence_date in job_dates
             for occurrence_window in occurrence_windows
         ]
         total_occurrences = len(occurrences)
-        uses_child_calendar_sync = is_multi_day or is_check_in
+        uses_child_calendar_sync = is_multi_day or uses_canonical_occurrences
         created_job_ids = []
         first_job_id = None
 
         event_id = event.get('google_event_id') or request_item.get('google_event_id')
 
         for idx, (occurrence_date, occurrence_window) in enumerate(occurrences):
-            if is_check_in:
+            if uses_canonical_occurrences:
+                occurrence_namespace = 'check-in' if is_check_in else 'walk-20min'
                 logical_occurrence = (
-                    f"togs-and-dogs:check-in:{request_id}:"
+                    f"togs-and-dogs:{occurrence_namespace}:{request_id}:"
                     f"{occurrence_date or ''}:{occurrence_window}"
                 )
                 job_id = str(uuid.uuid5(uuid.NAMESPACE_URL, logical_occurrence))
@@ -152,14 +157,14 @@ def handler(event, context):
                                 )
                         except Exception as e:
                             print(
-                                f"WARNING: CHECK_IN calendar recovery failed for "
+                                f"WARNING: Canonical occurrence calendar recovery failed for "
                                 f"JOB#{job_id}: {e}"
                             )
                     if first_job_id is None:
                         first_job_id = job_id
                     created_job_ids.append(job_id)
                     print(
-                        f"INFO: Existing CHECK_IN occurrence JOB#{job_id} "
+                        f"INFO: Existing canonical occurrence JOB#{job_id} "
                         f"for {occurrence_date} {occurrence_window}; reusing."
                     )
                     continue
@@ -181,8 +186,8 @@ def handler(event, context):
                 'service_type': request_item.get('service_type'),
                 'start_date': occurrence_date if occurrence_date else request_item.get('start_date'),
                 'end_date': occurrence_date if is_multi_day else request_item.get('end_date'),
-                'visit_window': occurrence_window if is_check_in else request_item.get('visit_window'),
-                'visit_windows': [occurrence_window] if is_check_in else request_item.get('visit_windows'),
+                'visit_window': occurrence_window if uses_canonical_occurrences else request_item.get('visit_window'),
+                'visit_windows': [occurrence_window] if uses_canonical_occurrences else request_item.get('visit_windows'),
                 'preferred_sitter': request_item.get('preferred_sitter'),
                 'preferred_sitter_name': request_item.get('preferred_sitter_name'),
                 'pet_info': request_item.get('pet_info'),
@@ -196,10 +201,14 @@ def handler(event, context):
                 }]
             }
 
-            if is_check_in:
-                item['visits_per_day'] = check_in_fields['visits_per_day']
-                item['booking_visit_windows'] = check_in_fields['visit_windows']
+            if uses_canonical_occurrences:
+                if is_check_in:
+                    item['visits_per_day'] = canonical_window_fields['visits_per_day']
+                item['booking_visit_windows'] = canonical_window_fields['visit_windows']
                 item['occurrence_window'] = occurrence_window
+                item['start_time'] = canonical_window_start(
+                    request_item.get('service_type'), occurrence_window
+                )
                 # Google Calendar accepts caller-selected IDs using base32hex
                 # characters. This stable ID makes insert replay conflict-safe.
                 item['calendar_event_id'] = f"td{uuid.UUID(job_id).hex}"
@@ -212,11 +221,11 @@ def handler(event, context):
                 if is_multi_day:
                     item['is_multi_day'] = True
                 
-                # CHECK_IN persists its deterministic child before the external
+                # Canonical services persist deterministic children before the external
                 # Calendar write so a failed DynamoDB put cannot orphan an event.
-                if is_check_in and not put_item(item):
+                if uses_canonical_occurrences and not put_item(item):
                     print(
-                        f"WARNING: Failed to save CHECK_IN job {job_id} "
+                        f"WARNING: Failed to save canonical occurrence job {job_id} "
                         f"for {occurrence_date} {occurrence_window}"
                     )
                     continue
@@ -227,7 +236,7 @@ def handler(event, context):
                     cal_res = sync_calendar_event(item)
                     if cal_res and cal_res.get('event_id'):
                         item['google_event_id'] = cal_res['event_id']
-                        if is_check_in:
+                        if uses_canonical_occurrences:
                             table.update_item(
                                 Key={'PK': item['PK'], 'SK': item['SK']},
                                 UpdateExpression="SET google_event_id = :gid",
@@ -239,7 +248,7 @@ def handler(event, context):
                 # Do not inherit google_event_id for multi-day jobs (handled individually above)
                 item['google_event_id'] = event_id
             
-            if is_check_in or put_item(item):
+            if uses_canonical_occurrences or put_item(item):
                 if first_job_id is None:
                     first_job_id = job_id
                 created_job_ids.append(job_id)
@@ -261,7 +270,7 @@ def handler(event, context):
                 update_expr += ", is_multi_day = :imd, total_occurrences = :to"
                 expr_vals[":imd"] = True
                 expr_vals[":to"] = total_occurrences
-            elif is_check_in:
+            elif uses_canonical_occurrences:
                 update_expr += ", total_occurrences = :to"
                 expr_vals[":to"] = total_occurrences
 

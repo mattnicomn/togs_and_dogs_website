@@ -53,6 +53,9 @@ const goToPetInfo = async ({ serviceType = 'WALK_20MIN', visitsPerDay, windows =
   await goToSchedule();
   fireEvent.change(getServiceSelect(), { target: { value: serviceType } });
   if (serviceType === 'CHECK_IN' && visitsPerDay) chooseCheckInSchedule(visitsPerDay, windows);
+  if (serviceType === 'WALK_20MIN') {
+    fireEvent.click(screen.getByRole('radio', { name: new RegExp(`^${windows[0] || 'Morning'},`) }));
+  }
   chooseDate();
   fireEvent.change(screen.getByPlaceholderText('e.g. After 9am preferred, key under mat...'), {
     target: { value: 'Synthetic timing note' }
@@ -105,6 +108,28 @@ describe('IntakeForm canonical new-booking behavior', () => {
     expect(screen.getByRole('checkbox', { name: 'Evening, 6:00 PM to 9:30 PM' })).not.toBeChecked();
     expect(screen.getByRole('group', { name: 'Visits per Day *' })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Preferred Visit Windows *' })).toBeInTheDocument();
+  });
+
+  it('renders an accessible exactly-one Walk selector from the canonical contract', async () => {
+    await goToSchedule();
+    expect(SERVICE_TYPES.services.WALK_20MIN.windowSelectionMode).toBe('exactly_one');
+    expect(SERVICE_TYPES.services.WALK_20MIN.allowedWindowIds).toEqual(['MORNING', 'MIDDAY', 'EVENING']);
+    expect(screen.getByRole('radio', { name: 'Morning, 6:30 AM to 9:30 AM' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Mid-day, 10:30 AM to 3:30 PM' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Evening, 6:00 PM to 9:30 PM' })).not.toBeChecked();
+    expect(screen.queryByRole('group', { name: 'Visits per Day *' })).not.toBeInTheDocument();
+  });
+
+  it('requires one Walk window and replaces the selection atomically', async () => {
+    await goToSchedule();
+    chooseDate();
+    fireEvent.click(screen.getByRole('button', { name: 'Next: Pet Info →' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Choose exactly one visit window.');
+
+    fireEvent.click(screen.getByRole('radio', { name: /^Morning,/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /^Mid-day,/ }));
+    expect(screen.getByRole('radio', { name: /^Morning,/ })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: /^Mid-day,/ })).toBeChecked();
   });
 
   it('preserves human-readable required-service validation', async () => {
@@ -201,7 +226,7 @@ describe('IntakeForm canonical new-booking behavior', () => {
     expect(screen.getByRole('checkbox', { name: /^Evening,/ })).not.toBeChecked();
   });
 
-  it.each(['WALK_20MIN', 'OVERNIGHT'])(
+  it.each(['OVERNIGHT'])(
     'clears Check-In state when switching to %s and starts clean when switching back',
     async (serviceType) => {
       await goToSchedule();
@@ -215,7 +240,17 @@ describe('IntakeForm canonical new-booking behavior', () => {
     }
   );
 
-  it.each(['WALK_20MIN', 'OVERNIGHT'])(
+  it('submits Walk with one canonical window and no visits-per-day field', async () => {
+    await completeValidForm({ serviceType: 'WALK_20MIN', windows: ['Evening'] });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
+    await waitFor(() => expect(submitRequest).toHaveBeenCalledOnce());
+    const payload = submitRequest.mock.calls[0][0];
+    expect(payload.visit_windows).toEqual(['EVENING']);
+    expect(payload).not.toHaveProperty('visits_per_day');
+    expect(payload).not.toHaveProperty('visit_window');
+  });
+
+  it.each(['OVERNIGHT'])(
     'submits %s without Check-In-only or invented scheduling fields',
     async (serviceType) => {
       await completeValidForm({ serviceType });
@@ -244,6 +279,16 @@ describe('IntakeForm canonical new-booking behavior', () => {
     expect(within(summary).getByText(/Evening/)).toBeInTheDocument();
     expect(within(summary).getByText('2030-01-05')).toBeInTheDocument();
     expect(within(summary).queryByText(/\$|price|pricing/i)).not.toBeInTheDocument();
+  });
+
+  it('reviews Walk duration, friendly selected window range, and dates without pricing', async () => {
+    await goToPetInfo({ serviceType: 'WALK_20MIN', windows: ['Mid-day'] });
+    const summary = screen.getByRole('region', { name: 'Request Summary' });
+    expect(within(summary).getByText('20-Min Walk')).toBeInTheDocument();
+    expect(within(summary).getByText('20 minutes')).toBeInTheDocument();
+    expect(within(summary).getByText('Mid-day (10:30 AM–3:30 PM)')).toBeInTheDocument();
+    expect(within(summary).getByText('2030-01-05')).toBeInTheDocument();
+    expect(within(summary).queryByText(/visits per day|\$|price|pricing/i)).not.toBeInTheDocument();
   });
 
   it('does not surface the unresolved Overnight compatibility duration in review', async () => {
@@ -278,6 +323,7 @@ describe('IntakeForm canonical new-booking behavior', () => {
       vet_info: {},
       emergency_contact: {},
       service_type: 'WALK_20MIN',
+      visit_windows: ['MORNING'],
       accepted_terms: true,
       start_date: '2030-01-05',
       end_date: '',
@@ -288,6 +334,22 @@ describe('IntakeForm canonical new-booking behavior', () => {
       accepted_by_email: 'customer@example.test',
       source: 'public_intake'
     });
+  });
+
+  it('preserves the authenticated-client endpoint with canonical Walk payload semantics', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'portal@example.test', name: 'Portal Client' } } });
+    getEffectiveRole.mockReturnValue('client');
+    await completeValidForm({ serviceType: 'WALK_20MIN', windows: ['Mid-day'] });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
+
+    await waitFor(() => expect(submitClientRequest).toHaveBeenCalledOnce());
+    expect(submitClientRequest).toHaveBeenCalledWith(expect.objectContaining({
+      service_type: 'WALK_20MIN',
+      visit_windows: ['MIDDAY'],
+      selected_dates: ['2030-01-05']
+    }));
+    expect(submitClientRequest.mock.calls[0][0]).not.toHaveProperty('visits_per_day');
+    expect(submitClientRequest.mock.calls[0][0]).not.toHaveProperty('visit_window');
   });
 
   it('preserves the authenticated-client endpoint with canonical Check-In payload semantics', async () => {

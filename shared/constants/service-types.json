@@ -1,7 +1,7 @@
 {
   "_contract": "Togs & Dogs canonical service and visit-window metadata",
-  "_version": "RYAN-SLICE-A",
-  "_authority": "Cross-platform contract; transactional enforcement remains deferred to Ryan Slice B",
+  "_version": "RYAN-W1",
+  "_authority": "Cross-platform service scheduling contract",
   "services": {
     "WALK_20MIN": {
       "label": "20-Min Walk",
@@ -13,8 +13,8 @@
       "lifecycle": "active",
       "newBookingEligibility": "eligible",
       "visitsPerDayOptions": [],
-      "allowedWindowIds": [],
-      "windowSelectionMode": "unresolved"
+      "allowedWindowIds": ["MORNING", "MIDDAY", "EVENING"],
+      "windowSelectionMode": "exactly_one"
     },
     "CHECK_IN": {
       "label": "Check-In",

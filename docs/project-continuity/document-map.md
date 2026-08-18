@@ -19,6 +19,7 @@
 | Ryan Slice D1 mobile dashboard navigation | `docs/release-notes/ryan-slice-d1-mobile-dashboard-navigation.md` |
 | Ryan Slice D2 mobile Check-In intake parity | `docs/release-notes/ryan-slice-d2-mobile-check-in-intake-parity.md` |
 | Ryan release-readiness hardening R1 | `docs/release-notes/ryan-release-readiness-hardening-r1.md` |
+| Ryan W1 20-Minute Walk canonical scheduling windows | `docs/release-notes/ryan-w1-walk-canonical-scheduling-windows.md` |
 
 ## Planning Documents
 

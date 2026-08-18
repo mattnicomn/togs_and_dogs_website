@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-17 (Ryan Release Readiness Hardening R1 Committed / Pushed / Not Deployed)
+**Last Updated:** 2026-08-17 (Ryan W1 Walk Canonical Scheduling Committed / Pushed / Not Deployed)
 
 ---
 
@@ -62,6 +62,16 @@
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
 
+- Ryan W1 20-Minute Walk Canonical Scheduling (✅ COMMITTED / PUSHED / NOT DEPLOYED — 2026-08-17)
+  - Matthew and Ryan approved exactly one canonical Morning (06:30–09:30), Mid-day (10:30–15:30), or Evening (18:00–21:30) window for each new `WALK_20MIN` request. The selected window applies to every selected date; no per-date model was introduced.
+  - The shared contract uses `windowSelectionMode: exactly_one`; generated Web, Mobile, and Backend adapters were regenerated deterministically. New writes require one canonical `visit_windows` entry and reject `visits_per_day`, missing/multiple/duplicate windows, legacy IDs, and unknown IDs.
+  - One deterministic child job is created per selected date with the same occurrence window, canonical 06:30/10:30/18:00 start, exactly 20-minute Calendar duration, stable job/Calendar identity, and replay-safe behavior.
+  - Web customer, Web Admin New Visit, and Mobile intake have contract-derived exactly-one controls, clean cross-service resets, preserved surrounding payload/workflow fields, and no pricing. MasterScheduler shows canonical Walk label, occurrence window, and child start while preserving existing item handoff/actions.
+  - Historical Walk services and `AFTERNOON`/`ANYTIME`/legacy `visit_window` records remain readable. Assignment remains booking/batch level with one `STAFF_ASSIGNED` and one `VISIT_SCHEDULED` notification pair per batch.
+  - Independent review returned `RYAN_W1_WALK_CANONICAL_SCHEDULING_IMPLEMENTATION_CORRECT`. Validation: shared 23/23; adapters 9/9; focused W1 backend 20/20; Slice B 31/31; R1 3/3; combined affected backend 68/68; focused Web customer/Admin/Scheduler 50/50; full Web 284/284 plus legacy 99/99 and 110-module build; Mobile typecheck, focused Intake 27/27, combined Intake/D1 33/33, and full Mobile 127/127.
+  - No deployment, Mobile build/distribution, production write, Calendar mutation, notification send, infrastructure, Cognito, tenant, Stripe, or public-site action occurred. Overnight, pricing, deposit, legacy retirement, Stripe automation, Slice E, and Slice F remain gated.
+  - See: `docs/release-notes/ryan-w1-walk-canonical-scheduling-windows.md`
+
 - Ryan Cross-Platform Release Readiness Hardening R1 (✅ COMMITTED / PUSHED / NOT DEPLOYED — 2026-08-17)
   - MasterScheduler service filtering now derives the complete nine-service operational/history catalog from generated `SERVICE_TYPES`, including `WALK_20MIN`, `CHECK_IN`, and `OVERNIGHT`, while preserving `All Services`, legacy service options, canonical labels, exact case-sensitive equality, and existing actions.
   - New real-handler backend tests prove a simulated mid-batch interruption across 3 dates × 2 Check-In windows retries to exactly six deterministic children with stable identities and no duplicates; cancellation reaches all six children, deduplicates Calendar IDs, and tolerates already-gone results; assignment reaches all six children and emits one `STAFF_ASSIGNED` plus one `VISIT_SCHEDULED` for the batch.
@@ -90,7 +100,7 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - Slice C1 locally closes the staff/admin creation gap in the existing owner/admin New Visit modal. The modal derives all nine canonical admin options from generated `SERVICE_TYPES`, preserves the seven prior options and `PET_SITTING` default, and adds contract-driven Check-In visits/day plus canonical structured windows. Check-In payloads preserve client, pets, dates, sitter preference, and notes while adding numeric `visits_per_day` and ordered `visit_windows`; Walk/Overnight omit all Check-In-only fields.
   - The actual admin path remains authenticated `POST /client/requests` with `source: admin_created`, producing an immediate `APPROVED` `VISIT_BOOKING` for a tenant-scoped existing/offline client. Slice B already handles validation, date×window jobs, Calendar child events, and replay safety; backend change was not required. Notification and assignment semantics remain unchanged.
   - C1 validation: AdminDashboard 13/13, combined C1 + Slice C 31/31, full Web 280/280 Vitest plus 99/99 legacy, successful 110-module build, and focused Slice B backend 31/31. Independent review returned `RYAN_SLICE_C1_IMPLEMENTATION_CORRECT`; C1 is committed and pushed but not deployed.
-  - Legacy service/window compatibility preserved. Walk and Overnight policies remain unresolved.
+  - Legacy service/window compatibility is preserved. W1 now resolves new `WALK_20MIN` window scheduling locally; Overnight timing remains unresolved.
   - Slice C/C1 deployment remains separately gated before cross-platform release. Slice E workflow simplification and Slice F public-site/pricing remain NOT STARTED and separately gated.
   - No production deployment, booking, job, Calendar mutation, or pricing change occurred.
   - See: `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md`

@@ -115,6 +115,11 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
     return '';
   };
 
+  const formatOccurrenceWindow = (job) => {
+    const windowId = job.occurrence_window || job.visit_window;
+    return SERVICE_TYPES.windows[windowId]?.label || windowId || '';
+  };
+
   const pendingIntake = items.filter(i => ['PENDING_REVIEW', 'MEET_GREET_REQUIRED', 'PROFILE_CREATED', 'READY_FOR_APPROVAL'].includes(i.status));
   const pendingChanges = items.filter(i => i.status === 'CANCELLATION_REQUESTED');
 
@@ -209,6 +214,14 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
                   >
                     <div className="scheduler-mobile-visit-date">{job.start_date}</div>
                     <div className="scheduler-mobile-visit-time">{formatVisitTime(job)}</div>
+                    {job.occurrence_window && (
+                      <>
+                        <div className="scheduler-mobile-visit-service">
+                          {getKnownServiceTypeLabel(job.service_type) ?? job.service_type}
+                        </div>
+                        <div className="scheduler-mobile-visit-window">{formatOccurrenceWindow(job)}</div>
+                      </>
+                    )}
                     <div className="scheduler-mobile-visit-client">{job.client_name || 'Unknown Client'}</div>
                     <div className="scheduler-mobile-visit-pet">{job.pet_name || ''}</div>
                     <div className="scheduler-mobile-visit-staff" style={{ color: getWorkerColor(job.worker_id) }}>
@@ -247,7 +260,12 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
                       </span>
                     </div>
                     <div className="visit-meta">
-                      <span className="visit-time">{job.start_date}</span>
+                      <span className="visit-time">
+                        {job.start_date}{formatVisitTime(job) ? ` ${formatVisitTime(job)}` : ''}
+                      </span>
+                      {formatOccurrenceWindow(job) && (
+                        <span className="visit-window">{formatOccurrenceWindow(job)}</span>
+                      )}
                       <span className="visit-staff" style={{ color: getWorkerColor(job.worker_id) }}>
                         {(() => {
                           if (!job.worker_id) return '⚠️ UNASSIGNED';
