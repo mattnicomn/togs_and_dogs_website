@@ -211,7 +211,12 @@ describe('MasterScheduler service-type display compatibility', () => {
         occurrence_window: 'MIDDAY',
         visit_window: 'MIDDAY'
       }),
-      makeSchedulerItem('OVERNIGHT', 2, { window_start: '21:00' })
+      makeSchedulerItem('OVERNIGHT', 2, {
+        start_time: '21:00',
+        end_time: '07:00',
+        occurrence_end_date: '2030-01-06',
+        occurrence_schedule_mode: 'fixed'
+      })
     ];
     const before = items.map(item => ({ ...item }));
     const { container, props } = renderScheduler(items);
@@ -239,8 +244,33 @@ describe('MasterScheduler service-type display compatibility', () => {
     expect(props.onSelectPet).toHaveBeenCalledWith(items[0]);
     fireEvent.change(serviceFilter, { target: { value: 'OVERNIGHT' } });
     expect(container.querySelector('.visit-pet')).toHaveTextContent('Scheduler Pet 2');
+    expect(container.querySelector('.visit-time')).toHaveTextContent('2030-01-05 21:00 – 2030-01-06 07:00');
+    expect(container.querySelector('.visit-window')).toHaveTextContent('9:00 PM–7:00 AM next morning');
+    fireEvent.click(container.querySelector('.scheduled-visit'));
+    expect(props.onSelectPet).toHaveBeenCalledWith(items[2]);
 
     expect(items).toEqual(before);
+  });
+
+  it('renders the fixed Overnight occurrence boundary in the mobile scheduler without changing selection', () => {
+    setViewportWidth(375);
+    const overnight = makeSchedulerItem('OVERNIGHT', 0, {
+      start_time: '21:00',
+      end_time: '07:00',
+      occurrence_end_date: '2030-01-06',
+      occurrence_schedule_mode: 'fixed'
+    });
+    const before = { ...overnight };
+    const { container, props } = renderScheduler([overnight]);
+
+    expect(container.querySelector('.scheduler-mobile-visit-time')).toHaveTextContent('21:00');
+    expect(container.querySelector('.scheduler-mobile-visit-window')).toHaveTextContent('9:00 PM–7:00 AM next morning');
+    expect(Array.from(container.querySelectorAll('.scheduler-mobile-visit-time'), node => node.textContent)).toContain(
+      'Ends 2030-01-06 07:00'
+    );
+    fireEvent.click(container.querySelector('.scheduler-mobile-visit-card'));
+    expect(props.onSelectPet).toHaveBeenCalledWith(overnight);
+    expect(overnight).toEqual(before);
   });
 
   it('keeps legacy, unknown, case-variant, and blank-like values visible only under ALL', () => {

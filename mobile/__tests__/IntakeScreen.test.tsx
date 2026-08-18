@@ -704,23 +704,53 @@ describe('IntakeScreen - Ryan Slice D2 Check-In intake parity', () => {
     expect(payload.visit_windows).toEqual(['MORNING']);
   });
 
-  test('clears Check-In fields for Overnight without exposing unresolved duration', async () => {
+  test('renders and submits the contract-owned fixed Overnight schedule without client scheduling fields', async () => {
     await render(<IntakeScreen />);
     await selectCheckIn();
     await fireEvent.press(screen.getByLabelText('3 visits per day'));
     await fireEvent.press(screen.getByLabelText('Select service Overnight Care'));
 
     expect(screen.queryByText('2. Visits per day')).toBeNull();
+    expect(screen.queryByLabelText(morningLabel)).toBeNull();
+    expect(screen.getByLabelText('Fixed Overnight schedule 9:00 PM–7:00 AM. Ends the following morning.')).toBeTruthy();
+    expect(screen.getByText('Each selected date is the night service starts. Ends the following morning.')).toBeTruthy();
+    expect(screen.getByText('10 hours nominal service.')).toBeTruthy();
     await selectFirstDate();
     await advanceToReview();
     expect(screen.getByText('Overnight Care')).toBeTruthy();
-    expect(screen.queryByText('720 minutes')).toBeNull();
+    expect(screen.getByText('10 hours')).toBeTruthy();
+    expect(screen.getByText('9:00 PM–7:00 AM next morning')).toBeTruthy();
+    expect(screen.getByText(/Overnight start dates/)).toBeTruthy();
     expect(screen.queryByText('Visits per day:')).toBeNull();
 
     const payload = await submitReviewedRequest();
     expect(payload.service_type).toBe('OVERNIGHT');
-    expect(payload.visits_per_day).toBeUndefined();
-    expect(payload.visit_windows).toBeUndefined();
+    [
+      'visits_per_day', 'visit_windows', 'visit_window', 'preferred_time', 'scheduled_time',
+      'start_time', 'end_time', 'fixed_start_time', 'fixed_end_time', 'scheduled_duration'
+    ].forEach(field => expect(payload[field]).toBeUndefined());
+  });
+
+  test('clears incompatible state across Check-In, Overnight, Walk, and Overnight transitions', async () => {
+    await render(<IntakeScreen />);
+    await selectCheckIn();
+    await fireEvent.press(screen.getByLabelText('2 visits per day'));
+    await fireEvent.press(screen.getByLabelText(morningLabel));
+    await fireEvent.press(screen.getByLabelText(eveningLabel));
+
+    await fireEvent.press(screen.getByLabelText('Select service Overnight Care'));
+    expect(screen.queryByText('2. Visits per day')).toBeNull();
+    expect(screen.queryByLabelText(morningLabel)).toBeNull();
+
+    await fireEvent.press(screen.getByLabelText('Select service 20-Minute Walk'));
+    expect(screen.getByLabelText(morningLabel).props.accessibilityState.checked).toBe(false);
+    await fireEvent.press(screen.getByLabelText(eveningLabel));
+
+    await fireEvent.press(screen.getByLabelText('Select service Overnight Care'));
+    expect(screen.queryByLabelText(eveningLabel)).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Select service 30-Minute Check-In'));
+    expect(screen.getByLabelText('2 visits per day').props.accessibilityState.selected).toBe(false);
+    expect(screen.getByLabelText(eveningLabel).props.accessibilityState.selected).toBe(false);
   });
 });
 

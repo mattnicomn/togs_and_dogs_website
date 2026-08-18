@@ -136,9 +136,14 @@ def test_walk_window_policy_uses_exactly_one_active_canonical_window():
     assert metadata["windowSelectionMode"] == "exactly_one"
 
 
-def test_overnight_duration_and_window_policy_remain_explicitly_unresolved():
+def test_overnight_uses_fixed_cross_midnight_schedule_without_selectable_windows():
     metadata = SERVICES["OVERNIGHT"]
-    assert metadata["durationMinutes"] == 720  # unchanged runtime compatibility value
-    assert metadata["durationStatus"] == "unresolved"
+    assert metadata["durationMinutes"] == 600
+    assert metadata["durationStatus"] == "confirmed"
+    assert metadata["legacyDurationMinutes"] == 720
+    assert metadata["scheduleMode"] == "fixed"
+    assert metadata["fixedStartTime"] == "21:00"
+    assert metadata["fixedEndTime"] == "07:00"
+    assert metadata["crossesMidnight"] is True
     assert metadata["allowedWindowIds"] == []
-    assert metadata["windowSelectionMode"] == "unresolved"
+    assert metadata["windowSelectionMode"] == "none"

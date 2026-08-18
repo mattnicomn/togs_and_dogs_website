@@ -58,14 +58,14 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 11 | AI-assisted onboarding | ❌ Not started; follow deterministic onboarding | Low |
 | 12 | Video visit evidence | ❌ Not started | Low |
 | 13 | Multi-location support | ❌ Not started | Future |
-| 14 | Cross-platform services, scheduling & workflow alignment | 🛠️ A–C, C1, D1–D2, R1, and W1 Walk scheduling committed/pushed; none deployed; D1–D2/W1 not built or distributed; E/F deferred | High |
+| 14 | Cross-platform services, scheduling & workflow alignment | 🛠️ A–C, C1, D1–D2, R1, and W1 committed/pushed; O1 Overnight local/awaiting review; none deployed; D1–D2/W1/O1 not built or distributed; E/F deferred | High |
 
 ---
 
 ## Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–C, C1, D1–D2, R1 Hardening, and W1 Committed / Pushed / Not Deployed; D1–D2/W1 Not Built or Distributed; Slices E and F Deferred
+**Status:** Slices A–C, C1, D1–D2, R1 Hardening, and W1 Committed / Pushed / Not Deployed; O1 Local Implementation Complete / Awaiting Independent Review / Not Deployed; D1–D2/W1/O1 Not Built or Distributed; Slices E and F Deferred
 
 ### Target Service Model
 
@@ -73,7 +73,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 |---------|----------|-----------|-------|
 | 20-Minute Walk | 20 min | — | Exactly one canonical window applies to every selected date; replaces legacy 30-min walk for new bookings |
 | Check-In | 30 min | 1, 2, or 3 | Selectable visits per day |
-| Overnight | TBD | — | Separate scheduling model; hours require Ryan clarification |
+| Overnight | 600 min nominal | — | Fixed local 21:00→07:00 following date; O1 local/awaiting review; pricing TBD |
 
 ### Time Windows
 
@@ -95,6 +95,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | D2 | Mobile service-selection/intake parity | Committed / Pushed / Not Built / Not Distributed / Not Deployed | A, B |
 | R1 | Scheduler parity + Check-In resiliency hardening | Committed / Pushed / Not Deployed | A–C, C1, D1–D2 |
 | W1 | 20-Minute Walk canonical scheduling windows | Committed / Pushed / Not Deployed | A–C1, D2, R1 |
+| O1 | Overnight fixed 21:00→07:00 next-day scheduling | Local Complete / Awaiting Independent Review / Not Deployed | A–C1, D2, R1, W1 |
 | E | Workflow next-action simplification | Not Started | C, D1, D2 |
 | F | Public website content alignment | Not Started | Ryan pricing decisions |
 
@@ -103,11 +104,10 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 1. Price for Check-In 1 visit/day
 2. Confirm price for Check-In 2 visits/day ($45/day per public site)
 3. Price for Check-In 3 visits/day
-4. Exact Overnight hours/duration (public site says "12-4 hours" — ambiguous)
-5. Whether 60-Minute Walk remains available or is retired
-6. Whether Drop-In 1HR/3HR remain available for new bookings
-7. Whether $35 deposit is still current
-8. In-app pricing automation vs admin-managed Stripe links
+4. Whether 60-Minute Walk remains available or is retired
+5. Whether Drop-In 1HR/3HR remain available for new bookings
+6. Whether $35 deposit is still current
+7. In-app pricing automation vs admin-managed Stripe links
 
 ---
 
@@ -243,3 +243,5 @@ The dated update log below is historical chronology. Statements such as “stric
 **Updated 2026-08-17 (Ryan release-readiness hardening R1):** MasterScheduler filter membership now consumes the complete generated canonical service catalog while retaining operational legacy services and exact filtering. New real-handler tests cover interrupted Check-In batch retry convergence, multi-window cancellation/Calendar-ID deduplication, and six-child assignment with booking-level notification batching. Independent review returned `RYAN_RELEASE_READINESS_HARDENING_R1_IMPLEMENTATION_CORRECT`. Final validation: R1 backend 3/3, Scheduler 16/16, Slice C 18/18, C1 13/13, Web 281/281 plus legacy 99/99 and build, and Mobile typecheck/focused/full regression pass. R1 is committed and pushed but not deployed. W1 subsequently resolved new 20-Minute Walk scheduling; E/F, Overnight, and pricing decisions remain gated.
 
 **Updated 2026-08-17 (Ryan W1 Walk canonical scheduling):** Matthew and Ryan approved exactly one canonical Morning, Mid-day, or Evening window for each new 20-Minute Walk request, applied uniformly to every selected date. The committed and pushed implementation aligns the shared/generated contract, new-write validation, one-child-per-date and 20-minute Calendar semantics, Web customer/Admin, Mobile, and MasterScheduler display while preserving legacy reads and booking-level notifications. Independent review returned `RYAN_W1_WALK_CANONICAL_SCHEDULING_IMPLEMENTATION_CORRECT`. W1 is not deployed, built for Mobile, distributed, or received by Ryan. Overnight, pricing, deposits, legacy retirement, Stripe, E, and F remain gated.
+
+**Updated 2026-08-18 (Ryan O1 Overnight fixed scheduling):** Matthew approved fixed local 21:00 on each selected Overnight start-date through local 07:00 the following date, with 600-minute nominal duration and no scheduling selector. O1 is locally complete, unstaged, not deployed, and awaiting independent review. The shared/generated contract, backend new-write marker and rejection boundary, one deterministic child per selected date, DST-safe local Calendar event, Web customer/Admin, Mobile, and MasterScheduler are aligned. Unmarked historical records retain legacy 720-minute/all-day or exact-time compatibility. Validation passes shared 23/23, adapters 9/9, affected backend 90/90, focused Web 52/52, full Web 286/286 plus legacy/build, and Mobile typecheck/Intake 28/28/combined Intake+D1 34/34/full 128/128. Pricing, deposits, legacy retirement, Stripe, E/F, deployment, and Mobile build/distribution remain gated.

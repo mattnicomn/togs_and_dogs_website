@@ -7,6 +7,13 @@ const schedulerServiceOptions = Object.entries(SERVICE_TYPES.services).map(
   ([value, service]) => ({ value, label: service.labelLong })
 );
 
+const formatCanonicalTime = (value) => {
+  if (!value) return '';
+  const [hourValue, minute] = value.split(':');
+  const hour = Number(hourValue);
+  return `${hour % 12 || 12}:${minute} ${hour >= 12 ? 'PM' : 'AM'}`;
+};
+
 const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [] }) => {
   const [viewMode, setViewMode] = useState('DAY'); // DAY or WEEK
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 480);
@@ -116,8 +123,20 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
   };
 
   const formatOccurrenceWindow = (job) => {
+    if (job.occurrence_schedule_mode === 'fixed') {
+      const service = SERVICE_TYPES.services[job.service_type];
+      if (service?.scheduleMode === 'fixed') {
+        return `${formatCanonicalTime(service.fixedStartTime)}–${formatCanonicalTime(service.fixedEndTime)} next morning`;
+      }
+    }
     const windowId = job.occurrence_window || job.visit_window;
     return SERVICE_TYPES.windows[windowId]?.label || windowId || '';
+  };
+
+  const formatVisitEnd = (job) => {
+    if (job.occurrence_schedule_mode !== 'fixed' || !job.end_time) return '';
+    const endDate = job.occurrence_end_date || job.end_date;
+    return `${endDate || ''}${endDate ? ' ' : ''}${job.end_time}`;
   };
 
   const pendingIntake = items.filter(i => ['PENDING_REVIEW', 'MEET_GREET_REQUIRED', 'PROFILE_CREATED', 'READY_FOR_APPROVAL'].includes(i.status));
@@ -214,12 +233,15 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
                   >
                     <div className="scheduler-mobile-visit-date">{job.start_date}</div>
                     <div className="scheduler-mobile-visit-time">{formatVisitTime(job)}</div>
-                    {job.occurrence_window && (
+                    {(job.occurrence_window || job.occurrence_schedule_mode === 'fixed') && (
                       <>
                         <div className="scheduler-mobile-visit-service">
                           {getKnownServiceTypeLabel(job.service_type) ?? job.service_type}
                         </div>
                         <div className="scheduler-mobile-visit-window">{formatOccurrenceWindow(job)}</div>
+                        {formatVisitEnd(job) && (
+                          <div className="scheduler-mobile-visit-time">Ends {formatVisitEnd(job)}</div>
+                        )}
                       </>
                     )}
                     <div className="scheduler-mobile-visit-client">{job.client_name || 'Unknown Client'}</div>
@@ -262,6 +284,7 @@ const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [
                     <div className="visit-meta">
                       <span className="visit-time">
                         {job.start_date}{formatVisitTime(job) ? ` ${formatVisitTime(job)}` : ''}
+                        {formatVisitEnd(job) ? ` – ${formatVisitEnd(job)}` : ''}
                       </span>
                       {formatOccurrenceWindow(job) && (
                         <span className="visit-window">{formatOccurrenceWindow(job)}</span>

@@ -31,6 +31,11 @@ const SERVICE_FIELDS = [
   'labelLong',
   'durationMinutes',
   'durationStatus',
+  'legacyDurationMinutes',
+  'scheduleMode',
+  'fixedStartTime',
+  'fixedEndTime',
+  'crossesMidnight',
   'availableInIntake',
   'supportedOnMobile',
   'lifecycle',
@@ -52,9 +57,11 @@ const VALID_NEW_BOOKING_ELIGIBILITY = new Set(['eligible', 'ineligible', 'pendin
 const VALID_WINDOW_SELECTION_MODES = new Set([
   'exactly_one',
   'match_visits_per_day',
+  'none',
   'unresolved',
   'legacy_compatibility',
 ]);
+const VALID_SCHEDULE_MODES = new Set(['selectable_windows', 'fixed', 'legacy_compatibility']);
 const ACTIVE_CANONICAL_WINDOWS = ['MORNING', 'MIDDAY', 'EVENING'];
 const EXPECTED_CLIENT_WRITE_HEALTH_FIELD_LIMITS = {
   vet_name: 100,
@@ -153,7 +160,9 @@ test('services have required properties', () => {
 
     for (const field of SERVICE_FIELDS) {
       assert.ok(field in svc, `Service "${id}" missing ${field}`);
-      assert.notEqual(svc[field], null, `Service "${id}" ${field} must not be null`);
+      if (!['legacyDurationMinutes', 'fixedStartTime', 'fixedEndTime'].includes(field)) {
+        assert.notEqual(svc[field], null, `Service "${id}" ${field} must not be null`);
+      }
       assert.notEqual(svc[field], undefined, `Service "${id}" ${field} must not be undefined`);
     }
 
@@ -198,6 +207,27 @@ test('services have required properties', () => {
       VALID_WINDOW_SELECTION_MODES.has(svc.windowSelectionMode),
       `Service "${id}" has invalid windowSelectionMode "${svc.windowSelectionMode}"`
     );
+    assert.ok(
+      VALID_SCHEDULE_MODES.has(svc.scheduleMode),
+      `Service "${id}" has invalid scheduleMode "${svc.scheduleMode}"`
+    );
+    assert.equal(typeof svc.crossesMidnight, 'boolean', `Service "${id}" crossesMidnight must be a boolean`);
+    if (svc.scheduleMode === 'fixed') {
+      assert.match(svc.fixedStartTime, TIME_PATTERN, `Service "${id}" fixedStartTime must be HH:mm`);
+      assert.match(svc.fixedEndTime, TIME_PATTERN, `Service "${id}" fixedEndTime must be HH:mm`);
+      assert.equal(svc.allowedWindowIds.length, 0, `Fixed service "${id}" must not expose selectable windows`);
+      assert.equal(svc.windowSelectionMode, 'none', `Fixed service "${id}" windowSelectionMode must be none`);
+    } else {
+      assert.equal(svc.fixedStartTime, null, `Non-fixed service "${id}" fixedStartTime must be null`);
+      assert.equal(svc.fixedEndTime, null, `Non-fixed service "${id}" fixedEndTime must be null`);
+      assert.equal(svc.crossesMidnight, false, `Non-fixed service "${id}" must not cross midnight`);
+    }
+    if (svc.legacyDurationMinutes !== null) {
+      assert.ok(
+        Number.isInteger(svc.legacyDurationMinutes) && svc.legacyDurationMinutes > 0,
+        `Service "${id}" legacyDurationMinutes must be null or a positive integer`
+      );
+    }
     assert.ok(Array.isArray(svc.visitsPerDayOptions), `Service "${id}" visitsPerDayOptions must be an array`);
     assert.equal(
       svc.visitsPerDayOptions.length,
@@ -246,9 +276,15 @@ test('Ryan target services and scheduling policies are exact', () => {
 
   const overnight = services.services.OVERNIGHT;
   assert.equal(overnight.lifecycle, 'active');
-  assert.equal(overnight.durationStatus, 'unresolved');
+  assert.equal(overnight.durationMinutes, 600);
+  assert.equal(overnight.durationStatus, 'confirmed');
+  assert.equal(overnight.legacyDurationMinutes, 720);
+  assert.equal(overnight.scheduleMode, 'fixed');
+  assert.equal(overnight.fixedStartTime, '21:00');
+  assert.equal(overnight.fixedEndTime, '07:00');
+  assert.equal(overnight.crossesMidnight, true);
   assert.deepEqual(overnight.allowedWindowIds, []);
-  assert.equal(overnight.windowSelectionMode, 'unresolved');
+  assert.equal(overnight.windowSelectionMode, 'none');
 
   assert.equal(services.services.MEET_GREET.availableInIntake, false);
   assert.equal(services.services.MEET_GREET.supportedOnMobile, true);

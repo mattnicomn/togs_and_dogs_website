@@ -32,6 +32,11 @@ const SERVICE_FIELDS = [
   'labelLong',
   'durationMinutes',
   'durationStatus',
+  'legacyDurationMinutes',
+  'scheduleMode',
+  'fixedStartTime',
+  'fixedEndTime',
+  'crossesMidnight',
   'availableInIntake',
   'supportedOnMobile',
   'lifecycle',
@@ -184,6 +189,20 @@ function assertServiceTypesShape(adapter, canonical, adapterName) {
       `${adapterName} ${serviceId} supportedOnMobile must be a boolean`
     );
     assert.equal(typeof metadata.durationStatus, 'string', `${adapterName} ${serviceId} durationStatus must be a string`);
+    assert.ok(
+      metadata.legacyDurationMinutes === null || Number.isInteger(metadata.legacyDurationMinutes),
+      `${adapterName} ${serviceId} legacyDurationMinutes must be null or an integer`
+    );
+    assert.equal(typeof metadata.scheduleMode, 'string', `${adapterName} ${serviceId} scheduleMode must be a string`);
+    assert.ok(
+      metadata.fixedStartTime === null || typeof metadata.fixedStartTime === 'string',
+      `${adapterName} ${serviceId} fixedStartTime must be null or a string`
+    );
+    assert.ok(
+      metadata.fixedEndTime === null || typeof metadata.fixedEndTime === 'string',
+      `${adapterName} ${serviceId} fixedEndTime must be null or a string`
+    );
+    assert.equal(typeof metadata.crossesMidnight, 'boolean', `${adapterName} ${serviceId} crossesMidnight must be a boolean`);
     assert.equal(typeof metadata.lifecycle, 'string', `${adapterName} ${serviceId} lifecycle must be a string`);
     assert.equal(
       typeof metadata.newBookingEligibility,

@@ -366,7 +366,10 @@ describe('AdminDashboard service-type behavior', () => {
     expect(screen.getByRole('checkbox', { name: 'Evening, 6:00 PM to 9:30 PM' })).not.toBeChecked();
   });
 
-  it.each(['OVERNIGHT'])('clears Check-In state for %s and omits every Check-In-only field', async (serviceType) => {
+  it('renders the fixed Overnight schedule, clears prior state, and preserves the exact admin payload boundary', async () => {
+    getStaff.mockResolvedValue({
+      staff: [{ staff_id: 'staff-1', display_name: 'Sitter One', email: 'sitter@example.test', is_active: true, is_assignable: true }]
+    });
     const modal = await openNewVisit();
     await selectClientPetAndDate(modal);
     const serviceSelect = getNewVisitServiceSelect();
@@ -375,17 +378,37 @@ describe('AdminDashboard service-type behavior', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Morning, 6:30 AM to 9:30 AM' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Evening, 6:00 PM to 9:30 PM' }));
 
-    fireEvent.change(serviceSelect, { target: { value: serviceType } });
+    fireEvent.change(serviceSelect, { target: { value: 'OVERNIGHT' } });
     expect(screen.queryByRole('group', { name: 'Visits per day *' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Visit Window')).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /visit window/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('note', { name: 'Fixed Overnight schedule' })).toHaveTextContent('9:00 PM–7:00 AM');
+    expect(screen.getByRole('note', { name: 'Fixed Overnight schedule' })).toHaveTextContent('following morning');
+
+    const notesField = screen.getByText('Notes / Details').closest('.field');
+    fireEvent.change(within(notesField).getByRole('textbox'), { target: { value: 'Use side gate.' } });
+    const sitterField = screen.getByText('Preferred Sitter').closest('.field');
+    fireEvent.change(within(sitterField).getByRole('combobox'), { target: { value: 'sitter@example.test' } });
     fireEvent.click(within(modal).getByRole('button', { name: 'Create Visit' }));
 
     await waitFor(() => expect(createAdminBooking).toHaveBeenCalledOnce());
     const payload = createAdminBooking.mock.calls[0][0];
-    expect(payload.service_type).toBe(serviceType);
-    expect(payload).not.toHaveProperty('visits_per_day');
-    expect(payload).not.toHaveProperty('visit_windows');
-    expect(payload).not.toHaveProperty('visit_window');
+    expect(payload).toEqual({
+      client_id: 'client-1',
+      client_name: 'Synthetic Client',
+      client_email: 'client@example.test',
+      client_phone: '555-0100',
+      pet_names: 'Synthetic Pet',
+      pet_ids: ['pet-1'],
+      service_type: 'OVERNIGHT',
+      details: 'Use side gate.',
+      preferred_sitter: 'sitter@example.test',
+      selected_dates: ['2030-01-05'],
+      start_date: '2030-01-05'
+    });
+    [
+      'visits_per_day', 'visit_windows', 'visit_window', 'preferred_time', 'scheduled_time',
+      'start_time', 'end_time', 'fixed_start_time', 'fixed_end_time', 'scheduled_duration'
+    ].forEach(field => expect(payload).not.toHaveProperty(field));
   });
 
   it('renders and submits the exactly-one canonical Walk window with the preserved admin workflow payload', async () => {

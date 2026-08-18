@@ -6,6 +6,7 @@ from common.db import put_item, get_item, table
 from common.status import JobStatus
 from common.check_in import (
     CHECK_IN_SERVICE_TYPE,
+    OVERNIGHT_SERVICE_TYPE,
     WALK_SERVICE_TYPE,
     BookingWindowValidationError,
     canonical_window_start,
@@ -36,7 +37,7 @@ def handler(event, context):
             return {"error": "Request not found"}
 
         try:
-            canonical_window_fields = validate_booking_window_fields(request_item)
+            canonical_window_fields = validate_booking_window_fields(request_item, persisted=True)
         except BookingWindowValidationError as exc:
             print(f"Error: Invalid canonical-window request REQ#{request_id}: {exc}")
             return {"error": str(exc)}
@@ -118,8 +119,16 @@ def handler(event, context):
         is_multi_day = len(job_dates) > 1
         is_check_in = request_item.get('service_type') == CHECK_IN_SERVICE_TYPE
         is_walk = request_item.get('service_type') == WALK_SERVICE_TYPE
-        uses_canonical_occurrences = is_check_in or is_walk
-        occurrence_windows = canonical_window_fields['visit_windows'] if canonical_window_fields else [None]
+        is_overnight = (
+            request_item.get('service_type') == OVERNIGHT_SERVICE_TYPE
+            and request_item.get('canonical_schedule_mode') == 'fixed'
+        )
+        uses_canonical_occurrences = is_check_in or is_walk or is_overnight
+        occurrence_windows = (
+            canonical_window_fields.get('visit_windows', [None])
+            if canonical_window_fields
+            else [None]
+        )
         occurrences = [
             (occurrence_date, occurrence_window)
             for occurrence_date in job_dates
@@ -134,7 +143,11 @@ def handler(event, context):
 
         for idx, (occurrence_date, occurrence_window) in enumerate(occurrences):
             if uses_canonical_occurrences:
-                occurrence_namespace = 'check-in' if is_check_in else 'walk-20min'
+                occurrence_namespace = (
+                    'check-in' if is_check_in
+                    else 'walk-20min' if is_walk
+                    else 'overnight-fixed'
+                )
                 logical_occurrence = (
                     f"togs-and-dogs:{occurrence_namespace}:{request_id}:"
                     f"{occurrence_date or ''}:{occurrence_window}"
@@ -170,6 +183,12 @@ def handler(event, context):
                     continue
             else:
                 job_id = str(uuid.uuid4())
+
+            occurrence_end_date = occurrence_date
+            if is_overnight and occurrence_date:
+                occurrence_end_date = (
+                    datetime.strptime(occurrence_date, '%Y-%m-%d').date() + timedelta(days=1)
+                ).strftime('%Y-%m-%d')
             
             # 2. Create the Job record linked to the PET
             item = {
@@ -185,9 +204,9 @@ def handler(event, context):
                 'client_email': request_item.get('client_email'),
                 'service_type': request_item.get('service_type'),
                 'start_date': occurrence_date if occurrence_date else request_item.get('start_date'),
-                'end_date': occurrence_date if is_multi_day else request_item.get('end_date'),
-                'visit_window': occurrence_window if uses_canonical_occurrences else request_item.get('visit_window'),
-                'visit_windows': [occurrence_window] if uses_canonical_occurrences else request_item.get('visit_windows'),
+                'end_date': occurrence_end_date if is_overnight else (
+                    occurrence_date if is_multi_day else request_item.get('end_date')
+                ),
                 'preferred_sitter': request_item.get('preferred_sitter'),
                 'preferred_sitter_name': request_item.get('preferred_sitter_name'),
                 'pet_info': request_item.get('pet_info'),
@@ -202,13 +221,26 @@ def handler(event, context):
             }
 
             if uses_canonical_occurrences:
-                if is_check_in:
-                    item['visits_per_day'] = canonical_window_fields['visits_per_day']
-                item['booking_visit_windows'] = canonical_window_fields['visit_windows']
-                item['occurrence_window'] = occurrence_window
-                item['start_time'] = canonical_window_start(
-                    request_item.get('service_type'), occurrence_window
-                )
+                if is_overnight:
+                    item['canonical_schedule_mode'] = 'fixed'
+                    item['occurrence_schedule_mode'] = 'fixed'
+                    item['canonical_fixed_start_time'] = canonical_window_fields['canonical_fixed_start_time']
+                    item['canonical_fixed_end_time'] = canonical_window_fields['canonical_fixed_end_time']
+                    item['canonical_crosses_midnight'] = canonical_window_fields['canonical_crosses_midnight']
+                    item['scheduled_duration'] = canonical_window_fields['scheduled_duration']
+                    item['start_time'] = canonical_window_fields['canonical_fixed_start_time']
+                    item['end_time'] = canonical_window_fields['canonical_fixed_end_time']
+                    item['occurrence_end_date'] = occurrence_end_date
+                else:
+                    item['visit_window'] = occurrence_window
+                    item['visit_windows'] = [occurrence_window]
+                    if is_check_in:
+                        item['visits_per_day'] = canonical_window_fields['visits_per_day']
+                    item['booking_visit_windows'] = canonical_window_fields['visit_windows']
+                    item['occurrence_window'] = occurrence_window
+                    item['start_time'] = canonical_window_start(
+                        request_item.get('service_type'), occurrence_window
+                    )
                 # Google Calendar accepts caller-selected IDs using base32hex
                 # characters. This stable ID makes insert replay conflict-safe.
                 item['calendar_event_id'] = f"td{uuid.UUID(job_id).hex}"

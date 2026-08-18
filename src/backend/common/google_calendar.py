@@ -239,6 +239,15 @@ FRIENDLY_SERVICE_NAMES = {
     for service_type, metadata in SERVICE_METADATA.items()
 }
 
+
+def _format_local_time(value):
+    """Format canonical ``HH:mm`` metadata without duplicating clock values."""
+    if not value:
+        return ''
+    hour_text, minute = value.split(':')
+    hour = int(hour_text)
+    return f"{hour % 12 or 12}:{minute} {'PM' if hour >= 12 else 'AM'}"
+
 def _build_event_body(item, assigned_worker=None):
     """
     Internal: Builds Google Calendar event resource with strict timing support.
@@ -259,14 +268,31 @@ def _build_event_body(item, assigned_worker=None):
 
     scheduled_time = item.get('scheduled_time')
     scheduled_date = item.get('scheduled_date') or item.get('start_date')
-    duration_mins = int(item.get('scheduled_duration') or SERVICE_DURATIONS.get(service_type, 60))
+    service_metadata = SERVICE_METADATA.get(service_type, {})
+    uses_canonical_fixed_schedule = (
+        service_metadata.get('scheduleMode') == 'fixed'
+        and item.get('occurrence_schedule_mode') == 'fixed'
+    )
+    compatibility_duration = (
+        service_metadata.get('durationMinutes')
+        if uses_canonical_fixed_schedule
+        else service_metadata.get('legacyDurationMinutes') or SERVICE_DURATIONS.get(service_type, 60)
+    )
+    duration_mins = int(item.get('scheduled_duration') or compatibility_duration)
     color_id = SERVICE_COLORS.get(service_type, '8')
     friendly_service_name = FRIENDLY_SERVICE_NAMES.get(service_type, service_type)
 
     resolved_start_time = None
     window_label = "All Day"
 
-    if not scheduled_time:
+    if uses_canonical_fixed_schedule:
+        resolved_start_time = service_metadata.get('fixedStartTime')
+        fixed_end_time = service_metadata.get('fixedEndTime')
+        window_label = (
+            f"{_format_local_time(resolved_start_time)}–{_format_local_time(fixed_end_time)}"
+            + (" next morning" if service_metadata.get('crossesMidnight') else "")
+        )
+    elif not scheduled_time:
         windows = item.get('visit_windows') or []
         if not windows:
             single_window = item.get('visit_window', 'ANYTIME')
@@ -306,7 +332,11 @@ def _build_event_body(item, assigned_worker=None):
     source = item.get('source', '')
     source_label = "Admin Created" if source == 'admin_created' else "Client Booking"
 
-    timing_note = "⏰ Estimated from booking window\n" if resolved_start_time is not None else ""
+    timing_note = (
+        "⏰ Fixed canonical service schedule\n"
+        if uses_canonical_fixed_schedule
+        else "⏰ Estimated from booking window\n" if resolved_start_time is not None else ""
+    )
 
     description = (
         f"Client: {client_name}\n"
@@ -327,8 +357,35 @@ def _build_event_body(item, assigned_worker=None):
     if not scheduled_date:
         return None, "missing_required_fields (scheduled_date)"
 
-    # Case 1: Exact explicit time
-    if scheduled_time:
+    # Case 1: Canonical fixed local wall-clock schedule. The following local
+    # date is computed separately so DST transitions cannot shift the 07:00 end.
+    if uses_canonical_fixed_schedule:
+        try:
+            from datetime import timedelta
+            start_date_obj = datetime.strptime(scheduled_date, '%Y-%m-%d').date()
+            end_date_obj = start_date_obj + timedelta(
+                days=1 if service_metadata.get('crossesMidnight') else 0
+            )
+            start_dt = datetime.fromisoformat(
+                f"{start_date_obj.isoformat()}T{service_metadata['fixedStartTime']}:00"
+            )
+            end_dt = datetime.fromisoformat(
+                f"{end_date_obj.isoformat()}T{service_metadata['fixedEndTime']}:00"
+            )
+            body = {
+                'summary': summary,
+                'description': description,
+                'colorId': color_id,
+                'start': {'dateTime': start_dt.isoformat(), 'timeZone': timezone},
+                'end': {'dateTime': end_dt.isoformat(), 'timeZone': timezone},
+            }
+            return body, None
+        except Exception as e:
+            print(f"WARNING: Failed to parse fixed schedule ({scheduled_date}): {e}")
+            return None, "invalid_time_format"
+
+    # Case 2: Exact explicit time
+    elif scheduled_time:
         try:
             time_part = scheduled_time
             if len(time_part) == 5: # HH:MM
@@ -351,7 +408,7 @@ def _build_event_body(item, assigned_worker=None):
             print(f"WARNING: Failed to parse exact timing ({scheduled_date} {scheduled_time}): {e}")
             return None, "invalid_time_format"
 
-    # Case 2: Inferred time from visit window
+    # Case 3: Inferred time from visit window
     elif resolved_start_time is not None:
         try:
             start_dt_str = f"{scheduled_date}T{resolved_start_time}:00"
@@ -372,7 +429,7 @@ def _build_event_body(item, assigned_worker=None):
             print(f"WARNING: Failed to parse window timing ({scheduled_date} {resolved_start_time}): {e}")
             return None, "invalid_time_format"
 
-    # Case 3: All-day fallback
+    # Case 4: Historical all-day fallback
     try:
         datetime.strptime(scheduled_date, '%Y-%m-%d')
         from datetime import timedelta

@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–C, C1, D1–D2, R1 Hardening, and W1 Committed / Pushed / Not Deployed; D1–D2/W1 Not Built or Distributed; Slices E and F Deferred
+**Status:** Slices A–C, C1, D1–D2, R1 Hardening, and W1 Committed / Pushed / Not Deployed; O1 Local Implementation Complete / Awaiting Independent Review / Not Deployed; D1–D2/W1/O1 Not Built or Distributed; Slices E and F Deferred
 
 ---
 
@@ -11,7 +11,7 @@
 |---------|----------|-----------|--------|
 | 20-Minute Walk | 20 min | — | ✅ |
 | Check-In | 30 min | 1, 2, or 3 (selectable) | ✅ |
-| Overnight | TBD | — | ✅ |
+| Overnight | 600 min nominal; fixed 21:00→07:00 next day | — | ✅ |
 | Meet & Greet | ~45 min | — | ❌ (admin-scheduled) |
 
 Ryan explicitly confirmed "1–3" means the number of Check-In visits PER DAY.
@@ -35,7 +35,7 @@ Slice A is locally implemented and committed. The existing canonical `shared/con
 - Historical `WALK_30MIN`, `WALK_60MIN`, `DROPIN_1HR`, `DROPIN_3HR`, and `PET_SITTING` remain readable and historically labeled.
 - Undecided future eligibility for `WALK_60MIN`, `DROPIN_1HR`, and `DROPIN_3HR` is explicitly `pending`.
 - New target eligibility is separate from the unchanged legacy `availableInIntake` runtime flag, preventing premature Slice C/D selector changes.
-- W1 subsequently resolved new 20-Minute Walk scheduling; Overnight operational duration/window policy remains explicitly unresolved.
+- W1 resolved new 20-Minute Walk scheduling. O1 now resolves new Overnight scheduling locally as fixed 21:00→07:00 the following local date, while unmarked historical Overnight records retain legacy compatibility.
 - `AFTERNOON` and `ANYTIME` remain legacy-readable with no invented canonical time bounds.
 
 See `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md`.
@@ -54,11 +54,11 @@ See `docs/release-notes/ryan-slice-b-check-in-booking-job-calendar-semantics.md`
 
 ### Overnight
 
-Overnight should have its own scheduling model and should NOT automatically inherit the three Check-In windows. Exact hours require Ryan clarification.
+Matthew approved a separate fixed Overnight scheduling model: each selected date is the local start date, service runs 21:00 through 07:00 on the following local date, and nominal duration is 600 minutes. Overnight does not inherit Check-In windows and exposes no time/window selector. O1 is locally implemented and awaiting independent review; it is not deployed.
 
 ### Walk
 
-Whether the 20-Minute Walk uses Morning/Mid-day/Evening windows or another scheduling approach requires Ryan clarification.
+W1 resolved the new 20-Minute Walk model as exactly one Morning, Mid-day, or Evening window applied to every selected date.
 
 ---
 
@@ -88,7 +88,7 @@ Slice D2 is committed and pushed but not built, distributed, or deployed. Indepe
 
 Web Slice C and admin Slice C1 are now committed and pushed but not deployed. They consume the same canonical target service and Check-In metadata without changing Mobile source. D2 remains absent from the current internal builds and must not be distributed or deployed without a separately reviewed cross-platform release decision.
 
-Validation: focused Intake 23/23, TypeScript pass, and full Mobile 123/123 across 13 suites. D2 has not been built, distributed, deployed, or received by Ryan. W1 subsequently resolved new 20-Minute Walk scheduling; Overnight timing/duration, pricing, deposits, and legacy eligibility decisions remain unresolved.
+Validation at D2 closeout was focused Intake 23/23, TypeScript pass, and full Mobile 123/123 across 13 suites. D2 has not been built, distributed, deployed, or received by Ryan. W1 resolved new Walk scheduling, and O1 now locally overlays the approved fixed Overnight schedule. Overnight pricing, deposits, and legacy eligibility decisions remain unresolved.
 
 See `docs/release-notes/ryan-slice-d2-mobile-check-in-intake-parity.md`.
 
@@ -98,7 +98,7 @@ See `docs/release-notes/ryan-slice-d2-mobile-check-in-intake-parity.md`.
 
 Slice C is committed and pushed but not deployed after independent review returned `RYAN_SLICE_C_IMPLEMENTATION_CORRECT`. Web customer intake now uses the canonical active/new-booking-eligible interpretation and presents `WALK_20MIN`, `CHECK_IN`, and `OVERNIGHT`. The generated contract supplies Check-In visits/day, allowed windows, labels, structured times, exact count behavior, canonical ordering, confirmed duration, and review display.
 
-Check-In submits `visits_per_day` plus ordered `visit_windows`; Walk and Overnight omit all Check-In-only fields. Count/service transitions deterministically normalize or clear hidden state. Overnight does not surface the unresolved 720-minute compatibility duration, and neither Walk nor Overnight receives an invented scheduling policy. The contract has no `supportedOnWeb` field, so Web needs no platform-specific allowlist; `availableInIntake` remains unchanged transitional compatibility metadata with no remaining Web runtime consumer.
+Check-In submits `visits_per_day` plus ordered `visit_windows`; Walk and Overnight omit all Check-In-only fields. Count/service transitions deterministically normalize or clear hidden state. O1 now adds contract-derived fixed Overnight display/review while preserving client omission of scheduling fields. The contract has no `supportedOnWeb` field, so Web needs no platform-specific allowlist; `availableInIntake` remains unchanged transitional compatibility metadata with no remaining Web runtime consumer.
 
 Validation: focused IntakeForm 18/18, full Web 99/99 legacy plus 271/271 Vitest across 22 files, and Vite build success with 110 modules transformed. No shared/generated, backend, Mobile, production, deployment, distribution, pricing, Calendar, or public-site change occurred.
 
@@ -110,7 +110,7 @@ See `docs/release-notes/ryan-slice-c-web-check-in-intake-parity.md`.
 
 Slice C1 is committed and pushed but not deployed after independent review returned `RYAN_SLICE_C1_IMPLEMENTATION_CORRECT`. The existing owner/admin New Visit modal derives the complete canonical catalog from generated `SERVICE_TYPES`, adding the target Walk and Check-In entries while preserving the seven prior staff-managed compatibility services and `PET_SITTING` default.
 
-Check-In alone renders contract-derived 1/2/3 visits and Morning/Mid-day/Evening structured windows, enforces the exact selected-window count, normalizes count/service transitions, and submits canonical ordered `visits_per_day` plus `visit_windows`. Walk and Overnight omit Check-In-only fields and receive no invented timing or pricing policy. Legacy compatibility services retain their existing single-window behavior.
+Check-In alone renders contract-derived 1/2/3 visits and Morning/Mid-day/Evening structured windows, enforces the exact selected-window count, normalizes count/service transitions, and submits canonical ordered `visits_per_day` plus `visit_windows`. O1 now gives Overnight fixed contract context without a selector or scheduling payload. Legacy compatibility services retain their existing single-window behavior.
 
 The real API path is the existing authenticated `/client/requests` admin branch. It immediately creates an `APPROVED` `VISIT_BOOKING` for a tenant-scoped existing/offline client and asynchronously invokes jobs. Slice B already validates this path and owns date×window child jobs plus Calendar events, so no backend change was required. Creation notification, later assignment notification batching, preferred-sitter semantics, RBAC, and tenant isolation are unchanged.
 
@@ -126,7 +126,7 @@ R1 is committed and pushed but not deployed after independent review returned `R
 
 Real-handler backend characterization proves: a simulated interruption during 3 dates × 2 windows converges on retry to exactly six stable Check-In children with no duplicates; six-child cancellation cascades consistently, deduplicates Calendar event IDs, and tolerates existing already-gone semantics; and 2 dates × 3 windows assignment reaches all six children with one `STAFF_ASSIGNED` and one `VISIT_SCHEDULED` notification for the batch.
 
-R1 added no scheduling business policy. W1 subsequently resolved new 20-Minute Walk windows/start time; Overnight duration/hours, pricing, deposits, and legacy retirement remain explicit decision gates. No deployment, production validation/write, Mobile build, or distribution occurred.
+R1 added no scheduling business policy. W1 subsequently resolved new Walk windows/start time, and O1 now locally resolves new Overnight hours/duration. Pricing, deposits, and legacy retirement remain explicit decision gates. No deployment, production validation/write, Mobile build, or distribution occurred.
 
 See `docs/release-notes/ryan-release-readiness-hardening-r1.md`.
 
@@ -139,6 +139,18 @@ W1 is committed and pushed, not deployed, and independently reviewed as `RYAN_W1
 The shared contract and generated adapters now express `windowSelectionMode: exactly_one`. Web customer, Web Admin New Visit, and Mobile intake provide contract-derived single-selection controls and `visit_windows: [<canonical ID>]` without `visits_per_day`. Backend new-write validation, deterministic one-child-per-date creation, stable Calendar identity, exact canonical start, and 20-minute duration are aligned. Legacy Walk/window reads and booking-level assignment notification batching remain intact.
 
 See `docs/release-notes/ryan-w1-walk-canonical-scheduling-windows.md`.
+
+---
+
+## O1 Overnight Fixed Scheduling Local Result
+
+O1 is local implementation complete, not deployed, and awaiting independent review. Matthew approved fixed `OVERNIGHT` service from local 21:00 on each selected start-date through local 07:00 on the following date, with 600-minute nominal duration and no visits/day, selectable window, custom time, or custom range.
+
+The generic contract and regenerated adapters express the fixed schedule. New-write validation rejects client scheduling fields and persists a backend-owned fixed marker. That marker distinguishes new O1 records from unmarked historical Overnight records, which retain legacy 720-minute/all-day or exact-time compatibility without migration. One deterministic child is created per selected start-date. Calendar constructs the start and following-date end as separate local wall clocks, preserving 21:00→07:00 across DST changes. Web customer, Admin, Mobile, and MasterScheduler show the fixed following-morning context; payload, assignment, cancellation, and booking-level notifications retain their existing surrounding behavior.
+
+Validation: shared 23/23, adapters 9/9, focused O1 backend 22/22, affected backend 90/90, focused Web 52/52, full Web 286/286 plus legacy 99/99/build, and Mobile typecheck/Intake 28/28/combined Intake+D1 34/34/full 128/128. O1 remains unstaged and has not been built, distributed, deployed, received by Ryan, or exercised against production systems.
+
+See `docs/release-notes/ryan-o1-overnight-fixed-scheduling.md`.
 
 ---
 
@@ -165,7 +177,7 @@ Each operational screen should expose one obvious primary next action where prac
 | WALK_60MIN | 60-Minute Walk | Legacy; future availability pending | Keep historical; no retirement/new-booking decision yet |
 | DROPIN_1HR | 1-Hour Drop-in | Legacy; future availability pending | Keep historical; do not presume replacement/migration |
 | DROPIN_3HR | 3-Hour Drop-in | Legacy; future availability pending | Keep historical; do not presume retirement |
-| OVERNIGHT | Overnight Care | OVERNIGHT (update scheduling) | Duration/window model change |
+| OVERNIGHT | Overnight Care | OVERNIGHT fixed 21:00→07:00 next day | O1 local; historical records unchanged |
 | PET_SITTING | Pet Sitting | Target model adds CHECK_IN "Check-In" | Keep PET_SITTING historical meaning; do not reinterpret records |
 | MEET_GREET | Meet & Greet | Unchanged | Already excluded from intake |
 
@@ -179,7 +191,7 @@ Legacy IDs must remain readable for historical bookings.
 |------|---------|--------|--------|
 | Walk duration | "15–18 minute walk" | "20-minute walk" | Update copy |
 | Check-In visits | "2x visits" only | 1, 2, or 3 visits/day | Add pricing tiers |
-| Overnight | "12-4 hours of care" ⚠️ AMBIGUOUS | Clarify with Ryan | Fix wording |
+| Overnight | "12-4 hours of care" ⚠️ AMBIGUOUS | Fixed 9:00 PM–7:00 AM; pricing still TBD | Slice F copy change remains gated |
 | Pricing | $45/day (2 visits), $90/day overnight | TBD for 1 and 3 visits | Business decision |
 
 Do NOT edit the WordPress site in any implementation slice. Website alignment is Slice F.
@@ -198,6 +210,7 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | D2 | Mobile service-selection/intake parity | A, B | Committed / Pushed / Not Built / Not Distributed / Not Deployed |
 | R1 | Scheduler parity + Check-In resiliency hardening | A–C, C1, D1–D2 | Committed / Pushed / Not Deployed |
 | W1 | 20-Minute Walk canonical scheduling windows | A–C1, D2, R1 | Committed / Pushed / Not Deployed |
+| O1 | Overnight fixed 21:00→07:00 next-day scheduling | A–C1, D2, R1, W1 | Local Complete / Awaiting Independent Review / Not Deployed |
 | E | Workflow next-action simplification | C, D1, D2 | Not Started |
 | F | Public website content alignment (toganddogs.com) | Ryan pricing decisions | Not Started |
 
@@ -212,11 +225,10 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | 1 | Price for Check-In 1 visit/day | Ryan | Slice F |
 | 2 | Confirm price for Check-In 2 visits/day ($45/day) | Ryan | Slice F |
 | 3 | Price for Check-In 3 visits/day | Ryan | Slice F |
-| 4 | Exact Overnight hours/duration | Ryan | Slice A/B |
-| 5 | Whether 60-Minute Walk remains or is retired | Ryan | Slice A |
-| 6 | Whether Drop-In 1HR/3HR remain for new bookings | Ryan | Slice A |
-| 7 | Whether $35 deposit is still current | Ryan | Slice F |
-| 8 | In-app pricing automation vs admin Stripe links | Matthew/Ryan | Future |
+| 4 | Whether 60-Minute Walk remains or is retired | Ryan | Slice A |
+| 5 | Whether Drop-In 1HR/3HR remain for new bookings | Ryan | Slice A |
+| 6 | Whether $35 deposit is still current | Ryan | Slice F |
+| 7 | In-app pricing automation vs admin Stripe links | Matthew/Ryan | Future |
 
 Pricing does NOT block Slice A contract work. Slice A can proceed with service IDs, labels, durations, and window definitions without resolving pricing.
 

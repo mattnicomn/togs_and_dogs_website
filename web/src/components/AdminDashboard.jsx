@@ -40,6 +40,12 @@ const formatCanonicalTime = (value) => {
   return `${hour % 12 || 12}:${minute} ${hour >= 12 ? 'PM' : 'AM'}`;
 };
 
+const getAdminFixedScheduleLabel = (serviceType) => {
+  const service = SERVICE_TYPES.services[serviceType];
+  if (service?.scheduleMode !== 'fixed' || !service.fixedStartTime || !service.fixedEndTime) return '';
+  return `${formatCanonicalTime(service.fixedStartTime)}–${formatCanonicalTime(service.fixedEndTime)}`;
+};
+
 const getAdminCanonicalWindowModel = (serviceType) => {
   const service = SERVICE_TYPES.services[serviceType];
   if (!['match_visits_per_day', 'exactly_one'].includes(service?.windowSelectionMode)) return null;
@@ -6241,6 +6247,13 @@ const AdminDashboard = () => {
                   </div>
                 );
               })()}
+
+              {SERVICE_TYPES.services[newVisitForm.service_type]?.scheduleMode === 'fixed' && (
+                <div className="admin-check-in-schedule" role="note" aria-label="Fixed Overnight schedule">
+                  <strong>{getAdminFixedScheduleLabel(newVisitForm.service_type)}</strong>
+                  <p>Each selected date is the night service starts. It ends the following morning.</p>
+                </div>
+              )}
 
               {SERVICE_TYPES.services[newVisitForm.service_type]?.windowSelectionMode === 'legacy_compatibility' && (
                 <div className="field" style={{ marginBottom: '16px' }}>

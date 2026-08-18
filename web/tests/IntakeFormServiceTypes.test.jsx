@@ -266,6 +266,10 @@ describe('IntakeForm canonical new-booking behavior', () => {
       expect(payload).not.toHaveProperty('visits_per_day');
       expect(payload).not.toHaveProperty('visit_windows');
       expect(payload).not.toHaveProperty('visit_window');
+      expect(payload).not.toHaveProperty('preferred_time');
+      expect(payload).not.toHaveProperty('scheduled_time');
+      expect(payload).not.toHaveProperty('start_time');
+      expect(payload).not.toHaveProperty('end_time');
     }
   );
 
@@ -291,11 +295,42 @@ describe('IntakeForm canonical new-booking behavior', () => {
     expect(within(summary).queryByText(/visits per day|\$|price|pricing/i)).not.toBeInTheDocument();
   });
 
-  it('does not surface the unresolved Overnight compatibility duration in review', async () => {
-    await goToPetInfo({ serviceType: 'OVERNIGHT' });
+  it('renders and reviews the contract-derived fixed Overnight schedule without selectors or legacy duration', async () => {
+    await goToSchedule();
+    fireEvent.change(getServiceSelect(), { target: { value: 'OVERNIGHT' } });
+    const fixedSchedule = screen.getByRole('region', { name: 'Fixed Overnight schedule' });
+    expect(within(fixedSchedule).getByText('9:00 PM–7:00 AM')).toBeInTheDocument();
+    expect(within(fixedSchedule).getByText(/ends the following morning/i)).toBeInTheDocument();
+    expect(within(fixedSchedule).getByText('10 hours nominal service.')).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /visit window|visits per day/i })).not.toBeInTheDocument();
+
+    chooseDate();
+    fireEvent.click(screen.getByRole('button', { name: 'Next: Pet Info →' }));
+    await screen.findByRole('heading', { name: 'Tell us about your pets' });
     const summary = screen.getByRole('region', { name: 'Request Summary' });
     expect(within(summary).getByText('Overnight Care')).toBeInTheDocument();
-    expect(within(summary).queryByText(/720|12 hours|duration/i)).not.toBeInTheDocument();
+    expect(within(summary).getByText('10 hours')).toBeInTheDocument();
+    expect(within(summary).getByText('9:00 PM–7:00 AM next morning')).toBeInTheDocument();
+    expect(within(summary).getByText('Overnight start dates')).toBeInTheDocument();
+    expect(within(summary).queryByText(/720|12 hours|pricing|\$/i)).not.toBeInTheDocument();
+  });
+
+  it('preserves authenticated Overnight routing with no client scheduling-selection fields', async () => {
+    getSession.mockResolvedValue({ idToken: { payload: { email: 'portal@example.test', name: 'Portal Client' } } });
+    getEffectiveRole.mockReturnValue('client');
+    await completeValidForm({ serviceType: 'OVERNIGHT' });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
+
+    await waitFor(() => expect(submitClientRequest).toHaveBeenCalledOnce());
+    const payload = submitClientRequest.mock.calls[0][0];
+    expect(payload).toEqual(expect.objectContaining({
+      service_type: 'OVERNIGHT',
+      selected_dates: ['2030-01-05']
+    }));
+    for (const field of ['visits_per_day', 'visit_windows', 'visit_window', 'preferred_time', 'scheduled_time', 'start_time', 'end_time']) {
+      expect(payload).not.toHaveProperty(field);
+    }
+    expect(submitRequest).not.toHaveBeenCalled();
   });
 
   it('preserves public payload fields and policy acceptance around the new Walk service', async () => {

@@ -20,6 +20,7 @@
 | Ryan Slice D2 mobile Check-In intake parity | `docs/release-notes/ryan-slice-d2-mobile-check-in-intake-parity.md` |
 | Ryan release-readiness hardening R1 | `docs/release-notes/ryan-release-readiness-hardening-r1.md` |
 | Ryan W1 20-Minute Walk canonical scheduling windows | `docs/release-notes/ryan-w1-walk-canonical-scheduling-windows.md` |
+| Ryan O1 Overnight fixed 9PM–7AM scheduling | `docs/release-notes/ryan-o1-overnight-fixed-scheduling.md` |
 
 ## Planning Documents
 

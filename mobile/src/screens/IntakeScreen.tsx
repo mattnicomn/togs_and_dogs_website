@@ -50,6 +50,12 @@ const formatCanonicalWindowRange = (start: string | null, end: string | null) =>
   return formattedStart && formattedEnd ? `${formattedStart}–${formattedEnd}` : '';
 };
 
+const formatServiceDuration = (minutes: number) => (
+  minutes >= 60 && minutes % 60 === 0
+    ? `${minutes / 60} hour${minutes === 60 ? '' : 's'}`
+    : `${minutes} minutes`
+);
+
 const TERMS_VERSION = '1.0';
 const PRIVACY_VERSION = '1.0';
 
@@ -94,6 +100,10 @@ export const IntakeScreen = () => {
   const selectedService = SERVICE_TYPES.services[serviceType as keyof typeof SERVICE_TYPES.services];
   const usesCheckInSchedule = selectedService?.windowSelectionMode === 'match_visits_per_day';
   const usesExactWindowSchedule = selectedService?.windowSelectionMode === 'exactly_one';
+  const usesFixedSchedule = selectedService?.scheduleMode === 'fixed';
+  const fixedScheduleLabel = usesFixedSchedule
+    ? formatCanonicalWindowRange(selectedService.fixedStartTime, selectedService.fixedEndTime)
+    : '';
   const usesCanonicalVisitWindows = usesCheckInSchedule || usesExactWindowSchedule;
   const allowedVisitWindows = usesCanonicalVisitWindows ? [...selectedService.allowedWindowIds] : [];
   const canonicalWindowOptions = allowedVisitWindows
@@ -584,6 +594,22 @@ export const IntakeScreen = () => {
               </View>
             )}
 
+            {usesFixedSchedule && (
+              <View
+                style={styles.selectedDatesSummary}
+                accessible
+                accessibilityLabel={`Fixed Overnight schedule ${fixedScheduleLabel}. Ends the following morning.`}
+              >
+                <Text style={styles.selectedDatesLabel}>{fixedScheduleLabel}</Text>
+                <Text style={styles.selectedDatesList}>
+                  Each selected date is the night service starts. Ends the following morning.
+                </Text>
+                <Text style={styles.selectedDatesList}>
+                  {formatServiceDuration(selectedService.durationMinutes)} nominal service.
+                </Text>
+              </View>
+            )}
+
             <Text style={[styles.sectionTitle, { marginTop: 24 }]} accessibilityRole="header">
               {usesCheckInSchedule ? '4. Visit Dates' : usesExactWindowSchedule ? '3. Visit Dates' : '2. Visit Dates'}
             </Text>
@@ -786,7 +812,7 @@ export const IntakeScreen = () => {
               {selectedService?.durationStatus === 'confirmed' && (
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>Duration:</Text>
-                  <Text style={styles.reviewVal}>{selectedService.durationMinutes} minutes</Text>
+                  <Text style={styles.reviewVal}>{formatServiceDuration(selectedService.durationMinutes)}</Text>
                 </View>
               )}
 
@@ -811,8 +837,17 @@ export const IntakeScreen = () => {
                 </View>
               )}
 
+              {usesFixedSchedule && (
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Schedule:</Text>
+                  <Text style={styles.reviewVal}>{fixedScheduleLabel} next morning</Text>
+                </View>
+              )}
+
               <View style={styles.reviewRow}>
-                <Text style={styles.reviewLabel}>Dates ({selectedDates.length}):</Text>
+                <Text style={styles.reviewLabel}>
+                  {usesFixedSchedule ? 'Overnight start dates' : 'Dates'} ({selectedDates.length}):
+                </Text>
                 <Text style={styles.reviewVal}>{selectedDates.join(', ')}</Text>
               </View>
 

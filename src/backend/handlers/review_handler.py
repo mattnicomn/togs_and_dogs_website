@@ -300,6 +300,8 @@ def handler(event, context):
                         is_multi_day_req = True
                     if request_item.get('service_type') == 'CHECK_IN':
                         is_multi_day_req = True
+                    if request_item.get('canonical_schedule_mode') == 'fixed':
+                        is_multi_day_req = True
                         
                     if not is_multi_day_req:
                         print(f"INFO: [Req:{request_id}] Attempting Google Calendar sync (Status: {new_status})")

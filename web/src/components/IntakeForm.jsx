@@ -25,6 +25,17 @@ const formatCanonicalTime = (value) => {
   return `${hour % 12 || 12}:${minute} ${hour >= 12 ? 'PM' : 'AM'}`;
 };
 
+const formatServiceDuration = (minutes) => (
+  minutes >= 60 && minutes % 60 === 0
+    ? `${minutes / 60} hour${minutes === 60 ? '' : 's'}`
+    : `${minutes} minutes`
+);
+
+const getFixedScheduleLabel = (service) => {
+  if (service?.scheduleMode !== 'fixed' || !service.fixedStartTime || !service.fixedEndTime) return '';
+  return `${formatCanonicalTime(service.fixedStartTime)}–${formatCanonicalTime(service.fixedEndTime)}`;
+};
+
 const getCanonicalWindowModel = (serviceType) => {
   const service = SERVICE_TYPES.services[serviceType];
   if (!['match_visits_per_day', 'exactly_one'].includes(service?.windowSelectionMode)) return null;
@@ -77,6 +88,8 @@ const IntakeForm = () => {
   const canonicalWindowModel = getCanonicalWindowModel(formData.service_type);
   const usesCheckInSchedule = selectedService?.windowSelectionMode === 'match_visits_per_day';
   const usesExactWindowSchedule = selectedService?.windowSelectionMode === 'exactly_one';
+  const usesFixedSchedule = selectedService?.scheduleMode === 'fixed';
+  const fixedScheduleLabel = getFixedScheduleLabel(selectedService);
   const hasValidationErrors = Object.values(validationErrors).some(Boolean);
 
   useEffect(() => {
@@ -266,6 +279,12 @@ const IntakeForm = () => {
         delete payload.visits_per_day;
         delete payload.visit_windows;
         delete payload.visit_window;
+      }
+      if (usesFixedSchedule) {
+        delete payload.preferred_time;
+        delete payload.scheduled_time;
+        delete payload.start_time;
+        delete payload.end_time;
       }
       
       const sorted = [...(payload.selected_dates || [])].sort();
@@ -667,6 +686,14 @@ const IntakeForm = () => {
                   </fieldset>
                 )}
 
+                {usesFixedSchedule && (
+                  <section className="request-review-card fixed-schedule-notice" aria-label="Fixed Overnight schedule">
+                    <strong>{fixedScheduleLabel}</strong>
+                    <p>Each selected date is the night service starts. It ends the following morning.</p>
+                    <p>{formatServiceDuration(selectedService.durationMinutes)} nominal service.</p>
+                  </section>
+                )}
+
                 {/* Release 2: Preferred Sitter — informational only, does NOT auto-assign */}
                 {staffOptions.length > 0 && (
                   <div className="field" style={{ marginBottom: '24px' }}>
@@ -724,7 +751,7 @@ const IntakeForm = () => {
                     {selectedService?.durationStatus === 'confirmed' && (
                       <div>
                         <dt>Duration</dt>
-                        <dd>{selectedService.durationMinutes} minutes</dd>
+                        <dd>{formatServiceDuration(selectedService.durationMinutes)}</dd>
                       </div>
                     )}
                     {usesCheckInSchedule && (
@@ -760,8 +787,14 @@ const IntakeForm = () => {
                         </dd>
                       </div>
                     )}
+                    {usesFixedSchedule && (
+                      <div>
+                        <dt>Schedule</dt>
+                        <dd>{fixedScheduleLabel} next morning</dd>
+                      </div>
+                    )}
                     <div>
-                      <dt>Visit dates</dt>
+                      <dt>{usesFixedSchedule ? 'Overnight start dates' : 'Visit dates'}</dt>
                       <dd>{[...(formData.selected_dates || [])].sort().join(', ')}</dd>
                     </div>
                   </dl>

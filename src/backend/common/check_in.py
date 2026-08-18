@@ -5,6 +5,7 @@ from common.service_contract import SERVICE_METADATA, WINDOW_METADATA
 
 CHECK_IN_SERVICE_TYPE = "CHECK_IN"
 WALK_SERVICE_TYPE = "WALK_20MIN"
+OVERNIGHT_SERVICE_TYPE = "OVERNIGHT"
 
 
 class BookingWindowValidationError(ValueError):
@@ -21,6 +22,10 @@ def _check_in_metadata():
 
 def _walk_metadata():
     return SERVICE_METADATA[WALK_SERVICE_TYPE]
+
+
+def _overnight_metadata():
+    return SERVICE_METADATA[OVERNIGHT_SERVICE_TYPE]
 
 
 def validate_check_in_booking_fields(record):
@@ -120,12 +125,61 @@ def validate_walk_booking_fields(record):
     }
 
 
-def validate_booking_window_fields(record):
+def validate_overnight_booking_fields(record, *, persisted=False):
+    """Return backend-derived fixed Overnight fields for a new write."""
+    if record.get("service_type") != OVERNIGHT_SERVICE_TYPE:
+        return None
+    if persisted and record.get("canonical_schedule_mode") != "fixed":
+        return None
+
+    metadata = _overnight_metadata()
+    if (
+        metadata.get("scheduleMode") != "fixed"
+        or metadata.get("windowSelectionMode") != "none"
+        or metadata.get("allowedWindowIds") != []
+        or metadata.get("durationStatus") != "confirmed"
+    ):
+        raise BookingWindowValidationError(
+            "OVERNIGHT fixed scheduling contract is unsupported."
+        )
+
+    prohibited_fields = (
+        "visits_per_day",
+        "visit_windows",
+        "visit_window",
+        "preferred_time",
+        "scheduled_time",
+        "start_time",
+        "end_time",
+        "fixed_start_time",
+        "fixed_end_time",
+    )
+    supplied_fields = [field for field in prohibited_fields if field in record]
+    if supplied_fields:
+        raise BookingWindowValidationError(
+            "OVERNIGHT uses a fixed canonical schedule and does not accept "
+            + ", ".join(supplied_fields)
+            + "."
+        )
+
+    return {
+        "canonical_schedule_mode": "fixed",
+        "canonical_fixed_start_time": metadata["fixedStartTime"],
+        "canonical_fixed_end_time": metadata["fixedEndTime"],
+        "canonical_crosses_midnight": metadata["crossesMidnight"],
+        "scheduled_duration": metadata["durationMinutes"],
+    }
+
+
+def validate_booking_window_fields(record, *, persisted=False):
     """Validate a new write for any service with canonical window semantics."""
     check_in_fields = validate_check_in_booking_fields(record)
     if check_in_fields:
         return check_in_fields
-    return validate_walk_booking_fields(record)
+    walk_fields = validate_walk_booking_fields(record)
+    if walk_fields:
+        return walk_fields
+    return validate_overnight_booking_fields(record, persisted=persisted)
 
 
 def canonical_window_start(service_type, window_id):

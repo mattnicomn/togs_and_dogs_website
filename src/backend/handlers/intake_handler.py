@@ -106,13 +106,12 @@ def _generate_pet_names_string(body):
 
 
 def _validated_booking_windows(body):
-    """Return persisted fields, enforcing canonical new-write window contracts."""
+    """Return backend-owned persisted scheduling fields for a new write."""
     canonical_fields = validate_booking_window_fields(body)
     if canonical_fields:
-        return canonical_fields
+        return {key: value for key, value in canonical_fields.items() if value is not None}
     normalized = _normalize_visit_windows(body)
     return {
-        'visits_per_day': None,
         'visit_window': body.get('visit_window', 'ANYTIME'),
         'visit_windows': normalized,
     }
@@ -223,8 +222,7 @@ def _handle_admin_created_booking(event, body):
         'start_date': start_date,
         'end_date': end_date,
         'selected_dates': selected_dates if selected_dates and isinstance(selected_dates, list) else None,
-        'visit_window': booking_windows['visit_window'],
-        'visit_windows': booking_windows['visit_windows'],
+        **booking_windows,
         'preferred_time': body.get('preferred_time') or None,
         'timing_notes': body.get('timing_notes') or None,
         'preferred_sitter': body.get('preferred_sitter') or None,
@@ -247,8 +245,8 @@ def _handle_admin_created_booking(event, body):
         'linked_client_profile_id': client_id,
         'client_profile_link_status': 'ADMIN_CREATED',
     }
-    if booking_windows['visits_per_day'] is not None:
-        item['visits_per_day'] = booking_windows['visits_per_day']
+    if item.get('canonical_schedule_mode') == 'fixed':
+        item.pop('preferred_time', None)
     if is_test:
         item['is_test_booking'] = True
 
@@ -293,7 +291,10 @@ def _handle_admin_created_booking(event, body):
         if item.get('end_date') and item.get('start_date') != item.get('end_date'):
             is_multi_day_req = True
             
-        if item.get('service_type') in ('CHECK_IN', 'WALK_20MIN'):
+        if (
+            item.get('service_type') in ('CHECK_IN', 'WALK_20MIN')
+            or item.get('canonical_schedule_mode') == 'fixed'
+        ):
             is_multi_day_req = True
 
         if not is_multi_day_req:
@@ -509,10 +510,7 @@ def handler(event, context):
             'start_date': start_date,
             'end_date': end_date,
             'selected_dates': selected_dates if selected_dates and isinstance(selected_dates, list) else None,
-            # Release 2: visit_windows (array) for multi-select support.
-            # Legacy visit_window (string) preserved for backward compatibility.
-            'visit_window': booking_windows['visit_window'],
-            'visit_windows': booking_windows['visit_windows'],
+            **booking_windows,
             'preferred_time': body.get('preferred_time'),
             'timing_notes': body.get('timing_notes'),
             # Release 2: Preferred sitter — informational only, does NOT auto-assign.
@@ -532,8 +530,8 @@ def handler(event, context):
             'created_at': datetime.utcnow().isoformat(),
             'entity_type': 'REQUEST'
         }
-        if booking_windows['visits_per_day'] is not None:
-            item['visits_per_day'] = booking_windows['visits_per_day']
+        if item.get('canonical_schedule_mode') == 'fixed':
+            item.pop('preferred_time', None)
         if is_test:
             item['is_test_booking'] = True
         
