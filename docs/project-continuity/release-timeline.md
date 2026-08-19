@@ -35,7 +35,7 @@
 
 | Release | Milestone |
 |---------|-----------|
-| Web customer password recovery | Self-service verification-code request and code/new-password confirmation locally implemented, independently reviewed, committed, and pushed; not deployed (2026-08-11) |
+| Web customer password recovery | Frontend-only production deployment completed; safe smoke and Matthew's live Cognito E2E recovery validation passed (2026-08-15) |
 
 ## Multi-Tenant Foundation (Releases 11)
 

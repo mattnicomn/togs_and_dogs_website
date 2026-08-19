@@ -22,11 +22,13 @@ STARTUP VERIFICATION:
 
 RULES:
 - Do not deploy, build, or change production without Matthew's explicit approval.
-- Do not commit secrets, tokens, passwords, .tfplan, terraform.tfvars, screenshots, or credentials.
+- Do not commit or expose secrets, passwords, tokens, JWTs, OAuth codes, raw auth/session data, .tfplan files, terraform.tfvars values, screenshots, private data, or credentials.
 - Do not disable or change the active `TENANT_RESOLUTION_MODE=multi` configuration without explicit approval.
-- Do not provision an additional tenant or repurpose `test_tenant_alpha` without explicit approval.
-- Do not add Ryan or external testers without explicit approval.
-- Do not activate Stripe live mode without explicit approval.
+- Do not create, remove, or repurpose any tenant—including `test_tenant_alpha`—without explicit approval.
+- Do not create production test data or perform production writes without explicit approval.
+- Do not add Ryan or external testers, create another mobile build, change TestFlight/Google Play distribution, or perform further Ryan production-write testing without explicit approval.
+- Do not activate Stripe live mode or begin live subscription Checkout work without the documented prerequisites and explicit approval.
+- O1 is committed and pushed but not deployed; do not deploy it without separate explicit approval.
 - Use targeted git add only (never git add .).
 - Planning/docs work goes through Kiro. Implementation goes through AG/Antigravity.
 - Always summarize current project state before suggesting next steps.

@@ -135,8 +135,8 @@ The web Operations Portal supports Cognito's first-login new-password challenge.
 
 - Owners/admins can use current Staff Management and Client Management actions to resend an invite, send a reset email, or set a temporary password for eligible non-protected users. Self-service changes to one's own protected/security settings are intentionally restricted.
 - The current internal mobile app has a **Forgot Password** code flow for supported internal accounts.
-- Web customer self-service password recovery is implemented, committed, and pushed, but **not deployed**. Do not tell production web customers that the new web recovery flow is available yet.
-- Until a separately approved web deployment occurs, account recovery that the current production UI cannot complete requires owner or platform help.
+- Web customer self-service password recovery is deployed in production and passed Matthew's live Cognito E2E validation on 2026-08-15.
+- Protected, orphaned, duplicate, or unusual identity states that the normal recovery flow cannot complete still require owner or platform help.
 
 Never send passwords in ordinary chat, tickets, documents, or screenshots.
 
@@ -305,12 +305,12 @@ Mobile access is controlled internal distribution, not public store availability
 - Version: `1.0.0`, versionCode `4`
 - Distribution: Google Play Internal Testing
 - Remediation validation: passed in the reported environment
-- Physical phone/tablet classification: not confirmed
+- Ryan's physical Android install and operational review: confirmed 2026-08-15; the full historical remediation smoke matrix was not rerun
 - Google Play Production: not released
 
 Owners/admins can use internal mobile dashboards, requests, and schedule views. Staff receive an assigned-work schedule. Clients can view bookings, submit a care request, and view/edit existing pets. Staff/client/user administration, Calendar connection management, and notification settings remain web-only.
 
-Tester access must be approved and granted by platform administration. Ryan testing remains paused. Do not promise a public download link or add testers without approval.
+Tester access must be approved and granted by platform administration. Ryan completed the documented Android operational review, but any additional build, distribution change, tester-access change, or production-write testing requires explicit approval. Do not promise a public download link or add testers without approval.
 
 ## 16. Typical Business-Owner Day
 
@@ -397,8 +397,8 @@ Tester access must be approved and granted by platform administration. Ryan test
 - Pricing, business signup, subscription Checkout, billing dashboard, and plan changes are not self-service.
 - Live Stripe payments and subscriptions are blocked; only the internal sandbox workflow is validated.
 - Mobile is internal-only on TestFlight and Google Play Internal Testing; neither public store has a production release.
-- Physical Android validation remains unconfirmed, and Ryan testing remains paused.
-- Web customer self-service password recovery is committed and pushed but not deployed.
+- Ryan's physical Android install and operational review are confirmed; the full historical remediation smoke matrix was not rerun, and further build/distribution/production-write testing remains approval-gated.
+- Web customer self-service password recovery is production deployed and passed live Cognito E2E validation; protected or unusual identity states can still require platform support.
 - Some work on the current repository main branch is not necessarily part of the latest validated web production baseline; only explicit deployment records establish production availability.
 - A Calendar connection is not automatically available to each tenant and requires provider configuration.
 - Staff/client account actions exist, but protected, orphaned, duplicate, or unusual Cognito states can still require platform support.
@@ -440,7 +440,7 @@ This internal-facing matrix distinguishes existing tenant operations from new-bu
 | Pricing / plan changes | No | Yes; product decision required | Published plans plus controlled upgrade/downgrade workflow |
 | Booking payment configuration | No | Yes; sandbox only | Live-mode readiness workflow after EIN and payment-policy approval |
 | Mobile tester access | No | Yes—internal distribution only | Controlled tester invitation and release-channel management |
-| Account recovery | Partial—owner/admin actions for other eligible users; internal mobile forgot-password | Yes for own/protected/unusual states; new web flow not deployed | Deploy web recovery, then add consistent first-login/recovery status guidance |
+| Account recovery | Partial—production web customer self-service recovery, internal mobile forgot-password, and owner/admin actions for other eligible users | Yes for protected, orphaned, duplicate, or unusual states | Add consistent first-login/recovery status guidance and deploy the separately gated branded Cognito/Postmark sender |
 | Analytics | No | Yes; feature not implemented | Tenant-scoped operational dashboard after metric/product definition |
 
 ## 21. Ranked Future Automation Opportunities

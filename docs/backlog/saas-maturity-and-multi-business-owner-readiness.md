@@ -121,7 +121,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | Mobile | 8/10 | Corrected iOS Build 6 and Android versionCode 4 internally distributed and revalidated; Ryan's physical Android install and operational review are confirmed; full historical smoke matrix was not rerun |
 | Documentation | 8/10 | Ops guides, policies (draft), release notes comprehensive |
 | Maintainability | 5/10 | Requires developer/Matthew for many admin tasks |
-| Self-service | 3/10 | Web customer password recovery is locally complete but not deployed; onboarding, invites, billing, and settings remain limited |
+| Self-service | 3/10 | Web customer password recovery is production deployed and Cognito E2E validated; onboarding, invites, billing, and settings remain limited |
 
 ---
 
