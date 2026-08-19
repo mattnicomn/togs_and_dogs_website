@@ -21,6 +21,7 @@
 | Ryan release-readiness hardening R1 | `docs/release-notes/ryan-release-readiness-hardening-r1.md` |
 | Ryan W1 20-Minute Walk canonical scheduling windows | `docs/release-notes/ryan-w1-walk-canonical-scheduling-windows.md` |
 | Ryan O1 Overnight fixed 9PM–7AM scheduling | `docs/release-notes/ryan-o1-overnight-fixed-scheduling.md` |
+| Ryan Slice E1 Web Admin guided assignment and Calendar actions | `docs/release-notes/ryan-slice-e1-web-admin-guided-actions.md` |
 
 ## Planning Documents
 

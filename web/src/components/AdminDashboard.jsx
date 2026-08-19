@@ -7,6 +7,7 @@ import { SERVICE_TYPES } from '../generated/contracts';
 import * as XLSX from 'xlsx';
 
 import { accountStatusLabel, accountStatusClass, profileStatusLabel, profileStatusClass, getVisibleClients, CLIENT_FILTERS } from '../utils/clientManagement';
+import { GUIDED_ACTION_SEMANTICS, resolveGuidedWorkflowAction } from '../utils/workflowActions';
 
 
 
@@ -170,6 +171,7 @@ const AdminDashboard = () => {
 
 
   const [view, setView] = useState('SCHEDULER'); // SCHEDULER or LIST
+  const skipNextDataFetchRef = useRef(false);
   const activeTabRef = useRef(null);
   const staffDrawerTriggerRef = useRef(null);
   const staffDrawerCloseBtnRef = useRef(null);
@@ -979,6 +981,7 @@ const AdminDashboard = () => {
           break;
         case 'APPROVED':
         case 'BOOKED':
+        case 'JOB_CREATED':
           state.actions = ["ASSIGN", "CANCEL", "ARCHIVE", "EDIT_PET"];
           break;
         case 'ASSIGNED':
@@ -1151,47 +1154,12 @@ const AdminDashboard = () => {
 
   const getGuidedActions = (item) => {
     const { actions } = getWorkflowState(item);
-    const status = (item.status || 'PENDING_REVIEW').toUpperCase();
-    
-    // Define primary action candidates per status
-    const primaryMapping = {
-      'PENDING_REVIEW': 'CREATE_PROFILE',
-      'NEEDS_REVIEW': 'CREATE_PROFILE',
-      'PROFILE_CREATED': (item.meet_and_greet_required !== false) ? 'MEET_GREET' : 'APPROVE',
-      'MEET_GREET_REQUIRED': 'VERIFY_MG',
-      'NEEDS_MG': 'VERIFY_MG',
-      'MG_SCHEDULED': 'VERIFY_MG',
-      'MG_COMPLETED': 'APPROVE',
-      'QUOTE_NEEDED': 'QUOTED',
-      'QUOTE_SENT': 'APPROVE',
-      'QUOTED': 'APPROVE',
-      'READY_FOR_APPROVAL': 'APPROVE',
-      'NEW_REQUEST': 'APPROVE',
-      'APPROVED': 'ASSIGN',
-      'BOOKED': 'ASSIGN',
-      'JOB_CREATED': 'ASSIGN',
-      'ASSIGNED': 'COMPLETE',
-      'SCHEDULED': 'COMPLETE',
-      'IN_PROGRESS': 'COMPLETE',
-      'COMPLETED': 'ARCHIVE',
-      'CANCELLED': 'REOPEN_PENDING',
-      'DECLINED': 'ARCHIVE',
-      'ARCHIVED': 'REOPEN_PENDING',
-      'DELETED': 'REOPEN_PENDING'
-    };
-
-    let primary = primaryMapping[status];
-    if (typeof primary === 'function') primary = primary(item);
-
-    // Filter out actions that aren't allowed by getWorkflowState
-    if (primary && !actions.includes(primary)) {
-        // Fallback if the recommended primary isn't allowed
-        primary = null;
-    }
+    const primaryAction = resolveGuidedWorkflowAction(item, actions);
+    const primary = primaryAction?.id || null;
 
     const secondary = actions.filter(a => a !== primary && !['EDIT_PET', 'ASSIGN', 'CHANGE_WORKER', 'PURGE_FOREVER'].includes(a));
     
-    return { primary, secondary };
+    return { primary, primaryAction, secondary };
   };
 
   const [adminNote, setAdminNote] = useState('');
@@ -2021,6 +1989,10 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
+      if (skipNextDataFetchRef.current) {
+        skipNextDataFetchRef.current = false;
+        return;
+      }
       fetchAllData();
     }
   }, [view, statusFilter, timeframeFilter, isAuthenticated]);
@@ -2043,6 +2015,10 @@ const AdminDashboard = () => {
   };
 
   const updateRecordStatus = async (req, action, note = "", extraData = null) => {
+    if (action === 'ASSIGN' || action === 'VIEW_CALENDAR') {
+      throw new Error(`${action} is a UI workflow action and cannot be submitted as a status transition.`);
+    }
+
     const statusMap = {
       'APPROVE': 'APPROVED',
       'DECLINE': 'DECLINED',
@@ -3013,6 +2989,43 @@ const AdminDashboard = () => {
         .join(', ');
       return { ...prev, pet_ids: ids, pet_names: names };
     });
+  };
+
+  const openAssignmentHandoff = (item) => {
+    const { jobId } = resolveIds(item);
+    const status = String(item?.status || '').toUpperCase();
+
+    if (!jobId && status === 'APPROVED') {
+      alert("Job record is still initializing. Please wait a moment and refresh.");
+      fetchAllData();
+      return;
+    }
+
+    setAssigningId(item.PK);
+    setDecisionModal(null);
+    setWorkflowDropdownOpen(false);
+  };
+
+  const handleGuidedWorkflowAction = (item, guidedAction, note = "") => {
+    if (!guidedAction) return;
+
+    if (guidedAction.semantic === GUIDED_ACTION_SEMANTICS.ASSIGNMENT_HANDOFF) {
+      openAssignmentHandoff(item);
+      return;
+    }
+
+    if (guidedAction.semantic === GUIDED_ACTION_SEMANTICS.CALENDAR_NAVIGATION) {
+      if (view !== 'SCHEDULER' || statusFilter !== 'ALL') {
+        skipNextDataFetchRef.current = true;
+      }
+      setView('SCHEDULER');
+      setStatusFilter('ALL');
+      setDecisionModal(null);
+      setWorkflowDropdownOpen(false);
+      return;
+    }
+
+    onReviewAction(item, guidedAction.id, note);
   };
 
   const handleNewVisitServiceChange = (serviceType) => {
@@ -5049,7 +5062,9 @@ const AdminDashboard = () => {
                         <span className="mobile-only-label">Staff: </span>
                         {(() => {
                           const state = getWorkflowState(item);
-                          if (state.actions.includes("ASSIGN") || state.actions.includes("CHANGE_WORKER")) {
+                          const { primaryAction } = getGuidedActions(item);
+                          const isAssignmentHandoff = primaryAction?.semantic === GUIDED_ACTION_SEMANTICS.ASSIGNMENT_HANDOFF;
+                          if (isAssignmentHandoff || state.actions.includes("CHANGE_WORKER")) {
                             return (
                               <div className="assignment-wrapper">
                                 {assigningId === item.PK ? (
@@ -5079,19 +5094,11 @@ const AdminDashboard = () => {
                                   </select>
                                 ) : (
                                   <button 
-                                    onClick={() => {
-                                      const { jobId } = resolveIds(item);
-                                      if (!jobId && item.status === 'APPROVED') {
-                                        alert("Job record is still initializing. Please wait a moment and refresh.");
-                                        fetchAllData();
-                                      } else {
-                                        setAssigningId(item.PK);
-                                      }
-                                    }} 
+                                    onClick={() => openAssignmentHandoff(item)}
                                     className={`btn-small ${item.worker_id ? 'success' : 'primary-outline'}`}
-                                    disabled={!resolveIds(item).jobId && item.status === 'APPROVED'}
+                                    disabled={!resolveIds(item).jobId && String(item.status || '').toUpperCase() === 'APPROVED'}
                                   >
-                                    {item.worker_id || (item.status === 'APPROVED' && !resolveIds(item).jobId ? 'Initializing...' : 'Assign Staff')}
+                                    {item.worker_id || (String(item.status || '').toUpperCase() === 'APPROVED' && !resolveIds(item).jobId ? 'Initializing...' : primaryAction?.label || 'Change Sitter')}
                                   </button>
                                 )}
                               </div>
@@ -5103,6 +5110,21 @@ const AdminDashboard = () => {
                       </td>
                       <td data-label="Actions">
                         <div className="action-menu-container">
+                          {(() => {
+                            const { primaryAction } = getGuidedActions(item);
+                            if (primaryAction?.semantic !== GUIDED_ACTION_SEMANTICS.CALENDAR_NAVIGATION) return null;
+                            return (
+                              <button
+                                className="btn-small primary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGuidedWorkflowAction(item, primaryAction);
+                                }}
+                              >
+                                {primaryAction.label}
+                              </button>
+                            );
+                          })()}
                           <button 
                             className="button-secondary btn-small dropdown-trigger" 
                             onClick={(e) => {
@@ -5323,7 +5345,7 @@ const AdminDashboard = () => {
               ) : decisionModal.type === 'WORKFLOW_REVIEW' ? (
                 <div className="workflow-guided-actions" style={{ display: 'flex', gap: '12px', alignItems: 'center', position: 'relative' }}>
                   {(() => {
-                    const { primary, secondary } = getGuidedActions(decisionModal.item);
+                    const { primaryAction, secondary } = getGuidedActions(decisionModal.item);
                     const labels = {
                       'APPROVE': 'Approve', 'QUOTE': 'Quote Needed', 'QUOTED': 'Mark Quoted',
                       'CANCEL': 'Cancel Request', 'VERIFY_MG': 'Mark M&G Complete',
@@ -5332,7 +5354,8 @@ const AdminDashboard = () => {
                       'RESTORE_APPROVED': 'Restore to Approved',
                       'ARCHIVE': 'Archive', 'CREATE_PROFILE': 'Create Profile',
                       'MOVE_TO_NEW_REQUEST': 'To New Request', 'DELETE': 'Move to Trash',
-                      'MEET_GREET': 'Require Meet & Greet', 'MG_SCHEDULED': 'M&G Scheduled'
+                      'MEET_GREET': 'Require Meet & Greet', 'MG_SCHEDULED': 'M&G Scheduled',
+                      'ASSIGN': 'Assign Sitter', 'VIEW_CALENDAR': 'View in Calendar'
                     };
 
                     const getButtonClass = (act) => {
@@ -5374,17 +5397,15 @@ const AdminDashboard = () => {
                           </div>
                         )}
                         
-                        {primary && (
+                        {primaryAction && (
                           <button 
-                            key={primary}
+                            key={primaryAction.id}
                             onClick={() => {
-                              onReviewAction(decisionModal.item, primary, adminNote);
-                              setDecisionModal(null);
-                              setWorkflowDropdownOpen(false);
+                              handleGuidedWorkflowAction(decisionModal.item, primaryAction, adminNote);
                             }} 
-                            className={getButtonClass(primary)}
+                            className={getButtonClass(primaryAction.id)}
                           >
-                            {labels[primary] || primary}
+                            {primaryAction.label || labels[primaryAction.id] || primaryAction.id}
                           </button>
                         )}
                       </>

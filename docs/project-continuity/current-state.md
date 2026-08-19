@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-19 (Post-O1 Source-of-Truth Reconciliation)
+**Last Updated:** 2026-08-19 (Ryan Slice E1 Implemented / Validated / Not Deployed)
 
 ---
 
@@ -62,6 +62,15 @@
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
 
+- Ryan Slice E1 Web Admin Guided Assignment and Calendar Actions (✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED — 2026-08-19)
+  - A pure workflow-action resolver now distinguishes status transitions from assignment UI handoff and local Calendar navigation.
+  - `APPROVED`, `BOOKED`, and `JOB_CREATED` visit bookings expose **Assign Sitter**, which opens the existing staff selector and retains the existing `assignWorker` payload. `ASSIGN` cannot enter the `reviewRequest` status-transition path.
+  - `ASSIGNED` and `SCHEDULED` records with a worker expose **View in Calendar**, which switches locally to the existing Scheduler without a status mutation, Calendar mutation, or navigation-only API request.
+  - Complete, Cancel, intake approval, Archive, Edit, secondary actions, confirmations, RBAC, notifications, Calendar behavior, and service/status contracts remain unchanged.
+  - Validation: E1 focused 16/16; required combined suites 58/58; full Web 302/302 plus legacy 99/99; Vite build 111 modules; zero E1-introduced lint findings; diff check pass.
+  - Remaining Slice E decisions are intake **Approve & Schedule** (existing approval already starts asynchronous job/profile creation) and Mobile **Start Visit → Complete Visit** (no approved canonical `IN_PROGRESS` transition).
+  - See: `docs/release-notes/ryan-slice-e1-web-admin-guided-actions.md`
+
 - Ryan O1 Overnight Fixed 9PM–7AM Scheduling (✅ COMMITTED / PUSHED / NOT DEPLOYED — 2026-08-18)
   - Matthew approved fixed `OVERNIGHT` service from local 21:00 on each selected start-date through local 07:00 on the following calendar date. Nominal duration is 600 minutes / 10 hours; there is no visits/day, selectable window, custom time, custom range, or pricing behavior.
   - The generic shared contract now represents fixed schedules and retains `legacyDurationMinutes: 720`. Generated Web, Mobile, and Backend adapters are deterministic. Backend-derived `canonical_schedule_mode: fixed` is the persisted new/history boundary; unmarked historical records retain their legacy 720-minute/all-day or exact-time Calendar interpretation without migration.
@@ -110,7 +119,7 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - The actual admin path remains authenticated `POST /client/requests` with `source: admin_created`, producing an immediate `APPROVED` `VISIT_BOOKING` for a tenant-scoped existing/offline client. Slice B already handles validation, date×window jobs, Calendar child events, and replay safety; backend change was not required. Notification and assignment semantics remain unchanged.
   - C1 validation: AdminDashboard 13/13, combined C1 + Slice C 31/31, full Web 280/280 Vitest plus 99/99 legacy, successful 110-module build, and focused Slice B backend 31/31. Independent review returned `RYAN_SLICE_C1_IMPLEMENTATION_CORRECT`; C1 is committed and pushed but not deployed.
   - Legacy service/window compatibility is preserved. W1 resolves new `WALK_20MIN` window scheduling, and committed/pushed O1 resolves new `OVERNIGHT` fixed 21:00→07:00 scheduling while preserving unmarked history.
-  - Slice C/C1 deployment remains separately gated before cross-platform release. Slice E workflow simplification and Slice F public-site/pricing remain NOT STARTED and separately gated.
+  - Slice C/C1 deployment remains separately gated before cross-platform release. Slice E1 Web Admin guided assignment/calendar actions are implemented and validated locally but not deployed; remaining Slice E workflow decisions and Slice F public-site/pricing remain separately gated.
   - No production deployment, booking, job, Calendar mutation, or pricing change occurred.
   - See: `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md`
   - See: `docs/release-notes/ryan-slice-b-check-in-booking-job-calendar-semantics.md`
@@ -342,7 +351,7 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
 - Phase 24A-2B overall: **LOCALLY VALIDATED AND REVIEWED / ALL PLANNED PHASE 24A-2B CUSTOMER PET FIELD AND VALIDATION WIRING COMPLETE**. Mobile portions are present in the internal pair; no blanket web/backend production deployment is claimed.
 - Phase 24A-2C.2 service-type work: **PARTIALLY COMPLETE LOCALLY / 2C.2A COMPLETE / 2C.2B LOCALLY COMPLETE FOR APPROVED FRONTEND SCOPE / 2C.2C COMPLETE / 2C.2D LOCALLY COMPLETE**. Mobile portions are present in the internal pair; no blanket web/backend production deployment is claimed. Phases 2C.2A and 2C.2C are locally validated and reviewed. Phase 2C.2B planning, 2B.1 web display compatibility, 2B.2A customer IntakeForm canonical selection, 2B.2B CareCard correction, and 2B.2C MasterScheduler canonical filter correction are locally complete at their review gates. Phase 2D.1 parity/validator hardening, Phase 2D.2 generated backend metadata, Phase 2D.3 duration/friendly-name calendar wiring, and Phase 2D.4 optional color-metadata assessment closeout are locally complete with exact behavior preserved. Backend accepted-identifier policy, production assessment, normalization, migration/deprecation, scheduler-specific metadata, additional availability changes, tenant-configurable color policy, existing-event resynchronization, and deployment remain deferred and unapproved.
 - Phase 24A-2C.1 request-status work: **LOCALLY COMPLETE / WEB AND MOBILE DISPLAY COMPATIBILITY WIRED / COMMITTED AND PUSHED** across 2C.1A–2C.1C. Any web/backend production deployment decision remains separate.
-- Separate deferred scopes: staff pet-contract work, mobile pet creation, backend identifier policy, production assessment/migration, branded Cognito/Postmark sender deployment, O1 and broader Ryan-slice deployment, public mobile release, additional mobile builds/distribution, and further Ryan or formal production-write testing.
+- Separate deferred scopes: staff pet-contract work, mobile pet creation, backend identifier policy, production assessment/migration, branded Cognito/Postmark sender deployment, O1/E1 and broader Ryan-slice deployment, remaining Slice E design, public mobile release, additional mobile builds/distribution, and further Ryan or formal production-write testing.
 - Phase 24A-1C: Cross-platform visual token alignment (✅ LOCALLY VALIDATED AND REVIEWED — 2026-07-30)
   - Aligned 6 remaining color tokens per Matthew's explicit approval: `primaryHover` (`#a37213`), `textMuted` (`#6a6a66`), `border` (`#e2dfd9`), `borderSoft` (`#edf2ee`), `success` (`#4a7c59`), `danger` (`#d64933`).
   - Contract `shared/tokens/colors.json` updated to 100% aligned (`"aligned": true` across all 13 tokens).

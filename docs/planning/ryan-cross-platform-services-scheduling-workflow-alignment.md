@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–C, C1, D1–D2, R1 Hardening, W1, and O1 Committed / Pushed / Not Deployed; D1–D2/W1/O1 Not Built or Distributed; Slices E and F Deferred
+**Status:** Slices A–C, C1, D1–D2, R1 Hardening, W1, and O1 Committed / Pushed / Not Deployed; Slice E1 Implemented / Validated / Not Deployed; D1–D2/W1/O1 Not Built or Distributed; Remaining Slice E and Slice F Deferred
 
 ---
 
@@ -167,6 +167,16 @@ Each operational screen should expose one obvious primary next action where prac
 
 **Preserved safety gates:** RBAC, required human review, payment authorization, cancellation confirmation, tenant isolation, and notification confirmation must NOT be bypassed.
 
+### Slice E1 Local Web Admin Result
+
+Slice E1 is implemented and validated locally but not deployed. A pure resolver now distinguishes backend status transitions from assignment and navigation handoffs. `APPROVED`, `BOOKED`, and `JOB_CREATED` visit bookings surface **Assign Sitter**, which opens the existing staff selector and retains the existing `assignWorker` payload. `ASSIGNED` and `SCHEDULED` bookings surface **View in Calendar**, which switches to the existing Scheduler using current in-memory data without issuing a navigation-only API request. `ASSIGN` and `VIEW_CALENDAR` are blocked from the `reviewRequest` status path.
+
+Complete, Cancel, Archive, Edit, intake approval, confirmation, RBAC, notification, Calendar, service-type, and status-compatibility behavior remain unchanged. `MasterScheduler.jsx`, APIs, contracts, backend, infrastructure, and Mobile source were not changed. Validation: focused E1 16/16, required combined suites 58/58, full Vitest 302/302, legacy 99/99, build success with 111 modules, and zero E1-introduced lint findings.
+
+See `docs/release-notes/ryan-slice-e1-web-admin-guided-actions.md`.
+
+The broader intake **Approve & Schedule** and Mobile **Start Visit → Complete Visit** actions remain deferred. Intake approval already triggers asynchronous job/profile work, while this workstream has no approved canonical `IN_PROGRESS` backend transition.
+
 ---
 
 ## Current → Target Service Mapping
@@ -211,7 +221,8 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | R1 | Scheduler parity + Check-In resiliency hardening | A–C, C1, D1–D2 | Committed / Pushed / Not Deployed |
 | W1 | 20-Minute Walk canonical scheduling windows | A–C1, D2, R1 | Committed / Pushed / Not Deployed |
 | O1 | Overnight fixed 21:00→07:00 next-day scheduling | A–C1, D2, R1, W1 | Committed / Pushed / Not Deployed |
-| E | Workflow next-action simplification | C, D1, D2 | Not Started |
+| E1 | Web Admin Assign Sitter + View in Calendar handoffs | C, D1, D2 | Implemented / Validated / Not Deployed |
+| E | Remaining workflow next-action simplification | E1 | Partially Complete; intake and Mobile actions deferred |
 | F | Public website content alignment (toganddogs.com) | Ryan pricing decisions | Not Started |
 
 **Recommended order:** A → B → C + D (parallel) → E → F

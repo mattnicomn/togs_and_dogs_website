@@ -58,14 +58,14 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 11 | AI-assisted onboarding | ❌ Not started; follow deterministic onboarding | Low |
 | 12 | Video visit evidence | ❌ Not started | Low |
 | 13 | Multi-location support | ❌ Not started | Future |
-| 14 | Cross-platform services, scheduling & workflow alignment | ✅ A–C, C1, D1–D2, R1, W1, and O1 all committed/pushed/not deployed; D1–D2/W1/O1 not built or distributed; E/F deferred | High |
+| 14 | Cross-platform services, scheduling & workflow alignment | ✅ A–C, C1, D1–D2, R1, W1, and O1 committed/pushed/not deployed; E1 implemented/validated/not deployed; D1–D2/W1/O1 not built or distributed; remaining E/F deferred | High |
 
 ---
 
 ## Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–C, C1, D1–D2, R1 Hardening, W1, and O1 Committed / Pushed / Not Deployed; D1–D2/W1/O1 Not Built or Distributed; Slices E and F Deferred
+**Status:** Slices A–C, C1, D1–D2, R1 Hardening, W1, and O1 Committed / Pushed / Not Deployed; E1 Implemented / Validated / Not Deployed; D1–D2/W1/O1 Not Built or Distributed; Remaining Slice E and Slice F Deferred
 
 ### Target Service Model
 
@@ -96,7 +96,8 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | R1 | Scheduler parity + Check-In resiliency hardening | Committed / Pushed / Not Deployed | A–C, C1, D1–D2 |
 | W1 | 20-Minute Walk canonical scheduling windows | Committed / Pushed / Not Deployed | A–C1, D2, R1 |
 | O1 | Overnight fixed 21:00→07:00 next-day scheduling | Committed / Pushed / Not Deployed | A–C1, D2, R1, W1 |
-| E | Workflow next-action simplification | Not Started | C, D1, D2 |
+| E1 | Web Admin guided assignment and Calendar actions | Implemented / Validated / Not Deployed | C, C1, R1 |
+| E | Remaining workflow next-action simplification | Partially Complete / Deferred | E1, D1, D2 |
 | F | Public website content alignment | Not Started | Ryan pricing decisions |
 
 ### Open Business Decisions
@@ -245,3 +246,5 @@ The dated update log below is historical chronology. Statements such as “stric
 **Updated 2026-08-17 (Ryan W1 Walk canonical scheduling):** Matthew and Ryan approved exactly one canonical Morning, Mid-day, or Evening window for each new 20-Minute Walk request, applied uniformly to every selected date. The committed and pushed implementation aligns the shared/generated contract, new-write validation, one-child-per-date and 20-minute Calendar semantics, Web customer/Admin, Mobile, and MasterScheduler display while preserving legacy reads and booking-level notifications. Independent review returned `RYAN_W1_WALK_CANONICAL_SCHEDULING_IMPLEMENTATION_CORRECT`. W1 is not deployed, built for Mobile, distributed, or received by Ryan. Overnight, pricing, deposits, legacy retirement, Stripe, E, and F remain gated.
 
 **Updated 2026-08-18 (Ryan O1 Overnight fixed scheduling):** Matthew approved fixed local 21:00 on each selected Overnight start-date through local 07:00 the following date, with 600-minute nominal duration and no scheduling selector. O1 is committed, pushed, and not deployed (commit `46bb6b87`). Independently reviewed (Kiro: `RYAN_O1_OVERNIGHT_FIXED_SCHEDULING_IMPLEMENTATION_CORRECT`). The shared/generated contract, backend new-write marker and rejection boundary, one deterministic child per selected date, DST-safe local Calendar event, Web customer/Admin, Mobile, and MasterScheduler are aligned. Unmarked historical records retain legacy 720-minute/all-day or exact-time compatibility. Pricing, deposits, legacy retirement, Stripe, E/F, deployment, and Mobile build/distribution remain gated.
+
+**Updated 2026-08-19 (Ryan Slice E1 Web Admin guided actions):** E1 is implemented and validated locally but not deployed. A pure resolver distinguishes backend status transitions from two UI handoffs: ready-for-staffing `APPROVED`/`BOOKED`/`JOB_CREATED` records open the existing **Assign Sitter** path, while assigned/scheduled records open the existing Scheduler through **View in Calendar**. `ASSIGN` and `VIEW_CALENDAR` cannot enter `reviewRequest`; assignment payload, Complete, Cancel, intake approval, secondary actions, RBAC, notifications, and Calendar behavior are preserved. Remaining Slice E intake Approve & Schedule and Mobile Start Visit → Complete Visit require separate design/approval.
