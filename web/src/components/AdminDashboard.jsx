@@ -7,7 +7,7 @@ import { SERVICE_TYPES } from '../generated/contracts';
 import * as XLSX from 'xlsx';
 
 import { accountStatusLabel, accountStatusClass, profileStatusLabel, profileStatusClass, getVisibleClients, CLIENT_FILTERS } from '../utils/clientManagement';
-import { GUIDED_ACTION_SEMANTICS, resolveGuidedWorkflowAction } from '../utils/workflowActions';
+import { describeGuidedWorkflowAction, GUIDED_ACTION_SEMANTICS, resolveGuidedWorkflowAction } from '../utils/workflowActions';
 
 
 
@@ -78,6 +78,13 @@ const createInitialNewVisitForm = () => ({
   pet_names: '', pet_ids: [], service_type: 'PET_SITTING',
   selected_dates: [], range_start: '', range_end: '', visit_windows: ['ANYTIME'],
   visits_per_day: null, details: '', preferred_sitter: ''
+});
+
+const APPROVAL_JOB_REFRESH_ATTEMPTS = 5;
+const APPROVAL_JOB_REFRESH_DELAY_MS = 500;
+const APPROVAL_JOB_INITIALIZATION_WARNING = 'Approved successfully; job setup is still initializing. Refresh before assigning.';
+const waitForApprovalJobRefresh = () => new Promise(resolve => {
+  setTimeout(resolve, APPROVAL_JOB_REFRESH_DELAY_MS);
 });
 
 const AdminDashboard = () => {
@@ -172,6 +179,7 @@ const AdminDashboard = () => {
 
   const [view, setView] = useState('SCHEDULER'); // SCHEDULER or LIST
   const skipNextDataFetchRef = useRef(false);
+  const approvalSchedulerHandoffRef = useRef(false);
   const activeTabRef = useRef(null);
   const staffDrawerTriggerRef = useRef(null);
   const staffDrawerCloseBtnRef = useRef(null);
@@ -1153,11 +1161,14 @@ const AdminDashboard = () => {
 
 
   const getGuidedActions = (item) => {
+    const workflowItem = { ...item, workflow_type: determineWorkflowType(item) };
     const { actions } = getWorkflowState(item);
-    const primaryAction = resolveGuidedWorkflowAction(item, actions);
+    const primaryAction = resolveGuidedWorkflowAction(workflowItem, actions);
     const primary = primaryAction?.id || null;
 
-    const secondary = actions.filter(a => a !== primary && !['EDIT_PET', 'ASSIGN', 'CHANGE_WORKER', 'PURGE_FOREVER'].includes(a));
+    const secondary = actions
+      .filter(action => action !== primary && !['EDIT_PET', 'ASSIGN', 'CHANGE_WORKER', 'PURGE_FOREVER'].includes(action))
+      .map(action => describeGuidedWorkflowAction(workflowItem, action));
     
     return { primary, primaryAction, secondary };
   };
@@ -3006,6 +3017,113 @@ const AdminDashboard = () => {
     setWorkflowDropdownOpen(false);
   };
 
+  const getRequestId = (item) => {
+    if (!item) return null;
+    if (item.request_id) return item.request_id;
+
+    const pk = String(item.PK || '');
+    const sk = String(item.SK || '');
+    if (pk.startsWith('REQ#')) return pk.slice(4);
+    if (sk.startsWith('REQ#')) return sk.slice(4);
+    return null;
+  };
+
+  const hasInitializedJob = (item) => (
+    Boolean(item?.job_id)
+    || (Array.isArray(item?.job_ids) ? item.job_ids.length > 0 : Boolean(item?.job_ids))
+  );
+
+  const mergeRefreshedRequest = (requestId, refreshedRequest) => {
+    if (!refreshedRequest) return;
+    setAllRequests(prev => prev.map(item => (
+      getRequestId(item) === requestId
+        ? { ...item, ...refreshedRequest }
+        : item
+    )));
+  };
+
+  const navigateToScheduler = () => {
+    if (view !== 'SCHEDULER' || statusFilter !== 'ALL') {
+      skipNextDataFetchRef.current = true;
+    }
+    setView('SCHEDULER');
+    setStatusFilter('ALL');
+    setDecisionModal(null);
+    setWorkflowDropdownOpen(false);
+    setOpenMenuId(null);
+  };
+
+  const refetchUntilJobReady = async (requestId) => {
+    let refreshedRequest = null;
+
+    for (let attempt = 0; attempt < APPROVAL_JOB_REFRESH_ATTEMPTS; attempt += 1) {
+      const data = await getAdminRequests('ALL');
+      refreshedRequest = (data.requests || []).find(item => getRequestId(item) === requestId) || null;
+      mergeRefreshedRequest(requestId, refreshedRequest);
+
+      if (hasInitializedJob(refreshedRequest)) {
+        return true;
+      }
+
+      if (attempt < APPROVAL_JOB_REFRESH_ATTEMPTS - 1) {
+        await waitForApprovalJobRefresh();
+      }
+    }
+
+    return false;
+  };
+
+  const handleApprovalSchedulerHandoff = async (item, note = "") => {
+    if (approvalSchedulerHandoffRef.current) return;
+
+    const { reqId, clientId } = resolveIds(item);
+    if (!reqId || !clientId) {
+      showNotification('Action failed: Missing IDs for transition', 'error');
+      return;
+    }
+
+    approvalSchedulerHandoffRef.current = true;
+    setError(null);
+    setLoading(true);
+
+    try {
+      const response = await reviewRequest(reqId, clientId, 'APPROVED', note);
+      const successMsg = response?.message || 'Approved successfully.';
+      showNotification(
+        getCalendarWarningMessage(response, successMsg),
+        getCalendarNotificationType(response)
+      );
+
+      setAllRequests(prev => prev.map(request => (
+        getRequestId(request) === reqId
+          ? { ...request, status: 'APPROVED' }
+          : request
+      )));
+      setSelectedIds([]);
+      setDecisionModal(null);
+      setWorkflowDropdownOpen(false);
+      setOpenMenuId(null);
+
+      let jobReady = false;
+      try {
+        jobReady = await refetchUntilJobReady(reqId);
+      } catch (refreshErr) {
+        console.warn('Approved request reconciliation failed:', refreshErr);
+      }
+
+      navigateToScheduler();
+      if (!jobReady) {
+        showNotification(APPROVAL_JOB_INITIALIZATION_WARNING, 'warning');
+      }
+    } catch (err) {
+      console.error('Action failed:', err);
+      showNotification('Action failed: ' + err.message, 'error');
+    } finally {
+      approvalSchedulerHandoffRef.current = false;
+      setLoading(false);
+    }
+  };
+
   const handleGuidedWorkflowAction = (item, guidedAction, note = "") => {
     if (!guidedAction) return;
 
@@ -3015,13 +3133,12 @@ const AdminDashboard = () => {
     }
 
     if (guidedAction.semantic === GUIDED_ACTION_SEMANTICS.CALENDAR_NAVIGATION) {
-      if (view !== 'SCHEDULER' || statusFilter !== 'ALL') {
-        skipNextDataFetchRef.current = true;
-      }
-      setView('SCHEDULER');
-      setStatusFilter('ALL');
-      setDecisionModal(null);
-      setWorkflowDropdownOpen(false);
+      navigateToScheduler();
+      return;
+    }
+
+    if (guidedAction.semantic === GUIDED_ACTION_SEMANTICS.APPROVAL_SCHEDULER_HANDOFF) {
+      handleApprovalSchedulerHandoff(item, note);
       return;
     }
 
@@ -5176,6 +5293,8 @@ const AdminDashboard = () => {
                                    };
                                    
                                    const isDangerous = ['DELETE', 'CANCEL'].includes(action);
+                                   const workflowItem = { ...item, workflow_type: determineWorkflowType(item) };
+                                   const guidedAction = describeGuidedWorkflowAction(workflowItem, action);
                                    
                                    return (
                                      <button 
@@ -5187,13 +5306,15 @@ const AdminDashboard = () => {
                                            setArchiveConfirmModal({ item });
                                          } else if (action === 'PROCESS_CANCELLATION') {
                                            handleProcessCancellation(item);
+                                         } else if (guidedAction.semantic === GUIDED_ACTION_SEMANTICS.APPROVAL_SCHEDULER_HANDOFF) {
+                                           handleGuidedWorkflowAction(item, guidedAction);
                                          } else {
                                            onReviewAction(item, action); 
                                          }
                                        }} 
                                        className={`dropdown-item ${isDangerous ? 'dangerous' : ''}`}
                                      >
-                                       {labels[action] || action}
+                                       {guidedAction.label || labels[action] || action}
                                      </button>
                                    );
                                  });
@@ -5379,17 +5500,21 @@ const AdminDashboard = () => {
                             </button>
                             {workflowDropdownOpen && (
                               <div className="action-dropdown-menu card shadow-lg" style={{ bottom: '100%', top: 'auto', marginBottom: '8px' }}>
-                                {secondary.map(action => (
+                                {secondary.map(guidedAction => (
                                   <button
-                                    key={action}
-                                    className={`dropdown-item ${['DELETE', 'CANCEL'].includes(action) ? 'dangerous' : ''}`}
+                                    key={guidedAction.id}
+                                    className={`dropdown-item ${['DELETE', 'CANCEL'].includes(guidedAction.id) ? 'dangerous' : ''}`}
                                     onClick={() => {
-                                      onReviewAction(decisionModal.item, action, adminNote);
-                                      setDecisionModal(null);
-                                      setWorkflowDropdownOpen(false);
+                                      if (guidedAction.semantic === GUIDED_ACTION_SEMANTICS.APPROVAL_SCHEDULER_HANDOFF) {
+                                        handleGuidedWorkflowAction(decisionModal.item, guidedAction, adminNote);
+                                      } else {
+                                        onReviewAction(decisionModal.item, guidedAction.id, adminNote);
+                                        setDecisionModal(null);
+                                        setWorkflowDropdownOpen(false);
+                                      }
                                     }}
                                   >
-                                    {labels[action] || action}
+                                    {guidedAction.label || labels[guidedAction.id] || guidedAction.id}
                                   </button>
                                 ))}
                               </div>
@@ -5404,6 +5529,7 @@ const AdminDashboard = () => {
                               handleGuidedWorkflowAction(decisionModal.item, primaryAction, adminNote);
                             }} 
                             className={getButtonClass(primaryAction.id)}
+                            disabled={loading}
                           >
                             {primaryAction.label || labels[primaryAction.id] || primaryAction.id}
                           </button>

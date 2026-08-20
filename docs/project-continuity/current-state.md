@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-19 (Ryan Slice E1 Implemented / Validated / Not Deployed)
+**Last Updated:** 2026-08-20 (Ryan Slice E2 Implemented / Validated / Not Deployed)
 
 ---
 
@@ -62,13 +62,23 @@
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
 
+- Ryan Slice E2 Intake Approval to Scheduler Handoff (✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED — 2026-08-20)
+  - Customer-intake approval exposes **Approve & Open Scheduler** as a distinct approval-to-Scheduler semantic while still submitting exactly one canonical `APPROVED` operation through existing `/admin/review`.
+  - No second booking is created: E2 never calls `createAdminBooking()`, adds no synthetic status, and never automatically retries approval.
+  - After success, five bounded existing-request reads at most (immediate, then 500 ms intervals; 2 seconds maximum) match the same `request_id`, merge refreshed data, and accept `job_id` or non-empty `job_ids` as ready.
+  - Readiness or timeout opens the existing Scheduler. Timeout does not roll back approval and shows a refresh-before-assigning warning. The handoff does not assign a sitter or complete scheduling, and Scheduler date visibility remains unchanged.
+  - Approval failure performs no readiness polling and no navigation; an in-flight guard prevents duplicate submissions.
+  - Validation: focused 24/24; required combined suites 86/86; full Web 310/310 plus legacy 99/99; Vite build 111 modules; exact 17-error/5-warning AdminDashboard lint baseline preserved; diff check pass.
+  - Remaining Slice E decision: Mobile **Start Visit → Complete Visit**; no approved canonical `IN_PROGRESS` transition exists for this workstream.
+  - See: `docs/release-notes/ryan-slice-e2-intake-approval-scheduler-handoff.md`
+
 - Ryan Slice E1 Web Admin Guided Assignment and Calendar Actions (✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED — 2026-08-19)
   - A pure workflow-action resolver now distinguishes status transitions from assignment UI handoff and local Calendar navigation.
   - `APPROVED`, `BOOKED`, and `JOB_CREATED` visit bookings expose **Assign Sitter**, which opens the existing staff selector and retains the existing `assignWorker` payload. `ASSIGN` cannot enter the `reviewRequest` status-transition path.
   - `ASSIGNED` and `SCHEDULED` records with a worker expose **View in Calendar**, which switches locally to the existing Scheduler without a status mutation, Calendar mutation, or navigation-only API request.
   - Complete, Cancel, intake approval, Archive, Edit, secondary actions, confirmations, RBAC, notifications, Calendar behavior, and service/status contracts remain unchanged.
   - Validation: E1 focused 16/16; required combined suites 58/58; full Web 302/302 plus legacy 99/99; Vite build 111 modules; zero E1-introduced lint findings; diff check pass.
-  - Remaining Slice E decisions are intake **Approve & Schedule** (existing approval already starts asynchronous job/profile creation) and Mobile **Start Visit → Complete Visit** (no approved canonical `IN_PROGRESS` transition).
+  - Slice E2 now resolves the intake approval handoff without a second booking. Mobile **Start Visit → Complete Visit** remains deferred because no approved canonical `IN_PROGRESS` transition exists.
   - See: `docs/release-notes/ryan-slice-e1-web-admin-guided-actions.md`
 
 - Ryan O1 Overnight Fixed 9PM–7AM Scheduling (✅ COMMITTED / PUSHED / NOT DEPLOYED — 2026-08-18)
@@ -119,7 +129,7 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - The actual admin path remains authenticated `POST /client/requests` with `source: admin_created`, producing an immediate `APPROVED` `VISIT_BOOKING` for a tenant-scoped existing/offline client. Slice B already handles validation, date×window jobs, Calendar child events, and replay safety; backend change was not required. Notification and assignment semantics remain unchanged.
   - C1 validation: AdminDashboard 13/13, combined C1 + Slice C 31/31, full Web 280/280 Vitest plus 99/99 legacy, successful 110-module build, and focused Slice B backend 31/31. Independent review returned `RYAN_SLICE_C1_IMPLEMENTATION_CORRECT`; C1 is committed and pushed but not deployed.
   - Legacy service/window compatibility is preserved. W1 resolves new `WALK_20MIN` window scheduling, and committed/pushed O1 resolves new `OVERNIGHT` fixed 21:00→07:00 scheduling while preserving unmarked history.
-  - Slice C/C1 deployment remains separately gated before cross-platform release. Slice E1 Web Admin guided assignment/calendar actions are implemented and validated locally but not deployed; remaining Slice E workflow decisions and Slice F public-site/pricing remain separately gated.
+  - Slice C/C1 deployment remains separately gated before cross-platform release. Slice E1–E2 Web Admin handoffs are implemented and validated locally but not deployed; the remaining Mobile Slice E decision and Slice F public-site/pricing remain separately gated.
   - No production deployment, booking, job, Calendar mutation, or pricing change occurred.
   - See: `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md`
   - See: `docs/release-notes/ryan-slice-b-check-in-booking-job-calendar-semantics.md`

@@ -1,7 +1,8 @@
 export const GUIDED_ACTION_SEMANTICS = Object.freeze({
   STATUS_TRANSITION: 'STATUS_TRANSITION',
   ASSIGNMENT_HANDOFF: 'ASSIGNMENT_HANDOFF',
-  CALENDAR_NAVIGATION: 'CALENDAR_NAVIGATION'
+  CALENDAR_NAVIGATION: 'CALENDAR_NAVIGATION',
+  APPROVAL_SCHEDULER_HANDOFF: 'APPROVAL_SCHEDULER_HANDOFF'
 });
 
 const PRIMARY_ACTION_BY_STATUS = Object.freeze({
@@ -27,7 +28,19 @@ const PRIMARY_ACTION_BY_STATUS = Object.freeze({
   DELETED: 'REOPEN_PENDING'
 });
 
-const getActionDescriptor = (actionId) => {
+export const describeGuidedWorkflowAction = (item, actionId) => {
+  if (
+    actionId === 'APPROVE'
+    && String(item?.workflow_type || '').toUpperCase() === 'CUSTOMER_INTAKE'
+  ) {
+    return {
+      id: actionId,
+      label: 'Approve & Open Scheduler',
+      semantic: GUIDED_ACTION_SEMANTICS.APPROVAL_SCHEDULER_HANDOFF,
+      target: 'SCHEDULER'
+    };
+  }
+
   if (actionId === 'ASSIGN') {
     return {
       id: actionId,
@@ -67,7 +80,7 @@ export const resolveGuidedWorkflowAction = (item, allowedActions = []) => {
 
   if (!actionId) return null;
 
-  const descriptor = getActionDescriptor(actionId);
+  const descriptor = describeGuidedWorkflowAction(item, actionId);
   if (
     descriptor.semantic !== GUIDED_ACTION_SEMANTICS.CALENDAR_NAVIGATION &&
     !allowedActions.includes(actionId)

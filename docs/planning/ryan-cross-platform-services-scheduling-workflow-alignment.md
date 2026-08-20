@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–C, C1, D1–D2, R1 Hardening, W1, and O1 Committed / Pushed / Not Deployed; Slice E1 Implemented / Validated / Not Deployed; D1–D2/W1/O1 Not Built or Distributed; Remaining Slice E and Slice F Deferred
+**Status:** Slices A–C, C1, D1–D2, R1 Hardening, W1, and O1 Committed / Pushed / Not Deployed; Slices E1–E2 Implemented / Validated / Not Deployed; D1–D2/W1/O1 Not Built or Distributed; Remaining Mobile Slice E and Slice F Deferred
 
 ---
 
@@ -160,7 +160,7 @@ Each operational screen should expose one obvious primary next action where prac
 
 | Phase | Recommended Action |
 |-------|-------------------|
-| Intake reviewed | Approve & Schedule (pre-filled booking form) |
+| Intake reviewed | Approve & Open Scheduler (existing approval + local handoff) |
 | Booking created | Assign Sitter |
 | Sitter assigned | View in Calendar |
 | Visit day (staff mobile) | Start Visit → Complete Visit |
@@ -175,7 +175,17 @@ Complete, Cancel, Archive, Edit, intake approval, confirmation, RBAC, notificati
 
 See `docs/release-notes/ryan-slice-e1-web-admin-guided-actions.md`.
 
-The broader intake **Approve & Schedule** and Mobile **Start Visit → Complete Visit** actions remain deferred. Intake approval already triggers asynchronous job/profile work, while this workstream has no approved canonical `IN_PROGRESS` backend transition.
+### Slice E2 Local Web Admin Result
+
+Slice E2 is implemented and validated locally but not deployed. Customer-intake approval now exposes **Approve & Open Scheduler** with a distinct approval-to-Scheduler semantic. It submits exactly one existing canonical `APPROVED` operation through `/admin/review`; it never calls `createAdminBooking()`, never invents a combined backend status, and never automatically retries approval.
+
+After approval succeeds, AdminDashboard boundedly reads the existing admin-request list up to five times—immediately and then every 500 ms, for a maximum 2-second window—matches the same `request_id`, merges the refreshed request locally, and recognizes `job_id` or non-empty `job_ids` readiness. It then opens the existing Scheduler. If readiness is delayed or reconciliation fails, approval remains successful, Scheduler still opens, and a non-destructive initialization warning instructs the admin to refresh before assigning. Approval failure performs no polling and no navigation. An in-flight ref prevents duplicate submissions.
+
+The action opens Scheduler but does not assign a sitter or complete scheduling. Existing Scheduler date filtering is unchanged, so a future booking may exist in Scheduler data without being visible in the current day/week. E1 assignment/navigation, standard visit-booking approval, Complete, Cancel, Archive, Edit, secondary actions, RBAC, notifications, backend automation, Calendar behavior, and tenant enforcement remain unchanged. Validation: E1+E2 focused 24/24, required combined suites 86/86, full Web 310/310 plus legacy 99/99, build success with 111 modules, zero E2-introduced lint findings, and diff check pass.
+
+See `docs/release-notes/ryan-slice-e2-intake-approval-scheduler-handoff.md`.
+
+The remaining Slice E action is Mobile **Start Visit → Complete Visit**. This workstream still has no approved canonical `IN_PROGRESS` backend transition.
 
 ---
 
@@ -222,7 +232,8 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | W1 | 20-Minute Walk canonical scheduling windows | A–C1, D2, R1 | Committed / Pushed / Not Deployed |
 | O1 | Overnight fixed 21:00→07:00 next-day scheduling | A–C1, D2, R1, W1 | Committed / Pushed / Not Deployed |
 | E1 | Web Admin Assign Sitter + View in Calendar handoffs | C, D1, D2 | Implemented / Validated / Not Deployed |
-| E | Remaining workflow next-action simplification | E1 | Partially Complete; intake and Mobile actions deferred |
+| E2 | Web Admin intake approval → bounded reconciliation → Scheduler handoff | E1 | Implemented / Validated / Not Deployed |
+| E | Remaining workflow next-action simplification | E1, E2 | Partially Complete; Mobile Start/Complete deferred |
 | F | Public website content alignment (toganddogs.com) | Ryan pricing decisions | Not Started |
 
 **Recommended order:** A → B → C + D (parallel) → E → F
