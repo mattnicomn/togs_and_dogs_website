@@ -176,6 +176,8 @@ The two additional budget notifications were originally added via the AWS Budget
 
 All three alerts are intentional and use the existing subscriber. The budget name, $20 monthly limit, period, and `Client=TogAndDogs` cost scope remain unchanged. This source-only reconciliation represents the existing production configuration; it did not change AWS Budget behavior and was not a deployment. Its purpose was to eliminate the known budget drift before regenerating the E3A Gate-A Terraform plan.
 
+Later on 2026-08-21, the approved E3A Gate-A saved plan was applied. The budget resource remained an explicit no-op in that exact plan, and the post-deployment read-only check reconfirmed the same ACTUAL 80%, ACTUAL 100%, and FORECASTED 80% notifications. No AWS Budget setting or subscriber changed.
+
 ---
 
 ## 7. Actions NOT Performed

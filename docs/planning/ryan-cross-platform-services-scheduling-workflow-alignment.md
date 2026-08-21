@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–C, C1, D1–D2, R1 Hardening, W1, and O1 Committed / Pushed / Not Deployed; Slices E1–E3B.1 Implemented / Validated / Not Deployed; E3B/E3B.1 Not Built or Distributed; Slice F Deferred
+**Status:** Slices A–C, C1, D1–D2, R1 Hardening, W1, O1, E1, and E2 Not Deployed; E3A Backend/API Gate A Deployed / Non-Write Verified / Gate B Not Approved; E3B/E3B.1 Not Built, Distributed, or Deployed; Slice F Deferred
 
 ---
 
@@ -185,13 +185,15 @@ The action opens Scheduler but does not assign a sitter or complete scheduling. 
 
 See `docs/release-notes/ryan-slice-e2-intake-approval-scheduler-handoff.md`.
 
-### Slice E3A Local Backend and Read-Contract Result
+### Slice E3A Production Backend and Read-Contract Result
 
-Slice E3A is implemented and validated locally but not deployed. Authenticated `POST /admin/job/start` targets one canonical `ASSIGNED` child JOB and atomically writes server UTC `started_at`, actor/update metadata, and one `JOB_STARTED` child audit entry. It preserves child and parent status plus assignment; no canonical `IN_PROGRESS`, Calendar mutation, notification, or parent write exists. Owner/admin conventions are preserved, while staff identity must match child `worker_id`. Conditional writes and strongly consistent replay resolution ensure one first timestamp/audit event and return the original persisted result on replay.
+Slice E3A backend/API Gate A was deployed and non-write verified on 2026-08-21. Authenticated `POST /admin/job/start` targets one canonical `ASSIGNED` child JOB and atomically writes server UTC `started_at`, actor/update metadata, and one `JOB_STARTED` child audit entry. It preserves child and parent status plus assignment; no canonical `IN_PROGRESS`, Calendar mutation, notification, or parent write exists. Owner/admin conventions are preserved, while staff identity must match child `worker_id`. Conditional writes and strongly consistent replay resolution ensure one first timestamp/audit event and return the original persisted result on replay.
 
 The existing exact admin-request read now exposes authoritative child occurrences with unambiguous parent relationship, date/end-date/window/index/count, child status, worker, start/end time, Start metadata, completion metadata, and visit notes. Same-date Check-In windows remain distinct and deterministic; Walk and Overnight children retain their generated occurrence semantics. Legacy singular `job_id` and missing optional fields are read safely without migration or historical inference.
 
 Complete is unchanged and remains valid with or without Start metadata. E3A itself includes no Mobile UI; E3B subsequently added Mobile consumption and E3B.1 hardened it. Early/late/same-day policy, correction, mandatory Start, client visibility, notifications, Calendar effects, offline time, and admin-on-behalf UX remain deferred decisions.
+
+Gate A used exact RC `732e48b` and the exact reviewed saved Terraform plan (`14 added, 14 changed, 1 destroyed`). All 13 Lambdas and API deployment `886zij` passed health/configuration checks; unauthenticated Start/GET boundaries returned 401 and OPTIONS returned 200. Gate B, successful Start, Complete, production test data, authenticated record validation, Mobile build/distribution, tester changes, and Ryan testing were not performed.
 
 See `docs/release-notes/ryan-slice-e3a-child-start-contract-occurrence-read-model.md`.
 
@@ -251,7 +253,7 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | O1 | Overnight fixed 21:00→07:00 next-day scheduling | A–C1, D2, R1, W1 | Committed / Pushed / Not Deployed |
 | E1 | Web Admin Assign Sitter + View in Calendar handoffs | C, D1, D2 | Implemented / Validated / Not Deployed |
 | E2 | Web Admin intake approval → bounded reconciliation → Scheduler handoff | E1 | Implemented / Validated / Not Deployed |
-| E3A | Child Start contract + occurrence-aware exact-request read | E1, E2 | Implemented / Validated / Not Deployed |
+| E3A | Child Start contract + occurrence-aware exact-request read | E1, E2 | Backend/API Gate A Deployed / Non-Write Verified / Gate B Not Approved |
 | E3B | Mobile occurrence-safe Start/Complete consumption | E3A | Implemented / Validated / Not Built / Not Distributed / Not Deployed |
 | E3B.1 | Mobile visit workflow safety remediation | E3B | Implemented / Validated / Not Built / Not Distributed / Not Deployed |
 | E | Remaining workflow next-action simplification | E1, E2, E3A | E1–E3B.1 complete locally; deployment/build planning separately gated |

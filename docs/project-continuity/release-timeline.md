@@ -37,6 +37,12 @@
 |---------|-----------|
 | Web customer password recovery | Frontend-only production deployment completed; safe smoke and Matthew's live Cognito E2E recovery validation passed (2026-08-15) |
 
+## Ryan Workflow Alignment
+
+| Slice | Milestone |
+|-------|-----------|
+| E3A | **Backend/API Gate A deployed to production and non-write verified** from RC `732e48b` using the exact approved saved plan (`14 added, 14 changed, 1 destroyed`) on 2026-08-21. Gate B, successful Start, production test data, E3B/E3B.1 Mobile build/distribution, and Ryan testing remain unapproved. |
+
 ## Multi-Tenant Foundation (Releases 11)
 
 | Release | Milestone |

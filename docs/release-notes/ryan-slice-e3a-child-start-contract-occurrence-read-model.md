@@ -1,7 +1,7 @@
 # Ryan Slice E3A — Child Start Contract and Occurrence Read Model
 
-**Date:** 2026-08-20
-**Status:** ✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED
+**Date:** 2026-08-20; production Gate A deployed 2026-08-21
+**Status:** ✅ DEPLOYED TO PRODUCTION / NON-WRITE VERIFIED / GATE B NOT APPROVED
 **Starting SHA:** `694555f0f10be80bd99099a1b00f329c5bbbf73d`
 
 ## Objective
@@ -39,7 +39,7 @@ The existing child Complete implementation is unchanged. Complete continues to w
 - Added canonical shared paths for `/admin/job/start` and `/admin/requests/{requestId}` and regenerated the existing Web/Mobile adapters.
 - Added authenticated API Gateway methods/integrations for the new Start action and the existing exact-request handler path.
 - Request-status and service/job lifecycle constants are unchanged; executable contract checks confirm `IN_PROGRESS` remains non-canonical.
-- Terraform CLI was unavailable in the local environment, so `terraform fmt -check` could not run. Focused source coverage verifies both authenticated route resources, methods, and Lambda integrations; the infrastructure was not planned or applied.
+- Before deployment, Terraform 1.14.8 format and validation passed, the production budget declarations were reconciled to the existing three-alert state, and the saved production plan was reviewed against an exact resource whitelist.
 
 ## Validation
 
@@ -51,12 +51,20 @@ The existing child Complete implementation is unchanged. Complete continues to w
 - full backend candidate: 977 passed / 100 failed versus exact starting checkpoint 953 passed / the same 100 baseline environment failures; and
 - `git diff --check`: pass.
 
+## Production Gate-A Deployment (2026-08-21)
+
+Matthew explicitly approved Gate A for isolated backend/API RC `732e48b930f6fd9aac958351c4ac7823c14cf3e0`. Terraform applied only the saved plan with SHA-256 `01DA5C94E022420A0E3456ED888F9800DDD972FACA32BF61106FFE801B696854`; the deployed backend ZIP SHA-256 is `C7E407664A170CA1C2077029E6750BDEBE736E648E505666DE3DED091C66635A`. The apply ran from `2026-08-21T19:47:12Z` through `2026-08-21T19:48:35Z` and completed with `14 added, 14 changed, 1 destroyed`. The only warning was the pre-existing deprecated DynamoDB backend-lock parameter.
+
+All 13 shared-package Lambdas reached `Active` / `Successful`, matched the approved package hash, and retained their pre-deploy configuration fingerprints. API Gateway `prod` moved from deployment `28dv28` to `886zij`; all 50 baseline paths remained, `/admin/job/start` and the exact-request GET have Cognito authorization plus Lambda proxy integration, and both OPTIONS/CORS paths passed. Unauthenticated Start and exact GET returned `401` before integration; both OPTIONS checks returned `200`. Deployment-window log review found no import, initialization, or syntax errors; the SES-feedback function had no log group to inspect but independently passed Lambda health and package verification. Production budget notifications remained ACTUAL 80%, ACTUAL 100%, and FORECASTED 80%.
+
+No successful Start, Complete, assignment/review/booking mutation, production test-data creation, Calendar action, notification, tenant, IAM, DynamoDB, Cognito, Postmark, Stripe, or budget change occurred. Authenticated malformed Start was skipped because no approved production authentication context was supplied. Authenticated exact-record GET was skipped because no preapproved internal validation record was documented. Gate B and successful Start validation remain separately approval-gated.
+
 ## Boundaries and Next Slice
 
-E3A, E2, E1, and O1 are NOT DEPLOYED. No Mobile build/distribution, production write, Calendar mutation, notification, tenant/Cognito/Postmark/Stripe change, or public-site action occurred.
+E3A backend/API Gate A is deployed. E2, E1, and O1 remain NOT DEPLOYED. E3B/E3B.1 Mobile remain NOT BUILT, NOT DISTRIBUTED, and NOT DEPLOYED. No Ryan testing or tester change was authorized.
 
-E3B Mobile remains future work. Early/late/same-day Start policy, Start correction, mandatory Start-before-Complete, client visibility, Start notifications, Calendar effects, offline/device time, and any admin “Start on behalf” UX remain explicit product decisions.
+E3B/E3B.1 Mobile are implemented and validated locally but remain future build/distribution/deployment work. Early/late/same-day Start policy, Start correction, mandatory Start-before-Complete, client visibility, Start notifications, Calendar effects, offline/device time, and any admin “Start on behalf” UX remain explicit product decisions.
 
 ## Disposition
 
-**Final Status:** `RYAN_SLICE_E3A_CHILD_START_CONTRACT_OCCURRENCE_READ_MODEL_IMPLEMENTED_VALIDATED_NOT_DEPLOYED`
+**Final Status:** `RYAN_SLICE_E3A_DEPLOYED_GATE_A_NON_WRITE_VALIDATED_GATE_B_NOT_APPROVED`
