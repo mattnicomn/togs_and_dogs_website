@@ -160,6 +160,13 @@ test('API paths contain no secrets or environment data', () => {
   assert.ok(!pathsStr.includes('://'), 'Contains protocol');
 });
 
+test('E3A admin child-job paths are canonical and explicit', () => {
+  assert.equal(apiPaths.admin.getRequest, '/admin/requests/{requestId}');
+  assert.equal(apiPaths.admin.jobStart, '/admin/job/start');
+  assert.equal(apiPaths.admin.jobComplete, '/admin/job/complete');
+  assert.equal(statuses.statuses.IN_PROGRESS, undefined, 'E3A must not canonicalize IN_PROGRESS');
+});
+
 test('contract metadata is present in all files', () => {
   assert.ok(statuses._contract, 'Statuses missing _contract');
   assert.ok(services._contract, 'Services missing _contract');

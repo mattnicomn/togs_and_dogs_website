@@ -1,6 +1,6 @@
 {
   "_contract": "Togs & Dogs API path identifiers",
-  "_version": "24A-2",
+  "_version": "24A-2-E3A",
   "_authority": "modules/api/main.tf (API Gateway resources) and web/src/api/client.js",
   "_note": "Paths only. No hostnames, environment URLs, secrets, or tenant data. API base URL remains platform configuration.",
   "client": {
@@ -12,9 +12,11 @@
   },
   "admin": {
     "getRequests": "/admin/requests",
+    "getRequest": "/admin/requests/{requestId}",
     "postAction": "/admin/requests",
     "review": "/admin/review",
     "assign": "/admin/assign",
+    "jobStart": "/admin/job/start",
     "jobComplete": "/admin/job/complete",
     "getPets": "/admin/pets",
     "getPetById": "/admin/pets/{petId}",

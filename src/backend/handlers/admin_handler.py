@@ -315,6 +315,99 @@ def _resolve_admin_record(pk, sk, company_id=None):
     return None, pk, sk
 
 
+def _job_occurrence_sort_key(job):
+    """Return a deterministic occurrence order without inventing missing metadata."""
+    occurrence_date = job.get('occurrence_date') or ''
+    occurrence_index = job.get('occurrence_index')
+    has_index = isinstance(occurrence_index, int)
+    occurrence_window = job.get('occurrence_window') or ''
+    window_order = {
+        'MORNING': 0,
+        'MIDDAY': 1,
+        'EVENING': 2,
+    }
+
+    return (
+        not bool(occurrence_date),
+        occurrence_date,
+        not has_index,
+        occurrence_index if has_index else 0,
+        window_order.get(occurrence_window, 99),
+        occurrence_window,
+        job.get('job_id') or '',
+    )
+
+
+def _build_job_occurrence_summary(request_item, event, role, user_email):
+    """Build the exact-request child summary from authoritative JOB records."""
+    request_id = request_item.get('request_id') or (request_item.get('PK') or '').replace('REQ#', '')
+    job_ids = request_item.get('job_ids') or []
+    if not job_ids and request_item.get('job_id'):
+        job_ids = [request_item.get('job_id')]
+
+    # Preserve order while removing malformed or duplicate references.
+    job_ids = list(dict.fromkeys(jid for jid in job_ids if jid))
+    if not request_id or not job_ids:
+        return None
+
+    from common.auth import validate_tenant_ownership
+
+    jobs_summary = []
+    for jid in job_ids:
+        job_record = get_item(f"JOB#{jid}", f"REQ#{request_id}")
+        if not job_record:
+            continue
+
+        validate_tenant_ownership(job_record, event)
+
+        # The parent read is staff-scoped below. Keep child occurrence data scoped too
+        # in case historical records contain mixed child assignments.
+        if role == 'staff':
+            child_worker = (job_record.get('worker_id') or '').lower().strip()
+            if not child_worker or child_worker != user_email:
+                continue
+
+        occurrence_date = (
+            job_record.get('occurrence_date')
+            or job_record.get('scheduled_date')
+            or job_record.get('start_date')
+        )
+        occurrence_window = job_record.get('occurrence_window') or job_record.get('visit_window')
+        status = job_record.get('status', 'JOB_CREATED')
+
+        jobs_summary.append({
+            'job_id': jid,
+            'request_id': request_id,
+            'occurrence_date': occurrence_date,
+            'occurrence_end_date': job_record.get('occurrence_end_date') or job_record.get('end_date'),
+            'occurrence_window': occurrence_window,
+            'occurrence_index': job_record.get('occurrence_index'),
+            'total_occurrences': job_record.get('total_occurrences'),
+            'status': status,
+            'worker_id': job_record.get('worker_id'),
+            'worker_name': job_record.get('worker_name'),
+            'start_time': job_record.get('start_time'),
+            'end_time': job_record.get('end_time'),
+            'started_at': job_record.get('started_at'),
+            'started_by': job_record.get('started_by'),
+            'completed_at': job_record.get('completed_at'),
+            'completed_by': job_record.get('completed_by'),
+            'visit_notes': job_record.get('visit_notes'),
+        })
+
+    jobs_summary.sort(key=_job_occurrence_sort_key)
+    completed_count = sum(1 for job in jobs_summary if job['status'] == 'COMPLETED')
+    started_count = sum(1 for job in jobs_summary if job.get('started_at'))
+
+    return {
+        'total': len(jobs_summary),
+        'started': started_count,
+        'completed': completed_count,
+        'pending': len(jobs_summary) - completed_count,
+        'jobs': jobs_summary,
+    }
+
+
 
 
 
@@ -2156,6 +2249,12 @@ def handler(event, context):
             client_id = query_params.get('clientId')
             
             if request_id and client_id:
+                role = get_effective_role(event)
+                if role not in ['owner', 'admin', 'staff']:
+                    return error(403, "Forbidden", event)
+
+                claims = get_claims(event)
+                user_email = (claims.get('email') or '').lower().strip()
                 item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
                 if item:
                     # Release 11E: Post-read tenant ownership validation
@@ -2167,44 +2266,25 @@ def handler(event, context):
                         print(f"SECURITY: Cross-tenant GET attempt by {_c.get('email')} for REQ#{request_id}")
                         return error(403, "Forbidden", event)
 
-                    if item.get('job_ids'):
-                        jobs_summary = []
-                        completed_count = 0
-                        pending_count = 0
-                        total_count = len(item.get('job_ids'))
-                        
-                        for jid in item.get('job_ids'):
-                            job_record = get_item(f"JOB#{jid}", f"REQ#{request_id}")
-                            if job_record:
-                                status = job_record.get('status', 'JOB_CREATED')
-                                if status == 'COMPLETED':
-                                    completed_count += 1
-                                else:
-                                    pending_count += 1
-                                    
-                                jobs_summary.append({
-                                    'job_id': jid,
-                                    'occurrence_date': job_record.get('occurrence_date') or job_record.get('scheduled_date') or job_record.get('start_date'),
-                                    'occurrence_index': job_record.get('occurrence_index'),
-                                    'status': status,
-                                    'worker_id': job_record.get('worker_id'),
-                                    'worker_name': job_record.get('worker_name'),
-                                    'completed_at': job_record.get('completed_at'),
-                                    'completed_by': job_record.get('completed_by'),
-                                    'visit_notes': job_record.get('visit_notes')
-                                })
-                        
-                        # Sort jobs by date and occurrence index
-                        jobs_summary.sort(key=lambda x: (x.get('occurrence_date') or '', x.get('occurrence_index') or 0))
-                        
-                        item['job_completion_summary'] = {
-                            'total': total_count,
-                            'completed': completed_count,
-                            'pending': pending_count,
-                            'jobs': jobs_summary
-                        }
-                    
-                    role = get_effective_role(event)
+                    if role == 'staff':
+                        parent_worker = (item.get('worker_id') or '').lower().strip()
+                        if not parent_worker or parent_worker != user_email:
+                            return error(403, "Forbidden: You can only view visits assigned to you.", event)
+
+                    try:
+                        occurrence_summary = _build_job_occurrence_summary(
+                            item,
+                            event,
+                            role,
+                            user_email,
+                        )
+                    except PermissionError:
+                        print(f"SECURITY: Cross-tenant child occurrence read blocked for REQ#{request_id}")
+                        return error(403, "Forbidden", event)
+
+                    if occurrence_summary is not None:
+                        item['job_completion_summary'] = occurrence_summary
+
                     item = sanitize_booking_for_role(item, role)
                     return success(item, event)
                 return not_found(f"Request {request_id} not found", event)
@@ -2604,6 +2684,134 @@ def handler(event, context):
                 "message": "Payment email sent successfully",
                 "recipient_email": client_email,
                 "payment_status": request_item.get('payment_status')
+            }, event)
+
+        elif http_method == 'POST' and '/admin/job/start' in path:
+
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin', 'staff']:
+                return error(403, "Forbidden", event)
+
+            claims = get_claims(event)
+            user_email = (claims.get('email') or '').lower().strip()
+            started_by = user_email or claims.get('username') or 'admin-api'
+
+            try:
+                body = json.loads(event.get('body', '{}'))
+            except Exception:
+                return bad_request("Invalid JSON body", event)
+
+            job_id = body.get('job_id')
+            request_id = body.get('request_id')
+            if not job_id or not request_id:
+                return bad_request("Missing required fields: job_id, request_id", event)
+
+            job_key = {'PK': f"JOB#{job_id}", 'SK': f"REQ#{request_id}"}
+            job = get_item(job_key['PK'], job_key['SK'])
+            if not job:
+                return not_found(f"Job {job_id} not found under request {request_id}", event)
+
+            from common.auth import validate_tenant_ownership as _vto, get_claims as _gc
+            try:
+                _vto(job, event)
+            except PermissionError:
+                _c = _gc(event)
+                print(f"SECURITY: Cross-tenant job/start attempt by {_c.get('email')} for JOB#{job_id}")
+                return error(403, "Forbidden", event)
+
+            def _staff_can_start(candidate):
+                worker_id = (candidate.get('worker_id') or '').lower().strip()
+                return bool(worker_id and user_email and worker_id == user_email)
+
+            if role == 'staff' and not _staff_can_start(job):
+                return error(403, "You can only start visits assigned to you.", event)
+
+            # A replay returns the original authoritative timestamp without another write.
+            if job.get('started_at'):
+                return success({
+                    "message": "Visit already started.",
+                    "job_id": job_id,
+                    "request_id": request_id,
+                    "status": job.get('status'),
+                    "started_at": job.get('started_at'),
+                    "started_by": job.get('started_by'),
+                    "idempotent_replay": True,
+                }, event)
+
+            current_status = job.get('status') or 'JOB_CREATED'
+            if current_status != 'ASSIGNED':
+                return bad_request(f"Cannot start job in status: {current_status}", event)
+
+            now = datetime.now(timezone.utc).isoformat()
+            audit_entry = {
+                "action": "JOB_STARTED",
+                "timestamp": now,
+                "updated_by": started_by,
+                "job_id": job_id,
+                "request_id": request_id,
+            }
+
+            try:
+                table.update_item(
+                    Key=job_key,
+                    UpdateExpression=(
+                        "SET started_at = :sat, started_by = :sby, updated_at = :now, "
+                        "updated_by = :ub, audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)"
+                    ),
+                    ConditionExpression="attribute_not_exists(started_at) AND #stat = :assigned",
+                    ExpressionAttributeNames={"#stat": "status"},
+                    ExpressionAttributeValues={
+                        ":sat": now,
+                        ":sby": started_by,
+                        ":now": now,
+                        ":ub": started_by,
+                        ":n": [audit_entry],
+                        ":empty_list": [],
+                        ":assigned": "ASSIGNED",
+                    },
+                )
+            except Exception as start_err:
+                error_code = getattr(start_err, 'response', {}).get('Error', {}).get('Code')
+                if error_code != 'ConditionalCheckFailedException':
+                    print(f"ERROR: Failed to start JOB#{job_id}: {start_err}")
+                    return internal_error("Failed to start visit", event)
+
+                # A competing Start or terminal transition won. Read strongly so a
+                # successful competing Start resolves as an idempotent replay.
+                latest = table.get_item(Key=job_key, ConsistentRead=True).get('Item')
+                if not latest:
+                    return not_found(f"Job {job_id} not found under request {request_id}", event)
+
+                try:
+                    _vto(latest, event)
+                except PermissionError:
+                    return error(403, "Forbidden", event)
+
+                if role == 'staff' and not _staff_can_start(latest):
+                    return error(403, "You can only start visits assigned to you.", event)
+
+                if latest.get('started_at'):
+                    return success({
+                        "message": "Visit already started.",
+                        "job_id": job_id,
+                        "request_id": request_id,
+                        "status": latest.get('status'),
+                        "started_at": latest.get('started_at'),
+                        "started_by": latest.get('started_by'),
+                        "idempotent_replay": True,
+                    }, event)
+
+                latest_status = latest.get('status') or 'JOB_CREATED'
+                return bad_request(f"Cannot start job in status: {latest_status}", event)
+
+            return success({
+                "message": "Visit started successfully.",
+                "job_id": job_id,
+                "request_id": request_id,
+                "status": current_status,
+                "started_at": now,
+                "started_by": started_by,
+                "idempotent_replay": False,
             }, event)
 
         elif http_method == 'POST' and '/admin/job/complete' in path:
