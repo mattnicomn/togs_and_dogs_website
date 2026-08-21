@@ -20,6 +20,29 @@ export interface PetRequest {
   job_ids?: string[];
   completed_job_ids?: string[];
   payment_status?: string;
+  job_completion_summary?: { jobs?: JobOccurrence[] };
+  visit_windows?: string[];
+  occurrence_hydration_failed?: boolean;
+}
+
+export interface JobOccurrence {
+  job_id: string;
+  request_id: string;
+  occurrence_date?: string;
+  occurrence_end_date?: string;
+  occurrence_window?: string;
+  occurrence_index?: number;
+  total_occurrences?: number;
+  status: string;
+  worker_id?: string;
+  worker_name?: string;
+  start_time?: string;
+  end_time?: string;
+  started_at?: string;
+  started_by?: string;
+  completed_at?: string;
+  completed_by?: string;
+  visit_notes?: string;
 }
 
 export interface Staff {

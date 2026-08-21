@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 const mockGetAdminRequests = jest.fn();
+const mockGetAdminRequest = jest.fn();
 const mockNavigate = jest.fn();
 
 jest.mock('@react-navigation/native', () => {
@@ -22,6 +23,7 @@ jest.mock('@react-navigation/native', () => {
 
 jest.mock('../src/api/client', () => ({
   getAdminRequests: (...args: unknown[]) => mockGetAdminRequests(...args),
+  getAdminRequest: (...args: unknown[]) => mockGetAdminRequest(...args),
   reviewRequest: jest.fn(),
   assignWorker: jest.fn(),
   completeJob: jest.fn(),
@@ -80,6 +82,7 @@ const baseRequest: PetRequest = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockGetAdminRequest.mockImplementation(async () => ({ ...baseRequest, service_type: 'WALK_30MIN' }));
 });
 
 describe('mobile service-type label owner integration', () => {
@@ -96,13 +99,14 @@ describe('mobile service-type label owner integration', () => {
     expect(mockGetAdminRequests).toHaveBeenCalledWith('ALL');
 
     fireEvent.press(view.getByText('30-Min Walk'));
-    expect(mockNavigate).toHaveBeenCalledWith('RequestDetail', {
+    expect(mockNavigate).toHaveBeenCalledWith('RequestDetail', expect.objectContaining({
       request: expect.objectContaining({
         service_type: 'WALK_30MIN',
       }),
       selectedDate: '2099-08-01',
       jobId: 'job-service-label',
-    });
+      occurrence: expect.objectContaining({ job_id: 'job-service-label' }),
+    }));
   });
 
   it('renders the canonical contract label in RequestDetailScreen', async () => {

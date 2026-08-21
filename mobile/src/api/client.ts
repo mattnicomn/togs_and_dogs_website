@@ -69,6 +69,9 @@ export const getAdminRequests = (status = 'PENDING_REVIEW', startKey: string | n
   return request(url, 'GET', null, true);
 };
 
+export const getAdminRequest = (requestId: string, clientId: string) =>
+  request(`${buildPath(API_PATHS.admin.getRequest, { requestId })}?clientId=${encodeURIComponent(clientId)}`, 'GET', null, true);
+
 // Client portal: fetch appointments for the logged-in client
 export const getClientRequests = () => request(API_PATHS.client.getRequests, 'GET', null, true);
 
@@ -104,6 +107,9 @@ export const completeJob = (jobId: string, requestId: string, visitNotes = "") =
     request_id: requestId,
     visit_notes: visitNotes
   }, true);
+
+export const startJob = (jobId: string, requestId: string) =>
+  request(API_PATHS.admin.jobStart, 'POST', { job_id: jobId, request_id: requestId }, true);
 
 // Phase 24A-4: Client pets listing (read-only)
 export const getClientPets = () => request(API_PATHS.client.getPets, 'GET', null, true);

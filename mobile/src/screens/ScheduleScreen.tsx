@@ -12,12 +12,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/useAuth';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { getAdminRequests } from '../api/client';
+import { getAdminRequest, getAdminRequests } from '../api/client';
 import { PetRequest } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
 import { COLORS } from '../theme/colors';
 import { ContentContainer } from '../components/ContentContainer';
 import { getServiceTypeLabel } from '../utils/serviceLabels';
+import { MobileOccurrence, projectOccurrences } from '../utils/occurrences';
 
 interface ExpandedVisit {
   request_id: string;
@@ -32,6 +33,7 @@ interface ExpandedVisit {
   assigned_sitter?: string;
   job_id?: string;
   payment_status?: string;
+  occurrence: MobileOccurrence;
 }
 
 export const ScheduleScreen = () => {
@@ -88,6 +90,11 @@ export const ScheduleScreen = () => {
       // Filter for active bookings
       const activeStatuses = ['APPROVED', 'ASSIGNED', 'SCHEDULED', 'JOB_CREATED'];
       const activeRequests = requestList.filter((r: PetRequest) => activeStatuses.includes(r.status));
+      const hydratedRequests = await Promise.all(activeRequests.map(async (r: PetRequest) => {
+        if (!r.request_id || !r.client_id) return r;
+        try { return await getAdminRequest(r.request_id, r.client_id); }
+        catch { return { ...r, occurrence_hydration_failed: true }; }
+      }));
 
       const getLocalDateString = (d: Date = new Date()) => {
         const year = d.getFullYear();
@@ -99,16 +106,10 @@ export const ScheduleScreen = () => {
       const todayStr = getLocalDateString();
       const expanded: ExpandedVisit[] = [];
 
-      activeRequests.forEach((req: PetRequest) => {
-        if (req.selected_dates && Array.isArray(req.selected_dates)) {
-          req.selected_dates.forEach((dateStr: string, index: number) => {
+      hydratedRequests.forEach((req: PetRequest) => {
+        projectOccurrences(req).forEach((occurrence) => {
+            const dateStr = occurrence.occurrence_date || '';
             if (dateStr >= todayStr) {
-              const job_id = (req.job_ids && req.job_ids[index]) || req.job_id;
-              
-              // Skip completed child jobs
-              const isCompleted = req.completed_job_ids && job_id && req.completed_job_ids.includes(job_id);
-              
-              if (!isCompleted) {
                 expanded.push({
                   request_id: req.request_id,
                   client_id: req.client_id,
@@ -116,23 +117,22 @@ export const ScheduleScreen = () => {
                   pet_name: req.pet_name,
                   service_type: req.service_type,
                   date: dateStr,
-                  timeframe: req.timeframe || 'Anytime',
-                  status: req.status,
-                  worker_name: req.worker_name,
+                  timeframe: occurrence.occurrence_window || occurrence.start_time || req.timeframe || 'Anytime',
+                  status: occurrence.status,
+                  worker_name: occurrence.worker_name || req.worker_name,
                   assigned_sitter: req.assigned_sitter,
-                  job_id: job_id,
+                  job_id: occurrence.job_id || undefined,
                   payment_status: req.payment_status,
+                  occurrence,
                 });
-              }
             }
-          });
-        }
+        });
       });
 
       // Sort chronologically by date
       expanded.sort((a, b) => a.date.localeCompare(b.date));
       setVisits(expanded);
-      setOriginalRequests(requestList);
+      setOriginalRequests(hydratedRequests);
     } catch (e: any) {
       const msg = e.message || '';
       if (msg.includes('session expired') || msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('unauthorized')) {
@@ -164,6 +164,7 @@ export const ScheduleScreen = () => {
         request: original,
         selectedDate: item.date,
         jobId: item.job_id,
+        occurrence: item.occurrence,
       });
     }
   };
@@ -243,7 +244,7 @@ export const ScheduleScreen = () => {
       >
         <View style={styles.visitHeader}>
           <Text style={styles.clientPetText}>🐾 {item.pet_name}</Text>
-          <StatusBadge status={item.status} />
+            <StatusBadge status={item.status} />
         </View>
         
         <View style={styles.visitBody}>
@@ -252,6 +253,8 @@ export const ScheduleScreen = () => {
               <Text style={styles.detailLabel}>Client:</Text>
               <Text style={styles.detailValue}>{item.client_name}</Text>
             </View>
+            {item.occurrence.started_at && <Text style={styles.detailValue}>Started</Text>}
+            {item.occurrence.actionBlocked && <Text style={styles.errorText}>Refresh required to identify this visit safely.</Text>}
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Service:</Text>
               <Text style={styles.detailValue}>{getServiceTypeLabel(item.service_type)}</Text>
@@ -337,7 +340,7 @@ export const ScheduleScreen = () => {
           )}
           <SectionList
             sections={getSections()}
-            keyExtractor={(item, index) => `${item.request_id}-${item.date}-${index}`}
+            keyExtractor={(item, index) => `${item.request_id}-${item.job_id || 'blocked'}-${index}`}
             renderItem={renderVisitCard}
             renderSectionHeader={renderSectionHeader}
             refreshControl={
