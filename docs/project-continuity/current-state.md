@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-20 (Ryan Slice E3B Implemented / Validated / Not Deployed / Not in Current Internal Builds)
+**Last Updated:** 2026-08-20 (Ryan Slice E3B.1 Implemented / Validated / Not Deployed / Not in Current Internal Builds)
 
 ---
 
@@ -62,6 +62,13 @@
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
 
+- Ryan Slice E3B.1 Mobile Visit Workflow Safety Remediation (✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED / NOT IN CURRENT INTERNAL BUILDS — 2026-08-20)
+  - One resolver now supplies authoritative child identity to both Start and Complete. Occurrence identity wins; route/occurrence or parent/occurrence disagreement fails safe with no mutation. Singular legacy identity works without a route ID; ambiguous multi-child identity remains blocked.
+  - A synchronous shared visit-mutation ref lock prevents duplicate immediate Start calls and Start/Complete races. Mounted/request-sequence guards reject stale async results. Start uses server/refetched metadata only and adds no `IN_PROGRESS`; Complete remains exact-child, passes notes, and never invokes parent review `COMPLETED`.
+  - Failed exact hydration retains safely known parent dates/windows as distinct refresh-required, non-actionable placeholders with no guessed child IDs. The unchanged 1 + N Mobile hydration remains a future optimization.
+  - Validation: focused E3B.1 19/19; related Mobile integration 23/23; Mobile contracts/colors 15/15; full Mobile 148/148 across 16 suites; TypeScript; shared 24/24, 7/7, and 9/9; unchanged E3A 24/24; diff check pass. No Mobile lint script is configured. No build/distribution occurred.
+  - See: `docs/release-notes/ryan-slice-e3b1-mobile-visit-workflow-safety-remediation.md`
+
 - Ryan Slice E3B Mobile Occurrence Selection and Start → Complete (✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED / NOT IN CURRENT INTERNAL BUILDS — 2026-08-20)
   - Mobile consumes E3A exact child occurrences; Check-In date × window children remain distinct and exact `job_id` reaches Start/Complete.
   - Start uses server metadata, blocks duplicate taps, and reconciles ambiguous failure by exact refetch. No `IN_PROGRESS` exists.
@@ -72,7 +79,7 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - Child and parent canonical statuses and assignment remain unchanged; `IN_PROGRESS` was not added. Start creates no job/request, Calendar mutation, or notification.
   - Owner/admin authorization follows existing per-job conventions; staff must match the child `worker_id`. Tenant ownership is enforced. Replays return the original timestamp without writing, and concurrent losers use a strongly consistent read to resolve the persisted winner.
   - Existing exact-request reads now expose distinct, deterministic child occurrences—including multi-date Walk, Check-In date×window, and fixed Overnight—with parent relationship, schedule, assignment, Start, and completion metadata. Legacy singular `job_id` and missing optional metadata remain compatible without migration.
-  - Complete is unchanged and remains valid with or without prior Start. Mobile Start UI is not included; E3B remains future and not deployed.
+  - Complete is unchanged and remains valid with or without prior Start. E3A itself includes no Mobile Start UI; E3B and E3B.1 remain not deployed.
   - Validation: focused 24/24; affected backend 137/137; full backend 977 passed / same 100 exact-checkpoint failures versus 953 / 100; shared/adapters pass; full Web 310/310 plus legacy 99/99/build; full Mobile 128/128/typecheck; diff check pass.
   - See: `docs/release-notes/ryan-slice-e3a-child-start-contract-occurrence-read-model.md`
 

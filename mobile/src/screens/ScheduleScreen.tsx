@@ -92,7 +92,8 @@ export const ScheduleScreen = () => {
       const activeRequests = requestList.filter((r: PetRequest) => activeStatuses.includes(r.status));
       const hydratedRequests = await Promise.all(activeRequests.map(async (r: PetRequest) => {
         if (!r.request_id || !r.client_id) return r;
-        try { return await getAdminRequest(r.request_id, r.client_id); } catch { return r; }
+        try { return await getAdminRequest(r.request_id, r.client_id); }
+        catch { return { ...r, occurrence_hydration_failed: true }; }
       }));
 
       const getLocalDateString = (d: Date = new Date()) => {

@@ -21,6 +21,8 @@ export interface PetRequest {
   completed_job_ids?: string[];
   payment_status?: string;
   job_completion_summary?: { jobs?: JobOccurrence[] };
+  visit_windows?: string[];
+  occurrence_hydration_failed?: boolean;
 }
 
 export interface JobOccurrence {

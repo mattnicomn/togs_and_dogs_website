@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -20,6 +20,7 @@ import { useAuth } from '../auth/useAuth';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { StaffPickerSheet } from '../components/StaffPickerSheet';
 import { getServiceTypeLabel } from '../utils/serviceLabels';
+import { resolveActionJobId } from '../utils/occurrences';
 
 export const RequestDetailScreen = ({ route, navigation }: any) => {
   const { logout, role } = useAuth();
@@ -39,31 +40,58 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   const [isMutating, setIsMutating] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [visitNotes, setVisitNotes] = useState('');
+  const visitMutationLockRef = useRef(false);
+  const mountedRef = useRef(true);
+  const requestSequenceRef = useRef(0);
 
-  const refreshOccurrence = async () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      requestSequenceRef.current += 1;
+    };
+  }, []);
+
+  const fetchOccurrence = async (actionJobId: string) => {
     const fresh = await getAdminRequest(request.request_id, request.client_id);
-    setRequest(fresh);
     const jobs = fresh.job_completion_summary?.jobs || [];
-    const exact = jobs.find((job: any) => job.job_id === jobId);
-    if (exact) setOccurrence(exact);
-    return exact;
+    const exact = jobs.find((job: any) => job.job_id === actionJobId);
+    return { fresh, exact };
   };
 
   const handleStart = async () => {
-    if (isMutating || !jobId) return;
+    const resolution = resolveActionJobId(request, occurrence, jobId);
+    if (visitMutationLockRef.current) return;
+    if (!resolution.jobId) {
+      setMutationError(resolution.error);
+      return;
+    }
+    visitMutationLockRef.current = true;
+    const sequence = ++requestSequenceRef.current;
     setMutationError(null);
     setIsMutating(true);
     try {
-      const result = await startJob(jobId, request.request_id);
-      setOccurrence({ ...(occurrence || {}), job_id: jobId, request_id: request.request_id, status: occurrence?.status || 'ASSIGNED', started_at: result.started_at, started_by: result.started_by });
+      const result = await startJob(resolution.jobId, request.request_id);
+      if (mountedRef.current && sequence === requestSequenceRef.current) {
+        setOccurrence({ ...(occurrence || {}), job_id: resolution.jobId, request_id: request.request_id, status: occurrence?.status || 'ASSIGNED', started_at: result.started_at, started_by: result.started_by });
+      }
     } catch (error: any) {
       try {
-        const exact = await refreshOccurrence();
+        const { fresh, exact } = await fetchOccurrence(resolution.jobId);
         if (!exact?.started_at) throw error;
+        if (mountedRef.current && sequence === requestSequenceRef.current) {
+          setRequest(fresh);
+          setOccurrence(exact);
+        }
       } catch {
-        setMutationError(error.message || 'Could not confirm Start. Check your connection and retry.');
+        if (mountedRef.current && sequence === requestSequenceRef.current) {
+          setMutationError(error.message || 'Could not confirm Start. Check your connection and retry.');
+        }
       }
-    } finally { setIsMutating(false); }
+    } finally {
+      visitMutationLockRef.current = false;
+      if (mountedRef.current && sequence === requestSequenceRef.current) setIsMutating(false);
+    }
   };
 
   const handleApprove = async () => {
@@ -144,12 +172,21 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   };
 
   const handleMarkCompleted = async () => {
+    const resolution = resolveActionJobId(request, occurrence, jobId);
+    if (visitMutationLockRef.current) return;
+    if (!resolution.jobId) {
+      setShowCompleteConfirmModal(false);
+      setMutationError(resolution.error);
+      return;
+    }
+    visitMutationLockRef.current = true;
+    const sequence = ++requestSequenceRef.current;
     setMutationError(null);
     setIsMutating(true);
     try {
-      const exactJobId = jobId || ((request.job_id && (!request.job_ids || request.job_ids.length <= 1)) ? request.job_id : null);
-      if (exactJobId) {
+      const exactJobId = resolution.jobId;
         await completeJob(exactJobId, request.request_id, visitNotes.trim());
+        if (!mountedRef.current || sequence !== requestSequenceRef.current) return;
         setShowCompleteConfirmModal(false);
         const completedJobs = request.completed_job_ids ? [...request.completed_job_ids] : [];
         if (!completedJobs.includes(exactJobId)) {
@@ -167,9 +204,9 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
         setRequest(updated);
         Alert.alert('Success', 'Visit marked as completed ✓');
         setOccurrence({ ...(occurrence || {}), status: 'COMPLETED', completed_at: new Date().toISOString() });
-      } else throw new Error('This visit cannot be completed until its exact occurrence is refreshed.');
       navigation.goBack();
     } catch (error: any) {
+      if (!mountedRef.current || sequence !== requestSequenceRef.current) return;
       const msg = error.message || '';
       if (msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('expired')) {
         await logout();
@@ -178,7 +215,8 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
         Alert.alert('Error', msg || 'Failed to update visit status');
       }
     } finally {
-      setIsMutating(false);
+      visitMutationLockRef.current = false;
+      if (mountedRef.current && sequence === requestSequenceRef.current) setIsMutating(false);
     }
   };
 
@@ -290,7 +328,8 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   const isApproved = request.status === 'APPROVED';
   const childStatus = occurrence?.status || request.status;
   const isAssigned = childStatus === 'ASSIGNED';
-  const hasExactJob = Boolean(jobId || (request.job_id && (!request.job_ids || request.job_ids.length <= 1)));
+  const actionResolution = resolveActionJobId(request, occurrence, jobId);
+  const hasExactJob = Boolean(actionResolution.jobId);
   const isStarted = Boolean(occurrence?.started_at);
   const canComplete = isStarted || Boolean(occurrence?.legacy);
   const showFooter = (role !== 'staff' && (isPending || isApproved || isAssigned)) || (role === 'staff' && isAssigned);
@@ -580,7 +619,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
           <View style={styles.actionFooter}>
             {role === 'staff' && isAssigned && !hasExactJob && (
               <View style={styles.footerErrorContainer}>
-                <Text style={styles.footerErrorText}>Refresh required to identify this visit safely.</Text>
+                <Text style={styles.footerErrorText}>{actionResolution.error}</Text>
               </View>
             )}
             {mutationError && (
@@ -622,13 +661,13 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
               </TouchableOpacity>
             )}
 
-            {isAssigned && role === 'staff' && !isStarted && !occurrence?.legacy && (
+            {isAssigned && role === 'staff' && hasExactJob && !isStarted && !occurrence?.legacy && (
               <TouchableOpacity style={styles.completeBtn} onPress={handleStart} disabled={isMutating || !hasExactJob}>
                 <Text style={styles.completeBtnText}>Start Visit</Text>
               </TouchableOpacity>
             )}
 
-            {isAssigned && role === 'staff' && canComplete && (
+            {isAssigned && role === 'staff' && hasExactJob && canComplete && (
               <TouchableOpacity
                 style={styles.completeBtn}
                 onPress={() => setShowCompleteConfirmModal(true)}

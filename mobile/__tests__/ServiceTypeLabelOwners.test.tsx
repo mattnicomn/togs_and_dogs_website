@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 const mockGetAdminRequests = jest.fn();
+const mockGetAdminRequest = jest.fn();
 const mockNavigate = jest.fn();
 
 jest.mock('@react-navigation/native', () => {
@@ -22,6 +23,7 @@ jest.mock('@react-navigation/native', () => {
 
 jest.mock('../src/api/client', () => ({
   getAdminRequests: (...args: unknown[]) => mockGetAdminRequests(...args),
+  getAdminRequest: (...args: unknown[]) => mockGetAdminRequest(...args),
   reviewRequest: jest.fn(),
   assignWorker: jest.fn(),
   completeJob: jest.fn(),
@@ -80,6 +82,7 @@ const baseRequest: PetRequest = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockGetAdminRequest.mockImplementation(async () => ({ ...baseRequest, service_type: 'WALK_30MIN' }));
 });
 
 describe('mobile service-type label owner integration', () => {

@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–C, C1, D1–D2, R1 Hardening, W1, and O1 Committed / Pushed / Not Deployed; Slices E1–E3B Implemented / Validated / Not Deployed; E3B Not Built or Distributed; Slice F Deferred
+**Status:** Slices A–C, C1, D1–D2, R1 Hardening, W1, and O1 Committed / Pushed / Not Deployed; Slices E1–E3B.1 Implemented / Validated / Not Deployed; E3B/E3B.1 Not Built or Distributed; Slice F Deferred
 
 ---
 
@@ -191,9 +191,19 @@ Slice E3A is implemented and validated locally but not deployed. Authenticated `
 
 The existing exact admin-request read now exposes authoritative child occurrences with unambiguous parent relationship, date/end-date/window/index/count, child status, worker, start/end time, Start metadata, completion metadata, and visit notes. Same-date Check-In windows remain distinct and deterministic; Walk and Overnight children retain their generated occurrence semantics. Legacy singular `job_id` and missing optional fields are read safely without migration or historical inference.
 
-Complete is unchanged and remains valid with or without Start metadata. E3A includes no Mobile UI. E3B Mobile Start/Complete consumption remains future/not deployed, and early/late/same-day policy, correction, mandatory Start, client visibility, notifications, Calendar effects, offline time, and admin-on-behalf UX remain deferred decisions.
+Complete is unchanged and remains valid with or without Start metadata. E3A itself includes no Mobile UI; E3B subsequently added Mobile consumption and E3B.1 hardened it. Early/late/same-day policy, correction, mandatory Start, client visibility, notifications, Calendar effects, offline time, and admin-on-behalf UX remain deferred decisions.
 
 See `docs/release-notes/ryan-slice-e3a-child-start-contract-occurrence-read-model.md`.
+
+### Slice E3B.1 Local Mobile Safety Result
+
+E3B.1 is implemented and validated locally but not deployed, built, distributed, or included in current internal builds. One resolver supplies both Start and Complete with an exact child action ID. Authoritative occurrence identity wins, any route/occurrence or parent/occurrence disagreement blocks mutation with a refresh-required state, singular legacy identity works without a route ID, and ambiguous multi-child identity is never guessed from dates or ordering.
+
+A synchronous shared visit-mutation lock prevents duplicate immediate Start calls and keeps Complete from racing Start reconciliation. Mounted/request-sequence guards prevent late Start, refetch, or Complete results from updating an obsolete screen. Start uses only server or authoritative-refetch metadata and introduces no `IN_PROGRESS`; Complete keeps exact per-child notes behavior and never calls parent review `COMPLETED`.
+
+If exact Schedule hydration fails, safely known list-level dates/windows remain visible as distinct non-actionable placeholders with empty child IDs and a refresh-required message. The existing 1 + N hydration pattern is intentionally unchanged and remains a future optimization. No E3A/E3B backend, contract, Calendar, notification, or product-policy semantic changed. Focused E3B.1 19/19, full Mobile 148/148, TypeScript, shared validators, and unchanged E3A 24/24 pass.
+
+See `docs/release-notes/ryan-slice-e3b1-mobile-visit-workflow-safety-remediation.md`.
 
 ---
 
@@ -243,7 +253,8 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | E2 | Web Admin intake approval → bounded reconciliation → Scheduler handoff | E1 | Implemented / Validated / Not Deployed |
 | E3A | Child Start contract + occurrence-aware exact-request read | E1, E2 | Implemented / Validated / Not Deployed |
 | E3B | Mobile occurrence-safe Start/Complete consumption | E3A | Implemented / Validated / Not Built / Not Distributed / Not Deployed |
-| E | Remaining workflow next-action simplification | E1, E2, E3A | Partially Complete; Mobile E3B deferred |
+| E3B.1 | Mobile visit workflow safety remediation | E3B | Implemented / Validated / Not Built / Not Distributed / Not Deployed |
+| E | Remaining workflow next-action simplification | E1, E2, E3A | E1–E3B.1 complete locally; deployment/build planning separately gated |
 | F | Public website content alignment (toganddogs.com) | Ryan pricing decisions | Not Started |
 
 **Recommended order:** A → B → C + D (parallel) → E → F
