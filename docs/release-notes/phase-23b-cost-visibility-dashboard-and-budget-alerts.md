@@ -1,6 +1,6 @@
 # Phase 23B Steps 2A–2C: Cost Visibility Dashboard and Budget Alerts
 
-**Status:** ✅ IMPLEMENTATION COMPLETE
+**Status:** ✅ IMPLEMENTATION COMPLETE / TERRAFORM RECONCILED 2026-08-21
 **Date:** 2026-07-26
 **Starting HEAD:** `7aff6c8`
 
@@ -166,16 +166,15 @@ The `Client=TogAndDogs` Budget and Cost Explorer filter captures 92–97% of wor
 
 ---
 
-## 6. Terraform Drift Note
+## 6. Terraform Reconciliation
 
-The two new budget notifications were added via the AWS Budgets API, not via Terraform. The Terraform configuration in `infra/prod/budgets.tf` defines only the original 80% actual-spend alert. On the next `terraform plan`, Terraform will detect these two additional notifications.
+The two additional budget notifications were originally added via the AWS Budgets API rather than Terraform. On 2026-08-21, `infra/prod/budgets.tf` was reconciled to declare the complete intentional production set:
 
-**Options (all require Matthew approval):**
-1. Update `budgets.tf` to include the two new notification blocks (keeps Terraform authoritative)
-2. Accept the drift and manage alerts outside Terraform
-3. Import the alerts if a future Terraform version supports notification import
+- ACTUAL 80%
+- ACTUAL 100%
+- FORECASTED 80%
 
-This does NOT affect the saved Phase 1B.5C-A plan because that plan was generated before these alerts existed and does not modify the budget resource.
+All three alerts are intentional and use the existing subscriber. The budget name, $20 monthly limit, period, and `Client=TogAndDogs` cost scope remain unchanged. This source-only reconciliation represents the existing production configuration; it did not change AWS Budget behavior and was not a deployment. Its purpose was to eliminate the known budget drift before regenerating the E3A Gate-A Terraform plan.
 
 ---
 
