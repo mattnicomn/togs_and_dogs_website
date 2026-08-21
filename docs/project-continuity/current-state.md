@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-20 (Ryan Slice E3A Implemented / Validated / Not Deployed)
+**Last Updated:** 2026-08-20 (Ryan Slice E3B Implemented / Validated / Not Deployed / Not in Current Internal Builds)
 
 ---
 
@@ -61,6 +61,11 @@
 ## Current Work and Latest Closeouts
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
+
+- Ryan Slice E3B Mobile Occurrence Selection and Start → Complete (✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED / NOT IN CURRENT INTERNAL BUILDS — 2026-08-20)
+  - Mobile consumes E3A exact child occurrences; Check-In date × window children remain distinct and exact `job_id` reaches Start/Complete.
+  - Start uses server metadata, blocks duplicate taps, and reconciles ambiguous failure by exact refetch. No `IN_PROGRESS` exists.
+  - Singular legacy identity remains compatible; ambiguous multi-child identity blocks instead of invoking parent-wide Complete. Full Mobile 132/132 and TypeScript pass. No build/distribution occurred.
 
 - Ryan Slice E3A Child Start Contract and Occurrence Read Model (✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED — 2026-08-20)
   - Authenticated `POST /admin/job/start` targets exactly one canonical `ASSIGNED` child JOB. A conditional atomic update writes authoritative server UTC `started_at`, authenticated actor metadata, update metadata, and exactly one `JOB_STARTED` child audit entry.

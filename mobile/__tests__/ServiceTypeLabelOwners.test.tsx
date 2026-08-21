@@ -96,13 +96,14 @@ describe('mobile service-type label owner integration', () => {
     expect(mockGetAdminRequests).toHaveBeenCalledWith('ALL');
 
     fireEvent.press(view.getByText('30-Min Walk'));
-    expect(mockNavigate).toHaveBeenCalledWith('RequestDetail', {
+    expect(mockNavigate).toHaveBeenCalledWith('RequestDetail', expect.objectContaining({
       request: expect.objectContaining({
         service_type: 'WALK_30MIN',
       }),
       selectedDate: '2099-08-01',
       jobId: 'job-service-label',
-    });
+      occurrence: expect.objectContaining({ job_id: 'job-service-label' }),
+    }));
   });
 
   it('renders the canonical contract label in RequestDetailScreen', async () => {

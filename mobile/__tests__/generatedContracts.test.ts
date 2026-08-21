@@ -57,7 +57,7 @@ describe('Phase 24A-2A Contract Adapters', () => {
       vet_phone: 100,
     });
     expect(REQUEST_STATUSES.statuses.PENDING_REVIEW).toBeDefined();
-    expect(REQUEST_STATUSES.statuses.IN_PROGRESS).toBeUndefined();
+    expect('IN_PROGRESS' in REQUEST_STATUSES.statuses).toBe(false);
     expect(SERVICE_TYPES.services.WALK_20MIN.durationMinutes).toBe(20);
     expect(SERVICE_TYPES.services.CHECK_IN.visitsPerDayOptions).toEqual([1, 2, 3]);
     expect(SERVICE_TYPES.services.WALK_60MIN.lifecycle).toBe('legacy');
@@ -74,6 +74,7 @@ describe('Phase 24A-2A Contract Adapters', () => {
 import { CONFIG } from '../src/api/config';
 import {
   getAdminRequests,
+  getAdminRequest,
   getClientRequests,
   getStaff,
   getClients,
@@ -82,6 +83,7 @@ import {
   reviewRequest,
   assignWorker,
   completeJob,
+  startJob,
   getClientPets,
 } from '../src/api/client';
 
@@ -114,6 +116,22 @@ describe('Phase 24A-2A Mobile API Client Behavioral Execution', () => {
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({ Authorization: 'mock-mobile-token' }),
+      })
+    );
+  });
+
+  it('reads an exact request and starts an exact child without status or client timestamp', async () => {
+    await getAdminRequest('req 1', 'client 1');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `${CONFIG.API_URL}/admin/requests/req%201?clientId=client%201`,
+      expect.objectContaining({ method: 'GET' })
+    );
+    await startJob('job-1', 'req-1');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `${CONFIG.API_URL}/admin/job/start`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ job_id: 'job-1', request_id: 'req-1' }),
       })
     );
   });

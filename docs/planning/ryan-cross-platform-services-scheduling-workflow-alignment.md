@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–C, C1, D1–D2, R1 Hardening, W1, and O1 Committed / Pushed / Not Deployed; Slices E1–E3A Implemented / Validated / Not Deployed; D1–D2/W1/O1 Not Built or Distributed; Mobile E3B and Slice F Deferred
+**Status:** Slices A–C, C1, D1–D2, R1 Hardening, W1, and O1 Committed / Pushed / Not Deployed; Slices E1–E3B Implemented / Validated / Not Deployed; E3B Not Built or Distributed; Slice F Deferred
 
 ---
 
@@ -242,7 +242,7 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | E1 | Web Admin Assign Sitter + View in Calendar handoffs | C, D1, D2 | Implemented / Validated / Not Deployed |
 | E2 | Web Admin intake approval → bounded reconciliation → Scheduler handoff | E1 | Implemented / Validated / Not Deployed |
 | E3A | Child Start contract + occurrence-aware exact-request read | E1, E2 | Implemented / Validated / Not Deployed |
-| E3B | Mobile Start/Complete consumption | E3A | Deferred / Not Implemented / Not Deployed |
+| E3B | Mobile occurrence-safe Start/Complete consumption | E3A | Implemented / Validated / Not Built / Not Distributed / Not Deployed |
 | E | Remaining workflow next-action simplification | E1, E2, E3A | Partially Complete; Mobile E3B deferred |
 | F | Public website content alignment (toganddogs.com) | Ryan pricing decisions | Not Started |
 
