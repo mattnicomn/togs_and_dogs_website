@@ -13,9 +13,11 @@ export const API_PATHS = {
   },
   "admin": {
     "getRequests": "/admin/requests",
+    "getRequest": "/admin/requests/{requestId}",
     "postAction": "/admin/requests",
     "review": "/admin/review",
     "assign": "/admin/assign",
+    "jobStart": "/admin/job/start",
     "jobComplete": "/admin/job/complete",
     "getPets": "/admin/pets",
     "getPetById": "/admin/pets/{petId}",

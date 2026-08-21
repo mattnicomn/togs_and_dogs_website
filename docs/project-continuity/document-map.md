@@ -23,6 +23,7 @@
 | Ryan O1 Overnight fixed 9PM–7AM scheduling | `docs/release-notes/ryan-o1-overnight-fixed-scheduling.md` |
 | Ryan Slice E1 Web Admin guided assignment and Calendar actions | `docs/release-notes/ryan-slice-e1-web-admin-guided-actions.md` |
 | Ryan Slice E2 intake approval to Scheduler handoff | `docs/release-notes/ryan-slice-e2-intake-approval-scheduler-handoff.md` |
+| Ryan Slice E3A child Start contract and occurrence read model | `docs/release-notes/ryan-slice-e3a-child-start-contract-occurrence-read-model.md` |
 
 ## Planning Documents
 

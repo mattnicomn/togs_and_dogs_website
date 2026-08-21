@@ -295,6 +295,32 @@ resource "aws_api_gateway_resource" "admin_job" {
   path_part   = "job"
 }
 
+# Admin /admin/job/start path
+resource "aws_api_gateway_resource" "admin_job_start" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_job.id
+  path_part   = "start"
+}
+
+# Admin POST /admin/job/start
+resource "aws_api_gateway_method" "post_admin_job_start" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_job_start.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_admin_job_start_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_job_start.id
+  http_method = aws_api_gateway_method.post_admin_job_start.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
 # Admin /admin/job/complete path
 resource "aws_api_gateway_resource" "admin_job_complete" {
   rest_api_id = aws_api_gateway_rest_api.main.id
@@ -1251,7 +1277,9 @@ locals {
     "client_device_id" : aws_api_gateway_resource.client_device_id.id,
     "admin_export" : aws_api_gateway_resource.admin_export.id,
     "admin_job" : aws_api_gateway_resource.admin_job.id,
+    "admin_job_start" : aws_api_gateway_resource.admin_job_start.id,
     "admin_job_complete" : aws_api_gateway_resource.admin_job_complete.id,
+    "admin_request_id" : aws_api_gateway_resource.admin_request_id.id,
     "admin_payment_session" : aws_api_gateway_resource.admin_payment_session.id,
     "admin_send_payment_email" : aws_api_gateway_resource.admin_send_payment_email.id,
     "platform" : aws_api_gateway_resource.platform.id,
@@ -1391,7 +1419,9 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_gateway_response.unauthorized,
     aws_api_gateway_gateway_response.missing_auth_token,
     aws_api_gateway_integration.postmark_webhook_lambda,
+    aws_api_gateway_integration.post_admin_job_start_lambda,
     aws_api_gateway_integration.post_admin_job_complete_lambda,
+    aws_api_gateway_integration.get_admin_request_lambda,
     aws_api_gateway_integration.stripe_webhook_lambda,
     aws_api_gateway_integration.post_admin_payment_session_lambda,
     aws_api_gateway_integration.post_admin_send_payment_email_lambda,
@@ -1416,6 +1446,9 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.admin_review,
       aws_api_gateway_resource.admin_assign,
       aws_api_gateway_resource.admin_job,
+      aws_api_gateway_resource.admin_job_start,
+      aws_api_gateway_method.post_admin_job_start,
+      aws_api_gateway_integration.post_admin_job_start_lambda,
       aws_api_gateway_resource.admin_job_complete,
       aws_api_gateway_method.post_admin_job_complete,
       aws_api_gateway_integration.post_admin_job_complete_lambda,
@@ -1456,6 +1489,8 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_method.post_webhooks_stripe,
       aws_api_gateway_integration.stripe_webhook_lambda,
       aws_api_gateway_resource.admin_request_id,
+      aws_api_gateway_method.get_admin_request,
+      aws_api_gateway_integration.get_admin_request_lambda,
       aws_api_gateway_resource.admin_payment_session,
       aws_api_gateway_method.post_admin_payment_session,
       aws_api_gateway_integration.post_admin_payment_session_lambda,
@@ -1569,6 +1604,25 @@ resource "aws_api_gateway_resource" "admin_request_id" {
   rest_api_id = aws_api_gateway_rest_api.main.id
   parent_id   = aws_api_gateway_resource.admin_requests.id
   path_part   = "{requestId}"
+}
+
+# Admin GET /admin/requests/{requestId}?clientId=...
+resource "aws_api_gateway_method" "get_admin_request" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_request_id.id
+  http_method   = "GET"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "get_admin_request_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_request_id.id
+  http_method = aws_api_gateway_method.get_admin_request.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
 }
 
 resource "aws_api_gateway_resource" "admin_payment_session" {

@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-20 (Ryan Slice E2 Implemented / Validated / Not Deployed)
+**Last Updated:** 2026-08-20 (Ryan Slice E3A Implemented / Validated / Not Deployed)
 
 ---
 
@@ -61,6 +61,15 @@
 ## Current Work and Latest Closeouts
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
+
+- Ryan Slice E3A Child Start Contract and Occurrence Read Model (✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED — 2026-08-20)
+  - Authenticated `POST /admin/job/start` targets exactly one canonical `ASSIGNED` child JOB. A conditional atomic update writes authoritative server UTC `started_at`, authenticated actor metadata, update metadata, and exactly one `JOB_STARTED` child audit entry.
+  - Child and parent canonical statuses and assignment remain unchanged; `IN_PROGRESS` was not added. Start creates no job/request, Calendar mutation, or notification.
+  - Owner/admin authorization follows existing per-job conventions; staff must match the child `worker_id`. Tenant ownership is enforced. Replays return the original timestamp without writing, and concurrent losers use a strongly consistent read to resolve the persisted winner.
+  - Existing exact-request reads now expose distinct, deterministic child occurrences—including multi-date Walk, Check-In date×window, and fixed Overnight—with parent relationship, schedule, assignment, Start, and completion metadata. Legacy singular `job_id` and missing optional metadata remain compatible without migration.
+  - Complete is unchanged and remains valid with or without prior Start. Mobile Start UI is not included; E3B remains future and not deployed.
+  - Validation: focused 24/24; affected backend 137/137; full backend 977 passed / same 100 exact-checkpoint failures versus 953 / 100; shared/adapters pass; full Web 310/310 plus legacy 99/99/build; full Mobile 128/128/typecheck; diff check pass.
+  - See: `docs/release-notes/ryan-slice-e3a-child-start-contract-occurrence-read-model.md`
 
 - Ryan Slice E2 Intake Approval to Scheduler Handoff (✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED — 2026-08-20)
   - Customer-intake approval exposes **Approve & Open Scheduler** as a distinct approval-to-Scheduler semantic while still submitting exactly one canonical `APPROVED` operation through existing `/admin/review`.

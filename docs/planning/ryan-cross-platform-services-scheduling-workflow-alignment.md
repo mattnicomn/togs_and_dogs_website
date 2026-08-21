@@ -1,7 +1,7 @@
 # Ryan Cross-Platform Services, Scheduling & Workflow Alignment
 
 **Source:** Ryan operational platform review (2026-08-15)
-**Status:** Slices A–C, C1, D1–D2, R1 Hardening, W1, and O1 Committed / Pushed / Not Deployed; Slices E1–E2 Implemented / Validated / Not Deployed; D1–D2/W1/O1 Not Built or Distributed; Remaining Mobile Slice E and Slice F Deferred
+**Status:** Slices A–C, C1, D1–D2, R1 Hardening, W1, and O1 Committed / Pushed / Not Deployed; Slices E1–E3A Implemented / Validated / Not Deployed; D1–D2/W1/O1 Not Built or Distributed; Mobile E3B and Slice F Deferred
 
 ---
 
@@ -185,7 +185,15 @@ The action opens Scheduler but does not assign a sitter or complete scheduling. 
 
 See `docs/release-notes/ryan-slice-e2-intake-approval-scheduler-handoff.md`.
 
-The remaining Slice E action is Mobile **Start Visit → Complete Visit**. This workstream still has no approved canonical `IN_PROGRESS` backend transition.
+### Slice E3A Local Backend and Read-Contract Result
+
+Slice E3A is implemented and validated locally but not deployed. Authenticated `POST /admin/job/start` targets one canonical `ASSIGNED` child JOB and atomically writes server UTC `started_at`, actor/update metadata, and one `JOB_STARTED` child audit entry. It preserves child and parent status plus assignment; no canonical `IN_PROGRESS`, Calendar mutation, notification, or parent write exists. Owner/admin conventions are preserved, while staff identity must match child `worker_id`. Conditional writes and strongly consistent replay resolution ensure one first timestamp/audit event and return the original persisted result on replay.
+
+The existing exact admin-request read now exposes authoritative child occurrences with unambiguous parent relationship, date/end-date/window/index/count, child status, worker, start/end time, Start metadata, completion metadata, and visit notes. Same-date Check-In windows remain distinct and deterministic; Walk and Overnight children retain their generated occurrence semantics. Legacy singular `job_id` and missing optional fields are read safely without migration or historical inference.
+
+Complete is unchanged and remains valid with or without Start metadata. E3A includes no Mobile UI. E3B Mobile Start/Complete consumption remains future/not deployed, and early/late/same-day policy, correction, mandatory Start, client visibility, notifications, Calendar effects, offline time, and admin-on-behalf UX remain deferred decisions.
+
+See `docs/release-notes/ryan-slice-e3a-child-start-contract-occurrence-read-model.md`.
 
 ---
 
@@ -233,7 +241,9 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | O1 | Overnight fixed 21:00→07:00 next-day scheduling | A–C1, D2, R1, W1 | Committed / Pushed / Not Deployed |
 | E1 | Web Admin Assign Sitter + View in Calendar handoffs | C, D1, D2 | Implemented / Validated / Not Deployed |
 | E2 | Web Admin intake approval → bounded reconciliation → Scheduler handoff | E1 | Implemented / Validated / Not Deployed |
-| E | Remaining workflow next-action simplification | E1, E2 | Partially Complete; Mobile Start/Complete deferred |
+| E3A | Child Start contract + occurrence-aware exact-request read | E1, E2 | Implemented / Validated / Not Deployed |
+| E3B | Mobile Start/Complete consumption | E3A | Deferred / Not Implemented / Not Deployed |
+| E | Remaining workflow next-action simplification | E1, E2, E3A | Partially Complete; Mobile E3B deferred |
 | F | Public website content alignment (toganddogs.com) | Ryan pricing decisions | Not Started |
 
 **Recommended order:** A → B → C + D (parallel) → E → F

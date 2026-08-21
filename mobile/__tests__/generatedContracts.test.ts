@@ -18,8 +18,10 @@ describe('Phase 24A-2A Contract Adapters', () => {
     expect(API_PATHS.client.requestCancellation).toBe('/client/cancel');
 
     expect(API_PATHS.admin.getRequests).toBe('/admin/requests');
+    expect(API_PATHS.admin.getRequest).toBe('/admin/requests/{requestId}');
     expect(API_PATHS.admin.review).toBe('/admin/review');
     expect(API_PATHS.admin.assign).toBe('/admin/assign');
+    expect(API_PATHS.admin.jobStart).toBe('/admin/job/start');
     expect(API_PATHS.admin.jobComplete).toBe('/admin/job/complete');
     expect(API_PATHS.admin.getPets).toBe('/admin/pets');
     expect(API_PATHS.admin.getPetById).toBe('/admin/pets/{petId}');
@@ -36,6 +38,9 @@ describe('Phase 24A-2A Contract Adapters', () => {
 
     const encodedParam = buildPath(API_PATHS.client.updatePet, { petId: 'pet 123&special' });
     expect(encodedParam).toBe('/client/pets/pet%20123%26special');
+
+    const requestPath = buildPath(API_PATHS.admin.getRequest, { requestId: 'req 123' });
+    expect(requestPath).toBe('/admin/requests/req%20123');
   });
 
   it('throws an error if a required parameter is missing in buildPath', () => {
@@ -52,6 +57,7 @@ describe('Phase 24A-2A Contract Adapters', () => {
       vet_phone: 100,
     });
     expect(REQUEST_STATUSES.statuses.PENDING_REVIEW).toBeDefined();
+    expect(REQUEST_STATUSES.statuses.IN_PROGRESS).toBeUndefined();
     expect(SERVICE_TYPES.services.WALK_20MIN.durationMinutes).toBe(20);
     expect(SERVICE_TYPES.services.CHECK_IN.visitsPerDayOptions).toEqual([1, 2, 3]);
     expect(SERVICE_TYPES.services.WALK_60MIN.lifecycle).toBe('legacy');

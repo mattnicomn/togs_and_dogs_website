@@ -18,8 +18,11 @@ describe('Phase 24A-2A Web Contract Adapters', () => {
     expect(API_PATHS.client.requestCancellation).toBe('/client/cancel');
 
     expect(API_PATHS.admin.getRequests).toBe('/admin/requests');
+    expect(API_PATHS.admin.getRequest).toBe('/admin/requests/{requestId}');
     expect(API_PATHS.admin.review).toBe('/admin/review');
     expect(API_PATHS.admin.assign).toBe('/admin/assign');
+    expect(API_PATHS.admin.jobStart).toBe('/admin/job/start');
+    expect(API_PATHS.admin.jobComplete).toBe('/admin/job/complete');
     expect(API_PATHS.admin.getPets).toBe('/admin/pets');
 
     expect(API_PATHS.public.submitRequest).toBe('/requests');
@@ -43,6 +46,7 @@ describe('Phase 24A-2A Web Contract Adapters', () => {
       vet_phone: 100,
     });
     expect(REQUEST_STATUSES.statuses.APPROVED).toBeDefined();
+    expect(REQUEST_STATUSES.statuses.IN_PROGRESS).toBeUndefined();
     expect(SERVICE_TYPES.services.WALK_20MIN.durationMinutes).toBe(20);
     expect(SERVICE_TYPES.services.CHECK_IN.visitsPerDayOptions).toEqual([1, 2, 3]);
     expect(SERVICE_TYPES.services.WALK_60MIN.lifecycle).toBe('legacy');
