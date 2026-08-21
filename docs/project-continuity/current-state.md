@@ -93,7 +93,7 @@
   - Budget coverage: 92–97% of workload-account costs captured by `Client=TogAndDogs` filter.
   - Excluded: CloudWatch alarm monitoring ($0.45/month), Terraform state bucket ($0.01/month).
   - Classification: SUBSTANTIALLY COMPLETE WITH DOCUMENTED EXCLUSIONS.
-  - Terraform drift note: two new budget notifications added outside Terraform. Reconciliation deferred.
+  - Terraform reconciliation (2026-08-21): `infra/prod/budgets.tf` now declares the complete intentional production set (ACTUAL 80%, ACTUAL 100%, FORECASTED 80%) with the existing subscriber, $20 limit, and `Client=TogAndDogs` scope unchanged. This source-only correction eliminated known drift before E3A Gate A; it did not change AWS Budget behavior and was not deployed.
   - Not blocked by or blocking Phase 1B.5C-A.
   - See `docs/planning/phase-23b-aws-budget-coverage-and-cost-visibility-dashboard.md`
   - See `docs/release-notes/phase-23b-step-1-budget-coverage-verification.md`
