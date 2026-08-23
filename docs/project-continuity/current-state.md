@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-23 (Ryan Slice E3A Gate B0 Identity Enablement Complete / B1A–B3 Not Approved)
+**Last Updated:** 2026-08-23 (Tenant-Access Architecture Gap Reconciled / Gate B0 Complete / B1A Blocked)
 
 ---
 
@@ -8,7 +8,7 @@
 
 | Component | Status |
 |-----------|--------|
-| Web app (React/Vite) | ✅ Live at `toganddogs.usmissionhero.com` |
+| Web app (React/Vite) | ✅ Live at the shared compatibility host `toganddogs.usmissionhero.com`; no normal tenant-specific landing URL exists yet for `test_tenant_alpha` |
 | Backend (Python/Lambda) | ✅ Deployed |
 | API Gateway | ✅ Active — E3A authenticated Start and exact-request GET routes deployed; no Start/data-write Gate-B validation approved |
 | DynamoDB | ✅ Single table, shared-tenant model |
@@ -45,8 +45,10 @@
 | Tenant Isolation | ✅ Enforced across all primary database helpers (11E, 18V, 19K) |
 | Entitlement Framework | ✅ Active with 8 enforced metrics (17A–17W) |
 | Platform Admin Panel | ✅ Deployed (`/platform-admin/metrics`, `/platform-admin/tenants`) |
+| Control-plane / tenant-plane URL separation | ⛔ Planning complete; implementation not approved. Platform Admin and tenant routes still share the current Web host. |
 | Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
 | Second tenant | ✅ Internal test tenant `test_tenant_alpha` created and validated (19D/19E); future customer/additional tenant provisioning remains approval-gated |
+| Second-tenant application landing | ⛔ `test_tenant_alpha` is active and administratively visible but has no normal tenant-specific owner landing URL; this is an application-routing gap, not an identity failure |
 | Tenant provisioning script | ✅ Dry run and controlled test-tenant apply validated (19B/19D) |
 | Tenant display branding | ✅ Dynamic brand name, shell logo, and footer separated by route; deployed and validated (19N) |
 | Tenant disable & restore | ✅ Gated & Validated in Production (20F — PASS) |
@@ -57,6 +59,7 @@
 | Blocker | Impact | Owner |
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
+| Tenant-specific owner landing and login-context agreement unavailable | Gate B1A end-to-end owner login/tenant UI validation blocked pending a fail-closed tenant route or canonical tenant subdomain | Architecture/product approval, then separately approved implementation |
 
 ## Current Work and Latest Closeouts
 
@@ -85,7 +88,10 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - All 13 Lambdas are Active/Successful with the approved code hash and unchanged configuration fingerprints. API Gateway deployment `886zij`, Cognito authorization, Lambda proxy integrations, CORS, all 50 baseline paths, and eight critical legacy routes passed.
   - Non-write checks: unauthenticated Start and exact GET returned 401 before integration; both OPTIONS routes returned 200. Authenticated malformed Start and authenticated exact-record GET were skipped because no approved auth context or preapproved internal record was available.
   - Matthew-approved Gate B0 completed on 2026-08-23: exactly one `AdminEnableUser` enabled the sole existing `test_tenant_alpha` identity. It remains `CONFIRMED`, mapped to `test_tenant_alpha`, and in `client,owner`; no password, invitation, group, role, or tenant-mapping change occurred.
-  - No safe existing authenticated session/credentials were available, so login was not attempted. Read-only validation found only tenant metadata and zero client, staff, pet, request, or job records. No notification, Calendar/Stripe action, Start, Complete, or production data creation occurred. B1A, B1B, B2, B3, Mobile build/distribution, tester changes, and Ryan testing remain unapproved.
+  - No safe existing authenticated session/credentials were available, so login was not attempted. Read-only validation found only tenant metadata and zero client, staff, pet, request, or job records. No notification, Calendar/Stripe action, Start, Complete, or production data creation occurred.
+  - Subsequent manual UI review confirmed that `test_tenant_alpha` has no normal tenant-specific application landing URL. The identity remains enabled and is not declared broken. B1A is now explicitly **BLOCKED** until a fail-closed expected-tenant route/host agrees with the existing authenticated company claim and login isolation is validated. B1B, B2, B3, Mobile build/distribution, tester changes, and Ryan testing remain unapproved.
+  - The canonical recommendation is `platform.toganddogs.usmissionhero.com` for the control plane and `<tenant-slug>.toganddogs.usmissionhero.com` for tenant applications. A bounded claim-matched internal tenant route may unblock B1A before wildcard DNS, but no such safe route exists in the current runtime and its implementation/deployment requires separate approval.
+  - See: `docs/planning/tenant-access-client-onboarding-operational-workflow-alignment.md`
   - See: `docs/release-notes/ryan-slice-e3a-child-start-contract-occurrence-read-model.md`
 
 - Ryan Slice E2 Intake Approval to Scheduler Handoff (✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED — 2026-08-20)

@@ -1,7 +1,7 @@
 # Ryan Slice E3A — Child Start Contract and Occurrence Read Model
 
 **Date:** 2026-08-20; production Gate A deployed 2026-08-21; Gate B0 completed 2026-08-23
-**Status:** ✅ DEPLOYED TO PRODUCTION / GATE B0 COMPLETE / B1A–B3 NOT APPROVED
+**Status:** ✅ DEPLOYED TO PRODUCTION / GATE B0 COMPLETE / B1A BLOCKED / B1B–B3 NOT APPROVED
 **Starting SHA:** `694555f0f10be80bd99099a1b00f329c5bbbf73d`
 
 ## Objective
@@ -65,14 +65,22 @@ Matthew explicitly approved Gate B0 to enable the sole existing Cognito identity
 
 Exactly one `AdminEnableUser` operation succeeded from `2026-08-23T12:00:09Z` through `2026-08-23T12:00:10Z`. Post-enable verification confirmed the same identity is enabled and remains `CONFIRMED`, with groups and tenant mapping unchanged. Existing credentials were preserved: no password reset, temporary password, invitation/resend, group change, attribute change, or session-revocation operation occurred. CloudTrail showed `AdminEnableUser` as the only Cognito mutation in the execution window.
 
-The available browser context had no existing authenticated session or safely available credentials, so login was not attempted and no credential flow was triggered. Read-only tenant verification found only the existing tenant metadata record and zero client, staff, pet, request, or job records. Enablement itself sent no email, Postmark, SES, push, or other notification and caused no Calendar, Stripe, tenant, profile, request/job, Start, or Complete action. The identity was intentionally left enabled. Gate B1A, B1B, B2, and B3 remain not approved.
+The available browser context had no existing authenticated session or safely available credentials, so login was not attempted and no credential flow was triggered. Read-only tenant verification found only the existing tenant metadata record and zero client, staff, pet, request, or job records. Enablement itself sent no email, Postmark, SES, push, or other notification and caused no Calendar, Stripe, tenant, profile, request/job, Start, or Complete action. The identity was intentionally left enabled. Gate B1A, B1B, B2, and B3 remained not approved at the B0 closeout.
+
+## Post-B0 Tenant-Access Reconciliation (2026-08-23)
+
+Manual UI review subsequently confirmed that active `test_tenant_alpha` is administratively visible but has no normal tenant-specific application landing URL for its owner. This is an authenticated tenant-bootstrap/application-routing gap, not proof that the enabled identity is broken.
+
+Gate B1A is therefore **BLOCKED** pending separately approved implementation and validation of a fail-closed tenant route or hostname whose expected tenant agrees with the existing Cognito `custom:company_id` and strict tenant resolver. The shared `/admin` route is not sufficient end-to-end evidence. Keep the identity enabled unless separately approved otherwise. B1B, B2, and B3 remain not approved.
+
+See `docs/planning/tenant-access-client-onboarding-operational-workflow-alignment.md`.
 
 ## Boundaries and Next Slice
 
-E3A backend/API Gate A is deployed and Gate B0 identity enablement is complete. B1A, B1B, B2, and B3 remain NOT APPROVED. E2, E1, and O1 remain NOT DEPLOYED. E3B/E3B.1 Mobile remain NOT BUILT, NOT DISTRIBUTED, and NOT DEPLOYED. No Ryan testing or tester change was authorized.
+E3A backend/API Gate A is deployed and Gate B0 identity enablement is complete. B1A is BLOCKED by the tenant landing/bootstrap dependency; B1B, B2, and B3 remain NOT APPROVED. E2, E1, and O1 remain NOT DEPLOYED. E3B/E3B.1 Mobile remain NOT BUILT, NOT DISTRIBUTED, and NOT DEPLOYED. No Ryan testing or tester change was authorized.
 
 E3B/E3B.1 Mobile are implemented and validated locally but remain future build/distribution/deployment work. Early/late/same-day Start policy, Start correction, mandatory Start-before-Complete, client visibility, Start notifications, Calendar effects, offline/device time, and any admin “Start on behalf” UX remain explicit product decisions.
 
 ## Disposition
 
-**Final Status:** `RYAN_SLICE_E3A_DEPLOYED_GATE_A_VALIDATED_GATE_B0_COMPLETE_B1A_THROUGH_B3_NOT_APPROVED`
+**Final Status:** `RYAN_SLICE_E3A_DEPLOYED_GATE_A_VALIDATED_GATE_B0_COMPLETE_B1A_BLOCKED_B1B_THROUGH_B3_NOT_APPROVED`

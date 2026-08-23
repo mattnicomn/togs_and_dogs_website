@@ -29,6 +29,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 9 | Business owner billing dashboard | ⏸ Wait for subscription semantics | Medium | #8 |
 | 10 | Pricing/signup page | ⛔ Blocked by product/pricing decision and payment direction | Medium | #8 |
 | 11 | "Getting Started" guide for business owners | ✅ LOCALLY COMPLETE / `GUIDE_CORRECT` / COMMITTED / PUSHED / NOT PUBLIC | Low | — |
+| 12 | Tenant-specific application landing and login-context agreement | ⛔ Architecture reconciled; implementation/deployment not approved | High | DOMAIN-1–DOMAIN-4 |
 
 ---
 
@@ -38,6 +39,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 |------|--------|------------|
 | Tenant-resolution regression | Critical | Production Terraform and all 13 Lambdas use strict `TENANT_RESOLUTION_MODE=multi`, enabled in 18T and monitored in 18U. Missing/invalid tenant claims fail rather than silently using the compatibility fallback. Do not change the mode without explicit Matthew approval. |
 | Premature customer-tenant onboarding | High | `test_tenant_alpha` is an internal validation tenant, not a customer onboarding precedent. Require explicit approval plus product, billing, security, and operating readiness for any further tenant. |
+| Claim-valid identity has no tenant-specific application landing | High | Do not declare the identity broken or bypass the gate through shared `/admin`. Require a mapped expected-tenant route/host plus strict claim agreement before Gate B1A. |
 
 ---
 
@@ -59,6 +61,29 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 12 | Video visit evidence | ❌ Not started | Low |
 | 13 | Multi-location support | ❌ Not started | Future |
 | 14 | Cross-platform services, scheduling & workflow alignment | ✅ A–C, C1, D1–D2, R1, W1, and O1 committed/pushed/not deployed; E1 implemented/validated/not deployed; D1–D2/W1/O1 not built or distributed; remaining E/F deferred | High |
+| 15 | Control-plane / tenant-plane URL architecture | 🧭 Authoritative planning reconciliation complete; decision approval pending | P0 |
+| 16 | Canonical client onboarding workflow and completion state | ❌ Product/API parity gap documented | P1 |
+| 17 | Web Request List / Visit Requests queue correction | ⚠️ Audit found predicate, counter, navigation, and duplicate-fetch risks | P1 |
+| 18 | Mobile Dashboard exact destination filters | ⚠️ Five cards are pressable in source but counts/targets need refinement; D1 not in current builds | P3 |
+| 19 | Mobile bottom-navigation inset handling | ⚠️ Fixed tab height/padding does not derive from safe-area/system insets | P3 |
+
+---
+
+## SaaS Control-Plane and Tenant-Domain Backlog
+
+**Authoritative design:** `docs/planning/tenant-access-client-onboarding-operational-workflow-alignment.md`
+
+| Stage | Scope | Status | Priority |
+|-------|-------|--------|----------|
+| DOMAIN-1 | Decide `platform.toganddogs.usmissionhero.com`, `<tenant-slug>.toganddogs.usmissionhero.com`, slug rules, compatibility-host disposition, and threat model | Planning complete; approval pending | P0 |
+| DOMAIN-2 | Host/route expected-tenant resolver plus fail-closed frontend bootstrap | Not implemented | P0 |
+| DOMAIN-3 | Wildcard Route53/ACM/CloudFront tenant support | Not implemented; no infrastructure change authorized | P2 |
+| DOMAIN-4 | Tenant-specific login, invitation, callback, logout, recovery, and deep-link routing | Not implemented | P2 |
+| DOMAIN-5 | Move Platform Admin to the control hostname and remove it from ordinary tenant navigation | Not implemented | P2 |
+| DOMAIN-6 | Provision and validate a unique DNS-safe tenant slug during approved onboarding | Not implemented | P4 |
+| DOMAIN-7 | Optional verified custom business domains | Deferred | P4 |
+
+Gate B1A does not need to wait for DOMAIN-3 wildcard delivery if a bounded internal tenant route is separately implemented and proves expected-route/claim agreement with negative tests. No safe tenant route exists in the current runtime, so B1A remains blocked.
 
 ---
 
@@ -138,6 +163,7 @@ The internal test tenant already exists. Do not provision another tenant or trea
 6. ⛔ Security/Cognito design is approved for any self-service invite path.
 7. ⚠️ Billing activation remains blocked by EIN where live subscription/payment behavior is required.
 8. ✅ Deterministic Getting Started documentation is locally complete, independently reviewed (`GUIDE_CORRECT`), committed, and pushed as repository documentation; it is not publicly published.
+9. ⛔ A normal tenant-specific owner landing and fail-closed expected-tenant/claim agreement are implemented and validated. `test_tenant_alpha` currently lacks this surface, so Gate B1A remains blocked.
 
 The dated update log below is historical chronology. Statements such as “strict mode remains disabled” or “no second tenant exists” were accurate at those checkpoints and are superseded by later entries.
 

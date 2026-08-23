@@ -78,7 +78,19 @@ Ryan wants dashboard/home stat cards to be tappable:
 
 Slice D1 is committed and pushed but not built, distributed, or deployed. Pending Review and Needs Sitter navigate to the existing Requests tab with transient contract-checked `PENDING_REVIEW` and `APPROVED` filters. Scheduled, Today's Visits, and This Week's Visits navigate to the existing Schedule tab. Because the current admin/owner Schedule has no date/range route contract, D1 does not invent today/week parameters; date-focused navigation remains deferred. All five cards have button semantics, meaningful labels and hints, and unchanged full-card visual surfaces.
 
+The 2026-08-23 operational reconciliation confirms all five cards are pressable in source but records the remaining semantic gaps: Needs Sitter counts all exact `APPROVED` parents rather than the canonical unassigned predicate; Scheduled also counts `JOB_CREATED`; today/week counts rely on parent `selected_dates`; and Schedule targets are unfiltered. A follow-up Mobile Dashboard slice must make each count and destination share one canonical selector. Future **Unassigned**, **Active Clients**, and **Cancellation Requests** cards are appropriate only after their target screens accept typed filters.
+
 See `docs/release-notes/ryan-slice-d1-mobile-dashboard-navigation.md`.
+
+---
+
+## Mobile Bottom Navigation Safe-Area Requirement
+
+Manual operational review found the iOS/Android bottom navigation too close to system gesture/home controls. Current admin, staff, and client tab navigators repeat a fixed 60-point height with 8-point top/bottom padding and do not derive layout from safe-area/system insets.
+
+A separately approved Mobile slice must centralize tab-bar options and calculate bottom padding/total height from `react-native-safe-area-context`. It must validate iPhone home indicators, Android gesture navigation, Android button navigation, device variation, portrait, and supported landscape without device-specific padding. This requirement is planning-only and does not authorize a build or distribution.
+
+See `docs/planning/tenant-access-client-onboarding-operational-workflow-alignment.md`.
 
 ---
 
@@ -193,7 +205,9 @@ The existing exact admin-request read now exposes authoritative child occurrence
 
 Complete is unchanged and remains valid with or without Start metadata. E3A itself includes no Mobile UI; E3B subsequently added Mobile consumption and E3B.1 hardened it. Early/late/same-day policy, correction, mandatory Start, client visibility, notifications, Calendar effects, offline time, and admin-on-behalf UX remain deferred decisions.
 
-Gate A used exact RC `732e48b` and the exact reviewed saved Terraform plan (`14 added, 14 changed, 1 destroyed`). All 13 Lambdas and API deployment `886zij` passed health/configuration checks; unauthenticated Start/GET boundaries returned 401 and OPTIONS returned 200. Matthew-approved Gate B0 completed on 2026-08-23 with exactly one `AdminEnableUser` for the sole existing `test_tenant_alpha` identity. The identity remains `CONFIRMED`, `client,owner`, and test-tenant mapped; credentials were preserved. No safe authenticated session was available, so login was not attempted. Tenant data remains metadata-only, and no notification, Start, Complete, or data/profile creation occurred. B1A, B1B, B2, B3, Mobile build/distribution, tester changes, and Ryan testing remain unapproved.
+Gate A used exact RC `732e48b` and the exact reviewed saved Terraform plan (`14 added, 14 changed, 1 destroyed`). All 13 Lambdas and API deployment `886zij` passed health/configuration checks; unauthenticated Start/GET boundaries returned 401 and OPTIONS returned 200. Matthew-approved Gate B0 completed on 2026-08-23 with exactly one `AdminEnableUser` for the sole existing `test_tenant_alpha` identity. The identity remains `CONFIRMED`, `client,owner`, and test-tenant mapped; credentials were preserved. No safe authenticated session was available, so login was not attempted. Tenant data remains metadata-only, and no notification, Start, Complete, or data/profile creation occurred.
+
+Manual UI review then established that the active test tenant has no normal tenant-specific owner application landing URL. This is an application-routing/tenant-bootstrap gap, not proof of an identity defect. B1A is now **BLOCKED** pending a separately approved fail-closed tenant route/host plus login-isolation validation. Keep the identity enabled. B1B, B2, B3, Mobile build/distribution, tester changes, and Ryan testing remain unapproved.
 
 See `docs/release-notes/ryan-slice-e3a-child-start-contract-occurrence-read-model.md`.
 
@@ -253,7 +267,7 @@ Do NOT edit the WordPress site in any implementation slice. Website alignment is
 | O1 | Overnight fixed 21:00→07:00 next-day scheduling | A–C1, D2, R1, W1 | Committed / Pushed / Not Deployed |
 | E1 | Web Admin Assign Sitter + View in Calendar handoffs | C, D1, D2 | Implemented / Validated / Not Deployed |
 | E2 | Web Admin intake approval → bounded reconciliation → Scheduler handoff | E1 | Implemented / Validated / Not Deployed |
-| E3A | Child Start contract + occurrence-aware exact-request read | E1, E2 | Backend/API Gate A Deployed / Gate B0 Complete / B1A–B3 Not Approved |
+| E3A | Child Start contract + occurrence-aware exact-request read | E1, E2 | Backend/API Gate A Deployed / Gate B0 Complete / B1A Blocked by tenant landing; B1B–B3 Not Approved |
 | E3B | Mobile occurrence-safe Start/Complete consumption | E3A | Implemented / Validated / Not Built / Not Distributed / Not Deployed |
 | E3B.1 | Mobile visit workflow safety remediation | E3B | Implemented / Validated / Not Built / Not Distributed / Not Deployed |
 | E | Remaining workflow next-action simplification | E1, E2, E3A | E1–E3B.1 complete locally; deployment/build planning separately gated |
