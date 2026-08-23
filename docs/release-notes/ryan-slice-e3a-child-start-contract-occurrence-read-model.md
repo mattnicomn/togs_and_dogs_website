@@ -1,7 +1,7 @@
 # Ryan Slice E3A — Child Start Contract and Occurrence Read Model
 
-**Date:** 2026-08-20; production Gate A deployed 2026-08-21
-**Status:** ✅ DEPLOYED TO PRODUCTION / NON-WRITE VERIFIED / GATE B NOT APPROVED
+**Date:** 2026-08-20; production Gate A deployed 2026-08-21; Gate B0 completed 2026-08-23
+**Status:** ✅ DEPLOYED TO PRODUCTION / GATE B0 COMPLETE / B1A–B3 NOT APPROVED
 **Starting SHA:** `694555f0f10be80bd99099a1b00f329c5bbbf73d`
 
 ## Objective
@@ -57,14 +57,22 @@ Matthew explicitly approved Gate A for isolated backend/API RC `732e48b930f6fd9a
 
 All 13 shared-package Lambdas reached `Active` / `Successful`, matched the approved package hash, and retained their pre-deploy configuration fingerprints. API Gateway `prod` moved from deployment `28dv28` to `886zij`; all 50 baseline paths remained, `/admin/job/start` and the exact-request GET have Cognito authorization plus Lambda proxy integration, and both OPTIONS/CORS paths passed. Unauthenticated Start and exact GET returned `401` before integration; both OPTIONS checks returned `200`. Deployment-window log review found no import, initialization, or syntax errors; the SES-feedback function had no log group to inspect but independently passed Lambda health and package verification. Production budget notifications remained ACTUAL 80%, ACTUAL 100%, and FORECASTED 80%.
 
-No successful Start, Complete, assignment/review/booking mutation, production test-data creation, Calendar action, notification, tenant, IAM, DynamoDB, Cognito, Postmark, Stripe, or budget change occurred. Authenticated malformed Start was skipped because no approved production authentication context was supplied. Authenticated exact-record GET was skipped because no preapproved internal validation record was documented. Gate B and successful Start validation remain separately approval-gated.
+No successful Start, Complete, assignment/review/booking mutation, production test-data creation, Calendar action, notification, tenant, IAM, DynamoDB, Cognito, Postmark, Stripe, or budget change occurred. Authenticated malformed Start was skipped because no approved production authentication context was supplied. Authenticated exact-record GET was skipped because no preapproved internal validation record was documented. At Gate-A closeout, all Gate-B work and successful Start validation remained separately approval-gated.
+
+## Production Gate-B0 Identity Enablement (2026-08-23)
+
+Matthew explicitly approved Gate B0 to enable the sole existing Cognito identity mapped to `test_tenant_alpha` without changing the identity. The pre-mutation checkpoint confirmed clean `main` at `c56dc860571cd200452efbfda01e16de4b96c2ce`, exactly one tenant identity, `CONFIRMED` status, disabled state, `custom:company_id=test_tenant_alpha`, groups `client,owner`, and no other enabled identity in that tenant.
+
+Exactly one `AdminEnableUser` operation succeeded from `2026-08-23T12:00:09Z` through `2026-08-23T12:00:10Z`. Post-enable verification confirmed the same identity is enabled and remains `CONFIRMED`, with groups and tenant mapping unchanged. Existing credentials were preserved: no password reset, temporary password, invitation/resend, group change, attribute change, or session-revocation operation occurred. CloudTrail showed `AdminEnableUser` as the only Cognito mutation in the execution window.
+
+The available browser context had no existing authenticated session or safely available credentials, so login was not attempted and no credential flow was triggered. Read-only tenant verification found only the existing tenant metadata record and zero client, staff, pet, request, or job records. Enablement itself sent no email, Postmark, SES, push, or other notification and caused no Calendar, Stripe, tenant, profile, request/job, Start, or Complete action. The identity was intentionally left enabled. Gate B1A, B1B, B2, and B3 remain not approved.
 
 ## Boundaries and Next Slice
 
-E3A backend/API Gate A is deployed. E2, E1, and O1 remain NOT DEPLOYED. E3B/E3B.1 Mobile remain NOT BUILT, NOT DISTRIBUTED, and NOT DEPLOYED. No Ryan testing or tester change was authorized.
+E3A backend/API Gate A is deployed and Gate B0 identity enablement is complete. B1A, B1B, B2, and B3 remain NOT APPROVED. E2, E1, and O1 remain NOT DEPLOYED. E3B/E3B.1 Mobile remain NOT BUILT, NOT DISTRIBUTED, and NOT DEPLOYED. No Ryan testing or tester change was authorized.
 
 E3B/E3B.1 Mobile are implemented and validated locally but remain future build/distribution/deployment work. Early/late/same-day Start policy, Start correction, mandatory Start-before-Complete, client visibility, Start notifications, Calendar effects, offline/device time, and any admin “Start on behalf” UX remain explicit product decisions.
 
 ## Disposition
 
-**Final Status:** `RYAN_SLICE_E3A_DEPLOYED_GATE_A_NON_WRITE_VALIDATED_GATE_B_NOT_APPROVED`
+**Final Status:** `RYAN_SLICE_E3A_DEPLOYED_GATE_A_VALIDATED_GATE_B0_COMPLETE_B1A_THROUGH_B3_NOT_APPROVED`

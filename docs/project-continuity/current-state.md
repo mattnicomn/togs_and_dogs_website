@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-21 (Ryan Slice E3A Backend/API Gate A Deployed / Non-Write Verified / Gate B Not Approved)
+**Last Updated:** 2026-08-23 (Ryan Slice E3A Gate B0 Identity Enablement Complete / B1A–B3 Not Approved)
 
 ---
 
@@ -10,7 +10,7 @@
 |-----------|--------|
 | Web app (React/Vite) | ✅ Live at `toganddogs.usmissionhero.com` |
 | Backend (Python/Lambda) | ✅ Deployed |
-| API Gateway | ✅ Active — E3A authenticated Start and exact-request GET routes deployed; Gate B write validation not approved |
+| API Gateway | ✅ Active — E3A authenticated Start and exact-request GET routes deployed; no Start/data-write Gate-B validation approved |
 | DynamoDB | ✅ Single table, shared-tenant model |
 | Google Calendar | ✅ One configured Google provider connection for `tog_and_dogs`; token storage/resolution is tenant-scoped (21H). `test_tenant_alpha` remains provider `none` / `not_configured`; independent providers for multiple tenants are not claimed. |
 | Postmark email | ✅ Active (notifications, payment emails); approved production transactional email provider |
@@ -74,7 +74,7 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - Start uses server metadata, blocks duplicate taps, and reconciles ambiguous failure by exact refetch. No `IN_PROGRESS` exists.
   - Singular legacy identity remains compatible; ambiguous multi-child identity blocks instead of invoking parent-wide Complete. Full Mobile 132/132 and TypeScript pass. No build/distribution occurred.
 
-- Ryan Slice E3A Child Start Contract and Occurrence Read Model (✅ DEPLOYED TO PRODUCTION / NON-WRITE VERIFIED / GATE B NOT APPROVED — 2026-08-21)
+- Ryan Slice E3A Child Start Contract and Occurrence Read Model (✅ DEPLOYED TO PRODUCTION / GATE B0 COMPLETE / B1A–B3 NOT APPROVED — 2026-08-23)
   - Authenticated `POST /admin/job/start` targets exactly one canonical `ASSIGNED` child JOB. A conditional atomic update writes authoritative server UTC `started_at`, authenticated actor metadata, update metadata, and exactly one `JOB_STARTED` child audit entry.
   - Child and parent canonical statuses and assignment remain unchanged; `IN_PROGRESS` was not added. Start creates no job/request, Calendar mutation, or notification.
   - Owner/admin authorization follows existing per-job conventions; staff must match the child `worker_id`. Tenant ownership is enforced. Replays return the original timestamp without writing, and concurrent losers use a strongly consistent read to resolve the persisted winner.
@@ -83,7 +83,9 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - Validation: focused 24/24; affected backend 137/137; full backend 977 passed / same 100 exact-checkpoint failures versus 953 / 100; shared/adapters pass; full Web 310/310 plus legacy 99/99/build; full Mobile 128/128/typecheck; diff check pass.
   - Matthew-approved Gate A deployed RC `732e48b930f6fd9aac958351c4ac7823c14cf3e0` using only saved plan SHA-256 `01DA5C94E022420A0E3456ED888F9800DDD972FACA32BF61106FFE801B696854` and backend ZIP SHA-256 `C7E407664A170CA1C2077029E6750BDEBE736E648E505666DE3DED091C66635A` (`14 added, 14 changed, 1 destroyed`).
   - All 13 Lambdas are Active/Successful with the approved code hash and unchanged configuration fingerprints. API Gateway deployment `886zij`, Cognito authorization, Lambda proxy integrations, CORS, all 50 baseline paths, and eight critical legacy routes passed.
-  - Non-write checks: unauthenticated Start and exact GET returned 401 before integration; both OPTIONS routes returned 200. Authenticated malformed Start and authenticated exact-record GET were skipped because no approved auth context or preapproved internal record was available. Gate B, successful Start, Complete, production test data, Mobile build/distribution, tester changes, and Ryan testing were not performed.
+  - Non-write checks: unauthenticated Start and exact GET returned 401 before integration; both OPTIONS routes returned 200. Authenticated malformed Start and authenticated exact-record GET were skipped because no approved auth context or preapproved internal record was available.
+  - Matthew-approved Gate B0 completed on 2026-08-23: exactly one `AdminEnableUser` enabled the sole existing `test_tenant_alpha` identity. It remains `CONFIRMED`, mapped to `test_tenant_alpha`, and in `client,owner`; no password, invitation, group, role, or tenant-mapping change occurred.
+  - No safe existing authenticated session/credentials were available, so login was not attempted. Read-only validation found only tenant metadata and zero client, staff, pet, request, or job records. No notification, Calendar/Stripe action, Start, Complete, or production data creation occurred. B1A, B1B, B2, B3, Mobile build/distribution, tester changes, and Ryan testing remain unapproved.
   - See: `docs/release-notes/ryan-slice-e3a-child-start-contract-occurrence-read-model.md`
 
 - Ryan Slice E2 Intake Approval to Scheduler Handoff (✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED — 2026-08-20)
