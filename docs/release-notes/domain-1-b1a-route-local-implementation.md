@@ -33,3 +33,9 @@ One broader legacy tenant-enforcement selection completed 86/89; its three failu
 ## Deployment boundary
 
 No Web/backend deployment, DNS, Route53, CloudFront, ACM, API Gateway, Cognito callback, environment-variable, tenant-data, notification, Calendar, Stripe, Mobile build, or distribution change occurred. B1A remains blocked pending separately approved deployment and independent login-only isolation validation. B1B/B2/B3 remain not approved.
+
+## ROUTE-GATE-A follow-up
+
+The first DOMAIN-1 backend release-candidate plan is permanently rejected. Its unexpected API Gateway deployment replacement was traced to whole-provider-object hashing in the deployment trigger, not to the backend package. A dedicated local infrastructure prerequisite RC now implements a canonical semantic fingerprint; it is deliberately not folded silently into the existing DOMAIN-1 backend RC.
+
+ROUTE-GATE-A remains blocked pending independent review of that prerequisite. No plan, apply, deployment, or AWS change occurred. After review and separate approval, release composition must use the reviewed infrastructure prerequisite plus the DOMAIN-1 backend changes to generate a fresh saved plan; the rejected plan is never reusable. See `docs/release-notes/api-gateway-semantic-deployment-fingerprint-infrastructure-rc.md`.

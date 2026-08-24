@@ -1,0 +1,68 @@
+# API Gateway Semantic Deployment Fingerprint Infrastructure RC
+
+**Date:** 2026-08-24
+
+**Status:** Implemented and validated locally / dedicated infrastructure prerequisite RC / not deployed / independent review required
+
+## Release boundary
+
+This is a dedicated infrastructure prerequisite release candidate on `codex/api-semantic-fingerprint-rc`, starting from authoritative `main` commit `b0a687f086dd25b359992dd599f25e239269f691`. It is intentionally separate from `release/domain1-b1a-route-backend-rc` so the API deployment-control change can be independently reviewed before a revised DOMAIN-1 production plan is created.
+
+ROUTE-GATE-A remains **BLOCKED / NOT READY**. The existing `route-gate-a-b1a-route-20260824.tfplan` file, SHA-256 `B127670C9229D694711CC428B86AE908FC2ADFB17EC563B4BD3F098F5310E7DF`, is permanently rejected and must never be applied. A fresh saved plan requires successful independent review and separate Matthew approval.
+
+No Terraform plan, refresh, apply, deployment, AWS modification, Cognito/DNS change, production-data write, Mobile build/distribution, or secret rotation occurred in this remediation.
+
+## Defect and remediation
+
+`aws_api_gateway_deployment.main.triggers.redeployment` previously hashed `jsonencode` of 81 whole API Gateway provider resource objects. Provider-state normalization of semantically absent optional values (`null` versus `[]`, `{}`, or `""`) therefore changed the SHA-1 and proposed an unnecessary API deployment replacement plus stage `deployment_id` update during a Lambda-package-only candidate.
+
+The trigger now consumes only `module.deployment_fingerprint.sha1`. An explicit manifest records API behavior, and a provider-independent typed Terraform module canonicalizes it before `jsonencode` and SHA-1 calculation. The manifest covers:
+
+- resource parent/path identity;
+- authorizer type, identity source, provider reference, and result TTL;
+- method resource, HTTP verb, authorization, authorizer reference, API-key requirement, scopes, operation name, request models/parameters, and request-validator reference;
+- integration method, type, integration verb, target URI/reference, connection/credential references, request mappings/templates, passthrough, cache semantics, content handling, timeout, and TLS behavior;
+- method and integration response status, models, parameters, templates, content handling, and selection pattern;
+- the exact CORS resource set plus shared OPTIONS, MOCK integration, method-response, and integration-response behavior;
+- gateway-response type, status, parameters, and templates.
+
+Optional maps canonicalize to `{}`, optional sets/lists to sorted `[]`, optional strings to `""`, and booleans/numeric defaults to explicit values. Map keys and semantic component keys are encoded deterministically; unordered collections are sorted. The trigger excludes provider-generated IDs and whole objects, deployment/stage IDs, timestamps, descriptions, Lambda `source_code_hash`, backend ZIP hash, Lambda `last_modified`, and unrelated Lambda configuration.
+
+The deployment retains `create_before_destroy = true`. Its explicit `depends_on` now covers all 54 non-CORS integrations plus the shared CORS integration response and both gateway responses, preserving complete graph ordering after provider-object references were removed.
+
+## Change-detection evidence
+
+The focused provider-free Terraform test suite proves:
+
+- `null` and absent/empty map, set/list, string, boolean, number representations yield the same fingerprint;
+- adding a path changes the fingerprint;
+- changing an HTTP method changes it;
+- changing authorization changes it;
+- changing an integration target URI changes it;
+- changing a request parameter mapping changes it;
+- changing CORS response behavior changes it.
+
+Static validation compares the manifest with every configured API resource, non-CORS method, integration, authorizer, CORS resource, and gateway response, fails closed on uncovered fields, verifies complete deployment dependencies, and confirms E3A semantic coverage for authenticated `POST /admin/job/start` and `GET /admin/requests/{requestId}` including CORS.
+
+Historical E3A commit `e10a98e` added genuine API topology/behavior in `modules/api/main.tf`; the manifest changes for its Start resource/method/integration and exact-request method/integration, so the new fingerprint would have changed. Conversely, deployed baseline `732e48b930f6fd9aac958351c4ac7823c14cf3e0` and DOMAIN-1 backend RC `5e8675ad25c92d05c60e94fa83894bd4ed7632b0` have byte-identical `modules/api` tree `c21fe946c095f7d50372222c1344809b64cc1ad4` and `infra/prod` tree `c5646d22d660098b1ec41e902ed84eb82391b3f9`; backend package metadata is excluded, so that Lambda-only change does not alter the semantic fingerprint.
+
+## Local validation
+
+- semantic fingerprint Terraform tests: 8/8;
+- source/manifest static validator: 53 resources, 54 methods, 54 integrations, 47 CORS resources, 2 gateway responses; E3A coverage pass;
+- Terraform recursive format check: pass;
+- Terraform production-root configuration validation: pass without plan or state refresh;
+- tenant-route plus E3A backend tests: 38/38;
+- disabled-tenant and Platform Admin boundary tests: 34/34;
+- shared constants/API paths: 24/24;
+- shared contract adapters: 9/9 in an isolated line-ending-neutral checkout;
+- Python compile: pass;
+- Git diff check: pass.
+
+## Security incident boundary
+
+A prior inspection identified exposure of a Stripe test API credential and a Stripe test webhook-signing credential. No credential value is recorded here or in this RC. Rotation was not performed; it requires separate Matthew approval. Stripe remains sandbox/test-mode only.
+
+## Next gate
+
+Independent AG/Kiro review must confirm the semantic field set, normalization, determinism, positive change detection, source/manifest coverage, and release composition. Only after that review and separate Matthew authorization may a fresh non-targeted production saved plan be generated and reviewed. The rejected plan is not reusable.

@@ -42,6 +42,7 @@
 | Slice | Milestone |
 |-------|-----------|
 | E3A | **Backend/API Gate A deployed to production and non-write verified** from RC `732e48b` using the exact approved saved plan (`14 added, 14 changed, 1 destroyed`) on 2026-08-21. **Gate B0 completed 2026-08-23:** the sole existing `test_tenant_alpha` Cognito identity was enabled exactly as-is and remains `CONFIRMED`, `client,owner`, and test-tenant mapped. No safe authenticated session was available, so login was not attempted; no data/profile, notification, Start, or Complete occurred. B1A, B1B, B2, B3, E3B/E3B.1 Mobile build/distribution, and Ryan testing remain unapproved. |
+| DOMAIN-1 ROUTE-GATE-A trigger prerequisite | **LOCAL-ONLY DEDICATED INFRASTRUCTURE RC / NOT DEPLOYED / ROUTE-GATE-A BLOCKED** (2026-08-24). The first DOMAIN-1 saved plan is permanently rejected after whole-provider-object trigger hashing caused a false API deployment replacement. A canonical semantic fingerprint now has 8/8 focused tests and exact source/E3A coverage. Independent review and separate approval are required before any fresh saved plan. Sanitized Stripe test credential exposure was recorded; rotation was not performed and remains separately gated. |
 
 ## Multi-Tenant Foundation (Releases 11)
 

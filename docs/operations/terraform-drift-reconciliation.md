@@ -1,4 +1,20 @@
-# Terraform Drift Reconciliation: Google Calendar Disconnect
+# Terraform Drift and Deployment Trigger Reconciliation
+
+## Current safety notice — 2026-08-24
+
+ROUTE-GATE-A is **BLOCKED / NOT READY**. The saved plan `route-gate-a-b1a-route-20260824.tfplan` (SHA-256 `B127670C9229D694711CC428B86AE908FC2ADFB17EC563B4BD3F098F5310E7DF`) is permanently rejected and must never be applied.
+
+The plan exposed a deterministic-trigger defect: `aws_api_gateway_deployment.main` hashed whole provider objects, so provider normalization of equivalent absent optional values (`null`, `[]`, `{}`, and `""`) caused an unnecessary deployment replacement and stage pointer update during a Lambda-only candidate. A dedicated local infrastructure prerequisite RC now replaces that design with an explicit, normalized semantic manifest and provider-independent fingerprint module. It is not deployed and still requires independent review. A fresh saved plan requires separate authorization after that review; no current plan is approved.
+
+The remediation excludes provider IDs, deployment IDs, timestamps, Lambda package/hash/last-modified data, and unrelated Lambda configuration. Focused tests prove null/empty stability and positive changes for path, verb, authorization, integration target, request mapping, and CORS behavior. See `docs/release-notes/api-gateway-semantic-deployment-fingerprint-infrastructure-rc.md`.
+
+A prior plan-inspection incident identified exposure of a Stripe test API credential and a Stripe test webhook-signing credential. Rotation was not performed and requires separate Matthew approval. Stripe remains sandbox/test-mode only. No secret value may be copied into commands, documentation, fixtures, diffs, or review output.
+
+The May 2026 material below is retained as historical context only. Its plan/apply examples are not authorization for present work and must not be used for ROUTE-GATE-A.
+
+---
+
+# Historical: Google Calendar Disconnect Drift Reconciliation
 
 **Date**: May 27, 2026  
 **Component**: API Gateway, Lambda (`togs-and-dogs-prod-google-auth`)  

@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-24 (DOMAIN-1 Accepted / B1A-ROUTE Local Only / B1A Blocked)
+**Last Updated:** 2026-08-24 (API trigger prerequisite RC local only / ROUTE-GATE-A and B1A blocked)
 
 ---
 
@@ -35,6 +35,7 @@
 | Admin payment link UX | ✅ Deployed |
 | Payment email sending | ✅ Deployed |
 | Payment terms draft | ✅ Written (not published to website) |
+| Test credential exposure | ⚠️ Stripe test API and test webhook-signing credential exposure identified; rotation not performed and separately approval-gated; sandbox/test-mode only |
 
 ## Tenant / Multi-Business Readiness
 
@@ -60,10 +61,21 @@
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
 | Tenant-specific owner landing not deployed or independently login-validated | Gate B1A owner login/tenant UI validation remains blocked | Separately approved backend/Web deployment, then B1A-LOGIN validation |
+| ROUTE-GATE-A prerequisite not independently reviewed | Original saved plan permanently rejected; no DOMAIN-1 deployment plan is usable | Independent review, then separately approved fresh saved plan |
 
 ## Current Work and Latest Closeouts
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
+
+- API Gateway Semantic Deployment Fingerprint (✅ IMPLEMENTED / VALIDATED LOCALLY / DEDICATED INFRASTRUCTURE PREREQUISITE RC / NOT DEPLOYED — 2026-08-24)
+  - ROUTE-GATE-A remains **BLOCKED / NOT READY**. The original `route-gate-a-b1a-route-20260824.tfplan` is permanently rejected and must never be applied; a fresh saved plan requires independent review and separate Matthew approval.
+  - Replaced the 81-whole-provider-object `jsonencode` trigger with an explicit semantic manifest and provider-independent typed canonicalizer. Optional maps become `{}`, sets/lists become sorted `[]`, strings become `""`, and booleans/numeric defaults are explicit.
+  - Fingerprinted behavior covers 53 resources, 54 non-CORS methods, 54 integrations, 47 CORS resources, the Cognito authorizer reference, response behavior, and both gateway responses. Provider-generated IDs and Lambda package metadata are excluded.
+  - E3A `POST /admin/job/start` and `GET /admin/requests/{requestId}` remain semantically covered. DOMAIN-1 application/runtime files were not changed.
+  - Validation: Terraform tests 8/8; static source/manifest coverage pass; format and validate pass; tenant-route plus E3A 38/38; disabled-tenant/Platform boundaries 34/34; shared constants/API 24/24 and adapters 9/9; Python compile and diff check pass.
+  - A prior inspection identified Stripe test API and test webhook-signing credential exposure. No values were reused or recorded. Rotation was not performed and requires separate approval; Stripe remains sandbox/test-mode only.
+  - No plan, refresh, apply, deployment, AWS/Cognito/DNS/data/Mobile change, or secret rotation occurred.
+  - See: `docs/release-notes/api-gateway-semantic-deployment-fingerprint-infrastructure-rc.md`
 
 - DOMAIN-1 + B1A-ROUTE (✅ IMPLEMENTED / VALIDATED LOCALLY / NOT DEPLOYED — 2026-08-24)
   - Accepted `platform.toganddogs.usmissionhero.com` as the control plane, `<tenant-slug>.toganddogs.usmissionhero.com` as the tenant plane, and the current host as a temporary compatibility surface.

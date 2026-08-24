@@ -1385,150 +1385,125 @@ resource "aws_api_gateway_gateway_response" "missing_auth_token" {
   }
 }
 
+# The deployment snapshot is keyed only by canonical API behavior. Provider resource
+# objects are deliberately excluded because their computed null/empty normalization
+# is not an API change and must not force a replacement deployment.
+locals {
+  api_deployment_semantics = jsondecode(file("${path.module}/deployment-semantics.json"))
+
+  api_integration_target_references = {
+    admin_handler_invoke_arn            = var.admin_handler_invoke_arn
+    assign_handler_invoke_arn           = var.assign_handler_invoke_arn
+    cancellation_handler_invoke_arn     = var.cancellation_handler_invoke_arn
+    device_handler_invoke_arn           = var.device_handler_invoke_arn
+    google_auth_handler_invoke_arn      = var.google_auth_handler_invoke_arn
+    intake_handler_invoke_arn           = var.intake_handler_invoke_arn
+    pet_handler_invoke_arn              = var.pet_handler_invoke_arn
+    platform_handler_invoke_arn         = var.platform_handler_invoke_arn
+    platform_preview_handler_invoke_arn = var.platform_preview_handler_invoke_arn
+    postmark_webhook_handler_invoke_arn = var.postmark_webhook_handler_invoke_arn
+    review_handler_invoke_arn           = var.review_handler_invoke_arn
+    stripe_webhook_handler_invoke_arn   = var.stripe_webhook_handler_invoke_arn
+  }
+
+  api_authorizer_provider_references = {
+    user_pool_arn = var.user_pool_arn
+  }
+
+  api_deployment_authorizers = {
+    for key, authorizer in local.api_deployment_semantics.authorizers : key => {
+      type                = authorizer.type
+      identity_source     = authorizer.identity_source
+      provider_references = [for reference in authorizer.provider_reference_keys : local.api_authorizer_provider_references[reference]]
+      result_ttl_seconds  = authorizer.result_ttl_seconds
+    }
+  }
+
+  api_deployment_integrations = {
+    for key, integration in local.api_deployment_semantics.integrations : key => merge(integration, {
+      uri = local.api_integration_target_references[integration.target_reference]
+    })
+  }
+}
+
+module "deployment_fingerprint" {
+  source = "./deployment-fingerprint"
+
+  resources             = local.api_deployment_semantics.resources
+  authorizers           = local.api_deployment_authorizers
+  methods               = local.api_deployment_semantics.methods
+  integrations          = local.api_deployment_integrations
+  method_responses      = local.api_deployment_semantics.method_responses
+  integration_responses = local.api_deployment_semantics.integration_responses
+  cors                  = local.api_deployment_semantics.cors
+  gateway_responses     = local.api_deployment_semantics.gateway_responses
+}
+
 resource "aws_api_gateway_deployment" "main" {
   depends_on = [
-    aws_api_gateway_integration.intake_lambda,
+    aws_api_gateway_integration.admin_export_lambda,
     aws_api_gateway_integration.admin_lambda,
-    aws_api_gateway_integration.get_tenant_info_lambda,
-    aws_api_gateway_integration.post_admin_requests_lambda,
-    aws_api_gateway_integration.review_lambda,
     aws_api_gateway_integration.assign_lambda,
+    aws_api_gateway_integration.delete_admin_staff_id_lambda,
+    aws_api_gateway_integration.delete_client_device_lambda,
+    aws_api_gateway_integration.delete_google_auth_lambda,
+    aws_api_gateway_integration.get_admin_clients_lambda,
+    aws_api_gateway_integration.get_admin_pets_lambda,
+    aws_api_gateway_integration.get_admin_request_lambda,
+    aws_api_gateway_integration.get_admin_staff_lambda,
+    aws_api_gateway_integration.get_client_pets_lambda,
+    aws_api_gateway_integration.get_client_requests_lambda,
+    aws_api_gateway_integration.get_pet_lambda,
+    aws_api_gateway_integration.get_platform_audit_lambda,
+    aws_api_gateway_integration.get_platform_tenants_id_lambda,
+    aws_api_gateway_integration.get_platform_tenants_lambda,
+    aws_api_gateway_integration.get_tenant_info_lambda,
     aws_api_gateway_integration.google_auth_lambda,
     aws_api_gateway_integration.google_callback_lambda,
     aws_api_gateway_integration.google_status_lambda,
-    aws_api_gateway_integration.post_pet_lambda,
-    aws_api_gateway_integration.get_admin_pets_lambda,
-    aws_api_gateway_integration.get_pet_lambda,
-    aws_api_gateway_integration.put_pet_lambda,
-    aws_api_gateway_integration.put_client_pet_lambda,
-    aws_api_gateway_integration.post_client_cancel_lambda,
-    aws_api_gateway_integration.put_admin_cancel_lambda,
-    aws_api_gateway_integration.get_admin_staff_lambda,
-    aws_api_gateway_integration.post_admin_staff_lambda,
+    aws_api_gateway_integration.intake_lambda,
+    aws_api_gateway_integration.patch_admin_client_id_lambda,
     aws_api_gateway_integration.patch_admin_staff_id_lambda,
-    aws_api_gateway_integration.delete_admin_staff_id_lambda,
+    aws_api_gateway_integration.patch_platform_tenants_id_lambda,
+    aws_api_gateway_integration.post_admin_client_disable_lambda,
     aws_api_gateway_integration.post_admin_client_resend_lambda,
     aws_api_gateway_integration.post_admin_client_reset_lambda,
     aws_api_gateway_integration.post_admin_client_temp_pw_lambda,
-    aws_api_gateway_integration.post_admin_clients_onboard_lambda,
+    aws_api_gateway_integration.post_admin_clients_lambda,
     aws_api_gateway_integration.post_admin_clients_link_lambda,
-    aws_api_gateway_integration.admin_export_lambda,
-    aws_api_gateway_integration.post_client_devices_lambda,
-    aws_api_gateway_integration.delete_client_device_lambda,
-    aws_api_gateway_integration_response.options_200,
-    aws_api_gateway_gateway_response.unauthorized,
-    aws_api_gateway_gateway_response.missing_auth_token,
-    aws_api_gateway_integration.postmark_webhook_lambda,
-    aws_api_gateway_integration.post_admin_job_start_lambda,
+    aws_api_gateway_integration.post_admin_clients_onboard_lambda,
     aws_api_gateway_integration.post_admin_job_complete_lambda,
-    aws_api_gateway_integration.get_admin_request_lambda,
-    aws_api_gateway_integration.stripe_webhook_lambda,
+    aws_api_gateway_integration.post_admin_job_start_lambda,
     aws_api_gateway_integration.post_admin_payment_session_lambda,
+    aws_api_gateway_integration.post_admin_requests_lambda,
     aws_api_gateway_integration.post_admin_send_payment_email_lambda,
-    aws_api_gateway_integration.get_platform_tenants_lambda,
-    aws_api_gateway_integration.get_platform_tenants_id_lambda,
-    aws_api_gateway_integration.patch_platform_tenants_id_lambda,
-    aws_api_gateway_integration.get_platform_audit_lambda,
-    aws_api_gateway_integration.post_platform_onboarding_validate_lambda,
-    aws_api_gateway_integration.post_platform_onboarding_preview_lambda,
+    aws_api_gateway_integration.post_admin_staff_lambda,
+    aws_api_gateway_integration.post_admin_staff_link_lambda,
+    aws_api_gateway_integration.post_admin_staff_onboard_lambda,
     aws_api_gateway_integration.post_admin_staff_resend_lambda,
     aws_api_gateway_integration.post_admin_staff_reset_lambda,
-    aws_api_gateway_integration.post_admin_staff_temp_pw_lambda
+    aws_api_gateway_integration.post_admin_staff_temp_pw_lambda,
+    aws_api_gateway_integration.post_client_cancel_lambda,
+    aws_api_gateway_integration.post_client_devices_lambda,
+    aws_api_gateway_integration.post_client_requests_lambda,
+    aws_api_gateway_integration.post_pet_lambda,
+    aws_api_gateway_integration.post_platform_onboarding_preview_lambda,
+    aws_api_gateway_integration.post_platform_onboarding_validate_lambda,
+    aws_api_gateway_integration.postmark_webhook_lambda,
+    aws_api_gateway_integration.put_admin_cancel_lambda,
+    aws_api_gateway_integration.put_client_pet_lambda,
+    aws_api_gateway_integration.put_pet_lambda,
+    aws_api_gateway_integration.review_lambda,
+    aws_api_gateway_integration.stripe_webhook_lambda,
+    aws_api_gateway_integration_response.options_200,
+    aws_api_gateway_gateway_response.unauthorized,
+    aws_api_gateway_gateway_response.missing_auth_token
   ]
 
   rest_api_id = aws_api_gateway_rest_api.main.id
 
   triggers = {
-    redeployment = sha1(jsonencode([
-      aws_api_gateway_resource.requests,
-      aws_api_gateway_resource.admin,
-      aws_api_gateway_resource.admin_requests,
-      aws_api_gateway_resource.admin_review,
-      aws_api_gateway_resource.admin_assign,
-      aws_api_gateway_resource.admin_job,
-      aws_api_gateway_resource.admin_job_start,
-      aws_api_gateway_method.post_admin_job_start,
-      aws_api_gateway_integration.post_admin_job_start_lambda,
-      aws_api_gateway_resource.admin_job_complete,
-      aws_api_gateway_method.post_admin_job_complete,
-      aws_api_gateway_integration.post_admin_job_complete_lambda,
-      aws_api_gateway_resource.admin_auth,
-      aws_api_gateway_resource.admin_auth_google,
-      aws_api_gateway_resource.admin_auth_callback,
-      aws_api_gateway_resource.admin_auth_status,
-      aws_api_gateway_resource.admin_tenant_info,
-      aws_api_gateway_method.get_tenant_info,
-      aws_api_gateway_integration.get_tenant_info_lambda,
-      aws_api_gateway_resource.admin_pets,
-      aws_api_gateway_resource.admin_pet_id,
-      aws_api_gateway_resource.client_cancel,
-      aws_api_gateway_resource.client_requests,
-      aws_api_gateway_resource.client_pets,
-      aws_api_gateway_resource.client_pet_id,
-      aws_api_gateway_resource.admin_cancel_decision,
-      aws_api_gateway_resource.admin_staff,
-      aws_api_gateway_resource.admin_staff_id,
-      aws_api_gateway_resource.admin_staff_resend,
-      aws_api_gateway_resource.admin_staff_reset,
-      aws_api_gateway_resource.admin_staff_temp_pw,
-      aws_api_gateway_resource.admin_clients_onboard,
-      aws_api_gateway_resource.admin_clients_link,
-      aws_api_gateway_resource.admin_export,
-      aws_api_gateway_method.post_admin_requests,
-      aws_api_gateway_method.get_admin_pets,
-      aws_api_gateway_method.get_client_requests,
-      aws_api_gateway_method.post_client_requests,
-      aws_api_gateway_method.get_client_pets,
-      aws_api_gateway_method.put_client_pet,
-      aws_api_gateway_integration.put_client_pet_lambda,
-      aws_api_gateway_resource.webhooks,
-      aws_api_gateway_resource.webhooks_postmark,
-      aws_api_gateway_method.post_webhooks_postmark,
-      aws_api_gateway_integration.postmark_webhook_lambda,
-      aws_api_gateway_resource.webhooks_stripe,
-      aws_api_gateway_method.post_webhooks_stripe,
-      aws_api_gateway_integration.stripe_webhook_lambda,
-      aws_api_gateway_resource.admin_request_id,
-      aws_api_gateway_method.get_admin_request,
-      aws_api_gateway_integration.get_admin_request_lambda,
-      aws_api_gateway_resource.admin_payment_session,
-      aws_api_gateway_method.post_admin_payment_session,
-      aws_api_gateway_integration.post_admin_payment_session_lambda,
-      aws_api_gateway_resource.admin_send_payment_email,
-      aws_api_gateway_method.post_admin_send_payment_email,
-      aws_api_gateway_integration.post_admin_send_payment_email_lambda,
-      aws_api_gateway_resource.client_devices,
-      aws_api_gateway_resource.client_device_id,
-      aws_api_gateway_method.post_client_devices,
-      aws_api_gateway_method.delete_client_device,
-      aws_api_gateway_integration.post_client_devices_lambda,
-      aws_api_gateway_integration.delete_client_device_lambda,
-      aws_api_gateway_method.options,
-      aws_api_gateway_integration.options_mock,
-      aws_api_gateway_method_response.options_200,
-      aws_api_gateway_integration_response.options_200,
-      aws_api_gateway_gateway_response.unauthorized,
-      aws_api_gateway_gateway_response.missing_auth_token,
-      aws_api_gateway_resource.platform,
-      aws_api_gateway_resource.platform_tenants,
-      aws_api_gateway_resource.platform_tenants_id,
-      aws_api_gateway_resource.platform_audit,
-      aws_api_gateway_method.get_platform_tenants,
-      aws_api_gateway_integration.get_platform_tenants_lambda,
-      aws_api_gateway_method.get_platform_tenants_id,
-      aws_api_gateway_integration.get_platform_tenants_id_lambda,
-      aws_api_gateway_method.patch_platform_tenants_id,
-      aws_api_gateway_integration.patch_platform_tenants_id_lambda,
-      aws_api_gateway_method.get_platform_audit,
-      aws_api_gateway_integration.get_platform_audit_lambda,
-      aws_api_gateway_resource.platform_onboarding,
-      aws_api_gateway_resource.platform_onboarding_validate,
-      aws_api_gateway_resource.platform_onboarding_preview,
-      aws_api_gateway_method.post_platform_onboarding_validate,
-      aws_api_gateway_integration.post_platform_onboarding_validate_lambda,
-      aws_api_gateway_method.post_platform_onboarding_preview,
-      aws_api_gateway_integration.post_platform_onboarding_preview_lambda
-    ]))
+    redeployment = module.deployment_fingerprint.sha1
   }
 
   lifecycle {

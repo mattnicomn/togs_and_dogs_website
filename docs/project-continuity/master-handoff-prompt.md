@@ -29,6 +29,8 @@ RULES:
 - Do not add Ryan or external testers, create another mobile build, change TestFlight/Google Play distribution, or perform further Ryan production-write testing without explicit approval.
 - Do not activate Stripe live mode or begin live subscription Checkout work without the documented prerequisites and explicit approval.
 - O1 is committed and pushed but not deployed, and E1/E2 are implemented and validated locally but not deployed; do not deploy them without separate explicit approval. E3A backend/API Gate A is deployed and Gate B0 identity enablement is complete. DOMAIN-1 is accepted and B1A-ROUTE is implemented/validated locally but not deployed. B1A remains **BLOCKED** pending deployment approval and independent login isolation; B1B, B2, B3, and any successful Start remain unapproved.
+- ROUTE-GATE-A is **BLOCKED / NOT READY**. The original DOMAIN-1 saved plan is permanently rejected and must never be applied. The API semantic fingerprint remediation is a dedicated local infrastructure prerequisite RC requiring independent review; only a separately approved fresh saved plan may be considered afterward.
+- A Stripe test API credential and test webhook-signing credential exposure were identified. Do not display, search, reuse, or record their values. Rotation was not performed, requires separate Matthew approval, and remains sandbox/test-mode only.
 - Do not treat the enabled `test_tenant_alpha` identity as broken. Use neither shared `/admin` nor undeployed local source to claim B1A completion.
 - Use targeted git add only (never git add .).
 - Planning/docs work goes through Kiro. Implementation goes through AG/Antigravity.
@@ -49,6 +51,7 @@ CURRENT STATE SUMMARY (verify against docs/project-continuity/current-state.md):
 - TENANT_RESOLUTION_MODE=multi is ACTIVE and validated (strict mode enabled 18T, confirmed 18U).
 - Platform Admin UI exists. Second test tenant exists (test_tenant_alpha).
 - `test_tenant_alpha` is active and visible to Platform Admin. DOMAIN-1 accepts `platform.toganddogs.usmissionhero.com` and `<tenant-slug>.toganddogs.usmissionhero.com`; `/t/test-tenant-alpha/admin` is implemented and tested locally only. No DNS, infrastructure, deployment, or production login is authorized.
+- A dedicated API deployment-fingerprint prerequisite RC replaces whole-provider-object hashing with explicit normalized API semantics. Local Terraform tests are 8/8 and exact source coverage preserves both E3A routes. It is not deployed; the rejected ROUTE-GATE-A plan remains unusable, and a fresh plan requires independent review plus separate approval.
 - Ryan's physical Android install and operational review are confirmed; any further build, distribution, or formal production-write validation requires explicit approval. Apple Beta App Review outcome remains `UNKNOWN / NOT VERIFIED`.
 - Phase 24A cross-platform contract layer (API paths 2A, pet fields 2B, request statuses 2C.1, service types 2C.2) is 100% locally complete, committed, and pushed. Mobile portions are included in the current internal pair; no blanket web/backend production deployment is claimed.
 - Phase 24A-3 established mobile Jest; committed Slice D2 brings the suite to 123/123 tests across 13 suites. Neither D1 nor D2 is included in the current internal builds.
