@@ -2,15 +2,15 @@
 
 **Date:** 2026-08-24
 
-**Status:** Implemented and validated locally / dedicated infrastructure prerequisite RC / not deployed / independent review required
+**Status:** Independently approved for release planning / integrated into main / dedicated infrastructure migration still required / not deployed
 
 ## Release boundary
 
-This is a dedicated infrastructure prerequisite release candidate on `codex/api-semantic-fingerprint-rc`, starting from authoritative `main` commit `b0a687f086dd25b359992dd599f25e239269f691`. It is intentionally separate from `release/domain1-b1a-route-backend-rc` so the API deployment-control change can be independently reviewed before a revised DOMAIN-1 production plan is created.
+The reviewed implementation is commit `8d6e38b4488cf8eb4a39d8f4b069aa0d5367875d`, originally prepared on `codex/api-semantic-fingerprint-rc` from authoritative `main` commit `b0a687f086dd25b359992dd599f25e239269f691`. Independent review returned `TRIGGER-FIX APPROVED FOR RELEASE-PLANNING`, and the exact reviewed commit was fast-forwarded into `main`. It remains intentionally separate from `release/domain1-b1a-route-backend-rc` so the API deployment-control migration can be released and verified before a revised DOMAIN-1 production plan is created.
 
 ROUTE-GATE-A remains **BLOCKED / NOT READY**. The existing `route-gate-a-b1a-route-20260824.tfplan` file, SHA-256 `B127670C9229D694711CC428B86AE908FC2ADFB17EC563B4BD3F098F5310E7DF`, is permanently rejected and must never be applied. A fresh saved plan requires successful independent review and separate Matthew approval.
 
-No Terraform plan, refresh, apply, deployment, AWS modification, Cognito/DNS change, production-data write, Mobile build/distribution, or secret rotation occurred in this remediation.
+Integration into `main` is not a deployment. No Terraform apply, deployment, AWS modification, Cognito/DNS change, production-data write, Mobile build/distribution, or secret rotation occurred. Because Terraform state records the legacy trigger value, the first isolated migration plan is expected to contain one transitional API Gateway deployment replacement plus only the stage `deployment_id` update. That expectation is not approval to apply.
 
 ## Defect and remediation
 
@@ -65,4 +65,4 @@ A prior inspection identified exposure of a Stripe test API credential and a Str
 
 ## Next gate
 
-Independent AG/Kiro review must confirm the semantic field set, normalization, determinism, positive change detection, source/manifest coverage, and release composition. Only after that review and separate Matthew authorization may a fresh non-targeted production saved plan be generated and reviewed. The rejected plan is not reusable.
+The trigger fix has passed independent review for release planning. The next controlled step is a dedicated migration RC from the deployed infrastructure baseline, followed by a fresh non-targeted saved plan. The expected first transition is exactly one create-before-destroy deployment replacement and one in-place stage `deployment_id` update, with zero Lambda or API-topology changes. That plan must be independently reviewed and separately approved by Matthew before any apply. The rejected DOMAIN-1 plan is not reusable.
