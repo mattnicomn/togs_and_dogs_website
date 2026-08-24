@@ -1,0 +1,961 @@
+{
+  "authorizers": {
+    "cognito": {
+      "type": "COGNITO_USER_POOLS",
+      "identity_source": "method.request.header.Authorization",
+      "provider_reference_keys": [
+        "user_pool_arn"
+      ],
+      "result_ttl_seconds": 300
+    }
+  },
+  "resources": {
+    "admin": {
+      "parent_key": "root",
+      "path_part": "admin"
+    },
+    "admin_assign": {
+      "parent_key": "admin",
+      "path_part": "assign"
+    },
+    "admin_auth": {
+      "parent_key": "admin",
+      "path_part": "auth"
+    },
+    "admin_auth_callback": {
+      "parent_key": "admin_auth",
+      "path_part": "callback"
+    },
+    "admin_auth_google": {
+      "parent_key": "admin_auth",
+      "path_part": "google"
+    },
+    "admin_auth_status": {
+      "parent_key": "admin_auth",
+      "path_part": "status"
+    },
+    "admin_cancel": {
+      "parent_key": "admin",
+      "path_part": "cancel"
+    },
+    "admin_cancel_decision": {
+      "parent_key": "admin_cancel",
+      "path_part": "decision"
+    },
+    "admin_client_disable": {
+      "parent_key": "admin_client_id",
+      "path_part": "disable"
+    },
+    "admin_client_id": {
+      "parent_key": "admin_clients",
+      "path_part": "{client_id}"
+    },
+    "admin_client_resend": {
+      "parent_key": "admin_client_id",
+      "path_part": "resend-invite"
+    },
+    "admin_client_reset": {
+      "parent_key": "admin_client_id",
+      "path_part": "reset-password"
+    },
+    "admin_client_temp_pw": {
+      "parent_key": "admin_client_id",
+      "path_part": "set-temp-password"
+    },
+    "admin_clients": {
+      "parent_key": "admin",
+      "path_part": "clients"
+    },
+    "admin_clients_link": {
+      "parent_key": "admin_client_id",
+      "path_part": "link-cognito"
+    },
+    "admin_clients_onboard": {
+      "parent_key": "admin_clients",
+      "path_part": "onboard"
+    },
+    "admin_export": {
+      "parent_key": "admin",
+      "path_part": "export-data"
+    },
+    "admin_job": {
+      "parent_key": "admin",
+      "path_part": "job"
+    },
+    "admin_job_complete": {
+      "parent_key": "admin_job",
+      "path_part": "complete"
+    },
+    "admin_job_start": {
+      "parent_key": "admin_job",
+      "path_part": "start"
+    },
+    "admin_payment_session": {
+      "parent_key": "admin_request_id",
+      "path_part": "payment-session"
+    },
+    "admin_pet_id": {
+      "parent_key": "admin_pets",
+      "path_part": "{petId}"
+    },
+    "admin_pets": {
+      "parent_key": "admin",
+      "path_part": "pets"
+    },
+    "admin_request_id": {
+      "parent_key": "admin_requests",
+      "path_part": "{requestId}"
+    },
+    "admin_requests": {
+      "parent_key": "admin",
+      "path_part": "requests"
+    },
+    "admin_review": {
+      "parent_key": "admin",
+      "path_part": "review"
+    },
+    "admin_send_payment_email": {
+      "parent_key": "admin_request_id",
+      "path_part": "send-payment-email"
+    },
+    "admin_staff": {
+      "parent_key": "admin",
+      "path_part": "staff"
+    },
+    "admin_staff_id": {
+      "parent_key": "admin_staff",
+      "path_part": "{staff_id}"
+    },
+    "admin_staff_link": {
+      "parent_key": "admin_staff_id",
+      "path_part": "link-cognito"
+    },
+    "admin_staff_onboard": {
+      "parent_key": "admin_staff",
+      "path_part": "onboard"
+    },
+    "admin_staff_resend": {
+      "parent_key": "admin_staff_id",
+      "path_part": "resend-invite"
+    },
+    "admin_staff_reset": {
+      "parent_key": "admin_staff_id",
+      "path_part": "reset-password"
+    },
+    "admin_staff_temp_pw": {
+      "parent_key": "admin_staff_id",
+      "path_part": "set-temp-password"
+    },
+    "admin_tenant_info": {
+      "parent_key": "admin",
+      "path_part": "tenant-info"
+    },
+    "client": {
+      "parent_key": "root",
+      "path_part": "client"
+    },
+    "client_cancel": {
+      "parent_key": "client",
+      "path_part": "cancel"
+    },
+    "client_device_id": {
+      "parent_key": "client_devices",
+      "path_part": "{device_id}"
+    },
+    "client_devices": {
+      "parent_key": "client",
+      "path_part": "devices"
+    },
+    "client_pet_id": {
+      "parent_key": "client_pets",
+      "path_part": "{petId}"
+    },
+    "client_pets": {
+      "parent_key": "client",
+      "path_part": "pets"
+    },
+    "client_requests": {
+      "parent_key": "client",
+      "path_part": "requests"
+    },
+    "platform": {
+      "parent_key": "root",
+      "path_part": "platform"
+    },
+    "platform_audit": {
+      "parent_key": "platform",
+      "path_part": "audit"
+    },
+    "platform_tenants": {
+      "parent_key": "platform",
+      "path_part": "tenants"
+    },
+    "platform_tenants_id": {
+      "parent_key": "platform_tenants",
+      "path_part": "{company_id}"
+    },
+    "requests": {
+      "parent_key": "root",
+      "path_part": "requests"
+    },
+    "webhooks": {
+      "parent_key": "root",
+      "path_part": "webhooks"
+    },
+    "webhooks_postmark": {
+      "parent_key": "webhooks",
+      "path_part": "postmark"
+    },
+    "webhooks_stripe": {
+      "parent_key": "webhooks",
+      "path_part": "stripe"
+    }
+  },
+  "methods": {
+    "delete_admin_staff_id": {
+      "resource_key": "admin_staff_id",
+      "http_method": "DELETE",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "delete_client_device": {
+      "resource_key": "client_device_id",
+      "http_method": "DELETE",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "delete_google_auth": {
+      "resource_key": "admin_auth_google",
+      "http_method": "DELETE",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "get_admin_clients": {
+      "resource_key": "admin_clients",
+      "http_method": "GET",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "get_admin_export": {
+      "resource_key": "admin_export",
+      "http_method": "GET",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "get_admin_pets": {
+      "resource_key": "admin_pets",
+      "http_method": "GET",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "get_admin_request": {
+      "resource_key": "admin_request_id",
+      "http_method": "GET",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "get_admin_requests": {
+      "resource_key": "admin_requests",
+      "http_method": "GET",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "get_admin_staff": {
+      "resource_key": "admin_staff",
+      "http_method": "GET",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "get_client_pets": {
+      "resource_key": "client_pets",
+      "http_method": "GET",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "get_client_requests": {
+      "resource_key": "client_requests",
+      "http_method": "GET",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "get_google_auth": {
+      "resource_key": "admin_auth_google",
+      "http_method": "GET",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "get_google_callback": {
+      "resource_key": "admin_auth_callback",
+      "http_method": "GET",
+      "authorization": "NONE"
+    },
+    "get_google_status": {
+      "resource_key": "admin_auth_status",
+      "http_method": "GET",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "get_pet": {
+      "resource_key": "admin_pet_id",
+      "http_method": "GET",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "get_platform_audit": {
+      "resource_key": "platform_audit",
+      "http_method": "GET",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "get_platform_tenants": {
+      "resource_key": "platform_tenants",
+      "http_method": "GET",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "get_platform_tenants_id": {
+      "resource_key": "platform_tenants_id",
+      "http_method": "GET",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "get_tenant_info": {
+      "resource_key": "admin_tenant_info",
+      "http_method": "GET",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "patch_admin_client_id": {
+      "resource_key": "admin_client_id",
+      "http_method": "PATCH",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "patch_admin_staff_id": {
+      "resource_key": "admin_staff_id",
+      "http_method": "PATCH",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "patch_platform_tenants_id": {
+      "resource_key": "platform_tenants_id",
+      "http_method": "PATCH",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_assign": {
+      "resource_key": "admin_assign",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_client_disable": {
+      "resource_key": "admin_client_disable",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_client_resend": {
+      "resource_key": "admin_client_resend",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_client_reset": {
+      "resource_key": "admin_client_reset",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_client_temp_pw": {
+      "resource_key": "admin_client_temp_pw",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_clients": {
+      "resource_key": "admin_clients",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_clients_link": {
+      "resource_key": "admin_clients_link",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_clients_onboard": {
+      "resource_key": "admin_clients_onboard",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_job_complete": {
+      "resource_key": "admin_job_complete",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_job_start": {
+      "resource_key": "admin_job_start",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_payment_session": {
+      "resource_key": "admin_payment_session",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_requests": {
+      "resource_key": "admin_requests",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_review": {
+      "resource_key": "admin_review",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_send_payment_email": {
+      "resource_key": "admin_send_payment_email",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_staff": {
+      "resource_key": "admin_staff",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_staff_link": {
+      "resource_key": "admin_staff_link",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_staff_onboard": {
+      "resource_key": "admin_staff_onboard",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_staff_resend": {
+      "resource_key": "admin_staff_resend",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_staff_reset": {
+      "resource_key": "admin_staff_reset",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_admin_staff_temp_pw": {
+      "resource_key": "admin_staff_temp_pw",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_client_cancel": {
+      "resource_key": "client_cancel",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_client_devices": {
+      "resource_key": "client_devices",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_client_requests": {
+      "resource_key": "client_requests",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_pet": {
+      "resource_key": "admin_pets",
+      "http_method": "POST",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "post_requests": {
+      "resource_key": "requests",
+      "http_method": "POST",
+      "authorization": "NONE"
+    },
+    "post_webhooks_postmark": {
+      "resource_key": "webhooks_postmark",
+      "http_method": "POST",
+      "authorization": "NONE"
+    },
+    "post_webhooks_stripe": {
+      "resource_key": "webhooks_stripe",
+      "http_method": "POST",
+      "authorization": "NONE"
+    },
+    "put_admin_cancel": {
+      "resource_key": "admin_cancel_decision",
+      "http_method": "PUT",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "put_client_pet": {
+      "resource_key": "client_pet_id",
+      "http_method": "PUT",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    },
+    "put_pet": {
+      "resource_key": "admin_pet_id",
+      "http_method": "PUT",
+      "authorization": "COGNITO_USER_POOLS",
+      "authorizer_key": "cognito"
+    }
+  },
+  "integrations": {
+    "admin_export_lambda": {
+      "method_key": "get_admin_export",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "admin_lambda": {
+      "method_key": "get_admin_requests",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "assign_lambda": {
+      "method_key": "post_admin_assign",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "assign_handler_invoke_arn"
+    },
+    "delete_admin_staff_id_lambda": {
+      "method_key": "delete_admin_staff_id",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "delete_client_device_lambda": {
+      "method_key": "delete_client_device",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "device_handler_invoke_arn"
+    },
+    "delete_google_auth_lambda": {
+      "method_key": "delete_google_auth",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "google_auth_handler_invoke_arn"
+    },
+    "get_admin_clients_lambda": {
+      "method_key": "get_admin_clients",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "get_admin_pets_lambda": {
+      "method_key": "get_admin_pets",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "pet_handler_invoke_arn"
+    },
+    "get_admin_request_lambda": {
+      "method_key": "get_admin_request",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "get_admin_staff_lambda": {
+      "method_key": "get_admin_staff",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "get_client_pets_lambda": {
+      "method_key": "get_client_pets",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "pet_handler_invoke_arn"
+    },
+    "get_client_requests_lambda": {
+      "method_key": "get_client_requests",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "get_pet_lambda": {
+      "method_key": "get_pet",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "pet_handler_invoke_arn"
+    },
+    "get_platform_audit_lambda": {
+      "method_key": "get_platform_audit",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "platform_handler_invoke_arn"
+    },
+    "get_platform_tenants_id_lambda": {
+      "method_key": "get_platform_tenants_id",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "platform_handler_invoke_arn"
+    },
+    "get_platform_tenants_lambda": {
+      "method_key": "get_platform_tenants",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "platform_handler_invoke_arn"
+    },
+    "get_tenant_info_lambda": {
+      "method_key": "get_tenant_info",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "google_auth_lambda": {
+      "method_key": "get_google_auth",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "google_auth_handler_invoke_arn"
+    },
+    "google_callback_lambda": {
+      "method_key": "get_google_callback",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "google_auth_handler_invoke_arn"
+    },
+    "google_status_lambda": {
+      "method_key": "get_google_status",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "google_auth_handler_invoke_arn"
+    },
+    "intake_lambda": {
+      "method_key": "post_requests",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "intake_handler_invoke_arn"
+    },
+    "patch_admin_client_id_lambda": {
+      "method_key": "patch_admin_client_id",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "patch_admin_staff_id_lambda": {
+      "method_key": "patch_admin_staff_id",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "patch_platform_tenants_id_lambda": {
+      "method_key": "patch_platform_tenants_id",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "platform_handler_invoke_arn"
+    },
+    "post_admin_client_disable_lambda": {
+      "method_key": "post_admin_client_disable",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_client_resend_lambda": {
+      "method_key": "post_admin_client_resend",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_client_reset_lambda": {
+      "method_key": "post_admin_client_reset",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_client_temp_pw_lambda": {
+      "method_key": "post_admin_client_temp_pw",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_clients_lambda": {
+      "method_key": "post_admin_clients",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_clients_link_lambda": {
+      "method_key": "post_admin_clients_link",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_clients_onboard_lambda": {
+      "method_key": "post_admin_clients_onboard",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_job_complete_lambda": {
+      "method_key": "post_admin_job_complete",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_job_start_lambda": {
+      "method_key": "post_admin_job_start",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_payment_session_lambda": {
+      "method_key": "post_admin_payment_session",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_requests_lambda": {
+      "method_key": "post_admin_requests",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_send_payment_email_lambda": {
+      "method_key": "post_admin_send_payment_email",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_staff_lambda": {
+      "method_key": "post_admin_staff",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_staff_link_lambda": {
+      "method_key": "post_admin_staff_link",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_staff_onboard_lambda": {
+      "method_key": "post_admin_staff_onboard",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_staff_resend_lambda": {
+      "method_key": "post_admin_staff_resend",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_staff_reset_lambda": {
+      "method_key": "post_admin_staff_reset",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_admin_staff_temp_pw_lambda": {
+      "method_key": "post_admin_staff_temp_pw",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "admin_handler_invoke_arn"
+    },
+    "post_client_cancel_lambda": {
+      "method_key": "post_client_cancel",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "cancellation_handler_invoke_arn"
+    },
+    "post_client_devices_lambda": {
+      "method_key": "post_client_devices",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "device_handler_invoke_arn"
+    },
+    "post_client_requests_lambda": {
+      "method_key": "post_client_requests",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "intake_handler_invoke_arn"
+    },
+    "post_pet_lambda": {
+      "method_key": "post_pet",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "pet_handler_invoke_arn"
+    },
+    "postmark_webhook_lambda": {
+      "method_key": "post_webhooks_postmark",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "postmark_webhook_handler_invoke_arn"
+    },
+    "put_admin_cancel_lambda": {
+      "method_key": "put_admin_cancel",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "cancellation_handler_invoke_arn"
+    },
+    "put_client_pet_lambda": {
+      "method_key": "put_client_pet",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "pet_handler_invoke_arn"
+    },
+    "put_pet_lambda": {
+      "method_key": "put_pet",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "pet_handler_invoke_arn"
+    },
+    "review_lambda": {
+      "method_key": "post_admin_review",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "review_handler_invoke_arn"
+    },
+    "stripe_webhook_lambda": {
+      "method_key": "post_webhooks_stripe",
+      "type": "AWS_PROXY",
+      "integration_http_method": "POST",
+      "target_reference": "stripe_webhook_handler_invoke_arn"
+    }
+  },
+  "method_responses": {},
+  "integration_responses": {},
+  "cors": {
+    "resource_keys": [
+      "admin_assign",
+      "admin_auth",
+      "admin_auth_callback",
+      "admin_auth_google",
+      "admin_auth_status",
+      "admin_cancel_decision",
+      "admin_client_disable",
+      "admin_client_id",
+      "admin_client_resend",
+      "admin_client_reset",
+      "admin_client_temp_pw",
+      "admin_clients",
+      "admin_clients_link",
+      "admin_clients_onboard",
+      "admin_export",
+      "admin_job",
+      "admin_job_complete",
+      "admin_job_start",
+      "admin_payment_session",
+      "admin_pet_id",
+      "admin_pets",
+      "admin_request_id",
+      "admin_requests",
+      "admin_review",
+      "admin_send_payment_email",
+      "admin_staff",
+      "admin_staff_id",
+      "admin_staff_link",
+      "admin_staff_onboard",
+      "admin_staff_resend",
+      "admin_staff_reset",
+      "admin_staff_temp_pw",
+      "admin_tenant_info",
+      "client_cancel",
+      "client_device_id",
+      "client_devices",
+      "client_pet_id",
+      "client_pets",
+      "client_requests",
+      "platform",
+      "platform_audit",
+      "platform_tenants",
+      "platform_tenants_id",
+      "requests"
+    ],
+    "method": {
+      "http_method": "OPTIONS",
+      "authorization": "NONE",
+      "authorizer_key": "",
+      "api_key_required": false,
+      "authorization_scopes": [],
+      "operation_name": "",
+      "request_models": {},
+      "request_parameters": {}
+    },
+    "integration": {
+      "type": "MOCK",
+      "integration_http_method": "",
+      "uri": "",
+      "request_parameters": {},
+      "request_templates": {
+        "application/json": "{\"statusCode\": 200}"
+      },
+      "passthrough_behavior": "WHEN_NO_MATCH",
+      "cache_key_parameters": [],
+      "cache_namespace": "",
+      "content_handling": "",
+      "timeout_milliseconds": 29000,
+      "tls_insecure_skip_verification": false
+    },
+    "method_response": {
+      "status_code": "200",
+      "response_models": {
+        "application/json": "Empty"
+      },
+      "response_parameters": {
+        "method.response.header.Access-Control-Allow-Headers": true,
+        "method.response.header.Access-Control-Allow-Methods": true,
+        "method.response.header.Access-Control-Allow-Origin": true
+      }
+    },
+    "integration_response": {
+      "status_code": "200",
+      "content_handling": "",
+      "response_parameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,PATCH,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+      },
+      "response_templates": {},
+      "selection_pattern": ""
+    }
+  },
+  "gateway_responses": {
+    "missing_auth_token": {
+      "response_type": "MISSING_AUTHENTICATION_TOKEN",
+      "status_code": "403",
+      "response_parameters": {
+        "gatewayresponse.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+        "gatewayresponse.header.Access-Control-Allow-Methods": "'GET,POST,PUT,PATCH,DELETE,OPTIONS'",
+        "gatewayresponse.header.Access-Control-Allow-Origin": "'*'"
+      },
+      "response_templates": {
+        "application/json": "{\"message\":$context.error.messageString}"
+      }
+    },
+    "unauthorized": {
+      "response_type": "UNAUTHORIZED",
+      "status_code": "401",
+      "response_parameters": {
+        "gatewayresponse.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+        "gatewayresponse.header.Access-Control-Allow-Methods": "'GET,POST,PUT,PATCH,DELETE,OPTIONS'",
+        "gatewayresponse.header.Access-Control-Allow-Origin": "'*'"
+      },
+      "response_templates": {
+        "application/json": "{\"message\":$context.error.messageString}"
+      }
+    }
+  }
+}
