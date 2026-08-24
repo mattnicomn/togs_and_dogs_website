@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-24 (API trigger fix approved for release planning and integrated into main / migration not deployed / ROUTE-GATE-A and B1A blocked)
+**Last Updated:** 2026-08-24 (API trigger migration plan prepared / not applied / ROUTE-GATE-A and B1A blocked)
 
 ---
 
@@ -61,22 +61,23 @@
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
 | Tenant-specific owner landing not deployed or independently login-validated | Gate B1A owner login/tenant UI validation remains blocked | Separately approved backend/Web deployment, then B1A-LOGIN validation |
-| API trigger migration not deployed | Original DOMAIN-1 saved plan permanently rejected; ROUTE-GATE-A remains blocked | Dedicated baseline-derived migration RC, fresh reviewed plan, and separate Matthew approval |
+| API trigger migration not deployed | Original DOMAIN-1 saved plan permanently rejected; ROUTE-GATE-A remains blocked | Matthew approval of the fresh baseline-derived migration plan, then separately controlled apply and verification |
 
 ## Current Work and Latest Closeouts
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
 
-- API Gateway Semantic Deployment Fingerprint (✅ INDEPENDENTLY APPROVED FOR RELEASE PLANNING / INTEGRATED INTO MAIN / NOT DEPLOYED — 2026-08-24)
+- API Gateway Semantic Deployment Fingerprint (✅ MIGRATION RC AND FRESH PLAN PREPARED / NOT APPLIED — 2026-08-24)
   - Reviewed commit `8d6e38b4488cf8eb4a39d8f4b069aa0d5367875d` was fast-forwarded unchanged into `main`. ROUTE-GATE-A remains **BLOCKED / NOT READY**. The original `route-gate-a-b1a-route-20260824.tfplan` is permanently rejected and must never be applied.
   - Replaced the 81-whole-provider-object `jsonencode` trigger with an explicit semantic manifest and provider-independent typed canonicalizer. Optional maps become `{}`, sets/lists become sorted `[]`, strings become `""`, and booleans/numeric defaults are explicit.
   - Fingerprinted behavior covers 53 resources, 54 non-CORS methods, 54 integrations, 47 CORS resources, the Cognito authorizer reference, response behavior, and both gateway responses. Provider-generated IDs and Lambda package metadata are excluded.
   - E3A `POST /admin/job/start` and `GET /admin/requests/{requestId}` remain semantically covered. DOMAIN-1 application/runtime files were not changed.
   - Validation: Terraform tests 8/8; static source/manifest coverage pass; format and validate pass; tenant-route plus E3A 38/38; disabled-tenant/Platform boundaries 34/34; shared constants/API 24/24 and adapters 9/9; Python compile and diff check pass.
   - A prior inspection identified Stripe test API and test webhook-signing credential exposure. No values were reused or recorded. Rotation was not performed and requires separate approval; Stripe remains sandbox/test-mode only.
-  - Terraform state still records the legacy trigger, so the first dedicated migration plan is expected to show exactly one create-before-destroy API deployment replacement and only the stage `deployment_id` update. This is not apply approval; a baseline-derived migration RC, fresh saved plan, independent review, and separate Matthew approval remain required.
-  - Main integration caused no apply, deployment, AWS/Cognito/DNS/data/Mobile change, or secret rotation.
-  - See: `docs/release-notes/api-gateway-semantic-deployment-fingerprint-infrastructure-rc.md`
+  - Dedicated branch `release/api-semantic-fingerprint-migration-rc` starts from deployed baseline `732e48b`; plan-source `cf243a2` excludes later onboarding and application work. Its baseline-scoped manifest validates 50 resources, 52 methods, 52 integrations, 44 CORS resources, and both gateway responses.
+  - Saved plan `infra/prod/api-semantic-fingerprint-migration-20260824.tfplan`, SHA-256 `9629B084680E0E519B9C7F0CEE153514F99F68BA89961DA9CBEBDA6C105D99FA`, is exactly 1 add, 1 change, 1 destroy: trigger-only API deployment replacement plus only the stage `deployment_id` update, with zero Lambda/API-topology changes.
+  - The plan is ready for Matthew approval but has not been applied. No deployment, AWS/Cognito/DNS/data/Mobile change, or secret rotation occurred.
+  - See: `docs/release-notes/api-gateway-semantic-deployment-fingerprint-infrastructure-rc.md` and `docs/release-notes/api-gateway-semantic-fingerprint-migration-plan.md`
 
 - DOMAIN-1 + B1A-ROUTE (✅ IMPLEMENTED / VALIDATED LOCALLY / NOT DEPLOYED — 2026-08-24)
   - Accepted `platform.toganddogs.usmissionhero.com` as the control plane, `<tenant-slug>.toganddogs.usmissionhero.com` as the tenant plane, and the current host as a temporary compatibility surface.

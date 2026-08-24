@@ -63,6 +63,6 @@ Historical E3A commit `e10a98e` added genuine API topology/behavior in `modules/
 
 A prior inspection identified exposure of a Stripe test API credential and a Stripe test webhook-signing credential. No credential value is recorded here or in this RC. Rotation was not performed; it requires separate Matthew approval. Stripe remains sandbox/test-mode only.
 
-## Next gate
+## Migration plan result
 
-The trigger fix has passed independent review for release planning. The next controlled step is a dedicated migration RC from the deployed infrastructure baseline, followed by a fresh non-targeted saved plan. The expected first transition is exactly one create-before-destroy deployment replacement and one in-place stage `deployment_id` update, with zero Lambda or API-topology changes. That plan must be independently reviewed and separately approved by Matthew before any apply. The rejected DOMAIN-1 plan is not reusable.
+Dedicated branch `release/api-semantic-fingerprint-migration-rc` was composed from deployed E3A baseline `732e48b`; its plan-source commit is `cf243a2`. The production-baseline manifest excludes later undeployed onboarding-preview semantics and validates 50 resources, 52 methods, 52 integrations, 44 CORS resources, and two gateway responses. Fresh saved plan `api-semantic-fingerprint-migration-20260824.tfplan`, SHA-256 `9629B084680E0E519B9C7F0CEE153514F99F68BA89961DA9CBEBDA6C105D99FA`, proves exactly one create-before-destroy deployment replacement caused only by `triggers` and one stage update changing only `deployment_id`: 1 add, 1 change, 1 destroy, with zero Lambda/API-topology changes. It has not been applied and requires separate Matthew approval. See `docs/release-notes/api-gateway-semantic-fingerprint-migration-plan.md`.
