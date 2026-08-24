@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-24
 
-**Status:** Independently approved for release planning / integrated into main / dedicated infrastructure migration still required / not deployed
+**Status:** Original semantic design reviewed and integrated / first migration apply failed safely / line-ending remediation locally validated and awaiting independent review / not deployed
 
 ## Release boundary
 
@@ -10,7 +10,7 @@ The reviewed implementation is commit `8d6e38b4488cf8eb4a39d8f4b069aa0d5367875d`
 
 ROUTE-GATE-A remains **BLOCKED / NOT READY**. The existing `route-gate-a-b1a-route-20260824.tfplan` file, SHA-256 `B127670C9229D694711CC428B86AE908FC2ADFB17EC563B4BD3F098F5310E7DF`, is permanently rejected and must never be applied. A fresh saved plan requires successful independent review and separate Matthew approval.
 
-Integration into `main` is not a deployment. No Terraform apply, deployment, AWS modification, Cognito/DNS change, production-data write, Mobile build/distribution, or secret rotation occurred. Because Terraform state records the legacy trigger value, the first isolated migration plan is expected to contain one transitional API Gateway deployment replacement plus only the stage `deployment_id` update. That expectation is not approval to apply.
+Integration into `main` was not a deployment. A later explicitly approved Terraform apply attempt stopped before managed-resource change; no deployment, AWS resource modification, Cognito/DNS change, production-data write, Mobile build/distribution, or secret rotation occurred. Because Terraform state records the legacy trigger value, a future reviewed migration plan is still expected to contain one transitional API Gateway deployment replacement plus only the stage `deployment_id` update. That expectation is not approval to plan or apply.
 
 ## Defect and remediation
 
@@ -48,7 +48,8 @@ Historical E3A commit `e10a98e` added genuine API topology/behavior in `modules/
 
 ## Local validation
 
-- semantic fingerprint Terraform tests: 8/8;
+- semantic fingerprint Terraform tests: 10/10, including LF and CRLF/whitespace semantic equality;
+- provider-free Windows saved-plan regression: LF, CRLF, and compact native configuration produced the same fingerprint, embedded the manifest, and preserved saved-plan readability after working bytes changed;
 - source/manifest static validator: 53 resources, 54 methods, 54 integrations, 47 CORS resources, 2 gateway responses; E3A coverage pass;
 - Terraform recursive format check: pass;
 - Terraform production-root configuration validation: pass without plan or state refresh;
@@ -63,6 +64,10 @@ Historical E3A commit `e10a98e` added genuine API topology/behavior in `modules/
 
 A prior inspection identified exposure of a Stripe test API credential and a Stripe test webhook-signing credential. No credential value is recorded here or in this RC. Rotation was not performed; it requires separate Matthew approval. Stripe remains sandbox/test-mode only.
 
-## Migration plan result
+## Migration attempt and line-ending remediation
 
-Dedicated branch `release/api-semantic-fingerprint-migration-rc` was composed from deployed E3A baseline `732e48b`; its plan-source commit is `cf243a2`. The production-baseline manifest excludes later undeployed onboarding-preview semantics and validates 50 resources, 52 methods, 52 integrations, 44 CORS resources, and two gateway responses. Fresh saved plan `api-semantic-fingerprint-migration-20260824.tfplan`, SHA-256 `9629B084680E0E519B9C7F0CEE153514F99F68BA89961DA9CBEBDA6C105D99FA`, proves exactly one create-before-destroy deployment replacement caused only by `triggers` and one stage update changing only `deployment_id`: 1 add, 1 change, 1 destroy, with zero Lambda/API-topology changes. It has not been applied and requires separate Matthew approval. See `docs/release-notes/api-gateway-semantic-fingerprint-migration-plan.md`.
+Dedicated branch `release/api-semantic-fingerprint-migration-rc` was composed from deployed E3A baseline `732e48b`; its plan-source commit was `cf243a2`. The production-baseline manifest excluded later undeployed onboarding-preview semantics and validated 50 resources, 52 methods, 52 integrations, 44 CORS resources, and two gateway responses. Saved plan `api-semantic-fingerprint-migration-20260824.tfplan`, SHA-256 `9629B084680E0E519B9C7F0CEE153514F99F68BA89961DA9CBEBDA6C105D99FA`, planned exactly one create-before-destroy deployment replacement caused only by `triggers` and one stage update changing only `deployment_id`: 1 add, 1 change, 1 destroy, with zero Lambda/API-topology changes.
+
+Matthew explicitly approved the exact plan, but Terraform stopped before managed-resource change because `jsondecode(file(...))` had an LF raw-string result at plan time and semantically identical CRLF input at apply time. Production remains on API deployment/stage `886zij`; API, authorizer, and all 13 Lambda fingerprints are unchanged. State serial advanced 508 → 509 with unchanged lineage and no canonical managed-resource/output difference. The saved plan is permanently invalid and must never be retried.
+
+The locally validated correction declares the semantic object in native Terraform JSON configuration, removes the external `file()` value, and adds LF/CRLF/whitespace plus Windows saved-plan regression coverage. It awaits independent review. A revised dedicated baseline RC and fresh state-509 plan remain required and separately approval-gated; neither was created here. See `docs/release-notes/api-gateway-semantic-fingerprint-migration-plan.md` and `docs/release-notes/api-gateway-semantic-fingerprint-line-ending-remediation.md`.

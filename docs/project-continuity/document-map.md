@@ -10,6 +10,9 @@
 |-------|----------|
 | Release notes index | `docs/release-notes/index.md` |
 | Individual release notes | `docs/release-notes/release-*.md` |
+| API semantic fingerprint infrastructure RC | `docs/release-notes/api-gateway-semantic-deployment-fingerprint-infrastructure-rc.md` |
+| Failed INFRA-GATE-A and line-ending remediation | `docs/release-notes/api-gateway-semantic-fingerprint-line-ending-remediation.md` |
+| Historical, permanently invalid semantic-fingerprint migration plan | `docs/release-notes/api-gateway-semantic-fingerprint-migration-plan.md` |
 | Web customer self-service password recovery (production deployed, Cognito E2E pass) | `docs/release-notes/release-web-customer-self-service-password-recovery.md` |
 | Preview V1 tenant onboarding orchestrator | `docs/release-notes/release-platform-admin-tenant-onboarding-preview-v1.md` |
 | Ryan Slice A canonical service/time-window contract | `docs/release-notes/ryan-slice-a-canonical-service-time-window-contract.md` |

@@ -1,0 +1,3 @@
+# Terraform-native machine-readable API semantics are canonical LF in Git and checkouts.
+# Terraform parsing remains the semantic boundary; this is defense-in-depth only.
+modules/api/deployment-semantics.tf.json text eol=lf

@@ -2,11 +2,13 @@
 
 **Date:** 2026-08-24
 
-**Status:** Saved plan prepared / not applied / ready for Matthew approval
+**Status:** Apply failed before managed-resource change / saved plan permanently invalid / superseded by line-ending remediation / no retry authorized
 
-## Controlled release boundary
+## Failed controlled release boundary
 
-The semantic-fingerprint implementation reviewed at `8d6e38b4488cf8eb4a39d8f4b069aa0d5367875d` is integrated into `main` at `b6e988b`. Production was not built from `main`. The dedicated branch `release/api-semantic-fingerprint-migration-rc` starts from deployed E3A infrastructure baseline `732e48b930f6fd9aac958351c4ac7823c14cf3e0`; release evidence identifies that commit as the source of live API deployment `886zij`, and its `modules/api` and `infra/prod` trees are byte-identical to the later Lambda-only DOMAIN-1 candidate.
+The semantic-fingerprint implementation reviewed at `8d6e38b4488cf8eb4a39d8f4b069aa0d5367875d` was integrated into `main`. Production was not built from `main`. The dedicated branch `release/api-semantic-fingerprint-migration-rc` started from deployed E3A infrastructure baseline `732e48b930f6fd9aac958351c4ac7823c14cf3e0`; release evidence identifies that commit as the source of live API deployment `886zij`, and its `modules/api` and `infra/prod` trees were byte-identical to the later Lambda-only DOMAIN-1 candidate.
+
+Matthew explicitly approved applying the exact saved plan documented below. Terraform stopped before any managed AWS resource changed. The plan is now permanently invalid and must never be retried or applied.
 
 Plan-source commit `cf243a2311a7e188f2346c344a771d07ef903046` contains only:
 
@@ -42,7 +44,7 @@ No backend runtime, Lambda package, Web, Mobile, shared contract, onboarding, Co
 - lineage: `7235fddd...8955`;
 - providers: AWS 5.100.0 and archive 2.7.1.
 
-## Saved plan
+## Permanently invalid saved plan
 
 - path: `infra/prod/api-semantic-fingerprint-migration-20260824.tfplan`;
 - SHA-256: `9629B084680E0E519B9C7F0CEE153514F99F68BA89961DA9CBEBDA6C105D99FA`;
@@ -50,7 +52,7 @@ No backend runtime, Lambda package, Web, Mobile, shared contract, onboarding, Co
 - saved-artifact timestamp: `2026-08-24T20:27:39Z`;
 - refresh: enabled;
 - state lock: enabled;
-- summary: exactly **1 add, 1 change, 1 destroy**.
+- planned summary: exactly **1 add, 1 change, 1 destroy**; none of those managed-resource actions completed.
 
 | Address | Action | Sanitized evidence |
 |---------|--------|--------------------|
@@ -58,6 +60,19 @@ No backend runtime, Lambda package, Web, Mobile, shared contract, onboarding, Co
 | `module.api.aws_api_gateway_stage.main` | in-place update | The only changed top-level field is `deployment_id`. Stage name, REST API ID, variables, access logging, cache settings, tracing, and method settings are unchanged. |
 
 There are zero Lambda changes and zero API resource, method, integration, authorizer, method-response, integration-response, gateway-response, or method-settings changes. No IAM, DynamoDB, Cognito, environment, budget, DNS, CDN/certificate, Stripe, Calendar, notification, tenant, or other drift appears.
+
+## Failed-apply result and state evidence
+
+The exact failing expression on the release candidate was `api_deployment_semantics = jsondecode(file("${path.module}/deployment-semantics.json"))`. `file()` supplied a raw manifest string. Terraform recorded its LF value in the saved plan, then saw equivalent CRLF bytes in the Windows apply checkout. Although `jsondecode()` produced the same semantic object, the filesystem-function value was not byte-identical, so Terraform rejected the inconsistency before creating the replacement deployment.
+
+Production remains unchanged:
+
+- API Gateway deployment: `886zij`;
+- stage `prod` → `886zij`;
+- API topology and authorizer fingerprints unchanged;
+- all 13 Lambda code/configuration fingerprints unchanged.
+
+Terraform state advanced from serial 508 to 509 with unchanged lineage. Read-only canonical comparison found the same 250 managed resources and outputs in both state representations. State 509 is authoritative; no restoration, decrement, or manual edit is appropriate. Every future production plan must start from state 509.
 
 ## Read-only live API baseline
 
@@ -69,9 +84,11 @@ The live stage remains `prod` on documented deployment `886zij`: 51 paths includ
 
 Post-deployment verification, if separately approved, must recapture those three canonical comparisons and require equality. No API Gateway modification occurred during this capture.
 
-## Approval, rollback, and remaining blocks
+## Supersession and remaining blocks
 
-This plan has not been applied. Matthew's separate approval is required before any production action. ROUTE-GATE-A and B1A remain blocked until this migration is approved, applied, and verified. The prior DOMAIN-1 plan `route-gate-a-b1a-route-20260824.tfplan` is permanently rejected and must never be applied.
+This plan was attempted under Matthew's explicit approval and failed safely before managed-resource change. It is permanently invalid. ROUTE-GATE-A, DOMAIN-1, and B1A remain blocked. The prior DOMAIN-1 plan `route-gate-a-b1a-route-20260824.tfplan` is also permanently rejected and must never be applied.
+
+The locally validated line-ending remediation moves the manifest to native Terraform JSON configuration so saved plans embed the parsed configuration instead of re-evaluating an external raw `file()` result. After independent review, a revised dedicated migration RC must start from deployed baseline `732e48b`, include only the reviewed semantic implementation, production-baseline manifest, and line-ending remediation, and exclude DOMAIN-1/unrelated `main`. A new plan must be generated against state 509 and receive separate Matthew approval. No replacement RC or production plan was created during remediation. See `docs/release-notes/api-gateway-semantic-fingerprint-line-ending-remediation.md`.
 
 Rollback is a separately reviewed forward Terraform deployment restoring the prior trigger implementation only if post-deployment verification requires it. Manual state edits, `state rm`, import, targeting, and direct API deployment manipulation are not rollback mechanisms.
 
