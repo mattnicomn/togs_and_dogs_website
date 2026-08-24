@@ -424,11 +424,24 @@ def handler(event, context):
             role = get_effective_role(event)
             if role not in ['owner', 'admin', 'staff', 'client', 'platform_admin']:
                 return error(403, "Forbidden", event)
-                
-            from common.auth import get_current_company_id
-            company_id = get_current_company_id(event)
-            
-            tenant = get_item(f"TENANT#{company_id}", "METADATA")
+
+            has_expected_tenant = 'expectedTenantSlug' in query_params
+            expected_tenant_slug = query_params.get('expectedTenantSlug')
+            if has_expected_tenant:
+                from common.tenant_route import TenantRouteAccessDenied, resolve_expected_tenant
+                try:
+                    tenant = resolve_expected_tenant(event, expected_tenant_slug)
+                except TenantRouteAccessDenied:
+                    # Keep all negative cases intentionally indistinguishable to
+                    # avoid disclosing tenant registration or lifecycle state.
+                    return error(403, "Tenant context could not be verified", event)
+                company_id = tenant['company_id']
+            else:
+                # Compatibility host behavior is intentionally unchanged.  The
+                # route bridge never supplies or overrides this company ID.
+                from common.auth import get_current_company_id
+                company_id = get_current_company_id(event)
+                tenant = get_item(f"TENANT#{company_id}", "METADATA")
             
             if tenant:
                 display_name = tenant.get('display_name')
