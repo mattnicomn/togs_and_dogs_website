@@ -29,7 +29,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 9 | Business owner billing dashboard | ⏸ Wait for subscription semantics | Medium | #8 |
 | 10 | Pricing/signup page | ⛔ Blocked by product/pricing decision and payment direction | Medium | #8 |
 | 11 | "Getting Started" guide for business owners | ✅ LOCALLY COMPLETE / `GUIDE_CORRECT` / COMMITTED / PUSHED / NOT PUBLIC | Low | — |
-| 12 | Tenant-specific application landing and login-context agreement | ⛔ Architecture reconciled; implementation/deployment not approved | High | DOMAIN-1–DOMAIN-4 |
+| 12 | Tenant-specific application landing and login-context agreement | 🟡 DOMAIN-1 accepted; B1A route bridge local/validated/not deployed | High | B1A deployment/login review + DOMAIN-2–DOMAIN-4 |
 
 ---
 
@@ -39,7 +39,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 |------|--------|------------|
 | Tenant-resolution regression | Critical | Production Terraform and all 13 Lambdas use strict `TENANT_RESOLUTION_MODE=multi`, enabled in 18T and monitored in 18U. Missing/invalid tenant claims fail rather than silently using the compatibility fallback. Do not change the mode without explicit Matthew approval. |
 | Premature customer-tenant onboarding | High | `test_tenant_alpha` is an internal validation tenant, not a customer onboarding precedent. Require explicit approval plus product, billing, security, and operating readiness for any further tenant. |
-| Claim-valid identity has no tenant-specific application landing | High | Do not declare the identity broken or bypass the gate through shared `/admin`. Require a mapped expected-tenant route/host plus strict claim agreement before Gate B1A. |
+| Claim-valid identity has no deployed tenant-specific application landing | High | Do not declare the identity broken or bypass the gate through shared `/admin`. The local bridge must receive separate deployment approval and pass login isolation before Gate B1A. |
 
 ---
 
@@ -61,7 +61,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 12 | Video visit evidence | ❌ Not started | Low |
 | 13 | Multi-location support | ❌ Not started | Future |
 | 14 | Cross-platform services, scheduling & workflow alignment | ✅ A–C, C1, D1–D2, R1, W1, and O1 committed/pushed/not deployed; E1 implemented/validated/not deployed; D1–D2/W1/O1 not built or distributed; remaining E/F deferred | High |
-| 15 | Control-plane / tenant-plane URL architecture | 🧭 Authoritative planning reconciliation complete; decision approval pending | P0 |
+| 15 | Control-plane / tenant-plane URL architecture | ✅ DOMAIN-1 ADR accepted; canonical infrastructure remains future | P0 |
 | 16 | Canonical client onboarding workflow and completion state | ❌ Product/API parity gap documented | P1 |
 | 17 | Web Request List / Visit Requests queue correction | ⚠️ Audit found predicate, counter, navigation, and duplicate-fetch risks | P1 |
 | 18 | Mobile Dashboard exact destination filters | ⚠️ Five cards are pressable in source but counts/targets need refinement; D1 not in current builds | P3 |
@@ -75,15 +75,16 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 
 | Stage | Scope | Status | Priority |
 |-------|-------|--------|----------|
-| DOMAIN-1 | Decide `platform.toganddogs.usmissionhero.com`, `<tenant-slug>.toganddogs.usmissionhero.com`, slug rules, compatibility-host disposition, and threat model | Planning complete; approval pending | P0 |
-| DOMAIN-2 | Host/route expected-tenant resolver plus fail-closed frontend bootstrap | Not implemented | P0 |
+| DOMAIN-1 | Decide `platform.toganddogs.usmissionhero.com`, `<tenant-slug>.toganddogs.usmissionhero.com`, slug rules, compatibility-host disposition, and threat model | ✅ ADR accepted 2026-08-24 | P0 |
+| B1A-ROUTE | Bounded `/t/:tenantSlug/admin` bridge with server registry, active-tenant/claim agreement, and fail-closed Web bootstrap | ✅ Implemented/validated locally; not deployed | P0 |
+| DOMAIN-2 | Canonical host-derived expected-tenant resolver plus generalized persisted registry/bootstrap | B1A route subset local only; canonical host work not implemented | P0 |
 | DOMAIN-3 | Wildcard Route53/ACM/CloudFront tenant support | Not implemented; no infrastructure change authorized | P2 |
 | DOMAIN-4 | Tenant-specific login, invitation, callback, logout, recovery, and deep-link routing | Not implemented | P2 |
 | DOMAIN-5 | Move Platform Admin to the control hostname and remove it from ordinary tenant navigation | Not implemented | P2 |
 | DOMAIN-6 | Provision and validate a unique DNS-safe tenant slug during approved onboarding | Not implemented | P4 |
 | DOMAIN-7 | Optional verified custom business domains | Deferred | P4 |
 
-Gate B1A does not need to wait for DOMAIN-3 wildcard delivery if a bounded internal tenant route is separately implemented and proves expected-route/claim agreement with negative tests. No safe tenant route exists in the current runtime, so B1A remains blocked.
+Gate B1A does not need to wait for DOMAIN-3 wildcard delivery. The bounded route now exists in local source and has negative-test coverage, but it is not deployed. B1A remains blocked pending separately approved backend/Web deployment and independent B1A-LOGIN isolation validation.
 
 ---
 

@@ -171,6 +171,11 @@ export const sendPaymentEmail = (requestId, clientId) =>
   }, true);
 
 // Release 19L: Fetch safe tenant display metadata
-export const getTenantInfo = () => request(API_PATHS.admin.tenantInfo, 'GET', null, true);
+export const getTenantInfo = (expectedTenantSlug = null) => {
+  const suffix = expectedTenantSlug
+    ? `?expectedTenantSlug=${encodeURIComponent(expectedTenantSlug)}`
+    : '';
+  return request(`${API_PATHS.admin.tenantInfo}${suffix}`, 'GET', null, true);
+};
 
 

@@ -1,10 +1,10 @@
 # Tenant Access, Client Onboarding, and Operational Workflow Alignment
 
-**Status:** Authoritative planning reconciliation / no implementation authorized
+**Status:** Authoritative reconciliation / DOMAIN-1 accepted / B1A-ROUTE local only / not deployed
 
-**Date:** 2026-08-23
+**Date:** 2026-08-24
 
-**Audited repository checkpoint:** `1748aea12f973c104c3196ca707fb56fef17b667`
+**B1A-ROUTE starting checkpoint:** `22d5968f907ddc6594988c33d814faeac00b7ff9`
 
 **Priority:** P0 tenant-access decision; P1 onboarding and Visit Requests source-of-truth
 
@@ -16,7 +16,7 @@
 
 `test_tenant_alpha` is operationally present, active, isolated, and visible to Platform Admin. Its existing Cognito identity is enabled and tenant-mapped. The newly confirmed gap is not an identity defect: the product has no normal tenant-specific application landing URL from which that owner can naturally enter and validate the tenant UI.
 
-Gate B0 remains complete. Gate B1A is blocked because authenticated API readiness is not equivalent to a complete owner login and tenant-surface experience.
+Gate B0 remains complete. DOMAIN-1 is now accepted and the bounded B1A route bridge is implemented and security-tested locally. Gate B1A remains blocked because the bridge is not deployed and no independent tenant-owner login isolation has been performed.
 
 The recommended target is:
 
@@ -98,15 +98,16 @@ Platform Admin is separate:
 
 | Phase | Scope | Exit condition |
 |-------|-------|----------------|
-| DOMAIN-1 | Approve control-plane/tenant-plane architecture, slug rules, compatibility-host disposition, and security invariants | One signed-off ADR and threat model |
-| DOMAIN-2 | Implement host/route expected-tenant resolver and fail-closed frontend bootstrap | Mapped match succeeds; missing/unknown/mismatch/inactive cases fail before tenant data |
+| DOMAIN-1 | Approve control-plane/tenant-plane architecture, slug rules, compatibility-host disposition, and security invariants | ✅ Accepted in `adr-domain-1-tenant-access-routing.md` |
+| B1A-ROUTE | Implement bounded route expected-tenant resolver and fail-closed Web bootstrap | ✅ Local match/negative tests pass; not deployed |
+| DOMAIN-2 | Generalize to host-derived context and persisted registry/bootstrap | Canonical host match succeeds; missing/unknown/mismatch/inactive cases fail before tenant data |
 | DOMAIN-3 | Add wildcard tenant DNS, ACM, and CloudFront support | Two internal tenant hosts serve correct bootstrap with no cross-host leakage |
 | DOMAIN-4 | Wire tenant-specific login, invitation, callback, logout, recovery, and deep-link behavior | Both internal tenants complete login/logout/recovery isolation matrix |
 | DOMAIN-5 | Move Platform Admin to the control hostname and remove it from ordinary tenant navigation | Tenant users cannot discover or render platform routes; platform RBAC/audit remains intact |
 | DOMAIN-6 | Provision and validate a unique DNS-safe slug during approved tenant onboarding | Duplicate/reserved/invalid slugs fail; dry-run/review/apply remains gated |
 | DOMAIN-7 | Add verified optional customer domains | Verification, certificate, alias, disable, and rollback runbooks pass |
 
-No phase in this document authorizes DNS, certificate, CloudFront, Cognito, or deployment changes.
+No completed local phase authorizes DNS, certificate, CloudFront, Cognito, or deployment changes.
 
 ---
 
@@ -369,7 +370,7 @@ Full wildcard tenant-subdomain delivery is not required to unblock B1A. The reco
 7. Validate match and mismatch cases, login/logout, refresh, direct `/admin` behavior, CORS, and recovery links.
 8. Deploy that bounded slice only after separate approval; then perform a login-only Gate and seek fresh B1A data-creation approval.
 
-No such safe bridge exists in the current runtime today. The architecture and public-intake resolver provide reusable patterns, but implementation and deployment are still required. Once canonical tenant subdomains ship, remove the temporary path after a measured compatibility period.
+The safe bridge now exists in local source at `/t/:tenantSlug/admin`, with a centralized server registry and pre-data Web gate. It is not in the production runtime. Backend/Web deployment and independent login validation are still required. Once canonical tenant subdomains ship, remove the temporary path after a measured compatibility period.
 
 ---
 
@@ -377,8 +378,8 @@ No such safe bridge exists in the current runtime today. The architecture and pu
 
 | Priority | Slice | Scope | Dependency / gate |
 |----------|-------|-------|-------------------|
-| P0 | DOMAIN-1 architecture ADR | Host patterns, slug registry, threat model, compatibility disposition | Matthew architecture approval |
-| P0 | B1A-ROUTE | Bounded test-tenant route/bootstrap plus claim agreement and negative tests | DOMAIN-1; code/deploy approval; no B1A data |
+| P0 | DOMAIN-1 architecture ADR | ✅ Accepted: host patterns, slug registry, threat model, compatibility disposition | Complete locally |
+| P0 | B1A-ROUTE | ✅ Bounded test-tenant route/bootstrap plus claim agreement and negative tests | Local only; deployment approval required; no B1A data |
 | P0 | B1A-LOGIN | Login-only isolation validation through bounded tenant surface | B1A-ROUTE deployed; explicit validation approval |
 | P1 | ONBOARD-1 canonical workflow/data contract | Prospective client, M&G approval, invite, profile completion, acceptance, completion state | Product and security decisions |
 | P1 | REQUESTS-AUDIT-1 | Pure queue selectors, count/destination contract, duplicate-fetch correction, tests | No status invention |
@@ -407,4 +408,4 @@ No such safe bridge exists in the current runtime today. The architecture and pu
 
 ## 17. Non-Authorization
 
-This planning document does not authorize application code changes, deployments, DNS/CloudFront/Route53/ACM changes, tenant or production-data writes, Cognito changes, notification sends, Stripe changes, Mobile builds/distribution, B1A fixture creation, assignment, Start, Complete, or cleanup.
+The 2026-08-24 task separately authorized the bounded local DOMAIN-1/B1A-ROUTE implementation now recorded here. This document authorizes no further application changes, deployment, DNS/CloudFront/Route53/ACM change, tenant or production-data write, Cognito change, notification send, Stripe change, Mobile build/distribution, B1A fixture creation, assignment, Start, Complete, or cleanup.

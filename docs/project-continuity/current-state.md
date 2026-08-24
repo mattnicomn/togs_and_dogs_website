@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-23 (Tenant-Access Architecture Gap Reconciled / Gate B0 Complete / B1A Blocked)
+**Last Updated:** 2026-08-24 (DOMAIN-1 Accepted / B1A-ROUTE Local Only / B1A Blocked)
 
 ---
 
@@ -45,10 +45,10 @@
 | Tenant Isolation | ✅ Enforced across all primary database helpers (11E, 18V, 19K) |
 | Entitlement Framework | ✅ Active with 8 enforced metrics (17A–17W) |
 | Platform Admin Panel | ✅ Deployed (`/platform-admin/metrics`, `/platform-admin/tenants`) |
-| Control-plane / tenant-plane URL separation | ⛔ Planning complete; implementation not approved. Platform Admin and tenant routes still share the current Web host. |
+| Control-plane / tenant-plane URL separation | 🟡 DOMAIN-1 ADR accepted and bounded route bridge implemented locally; canonical host/DNS separation not deployed or approved |
 | Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
 | Second tenant | ✅ Internal test tenant `test_tenant_alpha` created and validated (19D/19E); future customer/additional tenant provisioning remains approval-gated |
-| Second-tenant application landing | ⛔ `test_tenant_alpha` is active and administratively visible but has no normal tenant-specific owner landing URL; this is an application-routing gap, not an identity failure |
+| Second-tenant application landing | 🟡 `/t/test-tenant-alpha/admin` implemented and security-tested locally; production still has no deployed tenant-specific landing, so B1A remains blocked |
 | Tenant provisioning script | ✅ Dry run and controlled test-tenant apply validated (19B/19D) |
 | Tenant display branding | ✅ Dynamic brand name, shell logo, and footer separated by route; deployed and validated (19N) |
 | Tenant disable & restore | ✅ Gated & Validated in Production (20F — PASS) |
@@ -59,11 +59,21 @@
 | Blocker | Impact | Owner |
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
-| Tenant-specific owner landing and login-context agreement unavailable | Gate B1A end-to-end owner login/tenant UI validation blocked pending a fail-closed tenant route or canonical tenant subdomain | Architecture/product approval, then separately approved implementation |
+| Tenant-specific owner landing not deployed or independently login-validated | Gate B1A owner login/tenant UI validation remains blocked | Separately approved backend/Web deployment, then B1A-LOGIN validation |
 
 ## Current Work and Latest Closeouts
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
+
+- DOMAIN-1 + B1A-ROUTE (✅ IMPLEMENTED / VALIDATED LOCALLY / NOT DEPLOYED — 2026-08-24)
+  - Accepted `platform.toganddogs.usmissionhero.com` as the control plane, `<tenant-slug>.toganddogs.usmissionhero.com` as the tenant plane, and the current host as a temporary compatibility surface.
+  - Added local `/t/:tenantSlug/admin` routing to the existing operational dashboard. The server-owned bridge registry maps only `test-tenant-alpha` to canonical `test_tenant_alpha`; no production tenant record or schema changed.
+  - Strict multi mode, active tenant metadata, and exact Cognito `custom:company_id` agreement are required before operational Web data loading. Unknown, inactive, missing, wrong, or lookup-failed context denies generically with no primary fallback.
+  - Tenant routes suppress Platform Admin navigation; existing compatibility-host Platform Admin behavior remains intact. Direct Cognito login, refresh, new-password completion, and logout retain the path; hosted/Google callback work remains future.
+  - Validation: focused backend 14/14; related tenant/Platform regressions 41/41; focused Web 7/7; full Web 317/317 plus legacy 99/99; Vite build 112 modules; shared validators 24/24, 7/7, 9/9, and 9/9; Python compile pass. Full lint retains the existing 50-error/9-warning repository baseline with zero findings in the new tenant utility/test files.
+  - B1A remains **BLOCKED** until backend/Web deployment is separately approved and login-only isolation is independently validated. No DNS, infrastructure, Cognito, production-data, Mobile build, or deployment action occurred.
+  - See: `docs/planning/adr-domain-1-tenant-access-routing.md`
+  - See: `docs/release-notes/domain-1-b1a-route-local-implementation.md`
 
 - Ryan Slice E3B.1 Mobile Visit Workflow Safety Remediation (✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED / NOT IN CURRENT INTERNAL BUILDS — 2026-08-20)
   - One resolver now supplies authoritative child identity to both Start and Complete. Occurrence identity wins; route/occurrence or parent/occurrence disagreement fails safe with no mutation. Singular legacy identity works without a route ID; ambiguous multi-child identity remains blocked.
@@ -90,7 +100,7 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - Matthew-approved Gate B0 completed on 2026-08-23: exactly one `AdminEnableUser` enabled the sole existing `test_tenant_alpha` identity. It remains `CONFIRMED`, mapped to `test_tenant_alpha`, and in `client,owner`; no password, invitation, group, role, or tenant-mapping change occurred.
   - No safe existing authenticated session/credentials were available, so login was not attempted. Read-only validation found only tenant metadata and zero client, staff, pet, request, or job records. No notification, Calendar/Stripe action, Start, Complete, or production data creation occurred.
   - Subsequent manual UI review confirmed that `test_tenant_alpha` has no normal tenant-specific application landing URL. The identity remains enabled and is not declared broken. B1A is now explicitly **BLOCKED** until a fail-closed expected-tenant route/host agrees with the existing authenticated company claim and login isolation is validated. B1B, B2, B3, Mobile build/distribution, tester changes, and Ryan testing remain unapproved.
-  - The canonical recommendation is `platform.toganddogs.usmissionhero.com` for the control plane and `<tenant-slug>.toganddogs.usmissionhero.com` for tenant applications. A bounded claim-matched internal tenant route may unblock B1A before wildcard DNS, but no such safe route exists in the current runtime and its implementation/deployment requires separate approval.
+  - The canonical decision is `platform.toganddogs.usmissionhero.com` for the control plane and `<tenant-slug>.toganddogs.usmissionhero.com` for tenant applications. A bounded claim-matched route now exists only in local source; deployment and independent login validation still require separate approval.
   - See: `docs/planning/tenant-access-client-onboarding-operational-workflow-alignment.md`
   - See: `docs/release-notes/ryan-slice-e3a-child-start-contract-occurrence-read-model.md`
 

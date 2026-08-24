@@ -7,7 +7,7 @@
 
 ---
 
-## 2026-08-23 Reconciliation Note
+## 2026-08-24 DOMAIN-1 Decision and Local Bridge Note
 
 Manual UI review confirmed that active internal tenant `test_tenant_alpha` has no normal tenant-specific owner application landing URL. The identity itself is enabled and tenant-mapped; the newly documented blocker is the authenticated tenant bootstrap/surface.
 
@@ -18,7 +18,9 @@ For the Togs & Dogs product namespace, the authoritative staged recommendation i
 - existing `toganddogs.usmissionhero.com`: temporary compatibility alias for the primary tenant;
 - host or route context is an expected-tenant constraint only and must agree with authenticated `custom:company_id` plus strict tenant resolution;
 - Platform Admin moves out of ordinary tenant navigation;
-- Gate B1A is blocked until a bounded fail-closed tenant route/host and login isolation are separately implemented and validated.
+- DOMAIN-1 is accepted in `docs/planning/adr-domain-1-tenant-access-routing.md`;
+- `/t/:tenantSlug/admin` and its fail-closed expected-tenant bootstrap are implemented and validated locally but not deployed;
+- Gate B1A remains blocked until separately approved deployment and independent login-only isolation validation.
 
 See `docs/planning/tenant-access-client-onboarding-operational-workflow-alignment.md`. That document is authoritative where its product-specific hostname phasing or Gate B1A status is more recent than the generic examples below.
 

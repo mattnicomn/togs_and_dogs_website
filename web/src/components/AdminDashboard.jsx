@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 
 import { accountStatusLabel, accountStatusClass, profileStatusLabel, profileStatusClass, getVisibleClients, CLIENT_FILTERS } from '../utils/clientManagement';
 import { describeGuidedWorkflowAction, GUIDED_ACTION_SEMANTICS, resolveGuidedWorkflowAction } from '../utils/workflowActions';
+import { bootstrapTenantSession, TENANT_ACCESS_ERROR } from '../utils/tenantContext';
 
 
 
@@ -87,7 +88,7 @@ const waitForApprovalJobRefresh = () => new Promise(resolve => {
   setTimeout(resolve, APPROVAL_JOB_REFRESH_DELAY_MS);
 });
 
-const AdminDashboard = () => {
+const AdminDashboard = ({ expectedTenantSlug = null }) => {
 
   const [allRequests, setAllRequests] = useState([]); // Master pool for all records
   const [openMenuId, setOpenMenuId] = useState(null); // Track which row's action menu is open
@@ -641,7 +642,7 @@ const AdminDashboard = () => {
 
   const fetchTenantInfo = async () => {
     try {
-      const info = await getTenantInfo();
+      const info = await getTenantInfo(expectedTenantSlug);
       setTenantInfo(info);
     } catch (err) {
       console.error("Failed to fetch tenant info:", err);
@@ -1175,38 +1176,75 @@ const AdminDashboard = () => {
 
   const [adminNote, setAdminNote] = useState('');
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
+  const completeAuthenticatedBootstrap = async (session, userRole) => {
+    if (!['owner', 'admin', 'staff'].includes(userRole)) {
+      if (userRole === 'client' && !expectedTenantSlug) {
+        window.location.href = '/my-bookings';
+      } else {
+        setError(expectedTenantSlug ? TENANT_ACCESS_ERROR : "Access denied. You do not have permission to view the Staff Portal.");
+        setIsAuthenticated(false);
+      }
+      return false;
+    }
+
+    const payload = session.getIdToken().payload;
+    const authorize = async (verifiedTenantInfo = null) => {
+      setCurrentUser({
+        email: payload.email,
+        sub: payload.sub,
+        name: payload.name || payload['custom:display_name'] || null
+      });
+      setRole(userRole);
+      if (verifiedTenantInfo) {
+        setTenantInfo(verifiedTenantInfo);
+      }
+      setIsAuthenticated(true);
+      fetchAllData();
+      fetchGoogleStatus();
+      if (!verifiedTenantInfo) {
+        fetchTenantInfo();
+      }
+    };
+
+    if (expectedTenantSlug) {
+      try {
+        await bootstrapTenantSession({
+          session,
+          tenantSlug: expectedTenantSlug,
+          resolveTenant: getTenantInfo,
+          onAuthorized: authorize,
+        });
+      } catch {
+        setError(TENANT_ACCESS_ERROR);
+        setIsAuthenticated(false);
+        return false;
+      }
+    } else {
+      await authorize();
+    }
+
+    return true;
+  };
 
   const checkAuth = async () => {
     try {
       const session = await getSession();
       if (session) {
-        const payload = session.getIdToken().payload;
-        setCurrentUser({
-          email: payload.email,
-          sub: payload.sub,
-          name: payload.name || payload['custom:display_name'] || null
-        });
         const userRole = getEffectiveRole(session);
-        if (['owner', 'admin', 'staff'].includes(userRole)) {
-          setIsAuthenticated(true);
-          setRole(userRole);
-          fetchAllData();
-          fetchGoogleStatus();
-          fetchTenantInfo();
-        } else if (userRole === 'client') {
-          window.location.href = '/my-bookings';
-        } else {
-          setError("Access denied. You do not have permission to view the Staff Portal.");
-          setIsAuthenticated(false);
-        }
+        await completeAuthenticatedBootstrap(session, userRole);
       }
     } catch (err) {
       console.error("Auth check failed", err);
+      if (expectedTenantSlug) {
+        setError(TENANT_ACCESS_ERROR);
+        setIsAuthenticated(false);
+      }
     }
   };
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
 
   useEffect(() => {
     if (role === 'staff' && view !== 'SCHEDULER') {
@@ -1244,24 +1282,7 @@ const AdminDashboard = () => {
       }
       const session = await getSession();
       const userRole = getEffectiveRole(session);
-      if (['owner', 'admin', 'staff'].includes(userRole)) {
-        const payload = session.getIdToken().payload;
-        setCurrentUser({
-          email: payload.email,
-          sub: payload.sub,
-          name: payload.name || payload['custom:display_name'] || null
-        });
-        setIsAuthenticated(true);
-        setRole(userRole);
-        fetchAllData();
-        fetchGoogleStatus();
-        fetchTenantInfo();
-      } else if (userRole === 'client') {
-        window.location.href = '/my-bookings';
-      } else {
-        setError("Access denied. Insufficient permissions.");
-        setIsAuthenticated(false);
-      }
+      await completeAuthenticatedBootstrap(session, userRole);
 
     } catch (err) {
       setError(err.message || 'Login failed');
@@ -1393,22 +1414,7 @@ const AdminDashboard = () => {
           setChallengeContext(null);
           const session = await getSession();
           const userRole = getEffectiveRole(session);
-          if (['owner', 'admin', 'staff'].includes(userRole)) {
-            const payload = session.getIdToken().payload;
-            setCurrentUser({
-              email: payload.email,
-              sub: payload.sub,
-              name: payload.name || payload['custom:display_name'] || null
-            });
-            setIsAuthenticated(true);
-            setRole(userRole);
-            fetchAllData();
-            fetchGoogleStatus();
-            fetchTenantInfo();
-          } else {
-            setError("Access denied. Insufficient permissions.");
-            setIsAuthenticated(false);
-          }
+          await completeAuthenticatedBootstrap(session, userRole);
           setLoading(false);
         },
         onFailure: (err) => {
@@ -3979,7 +3985,7 @@ const AdminDashboard = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <h1>{tenantInfo?.display_name || "Pet Care Admin"}</h1>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '500', opacity: 0.8 }}>
-              Powered by usmissionhero
+              {expectedTenantSlug ? 'Tenant workspace · ' : ''}Powered by usmissionhero
             </span>
           </div>
           <nav className="view-selector">

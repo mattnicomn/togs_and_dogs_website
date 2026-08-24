@@ -1,7 +1,8 @@
-import { createBrowserRouter, RouterProvider, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Routes, Route, Link, Navigate, matchPath, useLocation, useParams } from 'react-router-dom';
 import React, { useState, useEffect, useRef } from 'react';
 import { getSession, getEffectiveRole } from './api/auth';
 import { getTenantInfo } from './api/client';
+import { shouldExposePlatformAdminNavigation } from './utils/tenantContext';
 import PortalGateway from './components/PortalGateway';
 import About from './components/About';
 import Services from './components/Services';
@@ -66,7 +67,17 @@ function PlatformAdminGuard({ children }) {
   return children;
 }
 
-function AppContent() {
+export function TenantAdminRoute() {
+  const { tenantSlug } = useParams();
+  return <AdminDashboard key={tenantSlug} expectedTenantSlug={tenantSlug} />;
+}
+
+function TenantLandingRoute() {
+  const { tenantSlug } = useParams();
+  return <Navigate to={`/t/${encodeURIComponent(tenantSlug)}/admin`} replace />;
+}
+
+export function AppContent() {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [hasClientSession, setHasClientSession] = useState(false);
   const [tenantInfo, setTenantInfo] = useState(null);
@@ -75,7 +86,9 @@ function AppContent() {
   const toggleRef = useRef(null);
   const closeBtnRef = useRef(null);
   
-  const isAdminRoute = location.pathname.startsWith('/admin') || location.pathname.startsWith('/platform-admin');
+  const tenantRouteMatch = matchPath('/t/:tenantSlug/*', location.pathname);
+  const isTenantRoute = Boolean(tenantRouteMatch);
+  const isAdminRoute = isTenantRoute || location.pathname.startsWith('/admin') || location.pathname.startsWith('/platform-admin');
 
   // Close mobile drawer on navigation
   useEffect(() => {
@@ -229,12 +242,12 @@ function AppContent() {
         setTenantInfo(null);
       }
     };
-    if (isAdminRoute) {
+    if (isAdminRoute && !isTenantRoute) {
       fetchTenant();
     } else {
       setTenantInfo(null);
     }
-  }, [location.pathname, isAdminRoute]);
+  }, [location.pathname, isAdminRoute, isTenantRoute]);
 
   return (
     <div className="app-container">
@@ -253,15 +266,15 @@ function AppContent() {
           </Link>
           {/* Desktop Navigation */}
           <nav className="main-nav desktop-only">
-            <Link to="/" className="nav-link">Portal</Link>
-            {hasClientSession && <Link to="/my-pets" className="nav-link">My Pets</Link>}
-            <Link to="/my-bookings" className="nav-link">My Bookings</Link>
-            {isPlatformAdmin && (
+            {!isTenantRoute && <Link to="/" className="nav-link">Portal</Link>}
+            {!isTenantRoute && hasClientSession && <Link to="/my-pets" className="nav-link">My Pets</Link>}
+            {!isTenantRoute && <Link to="/my-bookings" className="nav-link">My Bookings</Link>}
+            {shouldExposePlatformAdminNavigation(isTenantRoute, isPlatformAdmin) && (
               <Link to="/platform-admin" className="nav-link" style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
                 Platform Admin
               </Link>
             )}
-            <Link to="/book" className="nav-link nav-cta">Request Care</Link>
+            {!isTenantRoute && <Link to="/book" className="nav-link nav-cta">Request Care</Link>}
             <ThemeToggle />
           </nav>
 
@@ -306,15 +319,20 @@ function AppContent() {
               </button>
             </div>
             <div className="mobile-drawer-links">
-              <Link to="/" className="drawer-link" onClick={() => setIsMobileMenuOpen(false)}>Portal</Link>
-              {hasClientSession && <Link to="/my-pets" className="drawer-link" onClick={() => setIsMobileMenuOpen(false)}>My Pets</Link>}
-              <Link to="/my-bookings" className="drawer-link" onClick={() => setIsMobileMenuOpen(false)}>My Bookings</Link>
-              {isPlatformAdmin && (
+              {!isTenantRoute && <Link to="/" className="drawer-link" onClick={() => setIsMobileMenuOpen(false)}>Portal</Link>}
+              {!isTenantRoute && hasClientSession && <Link to="/my-pets" className="drawer-link" onClick={() => setIsMobileMenuOpen(false)}>My Pets</Link>}
+              {!isTenantRoute && <Link to="/my-bookings" className="drawer-link" onClick={() => setIsMobileMenuOpen(false)}>My Bookings</Link>}
+              {shouldExposePlatformAdminNavigation(isTenantRoute, isPlatformAdmin) && (
                 <Link to="/platform-admin" className="drawer-link platform-admin-link" onClick={() => setIsMobileMenuOpen(false)}>
                   Platform Admin
                 </Link>
               )}
-              <Link to="/book" className="drawer-link drawer-cta" onClick={() => setIsMobileMenuOpen(false)}>Request Care</Link>
+              {!isTenantRoute && <Link to="/book" className="drawer-link drawer-cta" onClick={() => setIsMobileMenuOpen(false)}>Request Care</Link>}
+              {isTenantRoute && (
+                <Link to={location.pathname} className="drawer-link" onClick={() => setIsMobileMenuOpen(false)}>
+                  Tenant Operations
+                </Link>
+              )}
             </div>
           </nav>
         </div>
@@ -330,6 +348,8 @@ function AppContent() {
           <Route path="/my-bookings" element={<ClientPortal />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/auth/callback" element={<GoogleCallback />} />
+          <Route path="/t/:tenantSlug" element={<TenantLandingRoute />} />
+          <Route path="/t/:tenantSlug/admin" element={<TenantAdminRoute />} />
           <Route path="/terms" element={<TermsOfUse />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/booking/:requestId/success" element={<PaymentSuccess />} />
