@@ -19,6 +19,9 @@ RULES:
 - Do not create a second tenant without explicit approval.
 - Do not add Ryan or external testers without explicit approval.
 - Do not activate Stripe live mode without explicit approval.
+- The API semantic-fingerprint fix is integrated into `main` but not deployed. Dedicated migration plan `infra/prod/api-semantic-fingerprint-migration-20260824.tfplan` is saved and reviewed at 1 add, 1 change, 1 destroy with zero Lambda/topology changes; it requires Matthew approval and must not be applied implicitly.
+- The prior DOMAIN-1 saved plan is permanently rejected. ROUTE-GATE-A and B1A remain blocked until the isolated migration is applied and verified under separate approval.
+- Stripe test credential rotation remains separately approval-gated; never display, search, reuse, or record the credential values.
 - Use targeted git add only (never git add .).
 - Planning/docs work goes through Kiro. Implementation goes through AG/Antigravity.
 - Always summarize current project state before suggesting next steps.

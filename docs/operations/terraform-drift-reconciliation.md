@@ -1,4 +1,16 @@
-# Terraform Drift Reconciliation: Google Calendar Disconnect
+# Terraform Drift Reconciliation
+
+## Current safety notice — 2026-08-24
+
+The reviewed API semantic-fingerprint fix is integrated into `main` and isolated on a deployed-baseline migration branch. Fresh saved plan `infra/prod/api-semantic-fingerprint-migration-20260824.tfplan` (SHA-256 `9629B084680E0E519B9C7F0CEE153514F99F68BA89961DA9CBEBDA6C105D99FA`) shows exactly one create-before-destroy API deployment replacement plus only the stage `deployment_id` update: 1 add, 1 change, 1 destroy, with zero Lambda or API-topology changes. It has not been applied and requires Matthew approval.
+
+ROUTE-GATE-A remains blocked. The prior DOMAIN-1 saved plan is permanently rejected and must never be applied. Stripe test credential rotation remains separately approval-gated. See `docs/release-notes/api-gateway-semantic-fingerprint-migration-plan.md`.
+
+The historical material below is retained for context and is not authorization for current work.
+
+---
+
+# Historical: Google Calendar Disconnect
 
 **Date**: May 27, 2026  
 **Component**: API Gateway, Lambda (`togs-and-dogs-prod-google-auth`)  

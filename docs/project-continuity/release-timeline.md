@@ -4,6 +4,12 @@
 
 ---
 
+## Controlled Infrastructure Migration (2026-08-24)
+
+| Gate | Milestone |
+|------|-----------|
+| API semantic fingerprint migration | Reviewed fix integrated into `main` at `b6e988b`; dedicated RC composed from deployed E3A baseline `732e48b`. Fresh saved plan from `cf243a2` is exactly 1 add, 1 change, 1 destroy: one API deployment replacement caused only by `triggers`, plus only the stage `deployment_id` update. Zero Lambda/API-topology changes. Not applied; Matthew approval required. ROUTE-GATE-A remains blocked, the old DOMAIN-1 plan is permanently rejected, and Stripe test credential rotation remains separately gated. |
+
 ## Core Platform (Releases 1–9)
 
 | Phase | Scope |

@@ -1,8 +1,14 @@
 # Current Project State
 
-**Last Updated:** 2026-07-24 (Phase 23A AWS Tagging Evidence Audit Complete)
+**Last Updated:** 2026-08-24 (semantic-fingerprint migration plan prepared / not applied)
 
 ---
+
+## Controlled Infrastructure Migration Overlay
+
+The API Gateway semantic-fingerprint fix reviewed at `8d6e38b` is integrated into `main` at `b6e988b` but is not deployed. Dedicated branch `release/api-semantic-fingerprint-migration-rc` was composed from deployed E3A infrastructure baseline `732e48b`, excluding later undeployed onboarding and application work. Saved plan `infra/prod/api-semantic-fingerprint-migration-20260824.tfplan` has SHA-256 `9629B084680E0E519B9C7F0CEE153514F99F68BA89961DA9CBEBDA6C105D99FA` and shows exactly one create-before-destroy API deployment replacement plus only the stage `deployment_id` update: 1 add, 1 change, 1 destroy, with zero Lambda or API-topology changes. It has not been applied and requires Matthew approval.
+
+ROUTE-GATE-A and B1A remain blocked. The prior DOMAIN-1 saved plan is permanently rejected. Stripe test credential rotation was not performed and remains separately approval-gated. See `docs/release-notes/api-gateway-semantic-fingerprint-migration-plan.md`.
 
 ## Production App
 
