@@ -155,6 +155,19 @@ def make_job_record(company_id='tog_and_dogs', status='ASSIGNED'):
     }
 
 
+def make_active_tenant_metadata(company_id='tog_and_dogs'):
+    """Build realistic tenant metadata for same-tenant success paths."""
+    return {
+        'PK': f'TENANT#{company_id}',
+        'SK': 'METADATA',
+        'company_id': company_id,
+        'subscription_tier': 'professional',
+        'subscription_status': 'active',
+        'is_active': True,
+        'admin_override_until': None,
+    }
+
+
 # ===========================================================================
 # 1. review_handler — same-tenant access vs cross-tenant blocked
 # ===========================================================================
@@ -171,7 +184,14 @@ def test_review_handler_same_tenant_approved(mock_notify, mock_cascade, mock_get
     # Use PENDING_REVIEW -> DECLINED transition (simple, no side effects or M&G checks)
     req_item = make_req_record(company_id='tog_and_dogs', status='PENDING_REVIEW')
 
-    mock_get.return_value = req_item
+    def _get_item(pk, sk):
+        if (pk, sk) == ('TENANT#tog_and_dogs', 'METADATA'):
+            return make_active_tenant_metadata()
+        if (pk, sk) == ('REQ#req-001', 'CLIENT#client-001'):
+            return req_item
+        return None
+
+    mock_get.side_effect = _get_item
     mock_notify.return_value = {'success': True, 'message': 'ok'}
     mock_table.update_item.return_value = {}
 
@@ -296,6 +316,10 @@ def test_admin_handler_export_filters_by_company(mock_table, mock_log):
     mock_table.scan.return_value = {
         'Items': [records[0]]  # Only tog_and_dogs record returned
     }
+    # require_active_tenant/check_feature legitimately load tenant metadata first.
+    # Explicitly model no temporary admin override so the optional timestamp is
+    # None rather than an unstubbed, truthy MagicMock.
+    mock_table.get_item.return_value = {'Item': make_active_tenant_metadata()}
 
     event = make_event(role='admin', company_id='tog_and_dogs',
                        body={}, method='GET', path='/admin/export-data')
@@ -548,7 +572,14 @@ def test_pet_handler_get_same_tenant_succeeds(mock_get, mock_table):
         'client_id': 'client-001'
     }
 
-    mock_get.return_value = pet_record
+    def _get_item(pk, sk):
+        if (pk, sk) == ('TENANT#tog_and_dogs', 'METADATA'):
+            return make_active_tenant_metadata()
+        if (pk, sk) == ('PET#pet-001', 'CLIENT#client-001'):
+            return pet_record
+        return None
+
+    mock_get.side_effect = _get_item
     mock_table.get_item.return_value = {'Item': client_profile}
 
     event = make_event(role='admin', company_id='tog_and_dogs',
