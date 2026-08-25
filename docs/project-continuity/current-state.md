@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-25 (INFRA-GATE-A v2 complete / DOMAIN-1 backend v3 RC and exact state-510 plan ready for Matthew approval / not applied / B1A blocked)
+**Last Updated:** 2026-08-25 (ROUTE-GATE-A complete / DOMAIN-1 backend deployed / API unchanged / ROUTE-GATE-B and B1A-LOGIN not approved)
 
 ---
 
@@ -9,7 +9,7 @@
 | Component | Status |
 |-----------|--------|
 | Web app (React/Vite) | ✅ Live at the shared compatibility host `toganddogs.usmissionhero.com`; no normal tenant-specific landing URL exists yet for `test_tenant_alpha` |
-| Backend (Python/Lambda) | ✅ Deployed |
+| Backend (Python/Lambda) | ✅ Deployed — DOMAIN-1 expected-tenant route bridge is active across the shared Lambda package; all 13 functions Active/Successful |
 | API Gateway | ✅ Active — E3A authenticated Start and exact-request GET routes deployed; no Start/data-write Gate-B validation approved |
 | DynamoDB | ✅ Single table, shared-tenant model |
 | Google Calendar | ✅ One configured Google provider connection for `tog_and_dogs`; token storage/resolution is tenant-scoped (21H). `test_tenant_alpha` remains provider `none` / `not_configured`; independent providers for multiple tenants are not claimed. |
@@ -46,7 +46,7 @@
 | Tenant Isolation | ✅ Enforced across all primary database helpers (11E, 18V, 19K) |
 | Entitlement Framework | ✅ Active with 8 enforced metrics (17A–17W) |
 | Platform Admin Panel | ✅ Deployed (`/platform-admin/metrics`, `/platform-admin/tenants`) |
-| Control-plane / tenant-plane URL separation | 🟡 DOMAIN-1 ADR accepted and bounded route bridge implemented locally; canonical host/DNS separation not deployed or approved |
+| Control-plane / tenant-plane URL separation | 🟡 DOMAIN-1 backend route bridge deployed; Web route surface and canonical host/DNS separation remain undeployed and unapproved |
 | Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
 | Second tenant | ✅ Internal test tenant `test_tenant_alpha` created and validated (19D/19E); future customer/additional tenant provisioning remains approval-gated |
 | Second-tenant application landing | 🟡 `/t/test-tenant-alpha/admin` implemented and security-tested locally; production still has no deployed tenant-specific landing, so B1A remains blocked |
@@ -60,8 +60,7 @@
 | Blocker | Impact | Owner |
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
-| Tenant-specific owner landing not deployed or independently login-validated | Gate B1A owner login/tenant UI validation remains blocked | Separately approved backend/Web deployment, then B1A-LOGIN validation |
-| DOMAIN-1 backend saved plan not approved or applied | ROUTE-GATE-A deployment and B1A remain blocked | Matthew must review and explicitly approve exact v3 saved plan `871EF0EA...97D00`; Web deployment and B1A-LOGIN remain separate gates |
+| Tenant-specific owner landing not deployed or independently login-validated | ROUTE-GATE-B and ROUTE-GATE-C/B1A-LOGIN remain blocked | Separately approve the bounded Web deployment, then separately approve login-only isolation validation |
 
 ## Current Work and Latest Closeouts
 
@@ -83,24 +82,27 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - Matthew explicitly approved and the exact verified saved plan applied once from `2026-08-25T00:27:41.3307060Z` to `2026-08-25T00:27:46.9727543Z`. Terraform exited 0 with exactly 1 added, 1 changed, 1 destroyed. State advanced 509 → 510 on the unchanged lineage.
   - Production stage `prod` moved from deployment `886zij` to new immutable deployment `atxpw3`; the old deployment was removed after the stage transition. Live inventory remains 51 paths, 96 methods, 96 integrations, one authorizer, and 48 authorizer assignments. Topology, authorizer, and stage-config fingerprints are unchanged.
   - All 13 Lambda code/config fingerprints remain exactly equal to the pre-apply aggregate `0240C7A1...B011D4`, and every function remains Active/Successful. Non-write smoke returned expected 401/200/200; the observed API metric window contained one expected 4xx and zero 5xx, with no Lambda import/init error evidence.
-  - INFRA-GATE-A v2 is complete. DOMAIN-1 was not rebuilt, planned, or deployed. Its next separately reviewed plan is expected to prove 0 add, 13 change, 0 destroy and zero API deployment/stage churn. B1A and Stripe test-secret rotation remain separately blocked and approval-gated.
+  - INFRA-GATE-A v2 is complete. DOMAIN-1 subsequently used a fresh separately reviewed state-510 plan that proved and applied 0 add, 13 change, 0 destroy with zero API deployment/stage churn. B1A and Stripe test-secret rotation remain separately blocked and approval-gated.
   - See: `docs/release-notes/api-gateway-semantic-deployment-fingerprint-infrastructure-rc.md`, `docs/release-notes/api-gateway-semantic-fingerprint-migration-plan.md`, `docs/release-notes/api-gateway-semantic-fingerprint-line-ending-remediation.md`, `docs/release-notes/api-gateway-semantic-fingerprint-migration-v2-plan.md`, and `docs/release-notes/api-gateway-semantic-fingerprint-migration-v2-deployment.md`
 
-- DOMAIN-1 + B1A-ROUTE (✅ V3 RC + STATE-510 PLAN READY FOR MATTHEW APPROVAL / NOT APPLIED — 2026-08-25)
+- DOMAIN-1 + B1A-ROUTE (✅ ROUTE-GATE-A COMPLETE / BACKEND DEPLOYED / ROUTE-GATE-B NOT APPROVED — 2026-08-25)
   - Accepted `platform.toganddogs.usmissionhero.com` as the control plane, `<tenant-slug>.toganddogs.usmissionhero.com` as the tenant plane, and the current host as a temporary compatibility surface.
-  - Added local `/t/:tenantSlug/admin` routing to the existing operational dashboard. The server-owned bridge registry maps only `test-tenant-alpha` to canonical `test_tenant_alpha`; no production tenant record or schema changed.
+  - The server-owned backend bridge registry is deployed and maps only `test-tenant-alpha` to canonical `test_tenant_alpha`. The `/t/:tenantSlug/admin` Web route remains local and undeployed; no production tenant record or schema changed.
   - Strict multi mode, active tenant metadata, and exact Cognito `custom:company_id` agreement are required before operational Web data loading. Unknown, inactive, missing, wrong, or lookup-failed context denies generically with no primary fallback.
   - Tenant routes suppress Platform Admin navigation; existing compatibility-host Platform Admin behavior remains intact. Direct Cognito login, refresh, new-password completion, and logout retain the path; hosted/Google callback work remains future.
   - Validation: focused backend 14/14; related tenant/Platform regressions 41/41; focused Web 7/7; full Web 317/317 plus legacy 99/99; Vite build 112 modules; shared validators 24/24, 7/7, 9/9, and 9/9; Python compile pass. Full lint retains the existing 50-error/9-warning repository baseline with zero findings in the new tenant utility/test files.
   - All three v2 failures were classified A/A/A after identical failure on deployed E3A. The test-only correction explicitly models active tenant metadata and `admin_override_until=None`; it changes no production/runtime source. Corrected validation passed 3/3, tenant isolation 51/51, DOMAIN-1 14/14, E3A 24/24, disabled-tenant/Platform 26/26, and explicit negative boundaries 11/11.
   - Fresh v3 branch `release/domain1-b1a-route-backend-v3-rc` composes deployed E3A `732e48b`, deployed semantic infrastructure `6f130fb4`, reviewed DOMAIN-1 replay `f3d48f1`, and test-only correction `3a04476`. Plan-source `46ab287` and evidence head `5de430c` are pushed.
   - Repository-native package SHA-256 `5BD46E19...AC558` / Base64 `W9RuGay6arQYNSUXwZ1L9iv+xyY7cEE2WT8rBDaaxVg=` contains exactly 40 eligible backend files and no caches/bytecode. Fresh locked, refreshed state-510 plan `domain1-b1a-route-backend-v3-20260825.tfplan`, SHA-256 `871EF0EA...97D00`, is exactly 0 add / 13 change / 0 destroy: the 13 shared-package Lambdas only, with package hash plus computed `last_modified`; all 336 API records, including deployment and stage, are no-op.
-  - ROUTE-GATE-A is ready for Matthew's review and explicit saved-plan approval, but nothing has been applied or deployed. B1A remains **BLOCKED**; Web ROUTE-GATE-B and B1A-LOGIN are independent and unapproved. No DNS, Cognito, production-data, Mobile build, or deployment action occurred.
+  - Matthew approved the exact saved plan. It applied once from `2026-08-25T16:13:06.8599655Z` to `16:14:28.0494479Z`, exit 0, with exactly 0 added / 13 changed / 0 destroyed. State advanced 510 -> 513 on the unchanged lineage; exact state comparison found only the 13 Lambda code metadata changes and unchanged outputs.
+  - All 13 Lambdas are Active/Successful on CodeSha256 `W9RuGay6arQYNSUXwZ1L9iv+xyY7cEE2WT8rBDaaxVg=` with every configuration fingerprint unchanged. API remained `prod -> atxpw3`, with unchanged 51 paths / 96 methods / 96 integrations / one authorizer / 48 assignments and identical topology/authorizer/stage fingerprints. Deployment-window metrics recorded four deliberate 4xx and zero 5xx.
+  - ROUTE-GATE-A is complete. B1A remains **BLOCKED**; Web ROUTE-GATE-B and ROUTE-GATE-C/B1A-LOGIN are independent and unapproved. No Web, DNS, Cognito, production-data, Stripe, Calendar, notification, Mobile, or other deployment action occurred.
   - See: `docs/planning/adr-domain-1-tenant-access-routing.md`
   - See: `docs/release-notes/domain-1-b1a-route-local-implementation.md`
   - See: `docs/release-notes/domain-1-b1a-route-backend-v2-rc.md`
   - See: `docs/release-notes/domain-1-b1a-route-test-harness-triage.md`
   - See: `docs/release-notes/domain-1-b1a-route-backend-v3-rc.md`
+  - See: `docs/release-notes/domain-1-b1a-route-backend-v3-deployment.md`
 
 - Ryan Slice E3B.1 Mobile Visit Workflow Safety Remediation (✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED / NOT IN CURRENT INTERNAL BUILDS — 2026-08-20)
   - One resolver now supplies authoritative child identity to both Start and Complete. Occurrence identity wins; route/occurrence or parent/occurrence disagreement fails safe with no mutation. Singular legacy identity works without a route ID; ambiguous multi-child identity remains blocked.

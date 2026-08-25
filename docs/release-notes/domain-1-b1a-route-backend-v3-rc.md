@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-25
 
-**Status:** ROUTE-GATE-A READY FOR MATTHEW APPROVAL / SAVED PLAN NOT APPLIED
+**Status:** EXACT PLAN APPLIED / SUPERSEDED BY PRODUCTION DEPLOYMENT CLOSEOUT
 
 ## Exact composition
 
@@ -188,15 +188,18 @@ route checks: malformed/unknown `expectedTenantSlug` denied and compatibility
 tenant-info preserved. Do not perform B1A login, production data writes,
 Start/Complete, or notification/Calendar/Stripe writes.
 
-## Gate decision
+## Subsequent deployment
 
-All hard-stop conditions were evaluated and none occurred. ROUTE-GATE-A is
-ready for Matthew's review and explicit approval of this exact saved plan.
-ROUTE-GATE-B remains waiting; B1A-LOGIN is not approved; B1A remains blocked;
-Stripe test-secret rotation remains a separate workstream.
+Matthew subsequently approved this exact saved plan. It applied once on
+2026-08-25 with exit code 0 and exactly 0 added / 13 changed / 0 destroyed.
+All 13 Lambdas are Active/Successful on the candidate package with unchanged
+configuration fingerprints. API Gateway remained `prod -> atxpw3` with
+unchanged topology, authorizer, stage configuration, and inventory. State
+advanced 510 -> 513 on the same lineage; attribute-level state comparison
+showed only the authorized Lambda code metadata changes.
 
-No Terraform apply, Lambda deployment, API deployment, Web/Mobile change,
-login, production data write, Start, Complete, Calendar, Stripe, notification,
-Cognito, DNS, or tenant mutation was performed.
+See `docs/release-notes/domain-1-b1a-route-backend-v3-deployment.md` for the
+authoritative deployment record. ROUTE-GATE-B, ROUTE-GATE-C/B1A-LOGIN,
+B1A/B1B/B2/B3, and Stripe test-secret rotation remain separate and unapproved.
 
-**DO NOT APPLY.**
+**DO NOT REAPPLY THIS SAVED PLAN.**
