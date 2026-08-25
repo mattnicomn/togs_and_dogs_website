@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-24
 
-**Status:** Original semantic design reviewed and integrated / first migration apply failed safely / line-ending remediation locally validated and awaiting independent review / not deployed
+**Status:** Original semantic design reviewed and integrated / line-ending fix independently approved / v2 state-509 plan ready for Matthew approval / not deployed
 
 ## Release boundary
 
@@ -70,4 +70,4 @@ Dedicated branch `release/api-semantic-fingerprint-migration-rc` was composed fr
 
 Matthew explicitly approved the exact plan, but Terraform stopped before managed-resource change because `jsondecode(file(...))` had an LF raw-string result at plan time and semantically identical CRLF input at apply time. Production remains on API deployment/stage `886zij`; API, authorizer, and all 13 Lambda fingerprints are unchanged. State serial advanced 508 → 509 with unchanged lineage and no canonical managed-resource/output difference. The saved plan is permanently invalid and must never be retried.
 
-The locally validated correction declares the semantic object in native Terraform JSON configuration, removes the external `file()` value, and adds LF/CRLF/whitespace plus Windows saved-plan regression coverage. It awaits independent review. A revised dedicated baseline RC and fresh state-509 plan remain required and separately approval-gated; neither was created here. See `docs/release-notes/api-gateway-semantic-fingerprint-migration-plan.md` and `docs/release-notes/api-gateway-semantic-fingerprint-line-ending-remediation.md`.
+Independent review approved the native-configuration correction for migration-RC planning. Fresh baseline-derived RC `release/api-semantic-fingerprint-migration-v2-rc` is pushed at `02e5bfda`; plan-source `6f130fb4` validates production scope 50/52/52/44/2 with zero runtime application delta. Fresh state-509 plan SHA-256 `519E3EE19BE40A9EE790D00736DD08857B312FE6B83EF7D5D6B265F3AAD86004` is exactly 1 add, 1 change, 1 destroy across deployment replacement (`triggers` only) and stage update (`deployment_id` only). It has not been applied and requires Matthew approval. See `docs/release-notes/api-gateway-semantic-fingerprint-migration-v2-plan.md`.

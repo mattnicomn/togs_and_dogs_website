@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-24
 
-**Status:** Locally validated / ready for independent review / not deployed / no production plan created
+**Status:** Independently approved for migration-RC planning / included in fresh v2 state-509 plan / not deployed
 
 ## Failed INFRA-GATE-A record
 
@@ -51,7 +51,7 @@ No production plan, apply, refresh, target, state edit, deployment, Cognito/DNS/
 
 ## Revised release composition
 
-After independent review, compose a new dedicated migration RC from exact deployed infrastructure baseline `732e48b930f6fd9aac958351c4ac7823c14cf3e0`. Include the reviewed semantic fingerprint implementation, the production-baseline manifest, and this line-ending-stability remediation only. Exclude DOMAIN-1 runtime and unrelated `main` work. Generate a new saved production plan against authoritative state serial 509 only after that RC is reviewed; the plan then requires separate Matthew approval. The final RC and production plan were intentionally not created in this work.
+Independent review approved this correction for migration-RC planning. Fresh branch `release/api-semantic-fingerprint-migration-v2-rc` was composed from exact deployed infrastructure baseline `732e48b930f6fd9aac958351c4ac7823c14cf3e0`, includes the reviewed semantic fingerprint implementation, production-baseline manifest, and this correction only, and excludes DOMAIN-1/unrelated `main`. Plan-source `6f130fb4` produced fresh state-509 saved plan SHA-256 `519E3EE19BE40A9EE790D00736DD08857B312FE6B83EF7D5D6B265F3AAD86004`; it remains unapplied and requires Matthew's separate approval. See `docs/release-notes/api-gateway-semantic-fingerprint-migration-v2-plan.md`.
 
 ## Security boundary
 

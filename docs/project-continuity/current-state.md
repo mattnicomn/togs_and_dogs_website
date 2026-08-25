@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-24 (INFRA-GATE-A failed safely / line-ending remediation locally validated / independent review required / ROUTE-GATE-A and B1A blocked)
+**Last Updated:** 2026-08-24 (migration v2 state-509 plan ready for Matthew approval / not applied / ROUTE-GATE-A and B1A blocked)
 
 ---
 
@@ -61,13 +61,13 @@
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
 | Tenant-specific owner landing not deployed or independently login-validated | Gate B1A owner login/tenant UI validation remains blocked | Separately approved backend/Web deployment, then B1A-LOGIN validation |
-| API trigger migration failed before managed-resource change | Both the original DOMAIN-1 plan and failed INFRA-GATE-A plan are permanently invalid; ROUTE-GATE-A remains blocked | Independent review of the line-ending remediation, then a new baseline-derived state-509 RC/plan and separate Matthew approval |
+| API trigger migration not deployed | Both prior plans are permanently invalid; fresh v2 plan is ready but ROUTE-GATE-A remains blocked | Matthew review and explicit approval of exact v2 plan SHA-256, then separately controlled apply and verification |
 
 ## Current Work and Latest Closeouts
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
 
-- API Gateway Semantic Deployment Fingerprint (🟡 INFRA-GATE-A FAILED SAFELY / LINE-ENDING REMEDIATION LOCALLY VALIDATED / READY FOR INDEPENDENT REVIEW / NOT DEPLOYED — 2026-08-24)
+- API Gateway Semantic Deployment Fingerprint (🟡 V2 STATE-509 PLAN READY FOR MATTHEW APPROVAL / NOT APPLIED — 2026-08-24)
   - Reviewed commit `8d6e38b4488cf8eb4a39d8f4b069aa0d5367875d` was fast-forwarded unchanged into `main`. ROUTE-GATE-A remains **BLOCKED / NOT READY**. The original `route-gate-a-b1a-route-20260824.tfplan` is permanently rejected and must never be applied.
   - Replaced the 81-whole-provider-object `jsonencode` trigger with an explicit semantic manifest and provider-independent typed canonicalizer. Optional maps become `{}`, sets/lists become sorted `[]`, strings become `""`, and booleans/numeric defaults are explicit.
   - Fingerprinted behavior covers 53 resources, 54 non-CORS methods, 54 integrations, 47 CORS resources, the Cognito authorizer reference, response behavior, and both gateway responses. Provider-generated IDs and Lambda package metadata are excluded.
@@ -77,9 +77,11 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - The remediation moves the object into native `deployment-semantics.tf.json`, eliminating the external raw `file()` result while retaining parsed semantic canonicalization. A narrow manifest-only LF attribute is defense in depth.
   - Validation: Terraform tests 10/10; Windows provider-free LF/CRLF/compact saved-plan stability pass; static source/config coverage and raw-byte audit pass; format and validate pass; tenant-route plus E3A 38/38; disabled-tenant/Platform boundaries 34/34; shared constants/API 24/24 and adapters 9/9 in an LF-neutral clone; Python compile and diff check pass.
   - A prior inspection identified Stripe test API and test webhook-signing credential exposure. No values were reused or recorded. Rotation was not performed and requires separate approval; Stripe remains sandbox/test-mode only.
-  - The old branch/plan evidence remains historical only. After independent review, a revised dedicated RC must start from deployed baseline `732e48b`, include the reviewed semantic fix plus this remediation, exclude DOMAIN-1/unrelated main, and produce a fresh plan against state 509 for separate Matthew approval. No revised RC or production plan was created here.
-  - No production plan, apply retry, deployment, AWS/Cognito/DNS/data/Mobile change, or secret rotation occurred during remediation.
-  - See: `docs/release-notes/api-gateway-semantic-deployment-fingerprint-infrastructure-rc.md`, `docs/release-notes/api-gateway-semantic-fingerprint-migration-plan.md`, and `docs/release-notes/api-gateway-semantic-fingerprint-line-ending-remediation.md`
+  - Independent review returned `LINE-ENDING FIX APPROVED FOR MIGRATION-RC PLANNING`. Fresh branch `release/api-semantic-fingerprint-migration-v2-rc` starts from deployed baseline `732e48b`, excludes DOMAIN-1/unrelated main, and has zero `src/`, Web, Mobile, or shared-contract differences.
+  - Production-scoped manifest validates at 50 resources, 52 methods, 52 integrations, 44 CORS resources, and two gateway responses. Plan-source `6f130fb4ba6d07b457a0466d8ee1f301dd6ba2da`; final pushed RC `02e5bfda9310e7c80884b34f9c2d61ebf0d9b8bb`.
+  - Fresh locked, refresh-enabled state-509 plan `infra/prod/api-semantic-fingerprint-migration-v2-20260824.tfplan`, SHA-256 `519E3EE19BE40A9EE790D00736DD08857B312FE6B83EF7D5D6B265F3AAD86004`, is exactly 1 add, 1 change, 1 destroy: triggers-only API deployment replacement plus stage `deployment_id` only. Complete plan review found exactly two meaningful addresses and zero Lambda/API-topology/IAM/data/auth/DNS/Web/Mobile drift.
+  - Live production remains `prod → 886zij`; post-plan state remains serial 509 with unchanged lineage. No apply, deployment, state edit, Cognito/DNS/data/Mobile change, or secret rotation occurred. Matthew must review and explicitly approve the exact v2 plan before any apply.
+  - See: `docs/release-notes/api-gateway-semantic-deployment-fingerprint-infrastructure-rc.md`, `docs/release-notes/api-gateway-semantic-fingerprint-migration-plan.md`, `docs/release-notes/api-gateway-semantic-fingerprint-line-ending-remediation.md`, and `docs/release-notes/api-gateway-semantic-fingerprint-migration-v2-plan.md`
 
 - DOMAIN-1 + B1A-ROUTE (✅ IMPLEMENTED / VALIDATED LOCALLY / NOT DEPLOYED — 2026-08-24)
   - Accepted `platform.toganddogs.usmissionhero.com` as the control plane, `<tenant-slug>.toganddogs.usmissionhero.com` as the tenant plane, and the current host as a temporary compatibility surface.
