@@ -2,7 +2,9 @@
 
 **Date:** 2026-08-24
 
-**Status:** INFRA-GATE-A ready for Matthew approval / saved plan not applied / DOMAIN-1 and B1A blocked
+**Status:** APPLIED SUCCESSFULLY 2026-08-25 UTC / superseded by the deployment closeout / DOMAIN-1 and B1A remain blocked
+
+> **Outcome:** Matthew explicitly approved this exact saved plan. It applied once with `1 added, 1 changed, 1 destroyed`, advanced state serial `509 → 510`, and moved `prod` from deployment `886zij` to `atxpw3` with semantic topology, authorizer, stage configuration, and all 13 Lambda fingerprints unchanged. See `api-gateway-semantic-fingerprint-migration-v2-deployment.md`.
 
 ## Review and release boundary
 
@@ -83,7 +85,7 @@ Every enumerated hard-stop condition was evaluated and none is present. The RC i
 
 ## Approval, rollback, and remaining blocks
 
-This plan has not been applied. Matthew must review and explicitly approve this exact plan SHA-256 before any apply. Both previous plans—`api-semantic-fingerprint-migration-20260824.tfplan` and `route-gate-a-b1a-route-20260824.tfplan`—remain permanently invalid and must never be retried.
+Matthew subsequently approved this exact plan SHA-256, and it applied successfully once as recorded in `api-gateway-semantic-fingerprint-migration-v2-deployment.md`. Both previous plans—`api-semantic-fingerprint-migration-20260824.tfplan` and `route-gate-a-b1a-route-20260824.tfplan`—remain permanently invalid and must never be retried.
 
 Rollback remains a separately reviewed and approved forward Terraform migration restoring prior trigger behavior only if required. State decrement, manual state editing, `state rm`, import, targeting, and direct API deployment manipulation are prohibited.
 

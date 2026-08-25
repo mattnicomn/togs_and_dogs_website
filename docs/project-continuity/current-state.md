@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-24 (migration v2 state-509 plan ready for Matthew approval / not applied / ROUTE-GATE-A and B1A blocked)
+**Last Updated:** 2026-08-24 (INFRA-GATE-A v2 complete / DOMAIN-1 RC rebuild planning ready / B1A blocked)
 
 ---
 
@@ -61,14 +61,14 @@
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
 | Tenant-specific owner landing not deployed or independently login-validated | Gate B1A owner login/tenant UI validation remains blocked | Separately approved backend/Web deployment, then B1A-LOGIN validation |
-| API trigger migration not deployed | Both prior plans are permanently invalid; fresh v2 plan is ready but ROUTE-GATE-A remains blocked | Matthew review and explicit approval of exact v2 plan SHA-256, then separately controlled apply and verification |
+| DOMAIN-1 production RC not rebuilt after infrastructure migration | B1A owner login/tenant UI validation remains blocked | Rebuild the baseline-derived DOMAIN-1 RC and create a fresh separately reviewed plan; do not deploy without new approval |
 
 ## Current Work and Latest Closeouts
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
 
-- API Gateway Semantic Deployment Fingerprint (🟡 V2 STATE-509 PLAN READY FOR MATTHEW APPROVAL / NOT APPLIED — 2026-08-24)
-  - Reviewed commit `8d6e38b4488cf8eb4a39d8f4b069aa0d5367875d` was fast-forwarded unchanged into `main`. ROUTE-GATE-A remains **BLOCKED / NOT READY**. The original `route-gate-a-b1a-route-20260824.tfplan` is permanently rejected and must never be applied.
+- API Gateway Semantic Deployment Fingerprint (✅ INFRA-GATE-A V2 COMPLETE / DOMAIN-1 RC REBUILD PLANNING READY — 2026-08-24)
+  - Reviewed commit `8d6e38b4488cf8eb4a39d8f4b069aa0d5367875d` was fast-forwarded unchanged into `main`. The original `route-gate-a-b1a-route-20260824.tfplan` remains permanently rejected and must never be applied; DOMAIN-1 requires a rebuilt RC and fresh plan after this completed infrastructure migration.
   - Replaced the 81-whole-provider-object `jsonencode` trigger with an explicit semantic manifest and provider-independent typed canonicalizer. Optional maps become `{}`, sets/lists become sorted `[]`, strings become `""`, and booleans/numeric defaults are explicit.
   - Fingerprinted behavior covers 53 resources, 54 non-CORS methods, 54 integrations, 47 CORS resources, the Cognito authorizer reference, response behavior, and both gateway responses. Provider-generated IDs and Lambda package metadata are excluded.
   - E3A `POST /admin/job/start` and `GET /admin/requests/{requestId}` remain semantically covered. DOMAIN-1 application/runtime files were not changed.
@@ -80,8 +80,11 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - Independent review returned `LINE-ENDING FIX APPROVED FOR MIGRATION-RC PLANNING`. Fresh branch `release/api-semantic-fingerprint-migration-v2-rc` starts from deployed baseline `732e48b`, excludes DOMAIN-1/unrelated main, and has zero `src/`, Web, Mobile, or shared-contract differences.
   - Production-scoped manifest validates at 50 resources, 52 methods, 52 integrations, 44 CORS resources, and two gateway responses. Plan-source `6f130fb4ba6d07b457a0466d8ee1f301dd6ba2da`; final pushed RC `02e5bfda9310e7c80884b34f9c2d61ebf0d9b8bb`.
   - Fresh locked, refresh-enabled state-509 plan `infra/prod/api-semantic-fingerprint-migration-v2-20260824.tfplan`, SHA-256 `519E3EE19BE40A9EE790D00736DD08857B312FE6B83EF7D5D6B265F3AAD86004`, is exactly 1 add, 1 change, 1 destroy: triggers-only API deployment replacement plus stage `deployment_id` only. Complete plan review found exactly two meaningful addresses and zero Lambda/API-topology/IAM/data/auth/DNS/Web/Mobile drift.
-  - Live production remains `prod → 886zij`; post-plan state remains serial 509 with unchanged lineage. No apply, deployment, state edit, Cognito/DNS/data/Mobile change, or secret rotation occurred. Matthew must review and explicitly approve the exact v2 plan before any apply.
-  - See: `docs/release-notes/api-gateway-semantic-deployment-fingerprint-infrastructure-rc.md`, `docs/release-notes/api-gateway-semantic-fingerprint-migration-plan.md`, `docs/release-notes/api-gateway-semantic-fingerprint-line-ending-remediation.md`, and `docs/release-notes/api-gateway-semantic-fingerprint-migration-v2-plan.md`
+  - Matthew explicitly approved and the exact verified saved plan applied once from `2026-08-25T00:27:41.3307060Z` to `2026-08-25T00:27:46.9727543Z`. Terraform exited 0 with exactly 1 added, 1 changed, 1 destroyed. State advanced 509 → 510 on the unchanged lineage.
+  - Production stage `prod` moved from deployment `886zij` to new immutable deployment `atxpw3`; the old deployment was removed after the stage transition. Live inventory remains 51 paths, 96 methods, 96 integrations, one authorizer, and 48 authorizer assignments. Topology, authorizer, and stage-config fingerprints are unchanged.
+  - All 13 Lambda code/config fingerprints remain exactly equal to the pre-apply aggregate `0240C7A1...B011D4`, and every function remains Active/Successful. Non-write smoke returned expected 401/200/200; the observed API metric window contained one expected 4xx and zero 5xx, with no Lambda import/init error evidence.
+  - INFRA-GATE-A v2 is complete. DOMAIN-1 was not rebuilt, planned, or deployed. Its next separately reviewed plan is expected to prove 0 add, 13 change, 0 destroy and zero API deployment/stage churn. B1A and Stripe test-secret rotation remain separately blocked and approval-gated.
+  - See: `docs/release-notes/api-gateway-semantic-deployment-fingerprint-infrastructure-rc.md`, `docs/release-notes/api-gateway-semantic-fingerprint-migration-plan.md`, `docs/release-notes/api-gateway-semantic-fingerprint-line-ending-remediation.md`, `docs/release-notes/api-gateway-semantic-fingerprint-migration-v2-plan.md`, and `docs/release-notes/api-gateway-semantic-fingerprint-migration-v2-deployment.md`
 
 - DOMAIN-1 + B1A-ROUTE (✅ IMPLEMENTED / VALIDATED LOCALLY / NOT DEPLOYED — 2026-08-24)
   - Accepted `platform.toganddogs.usmissionhero.com` as the control plane, `<tenant-slug>.toganddogs.usmissionhero.com` as the tenant plane, and the current host as a temporary compatibility surface.

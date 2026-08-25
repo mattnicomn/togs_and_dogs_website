@@ -2,7 +2,9 @@
 
 **Date:** 2026-08-24
 
-**Status:** Independently approved for migration-RC planning / included in fresh v2 state-509 plan / not deployed
+**Status:** Remediation deployed successfully through INFRA-GATE-A v2 / historical failed-plan record retained
+
+> **Outcome:** The native Terraform JSON remediation was included in exact v2 plan SHA-256 `519E3EE1...A86004`, which Matthew approved and which applied successfully on 2026-08-25 UTC. Production is now `prod → atxpw3` on state serial 510. See `api-gateway-semantic-fingerprint-migration-v2-deployment.md`.
 
 ## Failed INFRA-GATE-A record
 
@@ -51,7 +53,7 @@ No production plan, apply, refresh, target, state edit, deployment, Cognito/DNS/
 
 ## Revised release composition
 
-Independent review approved this correction for migration-RC planning. Fresh branch `release/api-semantic-fingerprint-migration-v2-rc` was composed from exact deployed infrastructure baseline `732e48b930f6fd9aac958351c4ac7823c14cf3e0`, includes the reviewed semantic fingerprint implementation, production-baseline manifest, and this correction only, and excludes DOMAIN-1/unrelated `main`. Plan-source `6f130fb4` produced fresh state-509 saved plan SHA-256 `519E3EE19BE40A9EE790D00736DD08857B312FE6B83EF7D5D6B265F3AAD86004`; it remains unapplied and requires Matthew's separate approval. See `docs/release-notes/api-gateway-semantic-fingerprint-migration-v2-plan.md`.
+Independent review approved this correction for migration-RC planning. Fresh branch `release/api-semantic-fingerprint-migration-v2-rc` was composed from exact deployed infrastructure baseline `732e48b930f6fd9aac958351c4ac7823c14cf3e0`, includes the reviewed semantic fingerprint implementation, production-baseline manifest, and this correction only, and excludes DOMAIN-1/unrelated `main`. Plan-source `6f130fb4` produced state-509 saved plan SHA-256 `519E3EE19BE40A9EE790D00736DD08857B312FE6B83EF7D5D6B265F3AAD86004`; Matthew subsequently approved it and the exact plan applied successfully once. See `docs/release-notes/api-gateway-semantic-fingerprint-migration-v2-plan.md` and `docs/release-notes/api-gateway-semantic-fingerprint-migration-v2-deployment.md`.
 
 ## Security boundary
 

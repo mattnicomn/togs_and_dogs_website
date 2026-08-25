@@ -2,7 +2,9 @@
 
 **Date:** 2026-08-24
 
-**Status:** Original semantic design reviewed and integrated / line-ending fix independently approved / v2 state-509 plan ready for Matthew approval / not deployed
+**Status:** Semantic deployment fingerprint active in production through completed INFRA-GATE-A v2
+
+> **Outcome:** Matthew approved the corrected exact v2 plan, which applied successfully on 2026-08-25 UTC. Production stage `prod` now points to `atxpw3` on state serial 510 with unchanged API semantics and all 13 Lambda fingerprints. DOMAIN-1 remains separately gated. See `api-gateway-semantic-fingerprint-migration-v2-deployment.md`.
 
 ## Release boundary
 

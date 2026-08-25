@@ -155,3 +155,4 @@
 | 22ZB | **Profile Editor Mobile Layout — PASS (pre-deploy validated 2026-07-12; deployed via Hotfix)** |
 | 22ZC | **Dashboard Cards and Request List Mobile Layout — PASS (pre-deploy validated 2026-07-12; deployed via Hotfix)** |
 | Hotfix | **Google Calendar Disconnect Safeguard — PASS (deployed to production 2026-07-12; cumulative build includes 22ZA–22ZC)** |
+| INFRA-GATE-A v2 | **API semantic deployment fingerprint migration — COMPLETE (2026-08-24 local / 2026-08-25 UTC; state 509 → 510; `prod` deployment `886zij → atxpw3`; topology and all 13 Lambdas unchanged; DOMAIN-1 not executed)** |
