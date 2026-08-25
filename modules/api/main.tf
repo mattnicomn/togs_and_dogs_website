@@ -1331,9 +1331,9 @@ resource "aws_api_gateway_gateway_response" "missing_auth_token" {
 # The deployment snapshot is keyed only by canonical API behavior. Provider resource
 # objects are deliberately excluded because their computed null/empty normalization
 # is not an API change and must not force a replacement deployment.
+# local.api_deployment_semantics is declared in deployment-semantics.tf.json so
+# Terraform parses and snapshots the semantic object as native configuration.
 locals {
-  api_deployment_semantics = jsondecode(file("${path.module}/deployment-semantics.json"))
-
   api_integration_target_references = {
     admin_handler_invoke_arn            = var.admin_handler_invoke_arn
     assign_handler_invoke_arn           = var.assign_handler_invoke_arn

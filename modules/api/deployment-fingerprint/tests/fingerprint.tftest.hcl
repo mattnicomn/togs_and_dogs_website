@@ -161,6 +161,32 @@ run "null_and_empty_are_equivalent" {
   }
 }
 
+run "lf_json_semantics_are_equivalent" {
+  command = plan
+
+  variables {
+    resources = jsondecode("{\n  \"pets\": {\n    \"parent_key\": \"root\",\n    \"path_part\": \"pets\"\n  }\n}")
+  }
+
+  assert {
+    condition     = output.sha1 == run.baseline.sha1
+    error_message = "LF JSON parsed semantics must produce the baseline fingerprint."
+  }
+}
+
+run "crlf_and_whitespace_json_semantics_are_equivalent" {
+  command = plan
+
+  variables {
+    resources = jsondecode("{\r\n\t\"pets\" : { \"path_part\" : \"pets\", \"parent_key\" : \"root\" }\r\n}")
+  }
+
+  assert {
+    condition     = output.sha1 == run.baseline.sha1
+    error_message = "CRLF and harmless JSON whitespace must not change the semantic fingerprint."
+  }
+}
+
 run "route_addition_changes_fingerprint" {
   command = plan
 

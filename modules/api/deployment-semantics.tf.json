@@ -1,5 +1,7 @@
 {
-  "authorizers": {
+  "locals": {
+    "api_deployment_semantics": {
+      "authorizers": {
     "cognito": {
       "type": "COGNITO_USER_POOLS",
       "identity_source": "method.request.header.Authorization",
@@ -955,6 +957,8 @@
       },
       "response_templates": {
         "application/json": "{\"message\":$context.error.messageString}"
+      }
+    }
       }
     }
   }

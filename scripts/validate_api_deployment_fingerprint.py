@@ -6,12 +6,13 @@ from __future__ import annotations
 import json
 import re
 import sys
+from hashlib import sha1
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 API_MAIN = ROOT / "modules" / "api" / "main.tf"
-MANIFEST_PATH = ROOT / "modules" / "api" / "deployment-semantics.json"
+MANIFEST_PATH = ROOT / "modules" / "api" / "deployment-semantics.tf.json"
 
 BLOCK_HEADER = re.compile(
     r'^resource "(?P<type>aws_api_gateway_[^"]+)" "(?P<name>[^"]+)" \{',
@@ -21,6 +22,30 @@ BLOCK_HEADER = re.compile(
 
 def fail(message: str) -> None:
     raise AssertionError(message)
+
+
+def parse_manifest_config(text: str) -> dict[str, object]:
+    """Extract the semantic object from Terraform's native JSON configuration."""
+    config = json.loads(text)
+    try:
+        manifest = config["locals"]["api_deployment_semantics"]
+    except (KeyError, TypeError) as error:
+        fail(f"Terraform JSON manifest wrapper is invalid: {error}")
+    if not isinstance(manifest, dict):
+        fail("Terraform JSON manifest local must be an object")
+    return manifest
+
+
+def assert_text_encoding_stability(text: str, manifest: dict[str, object]) -> str:
+    """Prove LF, CRLF, and harmless JSON whitespace parse to one semantic value."""
+    lf_text = text.replace("\r\n", "\n")
+    crlf_text = lf_text.replace("\n", "\r\n")
+    compact_text = json.dumps(json.loads(text), separators=(",", ":"))
+    for label, candidate in (("LF", lf_text), ("CRLF", crlf_text), ("compact", compact_text)):
+        if parse_manifest_config(candidate) != manifest:
+            fail(f"{label} manifest representation changed parsed API semantics")
+    canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
+    return sha1(canonical.encode("utf-8")).hexdigest()
 
 
 def resource_blocks(source: str) -> dict[tuple[str, str], str]:
@@ -82,8 +107,21 @@ def assert_assignment(body: str, key: str, value: object) -> None:
 
 def main() -> int:
     source = API_MAIN.read_text(encoding="utf-8")
-    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    manifest_text = MANIFEST_PATH.read_bytes().decode("utf-8")
+    manifest = parse_manifest_config(manifest_text)
+    line_ending_fingerprint = assert_text_encoding_stability(manifest_text, manifest)
     blocks = resource_blocks(source)
+
+    raw_input_patterns = (
+        r"\bfile\(",
+        r"\bfilebase64\(",
+        r"\bfilesha1\(",
+        r"\bfilesha256\(",
+        r"\bsha1\(\s*file\(",
+        r"\bsha256\(\s*file\(",
+    )
+    if any(re.search(pattern, source) for pattern in raw_input_patterns):
+        fail("API module contains a raw filesystem dependency; deployment semantics must be native parsed configuration")
 
     resource_type = "aws_api_gateway_resource"
     actual_resource_names = {name for kind, name in blocks if kind == resource_type}
@@ -277,7 +315,7 @@ def main() -> int:
     if dependency_integrations != set(manifest["integrations"]):
         fail("Deployment depends_on does not exactly cover all non-CORS integrations")
     for forbidden in ("source_code_hash", "backend.zip", "last_modified"):
-        if forbidden in deployment_body or forbidden in MANIFEST_PATH.read_text(encoding="utf-8"):
+        if forbidden in deployment_body or forbidden in manifest_text:
             fail(f"Non-API backend package field {forbidden!r} entered deployment semantics")
 
     e3a_cases = (
@@ -306,6 +344,10 @@ def main() -> int:
         f"{len(manifest['gateway_responses'])} gateway responses."
     )
     print("E3A semantic coverage validated; backend package metadata is excluded.")
+    print(
+        "Manifest LF/CRLF/whitespace semantic equivalence validated: "
+        f"{line_ending_fingerprint}."
+    )
     return 0
 
 
