@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-24 (INFRA-GATE-A v2 complete / DOMAIN-1 RC rebuild planning ready / B1A blocked)
+**Last Updated:** 2026-08-24 (INFRA-GATE-A v2 complete / DOMAIN-1 backend v2 RC rebuilt but ROUTE-GATE-A not ready / no package or plan / B1A blocked)
 
 ---
 
@@ -61,7 +61,7 @@
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
 | Tenant-specific owner landing not deployed or independently login-validated | Gate B1A owner login/tenant UI validation remains blocked | Separately approved backend/Web deployment, then B1A-LOGIN validation |
-| DOMAIN-1 production RC not rebuilt after infrastructure migration | B1A owner login/tenant UI validation remains blocked | Rebuild the baseline-derived DOMAIN-1 RC and create a fresh separately reviewed plan; do not deploy without new approval |
+| Required DOMAIN-1 tenant-isolation regressions are not all passing | ROUTE-GATE-A package/plan and B1A remain blocked | Matthew must separately approve a bounded test-harness correction/review or a narrower required selection; then rerun the full gate before packaging/planning |
 
 ## Current Work and Latest Closeouts
 
@@ -92,9 +92,12 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - Strict multi mode, active tenant metadata, and exact Cognito `custom:company_id` agreement are required before operational Web data loading. Unknown, inactive, missing, wrong, or lookup-failed context denies generically with no primary fallback.
   - Tenant routes suppress Platform Admin navigation; existing compatibility-host Platform Admin behavior remains intact. Direct Cognito login, refresh, new-password completion, and logout retain the path; hosted/Google callback work remains future.
   - Validation: focused backend 14/14; related tenant/Platform regressions 41/41; focused Web 7/7; full Web 317/317 plus legacy 99/99; Vite build 112 modules; shared validators 24/24, 7/7, 9/9, and 9/9; Python compile pass. Full lint retains the existing 50-error/9-warning repository baseline with zero findings in the new tenant utility/test files.
-  - B1A remains **BLOCKED** until backend/Web deployment is separately approved and login-only isolation is independently validated. No DNS, infrastructure, Cognito, production-data, Mobile build, or deployment action occurred.
+  - Fresh backend v2 RC `release/domain1-b1a-route-backend-v2-rc` composes deployed E3A `732e48b`, deployed semantic-infrastructure source `6f130fb4`, and reviewed DOMAIN-1 backend commit `5e8675a` only. Initial composition is `f3d48f1`; pushed blocked-RC checkpoint is `3583b15`.
+  - Required rerun passed DOMAIN-1 14/14, E3A 24/24, and disabled-tenant/Platform boundaries 26/26, but the tenant-isolation selection returned 48 passes and three known legacy mock/fixture failures. The explicit any-failed-test hard stop therefore made ROUTE-GATE-A NOT READY. No backend ZIP, production baseline capture, saved plan, or apply occurred.
+  - B1A remains **BLOCKED**. Backend packaging/planning is stopped pending a separately approved validation decision; Web deployment and login-only isolation remain independently gated. No DNS, infrastructure, Cognito, production-data, Mobile build, or deployment action occurred.
   - See: `docs/planning/adr-domain-1-tenant-access-routing.md`
   - See: `docs/release-notes/domain-1-b1a-route-local-implementation.md`
+  - See: `docs/release-notes/domain-1-b1a-route-backend-v2-rc.md`
 
 - Ryan Slice E3B.1 Mobile Visit Workflow Safety Remediation (✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED / NOT IN CURRENT INTERNAL BUILDS — 2026-08-20)
   - One resolver now supplies authoritative child identity to both Start and Complete. Occurrence identity wins; route/occurrence or parent/occurrence disagreement fails safe with no mutation. Singular legacy identity works without a route ID; ambiguous multi-child identity remains blocked.
