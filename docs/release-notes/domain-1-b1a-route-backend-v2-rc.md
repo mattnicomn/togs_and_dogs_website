@@ -8,7 +8,7 @@
 
 Fresh branch `release/domain1-b1a-route-backend-v2-rc` was created from exact deployed semantic-infrastructure plan source `6f130fb4ba6d07b457a0466d8ee1f301dd6ba2da`. That source is based on deployed E3A backend baseline `732e48b930f6fd9aac958351c4ac7823c14cf3e0` and contains the production-scoped Terraform-native semantic API deployment fingerprint that produced the successfully applied INFRA-GATE-A v2 plan.
 
-Reviewed DOMAIN-1 backend commit `5e8675ad25c92d05c60e94fa83894bd4ed7632b0` was replayed onto that source, producing initial rebuilt composition commit `f3d48f15641b82f8f86b0157fb215ac31a489058`. The pushed blocked-RC documentation checkpoint is `3583b15b7ad6182a61b41d875c2e9144f5d8c76a`.
+Reviewed DOMAIN-1 backend commit `5e8675ad25c92d05c60e94fa83894bd4ed7632b0` was replayed onto that source, producing initial rebuilt composition commit `f3d48f15641b82f8f86b0157fb215ac31a489058`. The pushed blocked-RC documentation checkpoint is `3583b15b7b5907445db8e47dda54baa961895473`.
 
 The exact runtime delta from the deployed E3A baseline remains only:
 
