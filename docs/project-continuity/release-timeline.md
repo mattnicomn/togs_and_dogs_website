@@ -39,6 +39,47 @@
 
 ## Ryan Workflow Alignment
 
+# Release Timeline (Major Milestones)
+
+**For full details, see `docs/release-notes/index.md`**
+
+---
+
+## Core Platform (Releases 1–9)
+
+| Phase | Scope |
+|-------|-------|
+| 1–5 | Intake form, admin dashboard, pet/client management, multi-pet CareCard |
+| 6 | Notifications (Postmark), permissions, Google Calendar sync, RBAC |
+| 7 | Multi-day scheduling, admin hardening, Terms/Privacy, operations docs |
+| 8 | Mobile React Native app (staff/admin/client), visit completion, notes |
+| 9 | QA readiness, production operations, Google Calendar health |
+
+## Mobile Distribution (Releases 10)
+
+| Release | Milestone |
+|---------|-----------|
+| 10A–10C | TestFlight preparation, App Store Connect setup |
+| 10D–10E | First iOS build + TestFlight upload |
+| 10F–10K | P0 bug fixes, build 1.0.0(3) |
+
+## Cross-Platform Mobile Internal Validation (Phase 24A)
+
+| Phase | Milestone |
+|---------|-----------|
+| 24A-9A | Paired iOS/Android release pipeline prepared |
+| 24A-9B / 9B.4 | Original paired internal builds and Google Play Internal Testing setup complete |
+| 24A-9C.1 | Physical-iPhone smoke defects remediated and independently reviewed |
+| 24A-9C.2 / 9C | Corrected iOS `1.0.0 (6)` and Android `1.0.0` versionCode `4` internally distributed; remediation revalidation complete/pass (2026-08-10) |
+
+## Web Authentication Parity
+
+| Release | Milestone |
+|---------|-----------|
+| Web customer password recovery | Frontend-only production deployment completed; safe smoke and Matthew's live Cognito E2E recovery validation passed (2026-08-15) |
+
+## Ryan Workflow Alignment
+
 | Slice | Milestone |
 |-------|-----------|
 | E3A | **Backend/API Gate A deployed to production and non-write verified** from RC `732e48b` using the exact approved saved plan (`14 added, 14 changed, 1 destroyed`) on 2026-08-21. **Gate B0 completed 2026-08-23:** the sole existing `test_tenant_alpha` Cognito identity was enabled exactly as-is and remains `CONFIRMED`, `client,owner`, and test-tenant mapped. No safe authenticated session was available, so login was not attempted; no data/profile, notification, Start, or Complete occurred. B1A, B1B, B2, B3, E3B/E3B.1 Mobile build/distribution, and Ryan testing remain unapproved. |
@@ -46,12 +87,7 @@
 | DOMAIN-1 ROUTE-GATE-A v3 | **COMPLETE / BACKEND DEPLOYED / READY FOR ROUTE-GATE-B REVIEW** (2026-08-25). A/A/A baseline triage and the test-only correction restored all required suites. Matthew-approved exact state-510 plan `871EF0EA...97D00` applied once at 0 add / 13 change / 0 destroy. State advanced 510 -> 513 on the same lineage with exactly 13 Lambda code metadata changes. All functions are Active/Successful on package `5BD46E19...AC558`; configuration fingerprints are unchanged. API remained `prod -> atxpw3` with identical topology, authorizer, stage, and inventory. B1A, Web ROUTE-GATE-B, B1A-LOGIN, and Stripe test-secret rotation remain separate and unapproved. |
 | DOMAIN-1 ROUTE-GATE-B Web v2 RC | **REVIEW COMPLETE / SUPERSEDED BY APPROVED DEPLOYMENT** (2026-08-25). Deployed Web primary baseline `4c7975d` was proven byte-for-byte against live CloudFront HTML/JS/CSS. Fresh pushed RC `154731c` has exact runtime/build source `440cab2` and only the reviewed tenant-route/bootstrap/UI-boundary delta plus tests. Web tests passed 255/255, focused tenant routing 13/13, and the production build passed. The later full S3 precheck corrected the static-byte detail: three reviewed text/PWA files were CRLF-deployed versus LF-reviewed but normalized identically. |
 | DOMAIN-1 ROUTE-GATE-B Web v2 deployment | **COMPLETE / WEB ROUTE DEPLOYED / READY FOR ROUTE-GATE-C REVIEW** (2026-08-25 local / 2026-08-26 UTC). Matthew-approved exact 11-file artifact from runtime source `440cab2` synced once to production; `index-BpY_nxft.js` and the new index were deployed, retired `index-BtB1oa0E.js` was removed, and every post-sync S3 hash matched. CloudFront invalidation `I4G5JQMQZFA5GRB4L1Z3M3P17T` completed. Tenant deep links and generic malformed/unknown boundaries passed unauthenticated; API remained `prod -> atxpw3` and all 13 Lambdas remained unchanged. ROUTE-GATE-C/B1A-LOGIN and B1A/B1B/B2/B3 remain unapproved. |
-
-## Multi-Tenant Foundation (Releases 11)
-
-| Release | Milestone |
-|---------|-----------|
-| 11A | SaaS architecture roadmap |
+| DOMAIN-1 ROUTE-GATE-C tenant isolation validation | **COMPLETE / AUTHENTICATED TENANT ISOLATION VALIDATED / B1A REMAINS SEPARATELY APPROVAL-GATED** (2026-08-26). Matthew completed interactive sign-in for `mattnico10@yahoo.com` at `/t/test-tenant-alpha/admin`. Authenticated tenant bootstrap succeeded; `test_tenant_alpha` operational data rendered with zero primary-tenant (`tog_and_dogs`) data leaks (100% PASS). Platform Admin navigation was absent and `/platform-admin/tenants` denied access (404/unauthorized). Negative test at `/t/route-gate-c-nonexistent/admin` redirected to login with zero data retained. Stale-state recovery and normal logout succeeded cleanly. Zero write actions occurred. B1A remains separately approval-gated. |
 | 11B | DynamoDB key audit |
 | 11C | Tenant metadata record created |
 | 11D | Tenant enforcement hardening plan |
