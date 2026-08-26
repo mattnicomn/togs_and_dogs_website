@@ -1,9 +1,9 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AppContent } from '../src/App';
+import { AppContent, TenantAdminRoute } from '../src/App';
 import {
   bootstrapTenantSession,
   shouldExposePlatformAdminNavigation,
@@ -23,11 +23,24 @@ vi.mock('../src/api/client', () => ({
   getTenantInfo: vi.fn(),
 }));
 
-vi.mock('../src/components/AdminDashboard', () => ({
-  default: ({ expectedTenantSlug }) => (
-    <div data-testid="tenant-admin">Tenant admin: {expectedTenantSlug || 'compatibility'}</div>
-  ),
-}));
+vi.mock('../src/components/AdminDashboard', () => {
+  const MockAdminDashboard = ({ expectedTenantSlug }) => {
+    const [operationalState, setOperationalState] = React.useState('empty');
+    const workspace = expectedTenantSlug || 'compatibility';
+
+    return (
+      <div>
+        <div data-testid="tenant-admin">Tenant admin: {workspace}</div>
+        <div data-testid="operational-state">{operationalState}</div>
+        <button type="button" onClick={() => setOperationalState(`loaded:${workspace}`)}>
+          Load operational state
+        </button>
+      </div>
+    );
+  };
+
+  return { default: MockAdminDashboard };
+});
 
 vi.mock('../src/components/PortalGateway', () => ({ default: () => <div>Portal</div> }));
 vi.mock('../src/components/About', () => ({ default: () => <div>About</div> }));
@@ -121,6 +134,72 @@ describe('tenant agreement bootstrap', () => {
       verifyTenantAgreement(sessionFor('test_tenant_alpha'), 'test-tenant-alpha', inactive),
     ).rejects.toThrow(TENANT_ACCESS_ERROR);
   });
+
+  it.each([
+    ['401', Object.assign(new Error('unauthorized'), { status: 401 })],
+    ['403', Object.assign(new Error('forbidden'), { status: 403 })],
+    ['network failure', new TypeError('network unavailable')],
+  ])('maps resolver %s failures to the generic tenant error', async (_category, resolverError) => {
+    const onAuthorized = vi.fn();
+
+    await expect(bootstrapTenantSession({
+      session: sessionFor('test_tenant_alpha'),
+      tenantSlug: 'test-tenant-alpha',
+      resolveTenant: vi.fn().mockRejectedValue(resolverError),
+      onAuthorized,
+    })).rejects.toThrow(TENANT_ACCESS_ERROR);
+
+    expect(onAuthorized).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed slugs before resolving or authorizing tenant data', async () => {
+    const resolveTenant = vi.fn();
+    const onAuthorized = vi.fn();
+
+    await expect(bootstrapTenantSession({
+      session: sessionFor('test_tenant_alpha'),
+      tenantSlug: '../test-tenant-alpha',
+      resolveTenant,
+      onAuthorized,
+    })).rejects.toThrow(TENANT_ACCESS_ERROR);
+
+    expect(resolveTenant).not.toHaveBeenCalled();
+    expect(onAuthorized).not.toHaveBeenCalled();
+  });
+
+  it('does not authorize invalid, wrong-tenant, or unknown B after valid tenant A', async () => {
+    const onAuthorized = vi.fn();
+    const session = sessionFor('test_tenant_alpha');
+    const activeTenantA = {
+      company_id: 'test_tenant_alpha',
+      is_access_allowed: true,
+      is_blocked: false,
+    };
+
+    await bootstrapTenantSession({
+      session,
+      tenantSlug: 'test-tenant-alpha',
+      resolveTenant: vi.fn().mockResolvedValue(activeTenantA),
+      onAuthorized,
+    });
+
+    const negativeTenantBResolvers = [
+      vi.fn().mockResolvedValue({ ...activeTenantA, is_access_allowed: false, is_blocked: true }),
+      vi.fn().mockResolvedValue({ ...activeTenantA, company_id: 'other_company' }),
+      vi.fn().mockRejectedValue(new Error('unknown tenant')),
+    ];
+
+    for (const resolveTenant of negativeTenantBResolvers) {
+      await expect(bootstrapTenantSession({
+        session,
+        tenantSlug: 'tenant-b',
+        resolveTenant,
+        onAuthorized,
+      })).rejects.toThrow(TENANT_ACCESS_ERROR);
+    }
+
+    expect(onAuthorized).toHaveBeenCalledTimes(1);
+  });
 });
 
 
@@ -166,5 +245,32 @@ describe('tenant-scoped Web routes', () => {
     expect(shouldExposePlatformAdminNavigation(false, true)).toBe(true);
     expect(shouldExposePlatformAdminNavigation(true, true)).toBe(false);
     expect(shouldExposePlatformAdminNavigation(false, false)).toBe(false);
+  });
+
+  it('clears mounted operational state on tenant changes and tenant-to-normal navigation', async () => {
+    render(
+      <MemoryRouter initialEntries={['/t/test-tenant-alpha/admin']}>
+        <Link to="/t/tenant-b/admin">Tenant B</Link>
+        <Link to="/admin">Compatibility admin</Link>
+        <Routes>
+          <Route path="/t/:tenantSlug/admin" element={<TenantAdminRoute />} />
+          <Route path="/admin" element={<TenantAdminRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load operational state' }));
+    expect(screen.getByTestId('operational-state')).toHaveTextContent('loaded:test-tenant-alpha');
+
+    fireEvent.click(screen.getByRole('link', { name: 'Tenant B' }));
+    expect(await screen.findByTestId('tenant-admin')).toHaveTextContent('tenant-b');
+    expect(screen.getByTestId('operational-state')).toHaveTextContent('empty');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load operational state' }));
+    expect(screen.getByTestId('operational-state')).toHaveTextContent('loaded:tenant-b');
+
+    fireEvent.click(screen.getByRole('link', { name: 'Compatibility admin' }));
+    expect(await screen.findByTestId('tenant-admin')).toHaveTextContent('compatibility');
+    expect(screen.getByTestId('operational-state')).toHaveTextContent('empty');
   });
 });
