@@ -329,6 +329,8 @@ The following capabilities represent severe security risks and are **STRICTLY DE
    P1: Extended Governance             │  PTM-3: Routing & Domain Visibility
                                        │  PTM-3B: Read-Only Branding Visibility
                                        │  PTM-3C: Tenant-Aware Mobile Presentation
+                                       │  PTM-3D: Tenant-Aware Web Presentation
+                                       │  PTM-3E: Cross-Platform Presentation Validation
                                        │  PTM-6: Onboarding Orchestrator Integr.
                                        │  PTM-7: Enhanced Platform Audit History
                                        │
@@ -366,6 +368,14 @@ The following capabilities represent severe security risks and are **STRICTLY DE
 #### `PTM-3C`: Tenant-Aware Mobile Presentation Model (P1 — Cross-Platform Specification)
 * **Goal:** Extend tenant presentation architecture so that Web and Mobile share a canonical server-authoritative presentation metadata contract (`docs/planning/tenant-aware-mobile-presentation-architecture.md`) without fragmenting the single shared Expo/React Native mobile app build.
 * **Scope:** Cross-platform presentation specification, dynamic mobile bootstrap, stale-state session clearing rules, and push notification display rules.
+
+#### `PTM-3D`: Tenant-Aware Web Presentation Implementation (P1 — Web Implementation)
+* **Goal:** Implement dynamic, server-authoritative Web UI presentation for configured non-default tenants across client portals, staff portals, intake forms, email headers, and navigation shells while preserving a single shared React/Vite application.
+* **Scope:** Dynamic title, logo, favicon, theme palette (`brand_color`), intake terminology, booking labels, and support links; fallback to platform defaults if unconfigured.
+
+#### `PTM-3E`: Cross-Platform Presentation Isolation Validation (P1 — Validation Suite)
+* **Goal:** Establish formal Web + Mobile presentation acceptance matrix and stale-state verification procedures ensuring logout, account switching, auth failure, and tenant suspension purge all cached branding assets and operational data without visual artifact retention.
+* **Scope:** Automated test suite additions and manual cross-platform validation runbooks.
 
 #### `PTM-4`: User & Role Membership Visibility (P0 — Prerequisite for Customer Tenant #2)
 * **Goal:** Provide a sanitized view of users associated with a tenant by querying Cognito users with `custom:company_id == tenant_id`.
@@ -418,17 +428,19 @@ The following capabilities represent severe security risks and are **STRICTLY DE
 
 ```
 ================================================================================
-CRITICAL POLICY DIRECTIVE: SECOND CUSTOMER TENANT TWO-TIERED APPROVAL GATE
+CRITICAL POLICY DIRECTIVE: SECOND CUSTOMER TENANT THREE-TIERED APPROVAL GATE
 ================================================================================
 ```
 
 1. **Internal Validation Tenant Scope:**
    `test_tenant_alpha` is an internal validation tenant created for system isolation testing. It does **NOT** constitute approval or precedent for onboarding a second real customer business.
-2. **Two-Tiered Readiness Gate:**
+2. **Three-Tiered Readiness Gate:**
    * **Tier 1: Internal Provisioning & Admin Validation Gate (`PTM-0`, `PTM-1`, `PTM-2`, `PTM-4`, `PTM-5`):**
      Required BEFORE internal provisioning or staging testing of a second tenant record. Platform Admin must centrally answer: (1) Which tenants exist & active lifecycle state (`PTM-1`, `PTM-2`), (2) Route/identity health (`PTM-0`, `PTM-2`), (3) Users and assigned role groups (`PTM-4`), and (4) Subscription tier and entitlement limits (`PTM-5`).
-   * **Tier 2: Customer End-User Production Launch Gate (Tier 1 + `PTM-3B` + `PTM-3C` + `PTM-9B`):**
-     Required BEFORE real customer end-users (owners, sitters, pet parents) are granted access to production Web or Mobile portals. Ensures customer end-users encounter branded presentation rather than unbranded platform defaults.
+   * **Tier 2: Customer Web End-User Access Gate (Tier 1 + `PTM-3B` + `PTM-3D` + `PTM-3E`):**
+     Required BEFORE real customer end-users (owners, sitters, pet parents) are granted access to production Web portals. Ensures customer end-users encounter tenant-branded Web presentation rather than unbranded platform defaults. `PTM-9B` (Controlled Branding Mutations) is NOT a launch blocker, as branding can initially be established during governed provisioning.
+   * **Tier 3: Customer Mobile End-User Access Gate (Tier 2 + `PTM-3C` + `PTM-3E`):**
+     Required IF and when mobile application access is offered to that customer's end-users. Ensures mobile users encounter tenant-branded mobile presentation with validated session safety.
 3. **Approval Requirement:**
    Onboarding any additional customer tenant requires explicit, separate approval from Matthew, alongside verified product tier pricing, subscription terms, and operational readiness.
 

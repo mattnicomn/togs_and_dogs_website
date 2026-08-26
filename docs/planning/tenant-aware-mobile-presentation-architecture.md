@@ -190,11 +190,11 @@ White-label mobile builds are **NOT** the default SaaS model. Creating a white-l
 
 ## 10. Customer Tenant #2 Release Readiness & Gating Rules
 
-To ensure operational safety while enabling efficient internal validation, the platform establishes a two-tiered readiness gate for real customer tenant #2:
+To ensure operational safety while enabling efficient internal validation, the platform establishes a three-tiered readiness gate for real customer tenant #2:
 
 ```
 ================================================================================
-CUSTOMER TENANT #2 TWO-TIERED READINESS GATE
+CUSTOMER TENANT #2 THREE-TIERED READINESS GATE
 ================================================================================
 ```
 
@@ -203,10 +203,14 @@ CUSTOMER TENANT #2 TWO-TIERED READINESS GATE
 * **Scope:** Allows Platform Admins to provision, configure, and inspect a second tenant record internally in staging/production tools.
 * **Status:** Requirement for internal provisioning of Tenant #2.
 
-### Tier 2: Customer End-User Production Launch Gate
-* **Prerequisite Capabilities:** Tier 1 + **`PTM-3B` (Read-Only Branding Visibility)** + **`PTM-3C` (Tenant-Aware Mobile Presentation)** + **`PTM-9B` (Gated Branding Mutations)**.
-* **Scope:** Required BEFORE real customer end-users (owners, sitters, pet parents) are granted access to production Web or Mobile portals.
-* **Rationale:** Prevents customer end-users from encountering unbranded or cross-branded UI surfaces during live operations.
+### Tier 2: Customer Web End-User Access Gate
+* **Prerequisite Capabilities:** Tier 1 + **`PTM-3B` (Read-Only Branding Visibility)** + **`PTM-3D` (Tenant-Aware Web Presentation)** + **`PTM-3E` (Cross-Platform / Web Presentation Isolation Validation)**.
+* **Scope:** Required BEFORE real customer end-users (owners, sitters, pet parents) are granted access to production Web portals.
+* **Rationale:** Ensures customer end-users encounter tenant-branded Web presentation rather than unbranded platform defaults. `PTM-9B` (Controlled Branding Mutations) is NOT a customer launch blocker, as branding can initially be established during governed provisioning.
+
+### Tier 3: Customer Mobile End-User Access Gate
+* **Prerequisite Capabilities:** Tier 2 + **`PTM-3C` (Tenant-Aware Mobile Presentation)** + **`PTM-3E` (Mobile / Cross-Platform Presentation Validation)**.
+* **Scope:** Required IF and when mobile application access is offered to that customer's end-users.
 
 ---
 
@@ -229,9 +233,9 @@ The platform recommends the following logical sequence for presentation and SaaS
 ```
   1. Canonical Presentation Metadata Contract & Schema (PK=TENANT#<id>, SK=METADATA)
   2. Platform Admin Read-Only Branding Visibility (PTM-3B)
-  3. Tenant-Aware Web Presentation Engine
+  3. Tenant-Aware Web Presentation Engine (PTM-3D)
   4. Tenant-Aware Mobile Presentation Engine (PTM-3C)
-  5. Cross-Platform Isolation & Branding Validation Matrix
+  5. Cross-Platform Isolation & Branding Validation Matrix (PTM-3E)
   6. Controlled Administrative Branding Mutations (PTM-9B)
   7. Generated Tenant Subdomains (PTM-10 using DNS-safe slug test-tenant-alpha)
   8. Enterprise White-Label Mobile Exception Framework (PTM-13)

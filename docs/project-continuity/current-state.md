@@ -46,13 +46,13 @@
 | Tenant Isolation | ✅ Enforced across all primary database helpers (11E, 18V, 19K) |
 | Entitlement Framework | ✅ Active with 8 enforced metrics (17A–17W) |
 | Platform Admin Panel | ✅ Deployed (`/platform-admin/metrics`, `/platform-admin/tenants`) |
-| Platform Tenant Management Control Plane | ✅ Specification Approved (2026-08-25); PTM-0 through PTM-13 defined (including PTM-3B read-only branding, PTM-3C mobile presentation, & PTM-9B gated branding mutations); Tier-1 PTM-0..2+4+5 required for admin provisioning; Tier-2 PTM-3B+3C+9B required before end-user launch; `docs/planning/platform-tenant-management-control-plane.md` |
+| Platform Tenant Management Control Plane | ✅ Specification Approved (2026-08-25); PTM-0 through PTM-13 defined (including PTM-3B read-only branding, PTM-3C mobile presentation, PTM-3D Web presentation, & PTM-3E cross-platform validation); Tier-1 PTM-0..2+4+5 required for admin provisioning; Tier-2 PTM-3B+3D+3E required for Web launch; Tier-3 Tier-2+PTM-3C+3E for Mobile launch; `docs/planning/platform-tenant-management-control-plane.md` |
 | Control-plane / tenant-plane URL separation | 🟡 DOMAIN-1 backend bridge and `/t/:tenantSlug/admin` Web route are deployed; canonical tenant host/DNS separation remains unimplemented and unapproved |
 | Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
 | Second tenant | ✅ Internal test tenant `test_tenant_alpha` created and validated (19D/19E); future customer/additional tenant provisioning remains approval-gated |
 | Second-tenant application landing | 🟡 `/t/test-tenant-alpha/admin` is deployed and verified unauthenticated; authenticated tenant isolation remains separately approval-gated, so B1A remains blocked |
 | Tenant provisioning script | ✅ Dry run and controlled test-tenant apply validated (19B/19D) |
-| Tenant display branding | ✅ Single shared React application and single shared Expo app preserve runtime presentation (`docs/planning/tenant-aware-mobile-presentation-architecture.md`); PTM-3B/3C read-only branding visibility & PTM-9B gated branding mutations specified; PTM-10 subdomains require DNS-safe slug `test-tenant-alpha` |
+| Tenant display branding | ✅ Single shared React application and single shared Expo app preserve runtime presentation (`docs/planning/tenant-aware-mobile-presentation-architecture.md`); PTM-3B/3C/3D/3E specified; PTM-10 subdomains require DNS-safe slug `test-tenant-alpha` |
 | Tenant disable & restore | ✅ Gated & Validated in Production (20F — PASS) |
 | Google Calendar Per-Tenant Token Isolation | ✅ Deployed & Validated (21H — PASS) |
 

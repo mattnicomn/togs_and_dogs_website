@@ -81,6 +81,8 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | PTM-3 | Routing & Domain Visibility (Slug mapping, generated subdomain status, custom domain verification) | Backlog Specification | P1 |
 | PTM-3B | Read-Only Tenant Branding Visibility (Brand name, theme colors, logo metadata, support email, intake config status) | Backlog Specification | P1 |
 | PTM-3C | Tenant-Aware Mobile Presentation Model (Shared Expo app runtime presentation, bootstrap sequence, stale-state safety; `docs/planning/tenant-aware-mobile-presentation-architecture.md`) | Backlog Specification | P1 |
+| PTM-3D | Tenant-Aware Web Presentation Implementation (Single shared React app dynamic branding, portal titles, terminology, support links) | Backlog Specification | P1 |
+| PTM-3E | Cross-Platform Presentation Isolation Validation (Web + Mobile presentation acceptance matrix, stale-state cache purging verification) | Backlog Specification | P1 |
 | PTM-4 | User & Role Membership Visibility (Cognito `custom:company_id` user listing, identity status, role groups) | Backlog Specification | P1 |
 | PTM-5 | Subscription & Entitlement Visibility (Active clients, monthly bookings, staff seats vs. plan limits) | Backlog Specification | P1 |
 | PTM-6 | Onboarding Orchestrator Integration (Connect Preview V1 to Directory with approval checklist) | Backlog Specification | P1 |
@@ -93,7 +95,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | PTM-12 | Enterprise SSO & IdP Extensions (Dedicated Cognito app clients / SAML 2.0 / OIDC integrations) | Backlog / Enterprise Deferred | P2 |
 | PTM-13 | White-Label Mobile Exception Model (Dedicated enterprise mobile builds, bundle IDs, APNs/FCM credentials, store listings) | Backlog / Enterprise Deferred | P2 |
 
-*Note: Two-tiered readiness gate applies to customer tenant #2: Tier 1 (`PTM-0`, `PTM-1`, `PTM-2`, `PTM-4`, `PTM-5`) is required before internal admin provisioning/testing; Tier 2 (Tier 1 + `PTM-3B` + `PTM-3C` + `PTM-9B`) is required before production customer end-user launch. `test_tenant_alpha` remains an internal validation tenant only.*
+*Note: Three-tiered readiness gate applies to customer tenant #2: Tier 1 (`PTM-0`, `PTM-1`, `PTM-2`, `PTM-4`, `PTM-5`) is required for internal admin provisioning/testing; Tier 2 (Tier 1 + `PTM-3B` + `PTM-3D` + `PTM-3E`) is required before customer Web portal access; Tier 3 (Tier 2 + `PTM-3C` + `PTM-3E`) is required before customer Mobile app access. `test_tenant_alpha` remains an internal validation tenant only.*
 
 ---
 
