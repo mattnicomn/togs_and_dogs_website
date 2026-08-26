@@ -9,6 +9,7 @@ import * as XLSX from 'xlsx';
 import { accountStatusLabel, accountStatusClass, profileStatusLabel, profileStatusClass, getVisibleClients, CLIENT_FILTERS } from '../utils/clientManagement';
 import { describeGuidedWorkflowAction, GUIDED_ACTION_SEMANTICS, resolveGuidedWorkflowAction } from '../utils/workflowActions';
 import { bootstrapTenantSession, TENANT_ACCESS_ERROR } from '../utils/tenantContext';
+import { deriveTenantPresentation, updateDocumentTitle, DEFAULT_BRANDING } from '../utils/tenantPresentation';
 
 
 
@@ -1197,6 +1198,10 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
       setRole(userRole);
       if (verifiedTenantInfo) {
         setTenantInfo(verifiedTenantInfo);
+        const presentation = deriveTenantPresentation(verifiedTenantInfo);
+        updateDocumentTitle(presentation);
+      } else {
+        updateDocumentTitle(DEFAULT_BRANDING);
       }
       setIsAuthenticated(true);
       fetchAllData();
@@ -1217,6 +1222,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
       } catch {
         setError(TENANT_ACCESS_ERROR);
         setIsAuthenticated(false);
+        updateDocumentTitle(null);
         return false;
       }
     } else {
@@ -1238,6 +1244,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
       if (expectedTenantSlug) {
         setError(TENANT_ACCESS_ERROR);
         setIsAuthenticated(false);
+        updateDocumentTitle(null);
       }
     }
   };

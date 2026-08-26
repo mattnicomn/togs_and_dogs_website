@@ -94,6 +94,7 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - ROUTE-GATE-A completed as a backend-only deployment (state 513, stage `prod -> atxpw3`, CodeSha256 `W9RuGay6...`).
   - ROUTE-GATE-B completed as a Web deployment (`index-BpY_nxft.js`, hash `F0BEFB80...`).
   - ROUTE-GATE-C (Authenticated Tenant Owner Login Isolation Validation) completed on 2026-08-26 (UTC test window `18:48` to `18:55`). Matthew completed interactive sign-in for `mattnico10@yahoo.com` at `/t/test-tenant-alpha/admin`. Authenticated tenant bootstrap succeeded; `test_tenant_alpha` operational data rendered with zero primary-tenant (`tog_and_dogs`) data leaks (100% PASS). Platform Admin navigation was absent and `/platform-admin/tenants` denied access (404/unauthorized). Negative test at `/t/route-gate-c-nonexistent/admin` redirected to login with zero data retained. Stale-state recovery and normal logout succeeded cleanly. Zero write actions occurred. B1A remains separately approval-gated.
+  - PTM-3D (Tenant-Aware Web Presentation Implementation): Implemented and validated locally on 2026-08-26 (`web/src/utils/tenantPresentation.js` + dynamic document.title + unit tests 321/321 pass; NOT DEPLOYED).
   - See: `docs/planning/adr-domain-1-tenant-access-routing.md`
   - See: `docs/release-notes/domain-1-b1a-route-local-implementation.md`
   - See: `docs/release-notes/domain-1-b1a-route-backend-v2-rc.md`

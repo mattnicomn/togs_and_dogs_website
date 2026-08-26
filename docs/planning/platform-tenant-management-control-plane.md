@@ -453,8 +453,10 @@ CRITICAL POLICY DIRECTIVE: SECOND CUSTOMER TENANT THREE-TIERED APPROVAL GATE
 * **Current Operational Status:**
   * **ROUTE-GATE-A (Backend tenant routing):** **COMPLETE & DEPLOYED** (state 513).
   * **ROUTE-GATE-B (Web tenant routing v2):** **COMPLETE & DEPLOYED** (web artifact `440cab2` / `index-BpY_nxft.js`).
-  * **Credential Recovery Gate:** Explicitly approved by Matthew; credential recovery execution is the current operational critical path.
-  * **ROUTE-GATE-C / B1A-LOGIN (Authenticated tenant owner login validation):** **NOT COMPLETE / BLOCKED** pending credential recovery execution.
+  * **Credential Recovery Gate:** **COMPLETE & DEPLOYED** (Matthew completed live Cognito recovery).
+  * **ROUTE-GATE-C (Authenticated tenant owner login validation):** **COMPLETE & VALIDATED** (100% PASS on 2026-08-26; zero primary-tenant data leaks).
+  * **PTM-3D (Tenant-Aware Web Presentation Implementation):** **IMPLEMENTED & VALIDATED LOCALLY** (`web/src/utils/tenantPresentation.js` + dynamic document.title + unit tests 321/321 pass; NOT DEPLOYED).
+  * **B1A (Tenant-scoped booking & scheduling):** **SEPARATELY APPROVAL-GATED / NOT STARTED**.
 * **Current Action Rule:**
   No gate action, login test, credential recovery execution, or production state modification is executed by this documentation task.
 

@@ -4,39 +4,39 @@ export const PRIVACY_VERSION = 'v1.0';
 export const TERMS_CONTENT = [
   {
     title: 'About These Terms',
-    body: 'These Terms of Use govern your use of the Tog and Dogs operations portal at toganddogs.usmissionhero.com. By submitting a service request or using the client portal, you agree to these terms. If you do not agree, please do not submit a request or use the portal.'
+    body: 'These Terms of Use govern your use of the pet care operations portal. By submitting a service request or using the client portal, you agree to these terms. If you do not agree, please do not submit a request or use the portal.'
   },
   {
     title: 'Services Provided',
-    body: 'Tog and Dogs provides in-home pet care services including dog walking, drop-in visits, overnight care, and pet sitting. All services are performed at the client\'s home or a designated location. Services are subject to staff availability, scheduling, and approval by Tog and Dogs management.'
+    body: 'In-home pet care services including dog walking, drop-in visits, overnight care, and pet sitting are provided. All services are performed at the client\'s home or a designated location. Services are subject to staff availability, scheduling, and approval by management.'
   },
   {
     title: 'Booking and Scheduling',
-    body: '- Service requests are submitted through the online intake form or created by Tog and Dogs staff on behalf of clients.\n- All requests are reviewed and must be approved before scheduling.\n- Approved bookings are assigned to available staff and added to the operational schedule.\n- Multi-day and selected-date bookings create individual visit records for each scheduled day.\n- Tog and Dogs reserves the right to decline, reschedule, or cancel visits due to weather, safety concerns, staffing, or other operational reasons.'
+    body: '- Service requests are submitted through the online intake form or created by staff on behalf of clients.\n- All requests are reviewed and must be approved before scheduling.\n- Approved bookings are assigned to available staff and added to the operational schedule.\n- Multi-day and selected-date bookings create individual visit records for each scheduled day.\n- Operations management reserves the right to decline, reschedule, or cancel visits due to weather, safety concerns, staffing, or other operational reasons.'
   },
   {
     title: 'Cancellations',
-    body: '- Clients may request cancellation of scheduled visits by contacting Tog and Dogs directly or through the portal.\n- Cancellation requests are reviewed by staff and may be approved or denied based on timing and circumstances.\n- Tog and Dogs may cancel visits at any time for safety or operational reasons and will make reasonable efforts to notify the client.'
+    body: '- Clients may request cancellation of scheduled visits by contacting staff directly or through the portal.\n- Cancellation requests are reviewed by staff and may be approved or denied based on timing and circumstances.\n- Staff may cancel visits at any time for safety or operational reasons and will make reasonable efforts to notify the client.'
   },
   {
     title: 'Client Responsibilities',
-    body: '- Provide accurate and complete information about your pets, including health conditions, behavioral issues, medications, and care instructions.\n- Ensure safe and accessible entry to your home, including working locks, secure gates, and current access codes or key locations.\n- Notify Tog and Dogs promptly of any changes to pet health, behavior, household access, or emergency contacts.\n- Maintain current contact information so staff can reach you if needed during a visit.'
+    body: '- Provide accurate and complete information about your pets, including health conditions, behavioral issues, medications, and care instructions.\n- Ensure safe and accessible entry to your home, including working locks, secure gates, and current access codes or key locations.\n- Notify staff promptly of any changes to pet health, behavior, household access, or emergency contacts.\n- Maintain current contact information so staff can reach you if needed during a visit.'
   },
   {
     title: 'Offline Client Management',
-    body: '- Tog and Dogs staff may create and manage client profiles on behalf of clients who prefer not to use the online portal.\n- These profiles are managed entirely by staff. Offline clients do not have self-service portal access unless they later choose to create an account.\n- Offline client records are subject to the same care and data handling standards as portal users.'
+    body: '- Staff may create and manage client profiles on behalf of clients who prefer not to use the online portal.\n- These profiles are managed entirely by staff. Offline clients do not have self-service portal access unless they later choose to create an account.\n- Offline client records are subject to the same care and data handling standards as portal users.'
   },
   {
     title: 'Communication',
-    body: '- Tog and Dogs sends email notifications for booking confirmations, staff assignments, schedule updates, and cancellations to the email address on file.\n- Clients without an email address on file will not receive automated notifications. Staff will communicate with these clients directly.\n- By providing your email address, you consent to receiving service-related communications.'
+    body: '- Email notifications for booking confirmations, staff assignments, schedule updates, and cancellations are sent to the email address on file.\n- Clients without an email address on file will not receive automated notifications. Staff will communicate with these clients directly.\n- By providing your email address, you consent to receiving service-related communications.'
   },
   {
     title: 'Limitation of Liability',
-    body: '- Tog and Dogs takes reasonable care in providing services but cannot guarantee against all risks associated with pet care.\n- Tog and Dogs is not liable for injuries, property damage, or pet behavior that is beyond reasonable control, including undisclosed health conditions or behavioral issues.\n- Clients are responsible for disclosing known risks, aggressive behavior, escape tendencies, or medical conditions before services begin.'
+    body: '- Reasonable care is taken in providing services but management cannot guarantee against all risks associated with pet care.\n- Management is not liable for injuries, property damage, or pet behavior that is beyond reasonable control, including undisclosed health conditions or behavioral issues.\n- Clients are responsible for disclosing known risks, aggressive behavior, escape tendencies, or medical conditions before services begin.'
   },
   {
     title: 'Changes to These Terms',
-    body: '- Tog and Dogs may update these terms from time to time. The current version number is displayed on this page.\n- Continued use of services or the portal after changes are published constitutes acceptance of the updated terms.\n- Material changes will be communicated to active clients.'
+    body: '- Terms may be updated from time to time. The current version number is displayed on this page.\n- Continued use of services or the portal after changes are published constitutes acceptance of the updated terms.\n- Material changes will be communicated to active clients.'
   }
 ];
 
