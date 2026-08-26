@@ -95,6 +95,27 @@ The platform strictly separates **Control Plane** operations from **Tenant Plane
 * **Scope:** Business operations, pet care scheduling, client management, staff assignments, and billing.
 * **Isolation Rule:** A tenant-plane route or session must **NEVER** grant control-plane authority or allow cross-tenant data access. Navigation links to Platform Admin are strictly suppressed within tenant-plane views.
 
+### 3.3 Tenant Presentation & Branding Architecture Model
+
+During Alpha validation, a key tenant experience gap was identified: while DOMAIN-1 successfully establishes backend tenant routing and security isolation (`/t/:tenantSlug/admin`), the Web presentation layer defaults to global Togs & Dogs branding in unconfigured areas such as client/staff portals, intake forms, email headers, and shell navigation.
+
+To address this gap while maintaining architectural purity, the platform adopts the following presentation principles:
+
+1. **Preservation of One Single Shared React Application:**
+   All tenants continue to run on the exact same single React/Vite web application bundle. Separate per-tenant frontend codebases, repositories, build targets, or custom S3 deployments are **STRICTLY FORBIDDEN**.
+2. **Preservation of Shared Identity & Security Architecture:**
+   * **Cognito App Client:** One single shared Web app client for all normal tenants.
+   * **Cognito Groups:** Global functional role groups (`client`, `staff`, `admin`, `owner`, `platform_admin`). Creating per-tenant Cognito groups or per-tenant app clients remains forbidden.
+3. **Dynamic Tenant Presentation Resolution:**
+   The Web presentation layer dynamically resolves tenant branding from the server-owned tenant registry metadata (`GET /t/:tenantSlug/bootstrap` or `/platform/tenants/{id}`):
+   * `display_name` & `brand_name`: Business display title in shell header, page title, and footers.
+   * `brand_color` & `theme_palette`: CSS theme variable overrides (e.g. primary accent color).
+   * `logo_url` & `favicon_url`: Asset URLs for header branding.
+   * `support_email` & `contact_phone`: Tenant customer support details.
+   * `intake_config`: Tenant-specific intake form rules, required fields, and client onboarding workflows.
+4. **Graceful Fallback:**
+   If a tenant has no custom branding configured or operates under default settings, the Web presentation layer falls back cleanly to standard platform defaults without throwing runtime errors or displaying missing assets.
+
 ---
 
 ## 4. Fundamental Identity, Authorization, and Security Rules
@@ -222,6 +243,8 @@ The Tenant Detail View (`/platform-admin/tenants/:companyId`) provides comprehen
    * Database item health, tenant isolation health, auth claim agreement status, API response metrics, error rates.
 7. **Section G: Audit History**
    * Filtered timeline of all `PLATFORM_AUDIT` actions associated with this tenant (creation, status changes, tier updates, admin overrides).
+8. **Section H: Presentation & Branding**
+   * Read-only view of business branding attributes (`display_name`, `brand_color`, `theme_palette`, `logo_url`, `support_email`, `portal_theme`, `intake_config_status`).
 
 ---
 
@@ -261,7 +284,7 @@ Every control-plane operation must append an immutable `PLATFORM_AUDIT` record (
 
 * **Mandatory Audit Fields:**
   * `actor`: Email or username of the Platform Admin executing the action.
-  * `action`: Standardized event name (e.g., `CREATE_TENANT`, `UPDATE_TENANT_STATUS`, `MODIFY_TIER`).
+  * `action`: Standardized event name (e.g., `CREATE_TENANT`, `UPDATE_TENANT_STATUS`, `MODIFY_TIER`, `UPDATE_TENANT_BRANDING`).
   * `target_company_id`: Canonical tenant ID affected.
   * `timestamp`: ISO 8601 UTC timestamp.
   * `old_values` / `new_values`: Map of modified attributes.
@@ -304,11 +327,13 @@ The following capabilities represent severe security risks and are **STRICTLY DE
                                        │  PTM-5: Subscription & Entitlement Vis.
                                        │
    P1: Extended Governance             │  PTM-3: Routing & Domain Visibility
+                                       │  PTM-3B: Read-Only Branding Visibility
                                        │  PTM-6: Onboarding Orchestrator Integr.
                                        │  PTM-7: Enhanced Platform Audit History
                                        │
    P2: Controlled Mutations            │  PTM-8: Controlled Tenant Creation (Gated)
    (Separately Approval-Gated)         │  PTM-9: Lifecycle Mutation (Suspend/Restore)
+                                       │  PTM-9B: Controlled Branding Mutations
                                        │  PTM-10: Generated Tenant Subdomains
                                        │  PTM-11: Custom Business Domains
                                        │  PTM-12: Enterprise SSO & IdP Extensions
@@ -325,12 +350,16 @@ The following capabilities represent severe security risks and are **STRICTLY DE
 * **Scope:** Read-only backend query expansion, UI table/card enhancements, search/filter refinements.
 
 #### `PTM-2`: Read-Only Tenant Details View (P0 — Prerequisite for Customer Tenant #2)
-* **Goal:** Upgrade `PlatformTenantDetail.jsx` and `_handle_get_tenant` into the 7-section detail layout (Overview, Routing, Owners/Users, Subscriptions, Onboarding, Health, Audit).
+* **Goal:** Upgrade `PlatformTenantDetail.jsx` and `_handle_get_tenant` into the 8-section detail layout (Overview, Routing, Owners/Users, Subscriptions, Onboarding, Health, Audit, Presentation & Branding).
 * **Scope:** Aggregated read-only metadata rendering; zero write operations.
 
 #### `PTM-3`: Routing & Domain Visibility (P1)
 * **Goal:** Display tenant route slug mapping, generated subdomain status, custom domain verification state, and DNS health in Platform Admin.
 * **Scope:** Read-only DNS/route status reporting; no DNS provisioning. (Does not block customer tenant #2 while route-based tenancy remains canonical).
+
+#### `PTM-3B`: Read-Only Tenant Branding & Presentation Visibility (P1)
+* **Goal:** Display tenant presentation and branding attributes (`display_name`, `brand_color`, `logo_url`, `support_email`, `portal_theme`, `intake_config_status`) in Platform Admin Tenant Details View.
+* **Scope:** Read-only presentation metadata query and UI section rendering; zero write operations.
 
 #### `PTM-4`: User & Role Membership Visibility (P0 — Prerequisite for Customer Tenant #2)
 * **Goal:** Provide a sanitized view of users associated with a tenant by querying Cognito users with `custom:company_id == tenant_id`.
@@ -356,8 +385,13 @@ The following capabilities represent severe security risks and are **STRICTLY DE
 * **Goal:** Formalize tenant activation, suspension (`SUSPENDED`), and restoration endpoints with entitlement cache invalidation and event auditing.
 * **Scope:** Backend lifecycle state transition handler.
 
+#### `PTM-9B`: Controlled Tenant Branding & Presentation Mutations (P2 — Gated)
+* **Goal:** Implement governed administrative backend endpoint (`PATCH /platform/tenants/{id}/branding`) allowing Platform Admins to update tenant brand name, primary/accent theme colors, logo URLs, support email, and intake form settings with strict schema validation, cache invalidation, and audit logging.
+* **Scope:** Approval-gated backend branding mutation handler. Requires explicit Matthew approval per tenant.
+
 #### `PTM-10`: Generated Tenant Subdomains (P2 — Deferred Infrastructure)
 * **Goal:** Automate generation and routing of `<tenant-slug>.toganddogs.usmissionhero.com` subdomains via Route53/CloudFront wildcard infrastructure (DOMAIN-3).
+* **Hostname Rule:** Generated tenant subdomains MUST use the **DNS-safe hyphenated tenant route slug** (`test-tenant-alpha`), e.g., `test-tenant-alpha.toganddogs.usmissionhero.com`. They must **NEVER** use the canonical underscored tenant ID (`test_tenant_alpha`), because underscores (`_`) are invalid characters in DNS hostname labels under RFC 1123 / RFC 952.
 * **Scope:** Infrastructure automation (requires separate RFC).
 
 #### `PTM-11`: Custom Business Domains (P2 — Deferred Infrastructure)

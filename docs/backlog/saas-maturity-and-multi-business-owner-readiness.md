@@ -77,15 +77,17 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 |-------|-------|--------|----------|
 | PTM-0 | Control Plane Architecture & Source-of-Truth Reconciliation (Cognito role groups vs `custom:company_id`, lifecycle states, app client policy) | ✅ Specification Approved (2026-08-25) | P0 |
 | PTM-1 | Read-Only Tenant Directory Enhancement (`display_name`, `company_id`, `slug`, `lifecycle_state`, `owner_count`, `active_staff`) | Backlog Specification | P0 |
-| PTM-2 | Read-Only Tenant Details View (7 sections: Overview, Routing, Owners/Users, Subscriptions, Onboarding, Health, Audit) | Backlog Specification | P0 |
+| PTM-2 | Read-Only Tenant Details View (8 sections: Overview, Routing, Owners/Users, Subscriptions, Onboarding, Health, Audit, Presentation & Branding) | Backlog Specification | P0 |
 | PTM-3 | Routing & Domain Visibility (Slug mapping, generated subdomain status, custom domain verification) | Backlog Specification | P1 |
+| PTM-3B | Read-Only Tenant Branding Visibility (Brand name, theme colors, logo metadata, support email, intake config status) | Backlog Specification | P1 |
 | PTM-4 | User & Role Membership Visibility (Cognito `custom:company_id` user listing, identity status, role groups) | Backlog Specification | P1 |
 | PTM-5 | Subscription & Entitlement Visibility (Active clients, monthly bookings, staff seats vs. plan limits) | Backlog Specification | P1 |
 | PTM-6 | Onboarding Orchestrator Integration (Connect Preview V1 to Directory with approval checklist) | Backlog Specification | P1 |
 | PTM-7 | Enhanced Platform Audit History (Target tenant filtering, actor filtering, date range controls) | Backlog Specification | P1 |
 | PTM-8 | Controlled Tenant Creation (Approval-gated backend creation handler `POST /platform/tenants`) | Backlog / Approval-Gated | P2 |
 | PTM-9 | Controlled Tenant Lifecycle Mutations (`ONBOARDING` -> `ACTIVE` -> `SUSPENDED` -> `ARCHIVED`) | Backlog / Approval-Gated | P2 |
-| PTM-10 | Generated Tenant Subdomains (`<tenant-slug>.toganddogs.usmissionhero.com` wildcard routing) | Backlog / Infrastructure Deferred | P2 |
+| PTM-9B | Controlled Tenant Branding Mutations (Approval-gated `PATCH /platform/tenants/{id}/branding` handler) | Backlog / Approval-Gated | P2 |
+| PTM-10 | Generated Tenant Subdomains (`<tenant-slug>.toganddogs.usmissionhero.com` using DNS-safe slug `test-tenant-alpha`, NOT `test_tenant_alpha`) | Backlog / Infrastructure Deferred | P2 |
 | PTM-11 | Custom Business Domains (Verified custom domain onboarding with ACM SSL/TLS) | Backlog / Infrastructure Deferred | P2 |
 | PTM-12 | Enterprise SSO & IdP Extensions (Dedicated Cognito app clients / SAML 2.0 / OIDC integrations) | Backlog / Enterprise Deferred | P2 |
 
