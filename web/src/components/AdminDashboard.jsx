@@ -2336,7 +2336,8 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
       // Generate filename with timestamp
       const now = new Date();
       const pad2 = (n) => String(n).padStart(2, '0');
-      const fileName = `TogAndDogs_Offline_Backup_${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}_${pad2(now.getHours())}${pad2(now.getMinutes())}.xlsx`;
+      const exportPrefix = tenantInfo?.company_id || 'TogAndDogs';
+      const fileName = `${exportPrefix}_Offline_Backup_${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}_${pad2(now.getHours())}${pad2(now.getMinutes())}.xlsx`;
 
       // Write workbook to ArrayBuffer and create Blob
       const wbArrayBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });

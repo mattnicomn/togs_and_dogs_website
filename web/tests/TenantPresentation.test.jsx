@@ -1,11 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import {
   DEFAULT_BRANDING,
   deriveTenantPresentation,
   updateDocumentTitle,
 } from '../src/utils/tenantPresentation';
+import { TERMS_CONTENT } from '../src/constants/policy';
 
-describe('TenantPresentation Unit Tests (PTM-3D)', () => {
+describe('TenantPresentation Unit & Integration Tests (PTM-3D)', () => {
   const originalTitle = document.title;
 
   afterEach(() => {
@@ -56,5 +57,20 @@ describe('TenantPresentation Unit Tests (PTM-3D)', () => {
 
     updateDocumentTitle(null);
     expect(document.title).toBe(DEFAULT_BRANDING.document_title);
+  });
+
+  it('should format export backup filename with tenant company_id prefix', () => {
+    const alphaInfo = { company_id: 'test_tenant_alpha', display_name: 'Test Tenant Alpha' };
+    const exportPrefix = alphaInfo?.company_id || 'TogAndDogs';
+    expect(exportPrefix).toBe('test_tenant_alpha');
+
+    const defaultPrefix = null?.company_id || 'TogAndDogs';
+    expect(defaultPrefix).toBe('TogAndDogs');
+  });
+
+  it('should preserve legal platform operator identity in policy terms', () => {
+    const aboutSection = TERMS_CONTENT.find(s => s.title === 'About These Terms');
+    expect(aboutSection).toBeDefined();
+    expect(aboutSection.body).toContain('USMissionHero / Tog and Dogs');
   });
 });

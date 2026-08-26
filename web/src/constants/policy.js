@@ -4,7 +4,7 @@ export const PRIVACY_VERSION = 'v1.0';
 export const TERMS_CONTENT = [
   {
     title: 'About These Terms',
-    body: 'These Terms of Use govern your use of the pet care operations portal. By submitting a service request or using the client portal, you agree to these terms. If you do not agree, please do not submit a request or use the portal.'
+    body: 'These Terms of Use govern your use of the pet care operations platform provided by USMissionHero / Tog and Dogs. By submitting a service request or using the client portal, you agree to these terms. If you do not agree, please do not submit a request or use the portal.'
   },
   {
     title: 'Services Provided',
