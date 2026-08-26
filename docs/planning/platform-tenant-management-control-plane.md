@@ -86,21 +86,44 @@ The platform strictly separates **Control Plane** operations from **Tenant Plane
 
 ### 3.2 Tenant Plane
 * **Conceptual Hostname:** `<tenant-slug>.toganddogs.usmissionhero.com` (Current compatibility route: `/t/:tenantSlug/*`).
-* **Authority:** Granted to authenticated users whose `custom:company_id` matches the route/host tenant identity, scoped by role groups (`owner`, `admin`, `staff`, `client`).
+* **Authority Agreement:** Granted ONLY when all 5 dimensions of the canonical DOMAIN-1 authorization model agree:
+  1. **Identity Assertion:** Authenticated Cognito identity token claims.
+  2. **Tenant Claim:** `custom:company_id` claim matches the requested/resolved tenant.
+  3. **Tenant Resolution:** Server-owned registry maps route/host to an active tenant.
+  4. **Entitlement State:** Active/eligible subscription and entitlement state (`is_access_allowed: true`).
+  5. **Role Authorization:** Cognito role group (`owner`, `admin`, `staff`, `client`) authorizes the operation.
 * **Scope:** Business operations, pet care scheduling, client management, staff assignments, and billing.
 * **Isolation Rule:** A tenant-plane route or session must **NEVER** grant control-plane authority or allow cross-tenant data access. Navigation links to Platform Admin are strictly suppressed within tenant-plane views.
 
 ---
 
-## 4. Fundamental Identity and Authentication Rules
+## 4. Fundamental Identity, Authorization, and Security Rules
 
-### 4.1 Cognito Group Architecture Rule
 ```
 ================================================================================
-MANDATORY ARCHITECTURAL PRINCIPLE: COGNITO GROUPS REPRESENT ROLES ONLY
+CANONICAL TENANT AUTHORIZATION MODEL (5-WAY AGREEMENT)
 ================================================================================
 ```
 
+Tenant authorization is NOT derived from any single field or header. Access requires complete agreement across five distinct architectural dimensions:
+
+| Dimension | Element | Mechanism / Source | Authority Classification |
+|-----------|---------|-------------------|--------------------------|
+| 1 | **Identity Assertion** | Authenticated Cognito User | Token Claims (`sub`, `email`, `custom:company_id`) |
+| 2 | **Tenant Claim** | `custom:company_id` | Canonical Tenant Claim |
+| 3 | **Tenant Resolution** | Server-owned Tenant Registry & Route Bridge | Server Lookup (`resolve_expected_tenant()`) |
+| 4 | **Entitlement State** | Active Subscription & Overrides | Server Entitlement (`require_active_tenant()`) |
+| 5 | **Role Authorization** | Cognito Role Groups | Group Claims (`client`, `owner`, `staff`, `admin`, `platform_admin`) |
+
+### 4.1 Strict Authority Boundaries
+* **Route Slugs Alone:** Route slugs (e.g., `/t/test-tenant-alpha/*`) are presentation/context signals and grant **ZERO** access authority.
+* **Hostnames Alone:** Hostnames (e.g., `test-tenant-alpha.toganddogs.usmissionhero.com`) are routing signals requiring server verification and grant **ZERO** access authority.
+* **`custom:company_id` Alone:** The `custom:company_id` claim is an identity assertion and is **NOT** independently sufficient authority. It must NEVER bypass server-side registry checks, entitlement checks, or role authorization checks.
+* **Cognito Groups:** Cognito groups represent **ROLES ONLY** (`client`, `owner`, `staff`, `admin`, `platform_admin`), not tenant identities.
+* **`platform_admin` Authority:** The `platform_admin` role provides control-plane administrative authority only. It does **NOT** grant implicit operational tenant-plane authority merely through a tenant route.
+* **Fail-Closed Resolution:** Mismatched, missing, or inactive tenant context fails closed immediately with no fallback to the primary tenant (`tog_and_dogs`).
+
+### 4.2 Cognito Group Architecture Rule
 Cognito user pool groups in the platform represent **functional authorization roles**, not tenant identities.
 
 * **Allowed Role Groups:**
@@ -117,7 +140,7 @@ Cognito user pool groups in the platform represent **functional authorization ro
 * **FORBIDDEN ANTI-PATTERN:**
   Do **NOT** create tenant-specific Cognito groups such as `test_tenant_alpha_owner`, `tenant_x_staff`, or `tenant_y_client`. Creating one Cognito group per tenant leads to group quota explosion, fragile policy evaluation, and broken RBAC boundaries.
 
-### 4.2 Cognito App Client Architecture Rule
+### 4.3 Cognito App Client Architecture Rule
 * **Default Single Shared App Client:**
   The platform uses **one shared production Web Cognito app client** for all standard Togs & Dogs tenants. Tenant context is established post-authentication via token claims (`custom:company_id`) and backend registry validation.
 * **Exception Criteria for Dedicated App Clients:**
@@ -252,8 +275,8 @@ Every control-plane operation must append an immutable `PLATFORM_AUDIT` record (
   * Unsanitized PII beyond admin email addresses.
 
 ### 8.2 Security Boundaries
-* Control-plane authority requires `is_platform_admin(event) == True`.
-* Tenant route slugs and hostnames are routing hints; server-side token claim validation (`custom:company_id`) remains the sole authority for tenant data access.
+* Control-plane authority strictly requires `is_platform_admin(event) == True`.
+* Tenant route slugs and hostnames are presentation/context signals; data access requires 5-way agreement among (1) authenticated Cognito identity token claims, (2) `custom:company_id` tenant claim, (3) server-owned route resolution, (4) active/eligible server-side tenant registry/entitlement state, and (5) role authorization.
 * Control-plane interfaces must never expose tenant-plane operational data unless sanitized for platform auditing.
 
 ### 8.3 Deferred High-Risk Features
@@ -277,10 +300,10 @@ The following capabilities represent severe security risks and are **STRICTLY DE
    P0: Core Control Plane              │  PTM-0: Architecture & Source-of-Truth
    (Prerequisites for Tenant #2)       │  PTM-1: Read-Only Tenant Directory
                                        │  PTM-2: Read-Only Tenant Details View
-                                       │
-   P1: Visibility & Governance         │  PTM-3: Routing & Domain Visibility
-                                       │  PTM-4: User & Role Membership Visibility
+                                       │  PTM-4: User & Role Membership Vis.
                                        │  PTM-5: Subscription & Entitlement Vis.
+                                       │
+   P1: Extended Governance             │  PTM-3: Routing & Domain Visibility
                                        │  PTM-6: Onboarding Orchestrator Integr.
                                        │  PTM-7: Enhanced Platform Audit History
                                        │
@@ -294,26 +317,26 @@ The following capabilities represent severe security risks and are **STRICTLY DE
 ### Phase Details
 
 #### `PTM-0`: Architecture & Source-of-Truth Reconciliation (P0 — Complete in Specification)
-* **Goal:** Establish formal control-plane architecture, document Cognito identity vs. role group rules, define lifecycle states, and reconcile existing platform handlers.
+* **Goal:** Establish formal control-plane architecture, document 5-way tenant authorization model, Cognito identity vs. role group rules, define lifecycle states, and reconcile existing platform handlers.
 * **Deliverable:** `docs/planning/platform-tenant-management-control-plane.md`.
 
-#### `PTM-1`: Read-Only Tenant Directory Enhancement (P0)
+#### `PTM-1`: Read-Only Tenant Directory Enhancement (P0 — Prerequisite for Customer Tenant #2)
 * **Goal:** Extend `GET /platform/tenants` and `PlatformAdmin.jsx` to render complete tenant metadata (slug, lifecycle state, owner count, staff count, routing status).
 * **Scope:** Read-only backend query expansion, UI table/card enhancements, search/filter refinements.
 
-#### `PTM-2`: Read-Only Tenant Details View (P0)
+#### `PTM-2`: Read-Only Tenant Details View (P0 — Prerequisite for Customer Tenant #2)
 * **Goal:** Upgrade `PlatformTenantDetail.jsx` and `_handle_get_tenant` into the 7-section detail layout (Overview, Routing, Owners/Users, Subscriptions, Onboarding, Health, Audit).
 * **Scope:** Aggregated read-only metadata rendering; zero write operations.
 
 #### `PTM-3`: Routing & Domain Visibility (P1)
 * **Goal:** Display tenant route slug mapping, generated subdomain status, custom domain verification state, and DNS health in Platform Admin.
-* **Scope:** Read-only DNS/route status reporting; no DNS provisioning.
+* **Scope:** Read-only DNS/route status reporting; no DNS provisioning. (Does not block customer tenant #2 while route-based tenancy remains canonical).
 
-#### `PTM-4`: User & Role Membership Visibility (P1)
+#### `PTM-4`: User & Role Membership Visibility (P0 — Prerequisite for Customer Tenant #2)
 * **Goal:** Provide a sanitized view of users associated with a tenant by querying Cognito users with `custom:company_id == tenant_id`.
 * **Scope:** Read-only listing of users, identity states (`CONFIRMED` / `FORCE_CHANGE_PASSWORD`), and assigned role groups (`owner`, `admin`, `staff`, `client`).
 
-#### `PTM-5`: Subscription & Entitlement Visibility (P1)
+#### `PTM-5`: Subscription & Entitlement Visibility (P0 — Prerequisite for Customer Tenant #2)
 * **Goal:** Display real-time entitlement metrics (active clients, monthly bookings, staff seats) against plan tier limits, including administrative override expiration indicators.
 * **Scope:** Read-only usage calculation dashboard.
 
@@ -355,25 +378,37 @@ CRITICAL POLICY DIRECTIVE: SECOND CUSTOMER TENANT APPROVAL GATE
 ================================================================================
 ```
 
-1. **Internal Test Tenant Scope:**
+1. **Internal Validation Tenant Scope:**
    `test_tenant_alpha` is an internal validation tenant created for system isolation testing. It does **NOT** constitute approval or precedent for onboarding a second real customer business.
-2. **Prerequisite Control-Plane Capability:**
-   No real second customer tenant may be onboarded until **PTM-0, PTM-1, and PTM-2** are fully implemented, independently reviewed, and deployed.
-3. **Approval Requirement:**
+2. **Strengthened Prerequisite Control-Plane Capability:**
+   No real second customer tenant may be onboarded until **all five core control-plane visibility capabilities** are fully implemented, independently reviewed, and deployed:
+   * **`PTM-0`**: Architecture & Source-of-Truth Reconciliation
+   * **`PTM-1`**: Read-Only Tenant Directory
+   * **`PTM-2`**: Read-Only Tenant Details View
+   * **`PTM-4`**: User & Role Membership Visibility
+   * **`PTM-5`**: Subscription & Entitlement Visibility
+3. **Rationale:**
+   Before multiple real businesses are operated on the platform, Platform Admin must centrally and unambiguously answer:
+   * Which tenants exist and their lifecycle/active states (`PTM-1`, `PTM-2`).
+   * Route, domain, and identity context health (`PTM-0`, `PTM-2`).
+   * Which users belong to each tenant and their assigned role groups (`PTM-4`).
+   * Subscription status, tier, and entitlement limit enforcement (`PTM-5`).
+4. **Approval Requirement:**
    Onboarding any additional customer tenant requires explicit, separate approval from Matthew, alongside verified product tier pricing, subscription terms, and operational readiness.
 
 ---
 
-## 11. Workflow Relationship and DOMAIN-1 Gate Status
+## 11. Workflow Relationship, Execution Path, and DOMAIN-1 Gate Status
 
-* **Non-Interference Guarantee:**
-  This Platform Tenant Management workstream is a parallel SaaS maturity planning task. It does **NOT** alter, delay, or interrupt the current controlled DOMAIN-1 validation sequence.
-* **Current DOMAIN-1 Status:**
-  * ROUTE-GATE-A (Backend tenant routing): **COMPLETE & DEPLOYED**.
-  * ROUTE-GATE-B (Web tenant routing v2): **COMPLETE & DEPLOYED**.
-  * ROUTE-GATE-C / B1A-LOGIN (Authenticated tenant owner login validation): **NOT APPROVED / BLOCKED**.
+* **Parallel Workstream Guarantee:**
+  This Platform Tenant Management workstream is a parallel SaaS maturity planning task. It does **NOT** alter, delay, or interrupt the current operational critical path.
+* **Current Operational Status:**
+  * **ROUTE-GATE-A (Backend tenant routing):** **COMPLETE & DEPLOYED** (state 513).
+  * **ROUTE-GATE-B (Web tenant routing v2):** **COMPLETE & DEPLOYED** (web artifact `440cab2` / `index-BpY_nxft.js`).
+  * **Credential Recovery Gate:** Explicitly approved by Matthew; credential recovery execution is the current operational critical path.
+  * **ROUTE-GATE-C / B1A-LOGIN (Authenticated tenant owner login validation):** **NOT COMPLETE / BLOCKED** pending credential recovery execution.
 * **Current Action Rule:**
-  No gate action, login test, or production state modification is authorized by this documentation task.
+  No gate action, login test, credential recovery execution, or production state modification is executed by this documentation task.
 
 ---
 

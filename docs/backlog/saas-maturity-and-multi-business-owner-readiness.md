@@ -89,7 +89,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | PTM-11 | Custom Business Domains (Verified custom domain onboarding with ACM SSL/TLS) | Backlog / Infrastructure Deferred | P2 |
 | PTM-12 | Enterprise SSO & IdP Extensions (Dedicated Cognito app clients / SAML 2.0 / OIDC integrations) | Backlog / Enterprise Deferred | P2 |
 
-*Note: PTM-0, PTM-1, and PTM-2 represent the minimum required control-plane capabilities before onboarding any real second customer tenant. `test_tenant_alpha` remains an internal validation tenant only.*
+*Note: PTM-0 (Architecture), PTM-1 (Read-Only Directory), PTM-2 (Read-Only Details), PTM-4 (User & Role Membership Visibility), and PTM-5 (Subscription & Entitlement Visibility) represent the minimum required control-plane capabilities before onboarding any real second customer tenant. `test_tenant_alpha` remains an internal validation tenant only.*
 
 ---
 
@@ -182,7 +182,7 @@ Gate B1A does not need to wait for DOMAIN-3 wildcard delivery. The bounded route
 The internal test tenant already exists. Do not provision another tenant or treat `test_tenant_alpha` as a production customer until:
 
 1. ✅ Strict tenant resolution and isolation remain active and healthy (18T/18U/19M/20F).
-2. ✅ Platform Admin and provisioning tooling remain validated (17P/17W/19D/19E).
+2. ⛔ Core Platform Admin Control Plane capabilities (PTM-0, PTM-1, PTM-2, PTM-4, and PTM-5) are fully implemented, independently reviewed, and deployed.
 3. ✅ Google Calendar per-tenant token isolation remains deployed and validated (21H).
 4. ⛔ Matthew explicitly approves the specific tenant and onboarding scope.
 5. ⛔ Product tier, pricing, signup, subscription, support, and rollback semantics are approved.
