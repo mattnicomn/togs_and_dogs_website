@@ -80,6 +80,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | PTM-2 | Read-Only Tenant Details View (8 sections: Overview, Routing, Owners/Users, Subscriptions, Onboarding, Health, Audit, Presentation & Branding) | Backlog Specification | P0 |
 | PTM-3 | Routing & Domain Visibility (Slug mapping, generated subdomain status, custom domain verification) | Backlog Specification | P1 |
 | PTM-3B | Read-Only Tenant Branding Visibility (Brand name, theme colors, logo metadata, support email, intake config status) | Backlog Specification | P1 |
+| PTM-3C | Tenant-Aware Mobile Presentation Model (Shared Expo app runtime presentation, bootstrap sequence, stale-state safety; `docs/planning/tenant-aware-mobile-presentation-architecture.md`) | Backlog Specification | P1 |
 | PTM-4 | User & Role Membership Visibility (Cognito `custom:company_id` user listing, identity status, role groups) | Backlog Specification | P1 |
 | PTM-5 | Subscription & Entitlement Visibility (Active clients, monthly bookings, staff seats vs. plan limits) | Backlog Specification | P1 |
 | PTM-6 | Onboarding Orchestrator Integration (Connect Preview V1 to Directory with approval checklist) | Backlog Specification | P1 |
@@ -90,8 +91,9 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | PTM-10 | Generated Tenant Subdomains (`<tenant-slug>.toganddogs.usmissionhero.com` using DNS-safe slug `test-tenant-alpha`, NOT `test_tenant_alpha`) | Backlog / Infrastructure Deferred | P2 |
 | PTM-11 | Custom Business Domains (Verified custom domain onboarding with ACM SSL/TLS) | Backlog / Infrastructure Deferred | P2 |
 | PTM-12 | Enterprise SSO & IdP Extensions (Dedicated Cognito app clients / SAML 2.0 / OIDC integrations) | Backlog / Enterprise Deferred | P2 |
+| PTM-13 | White-Label Mobile Exception Model (Dedicated enterprise mobile builds, bundle IDs, APNs/FCM credentials, store listings) | Backlog / Enterprise Deferred | P2 |
 
-*Note: PTM-0 (Architecture), PTM-1 (Read-Only Directory), PTM-2 (Read-Only Details), PTM-4 (User & Role Membership Visibility), and PTM-5 (Subscription & Entitlement Visibility) represent the minimum required control-plane capabilities before onboarding any real second customer tenant. `test_tenant_alpha` remains an internal validation tenant only.*
+*Note: Two-tiered readiness gate applies to customer tenant #2: Tier 1 (`PTM-0`, `PTM-1`, `PTM-2`, `PTM-4`, `PTM-5`) is required before internal admin provisioning/testing; Tier 2 (Tier 1 + `PTM-3B` + `PTM-3C` + `PTM-9B`) is required before production customer end-user launch. `test_tenant_alpha` remains an internal validation tenant only.*
 
 ---
 

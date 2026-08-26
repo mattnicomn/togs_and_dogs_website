@@ -328,6 +328,7 @@ The following capabilities represent severe security risks and are **STRICTLY DE
                                        │
    P1: Extended Governance             │  PTM-3: Routing & Domain Visibility
                                        │  PTM-3B: Read-Only Branding Visibility
+                                       │  PTM-3C: Tenant-Aware Mobile Presentation
                                        │  PTM-6: Onboarding Orchestrator Integr.
                                        │  PTM-7: Enhanced Platform Audit History
                                        │
@@ -337,6 +338,7 @@ The following capabilities represent severe security risks and are **STRICTLY DE
                                        │  PTM-10: Generated Tenant Subdomains
                                        │  PTM-11: Custom Business Domains
                                        │  PTM-12: Enterprise SSO & IdP Extensions
+                                       │  PTM-13: White-Label Mobile Exception Model
 ```
 
 ### Phase Details
@@ -360,6 +362,10 @@ The following capabilities represent severe security risks and are **STRICTLY DE
 #### `PTM-3B`: Read-Only Tenant Branding & Presentation Visibility (P1)
 * **Goal:** Display tenant presentation and branding attributes (`display_name`, `brand_color`, `logo_url`, `support_email`, `portal_theme`, `intake_config_status`) in Platform Admin Tenant Details View.
 * **Scope:** Read-only presentation metadata query and UI section rendering; zero write operations.
+
+#### `PTM-3C`: Tenant-Aware Mobile Presentation Model (P1 — Cross-Platform Specification)
+* **Goal:** Extend tenant presentation architecture so that Web and Mobile share a canonical server-authoritative presentation metadata contract (`docs/planning/tenant-aware-mobile-presentation-architecture.md`) without fragmenting the single shared Expo/React Native mobile app build.
+* **Scope:** Cross-platform presentation specification, dynamic mobile bootstrap, stale-state session clearing rules, and push notification display rules.
 
 #### `PTM-4`: User & Role Membership Visibility (P0 — Prerequisite for Customer Tenant #2)
 * **Goal:** Provide a sanitized view of users associated with a tenant by querying Cognito users with `custom:company_id == tenant_id`.
@@ -402,32 +408,28 @@ The following capabilities represent severe security risks and are **STRICTLY DE
 * **Goal:** Support dedicated Cognito app clients, SAML 2.0 / OIDC enterprise identity providers, and custom OAuth callback configurations for enterprise tenants.
 * **Scope:** Enterprise authentication architecture.
 
+#### `PTM-13`: White-Label Mobile Exception Model (P2 — Deferred Enterprise Exception)
+* **Goal:** Support an explicit governance framework for creating dedicated enterprise white-label mobile app builds, dedicated APNs/FCM credentials, and standalone App Store / Play Store listings for qualified enterprise contracts.
+* **Scope:** Enterprise white-label mobile exception framework (requires separate RFC and explicit approval).
+
 ---
 
 ## 10. Release Gating and Customer Tenant #2 Policy
 
 ```
 ================================================================================
-CRITICAL POLICY DIRECTIVE: SECOND CUSTOMER TENANT APPROVAL GATE
+CRITICAL POLICY DIRECTIVE: SECOND CUSTOMER TENANT TWO-TIERED APPROVAL GATE
 ================================================================================
 ```
 
 1. **Internal Validation Tenant Scope:**
    `test_tenant_alpha` is an internal validation tenant created for system isolation testing. It does **NOT** constitute approval or precedent for onboarding a second real customer business.
-2. **Strengthened Prerequisite Control-Plane Capability:**
-   No real second customer tenant may be onboarded until **all five core control-plane visibility capabilities** are fully implemented, independently reviewed, and deployed:
-   * **`PTM-0`**: Architecture & Source-of-Truth Reconciliation
-   * **`PTM-1`**: Read-Only Tenant Directory
-   * **`PTM-2`**: Read-Only Tenant Details View
-   * **`PTM-4`**: User & Role Membership Visibility
-   * **`PTM-5`**: Subscription & Entitlement Visibility
-3. **Rationale:**
-   Before multiple real businesses are operated on the platform, Platform Admin must centrally and unambiguously answer:
-   * Which tenants exist and their lifecycle/active states (`PTM-1`, `PTM-2`).
-   * Route, domain, and identity context health (`PTM-0`, `PTM-2`).
-   * Which users belong to each tenant and their assigned role groups (`PTM-4`).
-   * Subscription status, tier, and entitlement limit enforcement (`PTM-5`).
-4. **Approval Requirement:**
+2. **Two-Tiered Readiness Gate:**
+   * **Tier 1: Internal Provisioning & Admin Validation Gate (`PTM-0`, `PTM-1`, `PTM-2`, `PTM-4`, `PTM-5`):**
+     Required BEFORE internal provisioning or staging testing of a second tenant record. Platform Admin must centrally answer: (1) Which tenants exist & active lifecycle state (`PTM-1`, `PTM-2`), (2) Route/identity health (`PTM-0`, `PTM-2`), (3) Users and assigned role groups (`PTM-4`), and (4) Subscription tier and entitlement limits (`PTM-5`).
+   * **Tier 2: Customer End-User Production Launch Gate (Tier 1 + `PTM-3B` + `PTM-3C` + `PTM-9B`):**
+     Required BEFORE real customer end-users (owners, sitters, pet parents) are granted access to production Web or Mobile portals. Ensures customer end-users encounter branded presentation rather than unbranded platform defaults.
+3. **Approval Requirement:**
    Onboarding any additional customer tenant requires explicit, separate approval from Matthew, alongside verified product tier pricing, subscription terms, and operational readiness.
 
 ---
