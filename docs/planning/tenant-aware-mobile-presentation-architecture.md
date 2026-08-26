@@ -200,8 +200,8 @@ CUSTOMER TENANT #2 THREE-TIERED READINESS GATE
 
 ### Tier 1: Internal Provisioning & Admin Validation Gate
 * **Prerequisite Capabilities:** `PTM-0` (Architecture), `PTM-1` (Directory), `PTM-2` (Details), `PTM-4` (Users), `PTM-5` (Entitlements).
-* **Scope:** Allows Platform Admins to provision, configure, and inspect a second tenant record internally in staging/production tools.
-* **Status:** Requirement for internal provisioning of Tenant #2.
+* **Scope:** Required BEFORE creation, provisioning, or staging setup of a **second real / customer business tenant record**.
+* **Status:** Requirement before onboarding a second real customer tenant. (Does NOT retroactively block existing internal validation tenant `test_tenant_alpha`, which remains fully authorized for the controlled DOMAIN-1 / ROUTE-GATE-C / B1A validation sequence).
 
 ### Tier 2: Customer Web End-User Access Gate
 * **Prerequisite Capabilities:** Tier 1 + **`PTM-3B` (Read-Only Branding Visibility)** + **`PTM-3D` (Tenant-Aware Web Presentation)** + **`PTM-3E` (Cross-Platform / Web Presentation Isolation Validation)**.

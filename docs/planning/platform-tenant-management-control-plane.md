@@ -433,10 +433,10 @@ CRITICAL POLICY DIRECTIVE: SECOND CUSTOMER TENANT THREE-TIERED APPROVAL GATE
 ```
 
 1. **Internal Validation Tenant Scope:**
-   `test_tenant_alpha` is an internal validation tenant created for system isolation testing. It does **NOT** constitute approval or precedent for onboarding a second real customer business.
+   `test_tenant_alpha` is an internal validation tenant created for system isolation testing. It does **NOT** constitute approval or precedent for onboarding a second real customer business. It remains fully authorized for the controlled DOMAIN-1 / ROUTE-GATE-C / B1A validation sequence.
 2. **Three-Tiered Readiness Gate:**
    * **Tier 1: Internal Provisioning & Admin Validation Gate (`PTM-0`, `PTM-1`, `PTM-2`, `PTM-4`, `PTM-5`):**
-     Required BEFORE internal provisioning or staging testing of a second tenant record. Platform Admin must centrally answer: (1) Which tenants exist & active lifecycle state (`PTM-1`, `PTM-2`), (2) Route/identity health (`PTM-0`, `PTM-2`), (3) Users and assigned role groups (`PTM-4`), and (4) Subscription tier and entitlement limits (`PTM-5`).
+     Required BEFORE creation, provisioning, or staging setup of a **second real / customer business tenant record**. (Note: `test_tenant_alpha` is the existing internal validation tenant and remains fully authorized for controlled testing; Tier 1 does not retroactively block `test_tenant_alpha`). Platform Admin must centrally answer: (1) Which tenants exist & active lifecycle state (`PTM-1`, `PTM-2`), (2) Route/identity health (`PTM-0`, `PTM-2`), (3) Users and assigned role groups (`PTM-4`), and (4) Subscription tier and entitlement limits (`PTM-5`).
    * **Tier 2: Customer Web End-User Access Gate (Tier 1 + `PTM-3B` + `PTM-3D` + `PTM-3E`):**
      Required BEFORE real customer end-users (owners, sitters, pet parents) are granted access to production Web portals. Ensures customer end-users encounter tenant-branded Web presentation rather than unbranded platform defaults. `PTM-9B` (Controlled Branding Mutations) is NOT a launch blocker, as branding can initially be established during governed provisioning.
    * **Tier 3: Customer Mobile End-User Access Gate (Tier 2 + `PTM-3C` + `PTM-3E`):**

@@ -95,7 +95,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | PTM-12 | Enterprise SSO & IdP Extensions (Dedicated Cognito app clients / SAML 2.0 / OIDC integrations) | Backlog / Enterprise Deferred | P2 |
 | PTM-13 | White-Label Mobile Exception Model (Dedicated enterprise mobile builds, bundle IDs, APNs/FCM credentials, store listings) | Backlog / Enterprise Deferred | P2 |
 
-*Note: Three-tiered readiness gate applies to customer tenant #2: Tier 1 (`PTM-0`, `PTM-1`, `PTM-2`, `PTM-4`, `PTM-5`) is required for internal admin provisioning/testing; Tier 2 (Tier 1 + `PTM-3B` + `PTM-3D` + `PTM-3E`) is required before customer Web portal access; Tier 3 (Tier 2 + `PTM-3C` + `PTM-3E`) is required before customer Mobile app access. `test_tenant_alpha` remains an internal validation tenant only.*
+*Note: Three-tiered readiness gate applies to a second real / customer business tenant: Tier 1 (`PTM-0`, `PTM-1`, `PTM-2`, `PTM-4`, `PTM-5`) is required BEFORE creation/provisioning of a second customer business tenant; Tier 2 (Tier 1 + `PTM-3B` + `PTM-3D` + `PTM-3E`) is required before customer Web portal access; Tier 3 (Tier 2 + `PTM-3C` + `PTM-3E`) is required before customer Mobile app access. `test_tenant_alpha` is the existing internal validation tenant and remains fully authorized for the controlled DOMAIN-1 / ROUTE-GATE-C / B1A validation sequence; Tier 1 does not retroactively block `test_tenant_alpha`.*
 
 ---
 
