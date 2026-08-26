@@ -4,6 +4,14 @@
 
 **Status:** ROUTE-GATE-B REVIEW COMPLETE / READY FOR MATTHEW APPROVAL / NOT DEPLOYED
 
+**Post-review disposition:** The exact artifact was subsequently deployed under
+Matthew's separate approval. See
+`docs/release-notes/domain-1-b1a-route-web-v2-deployment.md`. The deployment
+precheck corrected one byte-level evidence detail: full S3 inventory proved
+`icons.svg`, `manifest.webmanifest`, and `sw.js` were CRLF-deployed while the
+approved build used LF. Their normalized content was identical; the approved
+full-artifact sync installed the reviewed LF bytes.
+
 **Branch:** `release/domain1-b1a-route-web-v2-rc`
 
 **Exact runtime/build source:** `440cab2eae409dc3aed85f0af5056f885877aa91`
@@ -138,10 +146,11 @@ Build verification timestamp: `2026-08-26T00:13:34Z`
 | `manifest.webmanifest` | 695 | `2839A8915A522CB4D386241C4E4DCCE5D21DE7116B60FC06820CA0FFF04CB5E9` |
 | `sw.js` | 931 | `C380BE95E881562FAFF0632C7081D4A6A19DA5C2730261538B846C36F69F4E57` |
 
-Summary: **11 files / 4,437,993 bytes**. Compared with production, only
-`index.html` and the primary JavaScript object change. CSS, logo, icons,
-manifest, and service worker remain byte-identical. The superseded production
-JS object is `assets/index-BtB1oa0E.js`.
+Summary: **11 files / 4,437,993 bytes**. The meaningful application change is
+limited to `index.html` and the primary JavaScript object. CSS, logo, favicon,
+and PNG assets are byte-identical. The later full S3 precheck documented above
+proved newline-only CRLF/LF byte differences in three reviewed text/PWA files.
+The superseded production JS object is `assets/index-BtB1oa0E.js`.
 
 ## Future deployment plan — not executed
 
