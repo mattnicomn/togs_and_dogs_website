@@ -18,6 +18,7 @@
 | DOMAIN-1 test-harness baseline triage and correction | `docs/release-notes/domain-1-b1a-route-test-harness-triage.md` |
 | DOMAIN-1 backend v3 RC and state-510 saved plan | `docs/release-notes/domain-1-b1a-route-backend-v3-rc.md` |
 | DOMAIN-1 backend v3 production deployment / ROUTE-GATE-A closeout | `docs/release-notes/domain-1-b1a-route-backend-v3-deployment.md` |
+| DOMAIN-1 Web v2 RC / ROUTE-GATE-B review | `docs/release-notes/domain-1-b1a-route-web-v2-rc.md` |
 | Historical, permanently invalid semantic-fingerprint migration plan | `docs/release-notes/api-gateway-semantic-fingerprint-migration-plan.md` |
 | Web customer self-service password recovery (production deployed, Cognito E2E pass) | `docs/release-notes/release-web-customer-self-service-password-recovery.md` |
 | Preview V1 tenant onboarding orchestrator | `docs/release-notes/release-platform-admin-tenant-onboarding-preview-v1.md` |
