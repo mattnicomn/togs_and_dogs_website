@@ -43,6 +43,7 @@
 | Topic | Key Files |
 |-------|-----------|
 | SaaS architecture roadmap | `docs/planning/release-11a-multi-business-saas-architecture-and-product-roadmap.md` |
+| Platform Tenant Management Control Plane specification (PTM-0 through PTM-12) | `docs/planning/platform-tenant-management-control-plane.md` |
 | DOMAIN-1 tenant access routing ADR | `docs/planning/adr-domain-1-tenant-access-routing.md` |
 | Tenant access, client onboarding, Visit Requests, Request List, and Mobile operations alignment (authoritative 2026-08-23 reconciliation) | `docs/planning/tenant-access-client-onboarding-operational-workflow-alignment.md` |
 | Client/Household foundation plan | `docs/planning/client-household-pet-management-foundation-plan.md` |

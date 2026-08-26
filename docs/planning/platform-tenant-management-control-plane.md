@@ -1,0 +1,390 @@
+# Platform Tenant Management Control Plane Architecture and Backlog Specification
+
+**Document Version:** 1.0.0  
+**Status:** Approved Architectural Specification / Implementation Deferred  
+**Owner:** Matthew / Platform Engineering  
+**Created:** 2026-08-25  
+**Authoritative Reference:** `docs/planning/platform-tenant-management-control-plane.md`  
+
+---
+
+## 1. Executive Summary
+
+This document establishes the formal architecture, data model, security boundary, and phased implementation backlog for the **Platform Tenant Management Control Plane** (`PTM`) of the Togs & Dogs / USMissionHero SaaS platform.
+
+As the platform matures beyond single-tenant operations and the initial internal validation tenant (`test_tenant_alpha`), tenant administrative workflows must transition away from direct AWS console inspection, manual DynamoDB item edits, and command-line provisioning scripts into a governed, audited, and secure **Platform Admin Control Plane**.
+
+This specification defines the control-plane vs. tenant-plane boundaries, Cognito group/identity rules, app-client policies, canonical tenant lifecycle states, and a 13-stage backlog (`PTM-0` through `PTM-12`).
+
+---
+
+## 2. Audit of Existing Platform Admin Capabilities
+
+The repository contains an existing foundational Platform Admin implementation deployed on the shared compatibility surface (`/platform-admin/*`).
+
+### 2.1 Existing Routes and Frontend Components
+* **`/platform-admin/tenants`** (`web/src/components/PlatformAdmin.jsx`): Global listing of registered business entities with search (by company ID or display name), status/tier badges, and direct navigation to detailed tenant records.
+* **`/platform-admin/tenants/:companyId`** (`web/src/components/PlatformTenantDetail.jsx`): Single tenant detail view rendering tenant profile metadata, subscription tier/status, entitlement usage limits, Google Calendar integration status, notes, admin overrides, and status modification controls (`active`, `disabled`, `paused`, `trialing`).
+* **`/platform-admin/onboarding`** (`web/src/components/PlatformAdminOnboarding.jsx`): Read-only Platform Admin Tenant-Onboarding Orchestrator V1 preview component providing input validation, conflict checks, metadata previews, tier limit projections, and onboarding checklists.
+* **`/platform-admin/audit`** (`web/src/components/PlatformAuditLog.jsx`): Paginated platform audit log viewer displaying `PLATFORM_AUDIT` records.
+
+### 2.2 Existing Backend Endpoints and Handlers
+* **`GET /platform/tenants`** (`src/backend/handlers/platform_handler.py`): Scans `PK=TENANT#<id>`, `SK=METADATA` records and returns basic tenant summaries.
+* **`GET /platform/tenants/{company_id}`** (`platform_handler.py`): Returns detailed tenant profile, subscription, entitlement calculation, active staff count, active client count, monthly booking count, and per-tenant Google Calendar metadata config.
+* **`PATCH /platform/tenants/{company_id}`** (`platform_handler.py`): Updates allowed tenant metadata attributes (`display_name`, `subscription_tier`, `subscription_status`, `admin_override_until`, `notes`), invalidates entitlement caches, and appends a `PLATFORM_AUDIT` record.
+* **`GET /platform/audit`** (`platform_handler.py`): Returns paginated platform audit records (`PK=PLATFORM_AUDIT`, `SK=ACTION#...`).
+* **`POST /platform/onboarding/validate`** (`src/backend/handlers/platform_onboarding_handler.py`): Validates proposed tenant inputs against conflict/syntax rules.
+* **`POST /platform/onboarding/preview`** (`platform_onboarding_handler.py`): Generates preview tenant metadata and audit templates without database writes.
+
+### 2.3 Existing Sources of Truth and Security Boundaries
+* **Tenant Registry**: DynamoDB table items `PK=TENANT#<company_id>`, `SK=METADATA`.
+* **Tenant Identity**: Cognito custom attribute `custom:company_id` (e.g., `tog_and_dogs`, `test_tenant_alpha`).
+* **Role/Security Boundary**: Enforced via `is_platform_admin(event)` in `src/backend/common/auth.py`. Requires Cognito user membership in the `platform_admin` group.
+* **Tenant Route Slug**: Currently resolved via backend bridge in `src/backend/common/tenant_route.py` (`test-tenant-alpha` $\rightarrow$ `test_tenant_alpha`, `tog-and-dogs` $\rightarrow$ `tog_and_dogs`).
+
+---
+
+## 3. Control Plane vs. Tenant Plane Architecture Model
+
+The platform strictly separates **Control Plane** operations from **Tenant Plane** operations.
+
+```
+                    ┌─────────────────────────────────────────────────────────────┐
+                    │               USMISSIONHERO SAAS PLATFORM                  │
+                    └──────────────────────────────┬──────────────────────────────┘
+                                                   │
+                   ┌───────────────────────────────┴───────────────────────────────┐
+                   │                                                               │
+     ┌─────────────▼──────────────┐                                  ┌─────────────▼──────────────┐
+     │       CONTROL PLANE        │                                  │        TENANT PLANE        │
+     ├────────────────────────────┤                                  ├────────────────────────────┤
+     │ Hostname (Future):         │                                  │ Hostname (Future):         │
+     │ platform.toganddogs.      │                                  │ <slug>.toganddogs.         │
+     │ usmissionhero.com          │                                  │ usmissionhero.com          │
+     │                            │                                  │                            │
+     │ Route (Current):           │                                  │ Route (Current):           │
+     │ /platform-admin/*          │                                  │ /t/:tenantSlug/*           │
+     ├────────────────────────────┤                                  ├────────────────────────────┤
+     │ Authority:                 │                                  │ Authority:                 │
+     │ platform_admin group       │                                  │ custom:company_id claim +  │
+     │                            │                                  │ owner/admin/staff/client   │
+     ├────────────────────────────┤                                  ├────────────────────────────┤
+     │ Responsibilities:          │                                  │ Responsibilities:          │
+     │ • Global tenant directory  │                                  │ • Bookings & Schedule      │
+     │ • Lifecycle & Onboarding   │                                  │ • Client & Pet Management  │
+     │ • Subscriptions & Tiers    │                                  │ • Sitter Assignment        │
+     │ • Global DNS / Domains     │                                  │ • Invoicing & Payments     │
+     │ • Platform Audit & Health  │                                  │ • Operational Workflows    │
+     └────────────────────────────┘                                  └────────────────────────────┘
+```
+
+### 3.1 Control Plane
+* **Conceptual Hostname:** `platform.toganddogs.usmissionhero.com` (Current compatibility route: `/platform-admin/*`).
+* **Authority:** Granted strictly to authenticated users with `platform_admin` Cognito group membership.
+* **Scope:** Cross-tenant administration, tenant lifecycle, global directory, domain mappings, entitlement management, platform-wide metrics, and audit logging.
+* **Isolation Rule:** Control-plane interfaces must never render operational tenant data (e.g., client names, pet medical notes, payment details) unless specifically required for an administrative audit, in which case data must be sanitized.
+
+### 3.2 Tenant Plane
+* **Conceptual Hostname:** `<tenant-slug>.toganddogs.usmissionhero.com` (Current compatibility route: `/t/:tenantSlug/*`).
+* **Authority:** Granted to authenticated users whose `custom:company_id` matches the route/host tenant identity, scoped by role groups (`owner`, `admin`, `staff`, `client`).
+* **Scope:** Business operations, pet care scheduling, client management, staff assignments, and billing.
+* **Isolation Rule:** A tenant-plane route or session must **NEVER** grant control-plane authority or allow cross-tenant data access. Navigation links to Platform Admin are strictly suppressed within tenant-plane views.
+
+---
+
+## 4. Fundamental Identity and Authentication Rules
+
+### 4.1 Cognito Group Architecture Rule
+```
+================================================================================
+MANDATORY ARCHITECTURAL PRINCIPLE: COGNITO GROUPS REPRESENT ROLES ONLY
+================================================================================
+```
+
+Cognito user pool groups in the platform represent **functional authorization roles**, not tenant identities.
+
+* **Allowed Role Groups:**
+  * `client` — Customer portal access
+  * `staff` — Sitter / employee access
+  * `admin` — Business admin access
+  * `owner` — Business owner / primary tenant admin access
+  * `platform_admin` — Global platform control-plane access
+
+* **Tenant Identity Mechanism:**
+  Tenant assignment is strictly governed by the Cognito user custom attribute:
+  $$\text{custom:company\_id} = \text{<canonical\_tenant\_id>}$$
+
+* **FORBIDDEN ANTI-PATTERN:**
+  Do **NOT** create tenant-specific Cognito groups such as `test_tenant_alpha_owner`, `tenant_x_staff`, or `tenant_y_client`. Creating one Cognito group per tenant leads to group quota explosion, fragile policy evaluation, and broken RBAC boundaries.
+
+### 4.2 Cognito App Client Architecture Rule
+* **Default Single Shared App Client:**
+  The platform uses **one shared production Web Cognito app client** for all standard Togs & Dogs tenants. Tenant context is established post-authentication via token claims (`custom:company_id`) and backend registry validation.
+* **Exception Criteria for Dedicated App Clients:**
+  Dedicated Cognito app clients (or dedicated user pool configurations) are explicitly deferred and permitted **ONLY** under approved enterprise requirements:
+  1. Enterprise SAML / OIDC Single Sign-On (SSO) federation with custom IdPs.
+  2. Contractually mandated dedicated OAuth client secret isolation.
+  3. Custom branded mobile/native applications requiring distinct OAuth callback URIs.
+
+---
+
+## 5. Canonical Tenant Lifecycle Model
+
+To prevent state ambiguity, tenant status is modeled using three distinct orthogonal dimensions:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           TENANT STATE DIMENSIONS                           │
+├──────────────────────────┬──────────────────────────┬───────────────────────┤
+│ Lifecycle State          │ Subscription Status      │ Entitlement State     │
+├──────────────────────────┼──────────────────────────┼───────────────────────┤
+│ • PROSPECT               │ • trialing               │ • allowed             │
+│ • ONBOARDING             │ • active                 │ • blocked             │
+│ • ACTIVE                 │ • past_due               │ • overridden          │
+│ • SUSPENDED              │ • canceled               │                       │
+│ • ARCHIVED               │ • paused                 │                       │
+│                          │ • disabled               │                       │
+└──────────────────────────┴──────────────────────────┴───────────────────────┘
+```
+
+### 5.1 Lifecycle States
+1. **`PROSPECT`**: Initial lead/inquiry. No database record or infrastructure provisioned.
+2. **`ONBOARDING`**: Metadata record created; configuration, identity setup, and readiness checklists in progress. Access restricted to preview/staging.
+3. **`ACTIVE`**: Fully provisioned, validated, and operational. Tenant users can log in and execute business workflows.
+4. **`SUSPENDED`**: Administrative or billing hold. Access blocked (`403 TenantDisabled` / `is_blocked: true`); data preserved.
+5. **`ARCHIVED`**: Permanently retired business entity. Read-only historical retention; access disabled.
+
+### 5.2 Separation of Concerns
+* **Lifecycle State** (`lifecycle_state`): Governs system availability (`ONBOARDING`, `ACTIVE`, `SUSPENDED`, `ARCHIVED`).
+* **Subscription Status** (`subscription_status`): Governs billing state (`trialing`, `active`, `past_due`, `canceled`, `paused`, `disabled`).
+* **Entitlement State** (`entitlement_state`): Governs metric limits and administrative overrides (`allowed`, `blocked`, `overridden` until `admin_override_until`).
+
+---
+
+## 6. Platform Tenant Directory and Tenant Details View Specifications
+
+### 6.1 Tenant Directory (Platform Admin Control Plane)
+The Tenant Directory listing view (`/platform-admin/tenants`) displays a governed inventory of all registered businesses.
+
+* **Read-Only V1 Required Fields:**
+  * Business Display Name (`display_name`)
+  * Canonical Tenant ID (`company_id`)
+  * Tenant Route Slug (`tenant_slug`)
+  * Lifecycle State (`lifecycle_state`)
+  * Subscription Tier (`subscription_tier`: `starter`, `professional`, `premium`, `enterprise`)
+  * Subscription Status (`subscription_status`)
+  * Entitlement State (`entitlement_state`)
+  * Onboarding Readiness (`onboarding_state`)
+  * Primary Owner Count (`owner_count`)
+  * Active Staff Count (`active_staff`)
+  * Active Client Count (`active_clients`)
+  * Registration Date (`created_at`)
+  * Last Updated Date (`updated_at`)
+  * Routing / Domain Status (`domain_status`: `compatibility_host`, `subdomain_active`, `custom_domain_active`)
+
+### 6.2 Tenant Details View (7 Logical Sections)
+The Tenant Detail View (`/platform-admin/tenants/:companyId`) provides comprehensive visibility into a single business entity:
+
+1. **Section A: Overview**
+   * Display Name, Canonical ID, Route Slug, Lifecycle State, Subscription Tier/Status, Entitlement State, Creation/Update Timestamps.
+2. **Section B: Routing & Hostnames**
+   * Canonical Route Slug, Generated Subdomain (`<slug>.toganddogs.usmissionhero.com`), Custom Domain (if applicable), DNS Verification Status, SSL/TLS Certificate Health.
+3. **Section C: Owners & Identity**
+   * Sanitized listing of associated business owners and staff, Cognito `custom:company_id` claim status, identity verification state (`CONFIRMED` / `UNCONFIRMED`), role memberships.
+4. **Section D: Subscriptions & Entitlements**
+   * Plan tier details, active usage metrics vs. tier limits (active clients, monthly bookings, staff seats), administrative override expiration (`admin_override_until`), billing history links.
+5. **Section E: Onboarding Status**
+   * Onboarding phase, owner invitation status, business configuration completeness, Google Calendar integration readiness, operational launch checklist.
+6. **Section F: Operational Health**
+   * Database item health, tenant isolation health, auth claim agreement status, API response metrics, error rates.
+7. **Section G: Audit History**
+   * Filtered timeline of all `PLATFORM_AUDIT` actions associated with this tenant (creation, status changes, tier updates, admin overrides).
+
+---
+
+## 7. Onboarding Integration Strategy
+
+The Platform Tenant Management Control Plane integrates directly with the existing **Preview-Only V1 Platform Admin Tenant-Onboarding Orchestrator** (`src/backend/handlers/platform_onboarding_handler.py`).
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    CONTROL PLANE ONBOARDING FLOW                            │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+  1. Tenant Directory ───────► Click "Onboard New Tenant"
+                                       │
+  2. Input Validation ───────► POST /platform/onboarding/validate
+                                       │ (Syntax, slug uniqueness, conflict check)
+                                       │
+  3. Metadata Preview ───────► POST /platform/onboarding/preview
+                                       │ (Preview record, tier limits, checklist)
+                                       │
+  4. Approval Gate    ───────► Require Explicit Matthew Approval
+                                       │
+  5. Provisioning     ───────► Controlled Tenant Creation (PTM-8)
+                                       │ (DynamoDB metadata, audit record)
+                                       │
+  6. Owner Invitation ───────► Owner User Provisioning & Identity Link
+                                       │
+  7. Activation       ───────► Lifecycle State -> ACTIVE
+```
+
+---
+
+## 8. Auditability, Security Boundaries, and Deferred Features
+
+### 8.1 Auditability Rules
+Every control-plane operation must append an immutable `PLATFORM_AUDIT` record (`PK=PLATFORM_AUDIT`, `SK=ACTION#<ISO_TIMESTAMP>#<UUID>`).
+
+* **Mandatory Audit Fields:**
+  * `actor`: Email or username of the Platform Admin executing the action.
+  * `action`: Standardized event name (e.g., `CREATE_TENANT`, `UPDATE_TENANT_STATUS`, `MODIFY_TIER`).
+  * `target_company_id`: Canonical tenant ID affected.
+  * `timestamp`: ISO 8601 UTC timestamp.
+  * `old_values` / `new_values`: Map of modified attributes.
+  * `correlation_id`: Request correlation ID.
+
+* **FORBIDDEN LOGGING PATTERNS:**
+  Audit logs, Lambda execution logs, and API outputs must **NEVER** contain:
+  * Passwords or temporary credentials.
+  * JWT tokens or raw `Authorization` headers.
+  * Payment card numbers, Stripe secret keys, or bank details.
+  * Unsanitized PII beyond admin email addresses.
+
+### 8.2 Security Boundaries
+* Control-plane authority requires `is_platform_admin(event) == True`.
+* Tenant route slugs and hostnames are routing hints; server-side token claim validation (`custom:company_id`) remains the sole authority for tenant data access.
+* Control-plane interfaces must never expose tenant-plane operational data unless sanitized for platform auditing.
+
+### 8.3 Deferred High-Risk Features
+The following capabilities represent severe security risks and are **STRICTLY DEFERRED** from initial PTM phases. Each requires a dedicated, independently reviewed threat model:
+1. **Platform Admin Impersonation** (logging into a tenant as a tenant owner/user).
+2. **Cross-Tenant Session Switching** (hot-swapping tenant context within an active session).
+3. **Direct Password Mutation / Management** from Platform Admin.
+4. **Bulk Tenant Mutation** (batch updates across multiple businesses).
+5. **Automated Tenant Deletion** (hard deletion of tenant DynamoDB data).
+6. **Automated Production Fixture Generation**.
+
+---
+
+## 9. Phased Implementation Backlog (PTM-0 through PTM-12)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                 PLATFORM TENANT MANAGEMENT PHASED ROADMAP                   │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+   P0: Core Control Plane              │  PTM-0: Architecture & Source-of-Truth
+   (Prerequisites for Tenant #2)       │  PTM-1: Read-Only Tenant Directory
+                                       │  PTM-2: Read-Only Tenant Details View
+                                       │
+   P1: Visibility & Governance         │  PTM-3: Routing & Domain Visibility
+                                       │  PTM-4: User & Role Membership Visibility
+                                       │  PTM-5: Subscription & Entitlement Vis.
+                                       │  PTM-6: Onboarding Orchestrator Integr.
+                                       │  PTM-7: Enhanced Platform Audit History
+                                       │
+   P2: Controlled Mutations            │  PTM-8: Controlled Tenant Creation (Gated)
+   (Separately Approval-Gated)         │  PTM-9: Lifecycle Mutation (Suspend/Restore)
+                                       │  PTM-10: Generated Tenant Subdomains
+                                       │  PTM-11: Custom Business Domains
+                                       │  PTM-12: Enterprise SSO & IdP Extensions
+```
+
+### Phase Details
+
+#### `PTM-0`: Architecture & Source-of-Truth Reconciliation (P0 — Complete in Specification)
+* **Goal:** Establish formal control-plane architecture, document Cognito identity vs. role group rules, define lifecycle states, and reconcile existing platform handlers.
+* **Deliverable:** `docs/planning/platform-tenant-management-control-plane.md`.
+
+#### `PTM-1`: Read-Only Tenant Directory Enhancement (P0)
+* **Goal:** Extend `GET /platform/tenants` and `PlatformAdmin.jsx` to render complete tenant metadata (slug, lifecycle state, owner count, staff count, routing status).
+* **Scope:** Read-only backend query expansion, UI table/card enhancements, search/filter refinements.
+
+#### `PTM-2`: Read-Only Tenant Details View (P0)
+* **Goal:** Upgrade `PlatformTenantDetail.jsx` and `_handle_get_tenant` into the 7-section detail layout (Overview, Routing, Owners/Users, Subscriptions, Onboarding, Health, Audit).
+* **Scope:** Aggregated read-only metadata rendering; zero write operations.
+
+#### `PTM-3`: Routing & Domain Visibility (P1)
+* **Goal:** Display tenant route slug mapping, generated subdomain status, custom domain verification state, and DNS health in Platform Admin.
+* **Scope:** Read-only DNS/route status reporting; no DNS provisioning.
+
+#### `PTM-4`: User & Role Membership Visibility (P1)
+* **Goal:** Provide a sanitized view of users associated with a tenant by querying Cognito users with `custom:company_id == tenant_id`.
+* **Scope:** Read-only listing of users, identity states (`CONFIRMED` / `FORCE_CHANGE_PASSWORD`), and assigned role groups (`owner`, `admin`, `staff`, `client`).
+
+#### `PTM-5`: Subscription & Entitlement Visibility (P1)
+* **Goal:** Display real-time entitlement metrics (active clients, monthly bookings, staff seats) against plan tier limits, including administrative override expiration indicators.
+* **Scope:** Read-only usage calculation dashboard.
+
+#### `PTM-6`: Onboarding Orchestrator Integration (P1)
+* **Goal:** Connect `PlatformAdminOnboarding.jsx` preview UI to the Tenant Directory with structured transition from preview to approval checklist.
+* **Scope:** Read-only onboarding workflow UI integration; creation step remains gated.
+
+#### `PTM-7`: Enhanced Platform Audit History (P1)
+* **Goal:** Add search, filtering by target tenant, filtering by actor, and date range selection to `PlatformAuditLog.jsx`.
+* **Scope:** Backend query parameters and UI filter controls for `GET /platform/audit`.
+
+#### `PTM-8`: Controlled Tenant Creation (P2 — Gated)
+* **Goal:** Implement governed backend tenant creation endpoint `POST /platform/tenants` with strict schema validation, metadata initialization, and audit logging.
+* **Scope:** Approval-gated backend write handler. Requires explicit Matthew approval per tenant.
+
+#### `PTM-9`: Controlled Tenant Lifecycle Mutations (P2 — Gated)
+* **Goal:** Formalize tenant activation, suspension (`SUSPENDED`), and restoration endpoints with entitlement cache invalidation and event auditing.
+* **Scope:** Backend lifecycle state transition handler.
+
+#### `PTM-10`: Generated Tenant Subdomains (P2 — Deferred Infrastructure)
+* **Goal:** Automate generation and routing of `<tenant-slug>.toganddogs.usmissionhero.com` subdomains via Route53/CloudFront wildcard infrastructure (DOMAIN-3).
+* **Scope:** Infrastructure automation (requires separate RFC).
+
+#### `PTM-11`: Custom Business Domains (P2 — Deferred Infrastructure)
+* **Goal:** Support verified custom domain onboarding (e.g., `booking.citypetcare.com`) with ACM certificate issuance and domain verification.
+* **Scope:** Advanced domain management (requires separate RFC).
+
+#### `PTM-12`: Enterprise SSO & IdP Extensions (P2 — Deferred Enterprise)
+* **Goal:** Support dedicated Cognito app clients, SAML 2.0 / OIDC enterprise identity providers, and custom OAuth callback configurations for enterprise tenants.
+* **Scope:** Enterprise authentication architecture.
+
+---
+
+## 10. Release Gating and Customer Tenant #2 Policy
+
+```
+================================================================================
+CRITICAL POLICY DIRECTIVE: SECOND CUSTOMER TENANT APPROVAL GATE
+================================================================================
+```
+
+1. **Internal Test Tenant Scope:**
+   `test_tenant_alpha` is an internal validation tenant created for system isolation testing. It does **NOT** constitute approval or precedent for onboarding a second real customer business.
+2. **Prerequisite Control-Plane Capability:**
+   No real second customer tenant may be onboarded until **PTM-0, PTM-1, and PTM-2** are fully implemented, independently reviewed, and deployed.
+3. **Approval Requirement:**
+   Onboarding any additional customer tenant requires explicit, separate approval from Matthew, alongside verified product tier pricing, subscription terms, and operational readiness.
+
+---
+
+## 11. Workflow Relationship and DOMAIN-1 Gate Status
+
+* **Non-Interference Guarantee:**
+  This Platform Tenant Management workstream is a parallel SaaS maturity planning task. It does **NOT** alter, delay, or interrupt the current controlled DOMAIN-1 validation sequence.
+* **Current DOMAIN-1 Status:**
+  * ROUTE-GATE-A (Backend tenant routing): **COMPLETE & DEPLOYED**.
+  * ROUTE-GATE-B (Web tenant routing v2): **COMPLETE & DEPLOYED**.
+  * ROUTE-GATE-C / B1A-LOGIN (Authenticated tenant owner login validation): **NOT APPROVED / BLOCKED**.
+* **Current Action Rule:**
+  No gate action, login test, or production state modification is authorized by this documentation task.
+
+---
+
+## 12. Verification and Integrity Check
+
+* **Application / Runtime Code:** Unmodified (0 lines changed in `src/`, `web/`, `mobile/`, `shared/`, or `infra/`).
+* **Production AWS Infrastructure:** Untouched.
+* **Cognito / User Pools / App Clients:** Untouched.
+* **DNS / Route53 / CloudFront:** Untouched.
+* **Tenant Data / DynamoDB:** Untouched.
+
+---
+
+**End of Specification.**

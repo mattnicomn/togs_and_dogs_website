@@ -69,6 +69,30 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 
 ---
 
+## Platform Tenant Management Control Plane Backlog (PTM)
+
+**Authoritative Specification:** `docs/planning/platform-tenant-management-control-plane.md`
+
+| Stage | Scope | Status | Priority |
+|-------|-------|--------|----------|
+| PTM-0 | Control Plane Architecture & Source-of-Truth Reconciliation (Cognito role groups vs `custom:company_id`, lifecycle states, app client policy) | ✅ Specification Approved (2026-08-25) | P0 |
+| PTM-1 | Read-Only Tenant Directory Enhancement (`display_name`, `company_id`, `slug`, `lifecycle_state`, `owner_count`, `active_staff`) | Backlog Specification | P0 |
+| PTM-2 | Read-Only Tenant Details View (7 sections: Overview, Routing, Owners/Users, Subscriptions, Onboarding, Health, Audit) | Backlog Specification | P0 |
+| PTM-3 | Routing & Domain Visibility (Slug mapping, generated subdomain status, custom domain verification) | Backlog Specification | P1 |
+| PTM-4 | User & Role Membership Visibility (Cognito `custom:company_id` user listing, identity status, role groups) | Backlog Specification | P1 |
+| PTM-5 | Subscription & Entitlement Visibility (Active clients, monthly bookings, staff seats vs. plan limits) | Backlog Specification | P1 |
+| PTM-6 | Onboarding Orchestrator Integration (Connect Preview V1 to Directory with approval checklist) | Backlog Specification | P1 |
+| PTM-7 | Enhanced Platform Audit History (Target tenant filtering, actor filtering, date range controls) | Backlog Specification | P1 |
+| PTM-8 | Controlled Tenant Creation (Approval-gated backend creation handler `POST /platform/tenants`) | Backlog / Approval-Gated | P2 |
+| PTM-9 | Controlled Tenant Lifecycle Mutations (`ONBOARDING` -> `ACTIVE` -> `SUSPENDED` -> `ARCHIVED`) | Backlog / Approval-Gated | P2 |
+| PTM-10 | Generated Tenant Subdomains (`<tenant-slug>.toganddogs.usmissionhero.com` wildcard routing) | Backlog / Infrastructure Deferred | P2 |
+| PTM-11 | Custom Business Domains (Verified custom domain onboarding with ACM SSL/TLS) | Backlog / Infrastructure Deferred | P2 |
+| PTM-12 | Enterprise SSO & IdP Extensions (Dedicated Cognito app clients / SAML 2.0 / OIDC integrations) | Backlog / Enterprise Deferred | P2 |
+
+*Note: PTM-0, PTM-1, and PTM-2 represent the minimum required control-plane capabilities before onboarding any real second customer tenant. `test_tenant_alpha` remains an internal validation tenant only.*
+
+---
+
 ## SaaS Control-Plane and Tenant-Domain Backlog
 
 **Authoritative design:** `docs/planning/tenant-access-client-onboarding-operational-workflow-alignment.md`
@@ -76,17 +100,18 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | Stage | Scope | Status | Priority |
 |-------|-------|--------|----------|
 | DOMAIN-1 | Decide `platform.toganddogs.usmissionhero.com`, `<tenant-slug>.toganddogs.usmissionhero.com`, slug rules, compatibility-host disposition, and threat model | ✅ ADR accepted 2026-08-24 | P0 |
-| B1A-ROUTE | Bounded `/t/:tenantSlug/admin` bridge with server registry, active-tenant/claim agreement, and fail-closed Web bootstrap | ✅ Implemented/validated locally; not deployed | P0 |
-| DOMAIN-2 | Canonical host-derived expected-tenant resolver plus generalized persisted registry/bootstrap | B1A route subset local only; canonical host work not implemented | P0 |
+| B1A-ROUTE | Bounded `/t/:tenantSlug/admin` bridge with server registry, active-tenant/claim agreement, and fail-closed Web bootstrap | ✅ Backend & Web v2 Deployed | P0 |
+| DOMAIN-2 | Canonical host-derived expected-tenant resolver plus generalized persisted registry/bootstrap | B1A route deployed; canonical host work not implemented | P0 |
 | DOMAIN-3 | Wildcard Route53/ACM/CloudFront tenant support | Not implemented; no infrastructure change authorized | P2 |
 | DOMAIN-4 | Tenant-specific login, invitation, callback, logout, recovery, and deep-link routing | Not implemented | P2 |
 | DOMAIN-5 | Move Platform Admin to the control hostname and remove it from ordinary tenant navigation | Not implemented | P2 |
 | DOMAIN-6 | Provision and validate a unique DNS-safe tenant slug during approved onboarding | Not implemented | P4 |
 | DOMAIN-7 | Optional verified custom business domains | Deferred | P4 |
 
-Gate B1A does not need to wait for DOMAIN-3 wildcard delivery. The bounded route now exists in local source and has negative-test coverage, but it is not deployed. B1A remains blocked pending separately approved backend/Web deployment and independent B1A-LOGIN isolation validation.
+Gate B1A does not need to wait for DOMAIN-3 wildcard delivery. The bounded route is deployed to production (Backend v3 and Web v2). ROUTE-GATE-C / B1A-LOGIN isolation validation remains separately blocked and unapproved.
 
 ---
+
 
 ## Cross-Platform Services, Scheduling & Workflow Alignment
 
