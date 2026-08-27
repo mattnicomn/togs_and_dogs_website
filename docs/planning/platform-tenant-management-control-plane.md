@@ -405,10 +405,13 @@ The following capabilities represent severe security risks and are **STRICTLY DE
 * **Goal:** Implement governed administrative backend endpoint (`PATCH /platform/tenants/{id}/branding`) allowing Platform Admins to update tenant brand name, primary/accent theme colors, logo URLs, support email, and intake form settings with strict schema validation, cache invalidation, and audit logging.
 * **Scope:** Approval-gated backend branding mutation handler. Requires explicit Matthew approval per tenant.
 
-#### `PTM-10`: Generated Tenant Subdomains (P2 — Deferred Infrastructure)
-* **Goal:** Automate generation and routing of `<tenant-slug>.toganddogs.usmissionhero.com` subdomains via Route53/CloudFront wildcard infrastructure (DOMAIN-3).
+#### `PTM-10`: Generated Tenant Subdomains Architecture & Deployment Plan (P2 — Planning Completed)
+* **Goal:** Automate generation and routing of `<tenant-slug>.toganddogs.usmissionhero.com` subdomains via Route53/CloudFront wildcard infrastructure while preserving a single shared React application bundle and 5-way server-authoritative tenant authorization agreement.
+* **Target Hierarchy:** `usmissionhero.com` (Parent Legal Org) $\rightarrow$ `toganddogs.usmissionhero.com` (SaaS Product Plane / Primary Tenant) $\rightarrow$ `<tenant-slug>.toganddogs.usmissionhero.com` (Tenant Application Plane).
 * **Hostname Rule:** Generated tenant subdomains MUST use the **DNS-safe hyphenated tenant route slug** (`test-tenant-alpha`), e.g., `test-tenant-alpha.toganddogs.usmissionhero.com`. They must **NEVER** use the canonical underscored tenant ID (`test_tenant_alpha`), because underscores (`_`) are invalid characters in DNS hostname labels under RFC 1123 / RFC 952.
-* **Scope:** Infrastructure automation (requires separate RFC).
+* **Control Plane Rule:** `platform.toganddogs.usmissionhero.com` is designated for Platform Admin functions. Tenant subdomains must NEVER grant Platform Admin authority.
+* **Wildcard Infrastructure Plan:** Single wildcard ACM certificate `*.toganddogs.usmissionhero.com`, wildcard CloudFront alias `*.toganddogs.usmissionhero.com`, and wildcard Route53 `A`/`AAAA` alias records pointing to CloudFront Distribution `E35L00QPA2IRCY`.
+* **Sequencing Recommendation:** Execute B1A scheduling validation BEFORE PTM-10 infrastructure changes. PTM-10 deployment remains separately approval-gated.
 
 #### `PTM-11`: Custom Business Domains (P2 — Deferred Infrastructure)
 * **Goal:** Support verified custom domain onboarding (e.g., `booking.citypetcare.com`) with ACM certificate issuance and domain verification.
