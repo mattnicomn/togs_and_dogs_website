@@ -1179,7 +1179,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
         const presentation = deriveTenantPresentation(verifiedTenantInfo);
         updateDocumentTitle(presentation);
       } else {
-        updateDocumentTitle(DEFAULT_BRANDING);
+        updateDocumentTitle(deriveTenantPresentation(null));
       }
       setIsAuthenticated(true);
       fetchAllData();
