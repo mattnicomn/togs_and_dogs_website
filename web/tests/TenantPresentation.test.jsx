@@ -1,19 +1,32 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   DEFAULT_BRANDING,
+  TOG_AND_DOGS_BRANDING,
+  NEUTRAL_PLATFORM_PRESENTATION,
   deriveTenantPresentation,
   updateDocumentTitle,
 } from '../src/utils/tenantPresentation';
 import { TERMS_CONTENT } from '../src/constants/policy';
 
-describe('TenantPresentation Unit & Integration Tests (PTM-3D)', () => {
+describe('TenantPresentation Unit & Integration Tests (PTM-3D & PTM-3D.1)', () => {
   const originalTitle = document.title;
 
   afterEach(() => {
     document.title = originalTitle;
   });
 
-  it('should return DEFAULT_BRANDING for primary tenant tog_and_dogs', () => {
+  it('should return NEUTRAL_PLATFORM_PRESENTATION when tenantInfo is null or missing company_id (PTM-3D.1)', () => {
+    const neutralNull = deriveTenantPresentation(null);
+    expect(neutralNull.is_neutral_platform).toBe(true);
+    expect(neutralNull.display_name).toBe('USMissionHero');
+    expect(neutralNull.document_title).toBe('Pet Care Operations Platform | USMissionHero');
+    expect(neutralNull.team_label).toBe('Pet Care Operations Team');
+
+    const neutralEmpty = deriveTenantPresentation({});
+    expect(neutralEmpty).toEqual(NEUTRAL_PLATFORM_PRESENTATION);
+  });
+
+  it('should return explicit TOG_AND_DOGS_BRANDING for primary tenant tog_and_dogs', () => {
     const info = { company_id: 'tog_and_dogs', display_name: 'Tog and Dogs' };
     const presentation = deriveTenantPresentation(info);
 
@@ -21,11 +34,9 @@ describe('TenantPresentation Unit & Integration Tests (PTM-3D)', () => {
     expect(presentation.display_name).toBe('Tog and Dogs');
     expect(presentation.document_title).toBe('Tog and Dogs | Premium Pet Care & Dog Walking');
     expect(presentation.is_default_tenant).toBe(true);
-  });
-
-  it('should return DEFAULT_BRANDING when tenantInfo is null or missing company_id', () => {
-    expect(deriveTenantPresentation(null)).toEqual(DEFAULT_BRANDING);
-    expect(deriveTenantPresentation({})).toEqual(DEFAULT_BRANDING);
+    expect(presentation.is_neutral_platform).toBe(false);
+    expect(presentation).toEqual(TOG_AND_DOGS_BRANDING);
+    expect(presentation).toEqual(DEFAULT_BRANDING);
   });
 
   it('should derive tenant-aware presentation for non-default tenant test_tenant_alpha', () => {
@@ -44,9 +55,10 @@ describe('TenantPresentation Unit & Integration Tests (PTM-3D)', () => {
     expect(presentation.intake_label).toBe('Request Care - Test Tenant Alpha');
     expect(presentation.team_label).toBe('Test Tenant Alpha Team');
     expect(presentation.is_default_tenant).toBe(false);
+    expect(presentation.is_neutral_platform).toBe(false);
   });
 
-  it('should update document.title dynamically and reset on null', () => {
+  it('should update document.title dynamically and reset to NEUTRAL_PLATFORM_PRESENTATION on null (PTM-3D.1)', () => {
     const alpha = deriveTenantPresentation({
       company_id: 'test_tenant_alpha',
       display_name: 'Test Tenant Alpha',
@@ -55,8 +67,14 @@ describe('TenantPresentation Unit & Integration Tests (PTM-3D)', () => {
     updateDocumentTitle(alpha);
     expect(document.title).toBe('Test Tenant Alpha | Pet Care Portal');
 
+    // On logout / null tenant context, title resets to neutral platform title (NOT Togs & Dogs)
     updateDocumentTitle(null);
-    expect(document.title).toBe(DEFAULT_BRANDING.document_title);
+    expect(document.title).toBe(NEUTRAL_PLATFORM_PRESENTATION.document_title);
+
+    // When explicitly in Tog & Dogs tenant context, title updates to Tog & Dogs title
+    const togAndDogs = deriveTenantPresentation({ company_id: 'tog_and_dogs' });
+    updateDocumentTitle(togAndDogs);
+    expect(document.title).toBe(TOG_AND_DOGS_BRANDING.document_title);
   });
 
   it('should format export backup filename with tenant company_id prefix', () => {

@@ -4,7 +4,7 @@ import { getClientRequests, requestCancellation } from '../api/client';
 import UserProfile from './UserProfile';
 import { getKnownServiceTypeLabel } from '../utils/serviceLabels.js';
 import { REQUEST_STATUSES } from '../generated/contracts.js';
-import { deriveTenantPresentation, DEFAULT_BRANDING } from '../utils/tenantPresentation';
+import { deriveTenantPresentation, NEUTRAL_PLATFORM_PRESENTATION } from '../utils/tenantPresentation';
 import '../Portal.css';
 
 // Date and Visit Window display helper utilities
@@ -388,7 +388,7 @@ const ClientPortal = () => {
                           <span className="booking-worker-label">👤 {req.worker_name}</span>
                         )}
                         {isScheduled && !req.worker_name && (
-                          <span className="booking-worker-label">👤 {tenantPresentation?.team_label || DEFAULT_BRANDING.team_label}</span>
+                          <span className="booking-worker-label">👤 {tenantPresentation?.team_label || NEUTRAL_PLATFORM_PRESENTATION.team_label}</span>
                         )}
                       </div>
 

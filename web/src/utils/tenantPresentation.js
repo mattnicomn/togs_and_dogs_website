@@ -1,12 +1,36 @@
 /**
- * Server-authoritative Tenant Presentation & Branding Utilities (PTM-3D).
+ * Server-authoritative Tenant Presentation & Branding Utilities (PTM-3D & PTM-3D.1).
  *
  * Presentation is derived ONLY after canonical server-authoritative tenant bootstrap
  * and identity agreement succeed. Mismatched, unauthenticated, or invalid tenant contexts
- * fall back safely to default platform presentation without exposing private metadata.
+ * fall back safely to neutral platform presentation without exposing private metadata or
+ * defaulting to unrelated primary tenant branding.
  */
 
-export const DEFAULT_BRANDING = Object.freeze({
+/**
+ * Neutral Platform Presentation for unauthenticated, invalid, or tenant-less contexts (PTM-3D.1).
+ * Used when no valid business tenant authorization exists.
+ */
+export const NEUTRAL_PLATFORM_PRESENTATION = Object.freeze({
+  company_id: null,
+  display_name: 'USMissionHero',
+  brand_name: 'USMissionHero',
+  document_title: 'Pet Care Operations Platform | USMissionHero',
+  portal_title: 'Pet Care Portal',
+  client_portal_label: 'Client Portal',
+  staff_portal_label: 'Staff Portal',
+  intake_label: 'Request Pet Care',
+  team_label: 'Pet Care Operations Team',
+  support_email: null,
+  is_default_tenant: false,
+  is_neutral_platform: true,
+});
+
+/**
+ * Explicit Togs & Dogs Tenant Presentation (Ryan's business tenant).
+ * Used ONLY when canonical tenant company_id is 'tog_and_dogs'.
+ */
+export const TOG_AND_DOGS_BRANDING = Object.freeze({
   company_id: 'tog_and_dogs',
   display_name: 'Tog and Dogs',
   brand_name: 'Tog and Dogs',
@@ -18,7 +42,11 @@ export const DEFAULT_BRANDING = Object.freeze({
   team_label: 'Tog & Dogs Team',
   support_email: 'hello@toganddogs.com',
   is_default_tenant: true,
+  is_neutral_platform: false,
 });
+
+// Backward-compatible alias for explicit Togs & Dogs tenant branding
+export const DEFAULT_BRANDING = TOG_AND_DOGS_BRANDING;
 
 /**
  * Derive tenant presentation metadata from authoritative tenantInfo.
@@ -27,8 +55,12 @@ export const DEFAULT_BRANDING = Object.freeze({
  * @returns {Object} Canonical presentation contract object
  */
 export const deriveTenantPresentation = (tenantInfo) => {
-  if (!tenantInfo || !tenantInfo.company_id || tenantInfo.company_id === 'tog_and_dogs') {
-    return DEFAULT_BRANDING;
+  if (!tenantInfo || !tenantInfo.company_id) {
+    return NEUTRAL_PLATFORM_PRESENTATION;
+  }
+
+  if (tenantInfo.company_id === 'tog_and_dogs') {
+    return TOG_AND_DOGS_BRANDING;
   }
 
   const displayName = tenantInfo.display_name && tenantInfo.display_name.trim() !== ''
@@ -47,17 +79,18 @@ export const deriveTenantPresentation = (tenantInfo) => {
     team_label: `${displayName} Team`,
     support_email: tenantInfo.support_email || null,
     is_default_tenant: false,
+    is_neutral_platform: false,
   });
 };
 
 /**
  * Update browser document title dynamically based on active tenant presentation.
- * Resets cleanly to default title when presentation is cleared/null.
+ * Resets cleanly to neutral platform title when presentation is cleared/null.
  *
  * @param {Object|null} presentation - Derived presentation metadata or null
  */
 export const updateDocumentTitle = (presentation) => {
   if (typeof document !== 'undefined') {
-    document.title = presentation?.document_title || DEFAULT_BRANDING.document_title;
+    document.title = presentation?.document_title || NEUTRAL_PLATFORM_PRESENTATION.document_title;
   }
 };
