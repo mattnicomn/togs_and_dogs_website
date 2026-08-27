@@ -50,7 +50,7 @@ const GoogleCallback = () => {
                     <>
                         <div className="success-icon">✅</div>
                         <h2>Successfully Linked!</h2>
-                        <p>Your Google Calendar is now connected to Tog and Dogs.</p>
+                        <p>Your Google Calendar is now connected to your pet care operations portal.</p>
                         <p className="sub-text">Redirecting you back to the dashboard...</p>
                     </>
                 )}

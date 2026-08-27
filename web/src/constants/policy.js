@@ -4,11 +4,11 @@ export const PRIVACY_VERSION = 'v1.0';
 export const TERMS_CONTENT = [
   {
     title: 'About These Terms',
-    body: 'These Terms of Use govern your use of the Tog and Dogs operations portal at toganddogs.usmissionhero.com. By submitting a service request or using the client portal, you agree to these terms. If you do not agree, please do not submit a request or use the portal.'
+    body: 'These Terms of Use govern your use of the pet care operations platform provided by USMissionHero / Tog and Dogs. By submitting a service request or using the client portal, you agree to these terms. If you do not agree, please do not submit a request or use the portal.'
   },
   {
     title: 'Services Provided',
-    body: 'Tog and Dogs provides in-home pet care services including dog walking, drop-in visits, overnight care, and pet sitting. All services are performed at the client\'s home or a designated location. Services are subject to staff availability, scheduling, and approval by Tog and Dogs management.'
+    body: 'In-home pet care services including dog walking, drop-in visits, overnight care, and pet sitting are provided. All services are performed at the client\'s home or a designated location. Services are subject to staff availability, scheduling, and approval by management.'
   },
   {
     title: 'Booking and Scheduling',

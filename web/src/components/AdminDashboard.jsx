@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 
 import { accountStatusLabel, accountStatusClass, profileStatusLabel, profileStatusClass, getVisibleClients, CLIENT_FILTERS } from '../utils/clientManagement';
 import { bootstrapTenantSession, TENANT_ACCESS_ERROR } from '../utils/tenantContext';
+import { deriveTenantPresentation, updateDocumentTitle, DEFAULT_BRANDING } from '../utils/tenantPresentation';
 
 
 
@@ -1175,6 +1176,10 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
       setRole(userRole);
       if (verifiedTenantInfo) {
         setTenantInfo(verifiedTenantInfo);
+        const presentation = deriveTenantPresentation(verifiedTenantInfo);
+        updateDocumentTitle(presentation);
+      } else {
+        updateDocumentTitle(DEFAULT_BRANDING);
       }
       setIsAuthenticated(true);
       fetchAllData();
@@ -1195,6 +1200,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
       } catch {
         setError(TENANT_ACCESS_ERROR);
         setIsAuthenticated(false);
+        updateDocumentTitle(null);
         return false;
       }
     } else {
@@ -1216,6 +1222,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
       if (expectedTenantSlug) {
         setError(TENANT_ACCESS_ERROR);
         setIsAuthenticated(false);
+        updateDocumentTitle(null);
       }
     }
   };
@@ -2301,7 +2308,8 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
       // Generate filename with timestamp
       const now = new Date();
       const pad2 = (n) => String(n).padStart(2, '0');
-      const fileName = `TogAndDogs_Offline_Backup_${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}_${pad2(now.getHours())}${pad2(now.getMinutes())}.xlsx`;
+      const exportPrefix = tenantInfo?.company_id || 'TogAndDogs';
+      const fileName = `${exportPrefix}_Offline_Backup_${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}_${pad2(now.getHours())}${pad2(now.getMinutes())}.xlsx`;
 
       // Write workbook to ArrayBuffer and create Blob
       const wbArrayBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
