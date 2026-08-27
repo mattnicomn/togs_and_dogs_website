@@ -22,6 +22,7 @@ STARTUP VERIFICATION:
 
 RULES:
 - Do not deploy, build, or change production without Matthew's explicit approval.
+- BUSINESS / BRAND OWNERSHIP BOUNDARY INVARIANT: Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissionHero platform brand and must not be used as the namespace, branding, default identity, or implied business owner for unrelated tenants. USMissionHero LLC is the platform/operator layer. Control plane is `platform.usmissionhero.com`. Generated tenant subdomain model is `<tenant-slug>.usmissionhero.com` (e.g. `test-tenant-alpha.usmissionhero.com`), NOT under `toganddogs.usmissionhero.com`.
 - Do not commit or expose secrets, passwords, tokens, JWTs, OAuth codes, raw auth/session data, .tfplan files, terraform.tfvars values, screenshots, private data, or credentials.
 - Do not disable or change the active `TENANT_RESOLUTION_MODE=multi` configuration without explicit approval.
 - Do not create, remove, or repurpose any tenant—including `test_tenant_alpha`—without explicit approval.

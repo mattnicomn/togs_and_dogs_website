@@ -81,7 +81,8 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | PTM-3 | Routing & Domain Visibility (Slug mapping, generated subdomain status, custom domain verification) | Backlog Specification | P1 |
 | PTM-3B | Read-Only Tenant Branding Visibility (Brand name, theme colors, logo metadata, support email, intake config status) | Backlog Specification | P1 |
 | PTM-3C | Tenant-Aware Mobile Presentation Model (Shared Expo app runtime presentation, bootstrap sequence, stale-state safety; `docs/planning/tenant-aware-mobile-presentation-architecture.md`) | Backlog Specification | P1 |
-| PTM-3D | Tenant-Aware Web Presentation Implementation (Single shared React app dynamic branding, portal titles, terminology, support links) | Backlog Specification | P1 |
+| PTM-3D | Tenant-Aware Web Presentation Implementation (deriveTenantPresentation, dynamic document.title, dynamic team label, zero primary tenant leakage) | ✅ Deployed & Acceptance Complete | P0 |
+| PTM-3D.1 | Neutral Platform Presentation Boundary (Remediate logout, unauthenticated boundary, and invalid tenant fallbacks to use NEUTRAL_PLATFORM_PRESENTATION instead of defaulting to Togs & Dogs) | Backlog / Proposed Follow-Up | P1 |
 | PTM-3E | Cross-Platform Presentation Isolation Validation (Web + Mobile presentation acceptance matrix, stale-state cache purging verification) | Backlog Specification | P1 |
 | PTM-4 | User & Role Membership Visibility (Cognito `custom:company_id` user listing, identity status, role groups) | Backlog Specification | P1 |
 | PTM-5 | Subscription & Entitlement Visibility (Active clients, monthly bookings, staff seats vs. plan limits) | Backlog Specification | P1 |
@@ -90,7 +91,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | PTM-8 | Controlled Tenant Creation (Approval-gated backend creation handler `POST /platform/tenants`) | Backlog / Approval-Gated | P2 |
 | PTM-9 | Controlled Tenant Lifecycle Mutations (`ONBOARDING` -> `ACTIVE` -> `SUSPENDED` -> `ARCHIVED`) | Backlog / Approval-Gated | P2 |
 | PTM-9B | Controlled Tenant Branding Mutations (Approval-gated `PATCH /platform/tenants/{id}/branding` handler) | Backlog / Approval-Gated | P2 |
-| PTM-10 | Generated Tenant Subdomains (`<tenant-slug>.toganddogs.usmissionhero.com` using DNS-safe slug `test-tenant-alpha`, NOT `test_tenant_alpha`) | Backlog / Infrastructure Deferred | P2 |
+| PTM-10 | Generated Tenant Subdomains (`<tenant-slug>.usmissionhero.com` using DNS-safe slug `test-tenant-alpha`, NOT `test_tenant_alpha`; Togs & Dogs is Ryan's tenant, NOT platform brand) | Backlog / Reconciled | P2 |
 | PTM-11 | Custom Business Domains (Verified custom domain onboarding with ACM SSL/TLS) | Backlog / Infrastructure Deferred | P2 |
 | PTM-12 | Enterprise SSO & IdP Extensions (Dedicated Cognito app clients / SAML 2.0 / OIDC integrations) | Backlog / Enterprise Deferred | P2 |
 | PTM-13 | White-Label Mobile Exception Model (Dedicated enterprise mobile builds, bundle IDs, APNs/FCM credentials, store listings) | Backlog / Enterprise Deferred | P2 |

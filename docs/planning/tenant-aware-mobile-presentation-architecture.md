@@ -32,12 +32,15 @@ The platform mandates a single, multi-tenant mobile application architecture for
 * **One Shared Mobile Application:** All standard business tenants, owners, admins, sitters, and pet owners operate within **one single Expo/React Native mobile application** distributed via Apple TestFlight / App Store and Google Play.
 * **Runtime Multi-Tenancy:** Tenant identity, branding, navigation, and data scope are established dynamically at runtime post-authentication.
 
-### 2.2 Forbidden Anti-Patterns (Default SaaS Model)
-Do **NOT** create any of the following for standard SaaS tenants:
-* ❌ One mobile repository per tenant
-* ❌ One Expo project per tenant
-* ❌ One bundle identifier / application ID per tenant (e.g., `com.toganddogs.tenantx`)
-* ❌ One Apple App Store or Google Play Store listing per tenant
+### 2.3 Business / Brand Ownership Boundary Invariant
+* **Togs & Dogs Tenant Boundary:** Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissionHero platform brand and MUST NOT be used as the default branding, fallback identity, or implied operator for unrelated mobile users.
+* **Platform Layer:** USMissionHero LLC is the platform/operator layer.
+* **Runtime Presentation:**
+  - Ryan/Togs & Dogs user $\rightarrow$ Togs & Dogs branding
+  - Alpha user $\rightarrow$ Test Tenant Alpha branding
+  - Future customer user $\rightarrow$ that customer's configured branding
+  - Neutral / no tenant state $\rightarrow$ neutral platform presentation (`NEUTRAL_PLATFORM_PRESENTATION`)
+* Togs & Dogs is **NOT** the universal mobile app fallback branding for unrelated tenants.
 * ❌ One Cognito app client per tenant
 
 Tenant authority and identity remain strictly server-authoritative via Cognito token claims (`custom:company_id`) and server-side tenant registry verification.

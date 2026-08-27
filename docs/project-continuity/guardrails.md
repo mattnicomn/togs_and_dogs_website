@@ -31,6 +31,7 @@
 
 ## Tenant and Multi-Business Safety
 
+- ❌ **BUSINESS / BRAND OWNERSHIP BOUNDARY**: Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissionHero platform brand and must not be used as the namespace, branding, default identity, or implied business owner for unrelated tenants. USMissionHero LLC is the platform/operator layer. Tenant business identity must remain isolated per tenant.
 - ❌ Do not disable or change `TENANT_RESOLUTION_MODE` without Matthew's explicit approval (strict `multi` mode is active and validated)
 - ❌ Do not create, remove, or repurpose any tenant—including the existing `test_tenant_alpha` validation tenant—without explicit approval
 - ❌ Do not modify existing tenant metadata (tier/status) without approval

@@ -10,7 +10,12 @@ This folder contains everything a new AI assistant needs to understand the Togs 
 
 ---
 
-## Recommended Reading Order
+## Core Invariants
+
+### BUSINESS / BRAND OWNERSHIP BOUNDARY
+Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissionHero platform brand and must not be used as the namespace, branding, default identity, or implied business owner for unrelated tenants. USMissionHero LLC is the platform/operator layer. Tenant business identity must remain isolated per tenant.
+
+---
 
 1. **`current-state.md`** — What's deployed, what's blocked, what's next
 2. **`guardrails.md`** — What must never be done without approval

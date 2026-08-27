@@ -405,12 +405,12 @@ The following capabilities represent severe security risks and are **STRICTLY DE
 * **Goal:** Implement governed administrative backend endpoint (`PATCH /platform/tenants/{id}/branding`) allowing Platform Admins to update tenant brand name, primary/accent theme colors, logo URLs, support email, and intake form settings with strict schema validation, cache invalidation, and audit logging.
 * **Scope:** Approval-gated backend branding mutation handler. Requires explicit Matthew approval per tenant.
 
-#### `PTM-10`: Generated Tenant Subdomains Architecture & Deployment Plan (P2 — Planning Completed)
-* **Goal:** Automate generation and routing of `<tenant-slug>.toganddogs.usmissionhero.com` subdomains via Route53/CloudFront wildcard infrastructure while preserving a single shared React application bundle and 5-way server-authoritative tenant authorization agreement.
-* **Target Hierarchy:** `usmissionhero.com` (Parent Legal Org) $\rightarrow$ `toganddogs.usmissionhero.com` (SaaS Product Plane / Primary Tenant) $\rightarrow$ `<tenant-slug>.toganddogs.usmissionhero.com` (Tenant Application Plane).
-* **Hostname Rule:** Generated tenant subdomains MUST use the **DNS-safe hyphenated tenant route slug** (`test-tenant-alpha`), e.g., `test-tenant-alpha.toganddogs.usmissionhero.com`. They must **NEVER** use the canonical underscored tenant ID (`test_tenant_alpha`), because underscores (`_`) are invalid characters in DNS hostname labels under RFC 1123 / RFC 952.
-* **Control Plane Rule:** `platform.toganddogs.usmissionhero.com` is designated for Platform Admin functions. Tenant subdomains must NEVER grant Platform Admin authority.
-* **Wildcard Infrastructure Plan:** Single wildcard ACM certificate `*.toganddogs.usmissionhero.com`, wildcard CloudFront alias `*.toganddogs.usmissionhero.com`, and wildcard Route53 `A`/`AAAA` alias records pointing to CloudFront Distribution `E35L00QPA2IRCY`.
+#### `PTM-10`: Generated Tenant Subdomains Architecture & Deployment Plan (P2 — Reconciled / Superior Model Pending)
+* **Goal:** Automate generation and routing of `<tenant-slug>.usmissionhero.com` subdomains via Route53/CloudFront infrastructure while preserving a single shared React application bundle and 5-way server-authoritative tenant authorization agreement.
+* **BUSINESS / BRAND OWNERSHIP BOUNDARY INVARIANT:** Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissionHero platform brand and must not be used as the namespace, branding, default identity, or implied business owner for unrelated tenants. USMissionHero LLC is the platform/operator layer.
+* **Target Hierarchy:** `usmissionhero.com` (Parent Operator Org) $\rightarrow$ `platform.usmissionhero.com` (Control Plane) $\rightarrow$ `<tenant-slug>.usmissionhero.com` (Tenant Application Plane, e.g., `test-tenant-alpha.usmissionhero.com`). Togs & Dogs owns only `toganddogs.usmissionhero.com`.
+* **Hostname Rule:** Generated tenant subdomains MUST use the **DNS-safe hyphenated tenant route slug** (`test-tenant-alpha`), e.g., `test-tenant-alpha.usmissionhero.com`. They must **NEVER** use the canonical underscored tenant ID (`test_tenant_alpha`), because underscores (`_`) are invalid characters in DNS hostname labels under RFC 1123 / RFC 952.
+* **Control Plane Rule:** `platform.usmissionhero.com` is designated for Platform Admin functions. Tenant subdomains must NEVER grant Platform Admin authority.
 * **Sequencing Recommendation:** Execute B1A scheduling validation BEFORE PTM-10 infrastructure changes. PTM-10 deployment remains separately approval-gated.
 
 #### `PTM-11`: Custom Business Domains (P2 — Deferred Infrastructure)

@@ -4,6 +4,13 @@
 
 ---
 
+## Core Invariants
+
+### BUSINESS / BRAND OWNERSHIP BOUNDARY
+Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissionHero platform brand and must not be used as the namespace, branding, default identity, or implied business owner for unrelated tenants. USMissionHero LLC is the platform/operator layer. Tenant business identity must remain isolated per tenant.
+
+---
+
 ## Release Notes & History
 
 | Topic | Location |
