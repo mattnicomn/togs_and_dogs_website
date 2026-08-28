@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-08-25 (ROUTE-GATE-A and ROUTE-GATE-B complete / DOMAIN-1 backend and Web route deployed / ROUTE-GATE-C and B1A login not approved)
+**Last Updated:** 2026-08-28 (DOMAIN-1 and ROUTE-GATE-A/B/C complete / B1A API layer verified read-only / B1A Gate-C cleanup awaiting Matthew approval)
 
 ---
 
@@ -10,7 +10,7 @@
 |-----------|--------|
 | Web app (React/Vite) | ✅ DOMAIN-1 tenant-route Web v2 artifact from runtime source `440cab2` deployed to the shared compatibility host; direct tenant deep links and fail-closed unauthenticated boundary verified |
 | Backend (Python/Lambda) | ✅ Deployed — DOMAIN-1 expected-tenant route bridge is active across the shared Lambda package; all 13 functions Active/Successful |
-| API Gateway | ✅ Active — E3A authenticated Start and exact-request GET routes deployed; no Start/data-write Gate-B validation approved |
+| API Gateway | ✅ Active — production `prod -> atxpw3`; `GET /admin/tenant-info` is Cognito-authorized, Lambda-proxy integrated, and authenticated end-to-end for `test_tenant_alpha` |
 | DynamoDB | ✅ Single table, shared-tenant model |
 | Google Calendar | ✅ One configured Google provider connection for `tog_and_dogs`; token storage/resolution is tenant-scoped (21H). `test_tenant_alpha` remains provider `none` / `not_configured`; independent providers for multiple tenants are not claimed. |
 | Postmark email | ✅ Active (notifications, payment emails); approved production transactional email provider |
@@ -50,7 +50,7 @@
 | Control-plane / tenant-plane URL separation | 🟡 DOMAIN-1 backend bridge and `/t/:tenantSlug/admin` Web route are deployed; canonical tenant host/DNS separation remains unimplemented and unapproved |
 | Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
 | Second tenant | ✅ Internal test tenant `test_tenant_alpha` created and validated (19D/19E); future customer/additional tenant provisioning remains approval-gated |
-| Second-tenant application landing | 🟡 `/t/test-tenant-alpha/admin` is deployed and verified unauthenticated; authenticated tenant isolation remains separately approval-gated, so B1A remains blocked |
+| Second-tenant application landing | ✅ `/t/test-tenant-alpha/admin` is deployed; authenticated tenant-route isolation and the real API Gateway tenant bootstrap are verified for the internal Alpha tenant |
 | Tenant provisioning script | ✅ Dry run and controlled test-tenant apply validated (19B/19D) |
 | Tenant display branding | ✅ Single shared React application and single shared Expo app preserve runtime presentation (`docs/planning/tenant-aware-mobile-presentation-architecture.md`); PTM-3B/3C/3D/3E specified; PTM-10 subdomains require DNS-safe slug `test-tenant-alpha` |
 | Tenant disable & restore | ✅ Gated & Validated in Production (20F — PASS) |
@@ -61,7 +61,7 @@
 | Blocker | Impact | Owner |
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
-| Credential recovery pending execution | ROUTE-GATE-C/B1A-LOGIN remains blocked until approved credential recovery execution completes | Matthew / Antigravity |
+| B1A Gate-C cleanup approval | Exactly eight preserved synthetic Alpha items await a separate Matthew-approved cleanup gate; Alpha tenant metadata must remain | Matthew |
 
 ## Current Work and Latest Closeouts
 
@@ -88,7 +88,8 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
 
 - DOMAIN-1 + B1A-ROUTE (✅ ROUTE-GATE-A + ROUTE-GATE-B + ROUTE-GATE-C COMPLETE / BACKEND + WEB ROUTE DEPLOYED & VALIDATED / B1A REMAINS SEPARATELY APPROVAL-GATED — 2026-08-26)
   - PTM-3D.1 (Neutral Platform Presentation Boundary): DEPLOYED & AUTHENTICATED ACCEPTANCE COMPLETE on 2026-08-27 (`web/src/utils/tenantPresentation.js` + `web/index.html` + `ClientPortal.jsx` + `AdminDashboard.jsx`). Introduced `NEUTRAL_PLATFORM_PRESENTATION` (`display_name: 'USMissionHero'`, `document_title: 'Pet Care Operations Platform | USMissionHero'`, `team_label: 'Pet Care Operations Team'`). Deployment source: RC `release/ptm-3d1-neutral-platform-presentation-rc` @ `3025f2f1e3991f990d0d4adde79b910e955fd6d1` (baseline `e1b6fc3fed5bb8f84e0bbf653c5be1cdb5223d04`). Uploaded JS: `assets/index-CdPio7XK.js` (`0C30076E...`). Replaced index: `index.html` (`B4D9544C...`). Retained CSS: `assets/index-BroXJAxV.css` (`69A7D7BC...`). CloudFront invalidation `I8FUOAOD8KWYZKY166XDGS13TP` (`Completed`). Superseded `assets/index-B0EC2fOq.js` deleted. Read-only authenticated acceptance session for `test_tenant_alpha`: 100% PASS (`Test Tenant Alpha | Pet Care Portal` title, zero primary tenant data leak, Platform Admin 404 boundary, logout title reset to `Pet Care Operations Platform | USMissionHero`, invalid tenant neutral fallback, 0 CloudWatch errors, 0 production writes). B1A separately approval-gated. Zero backend/AWS/DNS/Cognito mutations.
-  - B1A (Tenant-Scoped Booking & Scheduling Execution): GATE-B CONTROLLED WORKFLOW EXECUTION COMPLETE & DEVIATIONS RECONCILED on 2026-08-27. Executed Matthew-approved Gate B: 1 physical assignable Alpha staff created (`STAFF#staff_alpha01` via direct DynamoDB `put_item` due to Decimal serialization error in `POST /admin/staff`), 1 synthetic intake submitted (`REQ#3fba9817...`, `CLIENT#750d5e1a...`, marker `SYNTHETIC_B1A_ALPHA_20260827`), pre-approval M&G verified (`VERIFY_MEET_GREET` -> `MG_COMPLETED`), request approved (`APPROVED`), job created asynchronously (`JOB#43fa73ef...`, linked pet `PET#3dc14dec...`), sitter assigned (`ASSIGNED`, worker `mattnico10@yahoo.com`). Exactly 2 Postmark emails sent, 100% exclusively to `mattnico10@yahoo.com`. Google Calendar sync skipped (`calendar_skipped`). 100% tenant isolation (0 primary tenant data leakage). 8 created items verified and captured for separately approval-gated Gate-C cleanup. Zero cleanup performed. Zero code/deployment/infra mutations.
+  - B1A (Tenant-Scoped Booking & Scheduling Execution): GATE-B CONTROLLED WORKFLOW EXECUTION COMPLETE & DEVIATIONS RECONCILED on 2026-08-27. Executed Matthew-approved Gate B: 1 physical assignable Alpha staff created (`STAFF#staff_alpha01` via direct DynamoDB `put_item` due to Decimal serialization error in `POST /admin/staff`), 1 synthetic intake submitted (`REQ#3fba9817...`, `CLIENT#750d5e1a...`, marker `SYNTHETIC_B1A_ALPHA_20260827`), pre-approval M&G verified (`VERIFY_MEET_GREET` -> `MG_COMPLETED`) because deployed approval requires completed M&G state, request approved (`APPROVED`), job created asynchronously (`JOB#43fa73ef...`, linked pet `PET#3dc14dec...`), and sitter assigned (`ASSIGNED`). Gate-B workflow actions used direct Lambda invocation with constructed API Gateway-style events, so Gate B validated backend handler/business logic but did not validate real API Gateway routing or the Cognito authorizer. Exactly 2 controlled Postmark emails were sent only to the approved test recipient. Google Calendar sync skipped (`calendar_skipped`). 100% tenant isolation (0 primary tenant data leakage). The exact eight created keys are recorded in `docs/release-notes/b1a-api-gateway-read-only-validation.md` for separately approval-gated Gate-C cleanup. Zero cleanup performed. Zero code/deployment/infra mutations.
+  - B1A API-GATEWAY READ-ONLY VALIDATION COMPLETE on 2026-08-28. Production contract confirmed `GET /admin/tenant-info` on API `a022yxuiue`, stage `prod`, deployment `atxpw3`, Cognito authorizer `r0gk6r`, and Lambda proxy `togs-and-dogs-prod-admin`. An unauthenticated real HTTP request returned the expected `401`; Matthew then authenticated privately and a fresh route reload rendered `Test Tenant Alpha | Pet Care Portal`, proving the real Web → API Gateway → Cognito authorizer → Lambda → tenant-resolution read path. No Platform Admin navigation or primary-tenant operational data appeared. Alpha inventory was exactly 9 before and after (1 baseline metadata + the exact 8 preserved B1A artifacts), with zero missing/unexpected keys; count-only evidence found zero `tog_and_dogs` items created/updated in the B1A window and zero primary-tenant items carrying the synthetic B1A IDs. The `POST /admin/staff` Decimal defect is separately backlogged; it is not fixed here. B1A Gate C remains unexecuted and requires separate Matthew approval.
   - See: `docs/planning/adr-domain-1-tenant-access-routing.md`
   - See: `docs/release-notes/domain-1-b1a-route-local-implementation.md`
   - See: `docs/release-notes/domain-1-b1a-route-backend-v2-rc.md`
@@ -97,6 +98,7 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
   - See: `docs/release-notes/domain-1-b1a-route-backend-v3-deployment.md`
   - See: `docs/release-notes/domain-1-b1a-route-web-v2-rc.md`
   - See: `docs/release-notes/domain-1-b1a-route-web-v2-deployment.md`
+  - See: `docs/release-notes/b1a-api-gateway-read-only-validation.md`
 
 - Ryan Slice E3B.1 Mobile Visit Workflow Safety Remediation (✅ IMPLEMENTED / VALIDATED / NOT DEPLOYED / NOT IN CURRENT INTERNAL BUILDS — 2026-08-20)
   - One resolver now supplies authoritative child identity to both Start and Complete. Occurrence identity wins; route/occurrence or parent/occurrence disagreement fails safe with no mutation. Singular legacy identity works without a route ID; ambiguous multi-child identity remains blocked.

@@ -29,7 +29,8 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 9 | Business owner billing dashboard | ⏸ Wait for subscription semantics | Medium | #8 |
 | 10 | Pricing/signup page | ⛔ Blocked by product/pricing decision and payment direction | Medium | #8 |
 | 11 | "Getting Started" guide for business owners | ✅ LOCALLY COMPLETE / `GUIDE_CORRECT` / COMMITTED / PUSHED / NOT PUBLIC | Low | — |
-| 12 | Tenant-specific application landing and login-context agreement | 🟡 DOMAIN-1 accepted; B1A route bridge local/validated/not deployed | High | B1A deployment/login review + DOMAIN-2–DOMAIN-4 |
+| 12 | Tenant-specific application landing and login-context agreement | ✅ DOMAIN-1 deployed; ROUTE-GATE-C and B1A real API Gateway tenant bootstrap validated | Done | DOMAIN-2–DOMAIN-4 remain future canonical-host work |
+| 13 | Decimal-safe entitlement decision serialization | ⚠️ Production defect isolated; separate runtime fix not started | High | Focused entitlement/handler tests + separately approved backend release |
 
 ---
 
@@ -39,7 +40,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 |------|--------|------------|
 | Tenant-resolution regression | Critical | Production Terraform and all 13 Lambdas use strict `TENANT_RESOLUTION_MODE=multi`, enabled in 18T and monitored in 18U. Missing/invalid tenant claims fail rather than silently using the compatibility fallback. Do not change the mode without explicit Matthew approval. |
 | Premature customer-tenant onboarding | High | `test_tenant_alpha` is an internal validation tenant, not a customer onboarding precedent. Require explicit approval plus product, billing, security, and operating readiness for any further tenant. |
-| Claim-valid identity has no deployed tenant-specific application landing | High | Do not declare the identity broken or bypass the gate through shared `/admin`. The local bridge must receive separate deployment approval and pass login isolation before Gate B1A. |
+| DynamoDB `Decimal` values in tenant limit overrides break entitlement decision logging | High | Normalize/encode structured entitlement log fields before `json.dumps`; retain fail-closed limit enforcement and cover `max_staff`, active-client, and monthly-booking call sites with real `Decimal` fixtures. |
 
 ---
 
@@ -66,6 +67,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 17 | Web Request List / Visit Requests queue correction | ⚠️ Audit found predicate, counter, navigation, and duplicate-fetch risks | P1 |
 | 18 | Mobile Dashboard exact destination filters | ⚠️ Five cards are pressable in source but counts/targets need refinement; D1 not in current builds | P3 |
 | 19 | Mobile bottom-navigation inset handling | ⚠️ Fixed tab height/padding does not derive from safe-area/system insets | P3 |
+| 20 | Entitlement observability Decimal serialization defect | ⚠️ `POST /admin/staff` is blocked for tenants whose persisted numeric limits deserialize as `Decimal`; the shared `check_limit` path can affect staff creation/onboarding, active-client creation, and intake booking-limit checks | P1 |
 
 ---
 
