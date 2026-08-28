@@ -117,7 +117,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | DOMAIN-6 | Provision and validate a unique DNS-safe tenant slug during approved onboarding | Not implemented | P4 |
 | DOMAIN-7 | Optional verified custom business domains | Deferred | P4 |
 
-Gate B1A does not need to wait for DOMAIN-3 wildcard delivery. The bounded route is deployed to production (Backend v3 and Web v2). ROUTE-GATE-C / B1A-LOGIN isolation validation remains separately blocked and unapproved.
+Gate B1A does not need to wait for DOMAIN-3 wildcard delivery. The bounded route is deployed to production (Backend v3 and Web v2); ROUTE-GATE-C login isolation, the B1A read-only API layer, and B1A Gate-C synthetic cleanup are complete. Full real Web/API write-path validation remains separately approval-gated and is not claimed.
 
 ---
 
