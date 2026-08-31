@@ -2,6 +2,7 @@ import pytest
 import json
 import os
 import uuid
+from decimal import Decimal
 from unittest.mock import patch, MagicMock, ANY
 from handlers.admin_handler import handler as admin_handler
 from handlers.intake_handler import handler as intake_handler
@@ -165,6 +166,24 @@ def test_post_admin_clients_below_limit(mock_db):
     }
     mock_db["table"].put_item.return_value = {}
     
+    resp = admin_handler(event, None)
+    assert resp["statusCode"] == 200
+
+
+def test_post_admin_clients_with_decimal_limit_below_limit(mock_db):
+    """A DynamoDB Decimal max_active_clients value survives the real client path."""
+    event = create_event("Admin", "/admin/clients", method="POST", body_dict={
+        "display_name": "Decimal Client",
+        "email": "decimal-client@test.com"
+    })
+    mock_db["get_item"].return_value["limits"] = {
+        "max_active_clients": Decimal("100")
+    }
+    mock_db["table"].query.return_value = {
+        "Items": [{"SK": f"CLIENT#{i}"} for i in range(99)]
+    }
+    mock_db["table"].put_item.return_value = {}
+
     resp = admin_handler(event, None)
     assert resp["statusCode"] == 200
 
@@ -340,6 +359,34 @@ def test_booking_limit_at_limit_denied(mock_db):
     # Assert put_item and increment were NOT called
     mock_db["table"].put_item.assert_not_called()
     assert not any("ADD booking_count" in str(call) for call in mock_db["table"].update_item.call_args_list)
+
+
+def test_booking_with_decimal_limit_at_limit_denied(mock_db):
+    """A DynamoDB Decimal max_monthly_bookings value preserves the real denial path."""
+    event = create_event("Client", "/requests", method="POST", body_dict={
+        "client_name": "Decimal Client",
+        "client_email": "decimal-client@test.com",
+        "start_date": "2026-06-25",
+        "pet_names": "Buddy",
+        "accepted_terms": True,
+        "accepted_privacy": True,
+        "terms_version": "1.0",
+        "privacy_version": "1.0"
+    })
+    mock_db["get_item"].return_value["limits"] = {
+        "max_monthly_bookings": Decimal("250")
+    }
+    mock_db["table"].query.return_value = {
+        "Items": [{"SK": "CLIENT#match", "email": "decimal-client@test.com", "is_active": True}]
+    }
+    mock_db["table"].get_item.side_effect = lambda Key: (
+        {"Item": {"booking_count": 250}} if Key.get("PK", "").startswith("USAGE#")
+        else {"Item": mock_db["get_item"](Key.get("PK"), Key.get("SK"))}
+    )
+
+    resp = intake_handler(event, None)
+    assert resp["statusCode"] == 403
+    assert "Monthly booking limit reached (250/250)" in json.loads(resp["body"])["error"]
 
 
 # ---------------------------------------------------------------------------

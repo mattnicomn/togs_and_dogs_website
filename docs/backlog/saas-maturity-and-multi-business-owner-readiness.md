@@ -30,7 +30,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 10 | Pricing/signup page | ⛔ Blocked by product/pricing decision and payment direction | Medium | #8 |
 | 11 | "Getting Started" guide for business owners | ✅ LOCALLY COMPLETE / `GUIDE_CORRECT` / COMMITTED / PUSHED / NOT PUBLIC | Low | — |
 | 12 | Tenant-specific application landing and login-context agreement | ✅ DOMAIN-1 deployed; ROUTE-GATE-C and B1A real API Gateway tenant bootstrap validated | Done | DOMAIN-2–DOMAIN-4 remain future canonical-host work |
-| 13 | Decimal-safe entitlement decision serialization | ⚠️ Production defect isolated; separate runtime fix not started | High | Focused entitlement/handler tests + separately approved backend release |
+| 13 | Decimal-safe entitlement decision serialization | ✅ Local fix implemented, validated, and independently reviewed; NOT DEPLOYED | High | Isolated backend/Lambda RC planning/review + separately approved deployment |
 
 ---
 
@@ -40,7 +40,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 |------|--------|------------|
 | Tenant-resolution regression | Critical | Production Terraform and all 13 Lambdas use strict `TENANT_RESOLUTION_MODE=multi`, enabled in 18T and monitored in 18U. Missing/invalid tenant claims fail rather than silently using the compatibility fallback. Do not change the mode without explicit Matthew approval. |
 | Premature customer-tenant onboarding | High | `test_tenant_alpha` is an internal validation tenant, not a customer onboarding precedent. Require explicit approval plus product, billing, security, and operating readiness for any further tenant. |
-| DynamoDB `Decimal` values in tenant limit overrides break entitlement decision logging | High | Normalize/encode structured entitlement log fields before `json.dumps`; retain fail-closed limit enforcement and cover `max_staff`, active-client, and monthly-booking call sites with real `Decimal` fixtures. |
+| DynamoDB `Decimal` values in tenant limit overrides break entitlement decision logging | High | Local fix uses the canonical `DecimalEncoder` and real `Decimal` coverage for `max_staff`, active-client, and monthly-booking paths. Production risk remains until a separately approved backend deployment. |
 
 ---
 
@@ -67,7 +67,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 17 | Web Request List / Visit Requests queue correction | ⚠️ Audit found predicate, counter, navigation, and duplicate-fetch risks | P1 |
 | 18 | Mobile Dashboard exact destination filters | ⚠️ Five cards are pressable in source but counts/targets need refinement; D1 not in current builds | P3 |
 | 19 | Mobile bottom-navigation inset handling | ⚠️ Fixed tab height/padding does not derive from safe-area/system insets | P3 |
-| 20 | Entitlement observability Decimal serialization defect | ⚠️ `POST /admin/staff` is blocked for tenants whose persisted numeric limits deserialize as `Decimal`; the shared `check_limit` path can affect staff creation/onboarding, active-client creation, and intake booking-limit checks | P1 |
+| 20 | Entitlement observability Decimal serialization defect | ✅ LOCAL FIX IMPLEMENTED / VALIDATED / INDEPENDENTLY REVIEWED / NOT DEPLOYED; production `POST /admin/staff` and shared `check_limit` paths remain affected until separately approved backend deployment | P1 |
 
 ---
 
@@ -317,3 +317,5 @@ The dated update log below is historical chronology. Statements such as “stric
 **Updated 2026-08-20 (Ryan Slice E3B Mobile occurrence-safe workflow):** Mobile now consumes authoritative E3A child occurrences, keeps multi-window Check-In children distinct, starts and completes the exact child, reconciles ambiguous Start by authoritative refetch, and blocks unsafe parent-wide Complete. Singular legacy child identity remains compatible; ambiguous legacy multi-child identity requires refresh. Full Mobile 132/132 and TypeScript pass. E3B is not deployed and is not included in current internal builds; no build or distribution occurred.
 
 **Updated 2026-08-20 (Ryan Slice E3B.1 Mobile visit workflow safety remediation):** E3B.1 is implemented and validated locally but not deployed or included in current internal builds. Start and Complete now share one authoritative child-ID resolver: occurrence identity wins, route/occurrence or parent/occurrence mismatch fails safe, singular legacy identity works without a route ID, and ambiguous multi-child identity remains blocked. A synchronous shared visit-mutation lock prevents duplicate immediate Start and Start/Complete races, while mounted/request-sequence guards prevent stale async results from updating an obsolete screen. Exact-hydration failure now retains safely known parent date/window visibility as distinct refresh-required, non-actionable placeholders with no guessed IDs. Existing E3A/E3B status, Calendar, notification, and Complete semantics are unchanged; 1 + N Mobile hydration remains a future optimization. Focused E3B.1 19/19, full Mobile 148/148, TypeScript, shared validators, and E3A 24/24 pass. No build, distribution, or deployment occurred.
+
+**Updated 2026-08-31 (P1 Decimal entitlement serialization local closeout):** The shared entitlement decision log now uses the existing canonical backend `DecimalEncoder`, preserving whole-number and fractional numeric semantics without mutating entitlements or changing enforcement. Real `Decimal` fixtures cover allowed/denied observability, `max_staff`, `max_active_clients`, and `max_monthly_bookings`. Independent review disposition is `P1_DECIMAL_FIX_REVIEW_APPROVED`. The fix is local only and not deployed; production remains affected until a separately reviewed and explicitly approved backend release. B1A real Web/API write-path validation remains outstanding. Next action is isolated backend/Lambda RC preparation, planning/review only.

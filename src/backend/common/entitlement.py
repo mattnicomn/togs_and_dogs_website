@@ -15,6 +15,7 @@ import logging
 import json
 from common.billing import TenantEntitlement, TIER_LIMITS
 from common.protected_accounts import is_protected_email, is_protected_sub
+from common.response import DecimalEncoder
 
 # Configure logging level for AWS Lambda environment to ensure INFO events are captured
 logging.getLogger().setLevel(logging.INFO)
@@ -82,7 +83,7 @@ def _log_decision(event, company_id, check_type, subscription_tier, subscription
         if req_id:
             log_payload["request_id"] = req_id
 
-    logger.info(json.dumps(log_payload))
+    logger.info(json.dumps(log_payload, cls=DecimalEncoder))
 
 
 def _is_bypass_active(context):

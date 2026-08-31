@@ -1,6 +1,7 @@
 import pytest
 import os
 import json
+from decimal import Decimal
 from unittest.mock import patch, MagicMock
 from common.entitlement import (
     check_subscription_active,
@@ -126,7 +127,8 @@ def test_observability_limit_allowed_denied(mock_logger):
             'SK': 'METADATA',
             'company_id': 'test_company',
             'subscription_tier': 'starter',
-            'subscription_status': 'active'
+            'subscription_status': 'active',
+            'limits': {'max_staff': Decimal('1')}
         }
         
         # 1. Below limit (current=0, max=1)
@@ -141,6 +143,7 @@ def test_observability_limit_allowed_denied(mock_logger):
         assert limit_log['allowed'] is True
         assert limit_log['current_count'] == 0
         assert limit_log['max_allowed'] == 1
+        assert isinstance(limit_log['max_allowed'], int)
         
         mock_logger.reset_mock()
         
@@ -157,6 +160,40 @@ def test_observability_limit_allowed_denied(mock_logger):
         assert limit_denied_log['allowed'] is False
         assert limit_denied_log['current_count'] == 1
         assert limit_denied_log['max_allowed'] == 1
+        assert isinstance(limit_denied_log['max_allowed'], int)
+
+
+@patch('common.entitlement.logger')
+def test_observability_fractional_decimal_limit_is_not_truncated(mock_logger):
+    """Fractional DynamoDB limits remain fractional JSON numbers in decision logs."""
+    with patch('common.db.get_item') as mock_get:
+        mock_get.return_value = {
+            'PK': 'TENANT#test_company',
+            'SK': 'METADATA',
+            'company_id': 'test_company',
+            'subscription_tier': 'starter',
+            'subscription_status': 'active',
+            'limits': {'max_staff': Decimal('1.5')}
+        }
+
+        check_limit('test_company', 'max_staff', 1)
+
+        payloads = get_logged_payloads(mock_logger)
+        allowed_log = payloads[1]
+        assert allowed_log['event'] == 'ENTITLEMENT_ALLOWED'
+        assert allowed_log['max_allowed'] == 1.5
+        assert isinstance(allowed_log['max_allowed'], float)
+
+        mock_logger.reset_mock()
+
+        with pytest.raises(EntitlementDenied):
+            check_limit('test_company', 'max_staff', 2)
+
+        denied_payloads = get_logged_payloads(mock_logger)
+        denied_log = denied_payloads[1]
+        assert denied_log['event'] == 'ENTITLEMENT_DENIED'
+        assert denied_log['max_allowed'] == 1.5
+        assert isinstance(denied_log['max_allowed'], float)
 
 
 @patch('common.entitlement.logger')
@@ -222,4 +259,3 @@ def test_observability_protected_admin_bypass(mock_logger):
             val_str = str(v)
             assert 'support@usmissionhero.com' not in val_str
             assert 'email' not in val_str
-

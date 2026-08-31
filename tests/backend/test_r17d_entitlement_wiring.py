@@ -1,6 +1,7 @@
 import pytest
 import json
 import os
+from decimal import Decimal
 from unittest.mock import patch, MagicMock
 from handlers.admin_handler import handler as admin_handler
 from handlers.google_auth_handler import handler as google_auth_handler
@@ -232,6 +233,25 @@ def test_staff_creation_enabled_allows_below_limit(mock_db):
     
     resp = admin_handler(event, None)
     assert resp["statusCode"] == 200
+
+
+def test_staff_creation_with_decimal_limit_allows_below_limit(mock_db):
+    """A DynamoDB Decimal max_staff value survives the real staff creation path."""
+    event = create_event("Admin", "/admin/staff", method="POST", body_dict={"display_name": "Decimal Staff"})
+
+    mock_db["get_item"].return_value = {
+        "PK": "TENANT#test_company",
+        "SK": "METADATA",
+        "company_id": "test_company",
+        "subscription_tier": "starter",
+        "subscription_status": "active",
+        "limits": {"max_staff": Decimal("1")}
+    }
+    mock_db["table"].query.return_value = {"Items": []}
+
+    resp = admin_handler(event, None)
+    assert resp["statusCode"] == 200
+    assert json.loads(resp["body"])["display_name"] == "Decimal Staff"
 
 
 def test_staff_creation_enabled_denies_at_limit(mock_db):
