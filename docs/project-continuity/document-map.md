@@ -17,7 +17,8 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 |-------|----------|
 | Release notes index | `docs/release-notes/index.md` |
 | Individual release notes | `docs/release-notes/release-*.md` |
-| B1A real Web/API write-path validation approval plan | `docs/planning/b1a-real-web-api-write-path-validation-plan.md` |
+| B1A real Web/API write-path validation result (PASS; not full E2E) | `docs/release-notes/b1a-real-web-api-write-path-validation.md` |
+| B1A real Web/API write-path validation plan (executed once; historical) | `docs/planning/b1a-real-web-api-write-path-validation-plan.md` |
 | P1 Decimal entitlement serialization local fix | `docs/release-notes/p1-decimal-entitlement-serialization-local-fix.md` |
 | P1 Decimal entitlement backend RC | `docs/release-notes/p1-decimal-entitlement-serialization-backend-rc.md` |
 | P1 Decimal entitlement backend deployment plan and applied-plan reconciliation | `docs/release-notes/p1-decimal-entitlement-serialization-backend-deployment-plan.md` |

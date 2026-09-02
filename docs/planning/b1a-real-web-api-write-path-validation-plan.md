@@ -2,15 +2,42 @@
 
 **Date:** 2026-09-02
 
-**Status:** READY FOR MATTHEW APPROVAL / NOT APPROVED / NOT EXECUTED
+**Status:** EXECUTED ONCE / B1A REAL WEB/API WRITE-PATH VALIDATION PASS / HISTORICAL
 
-**Recommended scope:** Option A — one successful authenticated Profile Only
-staff creation for `test_tenant_alpha`, followed by exact-key cleanup under the
-same later explicit approval.
+**Executed scope:** Option A — one successful authenticated Profile Only
+staff creation for `test_tenant_alpha`, followed by one exact conditional cleanup
+under the same separate explicit Matthew approval.
 
-## Planning boundary
+## Execution closeout (2026-09-02)
 
-This is a documentation-only approval package. It authorizes no production
+The approved run completed at checkpoint
+`64e37128413f06fa508d13d4cea57428de98154a`: exactly one POST, one allowed
+non-bypass max_staff event (0/1), one persisted `STAFF#staff_eb16cb8b`, and one
+exact conditional deletion with matching `ALL_OLD`. Alpha inventory moved
+1 -> 2 -> 1 and returned to metadata only, with zero unexpected side effects
+or Lambda/Decimal errors and unchanged infrastructure health.
+
+See the [authoritative validation result](../release-notes/b1a-real-web-api-write-path-validation.md)
+for timestamps, exact marker/key, log coverage, cleanup, and health evidence.
+The successful HTTP 200 path is supported by UI success and the verified
+deployed handler/proxy contract; raw HTTP status/body and session material
+were not captured. The exact key was obtained from consistent DynamoDB
+readback, not independently captured from the raw POST response. This
+qualification is retained rather than retroactively rewriting the original
+response/key evidence criteria below.
+
+**FULL END-TO-END B1A IS NOT CLAIMED.** Remaining full-route workflow scope is
+classification A: future optional confidence testing. The approved
+representative persisted-write gap is closed; no new mandatory release gate
+is inferred. This one-time authority is exhausted. Do not repeat the run.
+
+The remaining sections preserve the original planning contract and historical
+pre-execution wording; they are not a fresh request or ongoing authorization.
+
+## Original planning boundary
+
+This was a documentation-only approval package; execution required the later
+separate explicit approval recorded above. The document itself authorizes no production
 request, AWS operation, Terraform operation, browser action, deployment, or
 data mutation.
 

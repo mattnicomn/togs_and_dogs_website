@@ -31,6 +31,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 11 | "Getting Started" guide for business owners | ✅ LOCALLY COMPLETE / `GUIDE_CORRECT` / COMMITTED / PUSHED / NOT PUBLIC | Low | — |
 | 12 | Tenant-specific application landing and login-context agreement | ✅ DOMAIN-1 deployed; ROUTE-GATE-C and B1A real API Gateway tenant bootstrap validated | Done | DOMAIN-2–DOMAIN-4 remain future canonical-host work |
 | 13 | Decimal-safe entitlement decision serialization | ✅ Deployed / production acceptance PASS / complete (2026-09-02) | Done | — |
+| 14 | Representative authenticated Web/API persisted-write proof | ✅ B1A REAL WEB/API WRITE-PATH VALIDATION PASS; exact cleanup complete (2026-09-02); not full E2E | Done | — |
 
 ---
 
@@ -117,7 +118,9 @@ Recently completed: former item 20, the entitlement observability Decimal serial
 | DOMAIN-6 | Provision and validate a unique DNS-safe tenant slug during approved onboarding | Not implemented | P4 |
 | DOMAIN-7 | Optional verified custom business domains | Deferred | P4 |
 
-Gate B1A does not need to wait for DOMAIN-3 wildcard delivery. The bounded route is deployed to production (Backend v3 and Web v2); ROUTE-GATE-C login isolation, the B1A read-only API layer, and B1A Gate-C synthetic cleanup are complete. The documentation-only real Web/API write-path plan is ready at `docs/planning/b1a-real-web-api-write-path-validation-plan.md`; its one-write/exact-cleanup execution remains separately Matthew-approval-gated and is not claimed.
+Gate B1A does not need to wait for DOMAIN-3 wildcard delivery. The bounded route is deployed to production (Backend v3 and Web v2); ROUTE-GATE-C login isolation, the B1A read-only API layer, and B1A Gate-C synthetic cleanup are complete. The separately approved representative real Web/API write-path validation passed on 2026-09-02: one Alpha Profile Only `POST /admin/staff` persisted one item and one exact conditional cleanup restored the metadata-only baseline. The successful persisted-write gap is closed; see `docs/release-notes/b1a-real-web-api-write-path-validation.md`. FULL END-TO-END B1A IS NOT CLAIMED.
+
+Remaining real-route intake/M&G/approval/async-job/assignment and downstream notification/Calendar scope is **A — future optional confidence testing**, not an automatic release gate. Backend workflow evidence plus the representative write closes the approved narrow gap, but does not prove every external route. Any future capability-specific gate or full-E2E claim must define its own evidence and explicit Matthew approval. No further workflow is authorized. Next recommendation: select separately scoped roadmap work, such as repository-only PTM-0 source-of-truth reconciliation; existing customer-tenant/PTM gates remain unchanged.
 
 ---
 
@@ -198,7 +201,9 @@ The internal test tenant already exists. Do not provision another tenant or trea
 6. ⛔ Security/Cognito design is approved for any self-service invite path.
 7. ⚠️ Billing activation remains blocked by EIN where live subscription/payment behavior is required.
 8. ✅ Deterministic Getting Started documentation is locally complete, independently reviewed (`GUIDE_CORRECT`), committed, and pushed as repository documentation; it is not publicly published.
-9. ✅ A normal tenant-specific owner landing and fail-closed expected-tenant/claim agreement are implemented and validated for `test_tenant_alpha`. Full B1A real Web/API write-path validation remains a separate planning/approval gate.
+9. ✅ A normal tenant-specific owner landing and fail-closed expected-tenant/claim agreement are implemented and validated for `test_tenant_alpha`. The representative real Web/API persisted-write slice is PASS with exact cleanup; full E2E is not claimed and the remaining full-route workflow is optional confidence work, not a new customer-onboarding gate.
+
+**Updated 2026-09-02 (B1A real Web/API write-path closeout):** `B1A_REAL_WEB_API_WRITE_PATH_PASS` at checkpoint `64e37128413f06fa508d13d4cea57428de98154a`. One authenticated Alpha staff POST succeeded, emitted one non-bypass max_staff event (`current_count=0`, `max_allowed=1`), and persisted `COMPANY#test_tenant_alpha / STAFF#staff_eb16cb8b`. One exact conditional delete returned matching `ALL_OLD`; Alpha moved 1 -> 2 -> 1 and final staff/marker counts were zero. Zero unexpected records, notifications, Calendar, Cognito mutations, async activity, Lambda errors, or Decimal errors. Lambda hash/health, strict multi, API `prod -> atxpw3`, and state 516 remained unchanged. The successful persisted-write gap is closed; full E2E is not claimed. Classification A applies to remaining full-route confidence work. This documentation closeout performs no production action.
 
 The dated update log below is historical chronology. Statements such as “strict mode remains disabled” or “no second tenant exists” were accurate at those checkpoints and are superseded by later entries.
 

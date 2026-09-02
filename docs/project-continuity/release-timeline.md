@@ -37,11 +37,27 @@
 |---------|-----------|
 | Web customer password recovery | Frontend-only production deployment completed; safe smoke and Matthew's live Cognito E2E recovery validation passed (2026-08-15) |
 
+## B1A Validation Evidence Boundaries
+
+| Evidence | Milestone |
+| --- | --- |
+| Backend Gate B (2026-08-27) | Direct-Lambda intake/M&G/approval/async-job/assignment evidence with documented direct-DynamoDB staff seeding after the Decimal failure; not real-route write evidence. Historical deviations are retained. |
+| API read-only and original Gate C (2026-08-28) | Real Web/API Gateway/Cognito tenant bootstrap passed; separately approved cleanup removed the exact eight August artifacts and restored metadata-only Alpha. |
+| Representative real Web/API write (2026-09-02) | **B1A REAL WEB/API WRITE-PATH VALIDATION PASS** at `64e37128413f06fa508d13d4cea57428de98154a`: one `POST /admin/staff`, one allowed max_staff event (0/1), one exact temporary staff item, and one conditional cleanup; Alpha 1 -> 2 -> 1. Zero unexpected side effects or Lambda/Decimal errors; Lambda/API/state baselines unchanged. |
+
+See [the focused validation record](../release-notes/b1a-real-web-api-write-path-validation.md).
+**FULL END-TO-END B1A IS NOT CLAIMED.** Remaining real-route intake, M&G,
+approval, async job creation, assignment, notifications, and Calendar are
+classification A: future optional confidence testing, requiring separate
+approval if selected. This closeout does not establish a new mandatory release
+gate or authorize further production action. Older dated rows retain their
+original checkpoint and approval boundaries.
+
 ## P1 Backend Reliability
 
 | Release | Milestone |
 |---------|-----------|
-| P1 Decimal entitlement serialization | **DEPLOYED / PRODUCTION ACCEPTANCE PASS / COMPLETE** (2026-09-02). The approved package-only release updated all 13 Lambdas in place. A one-time guarded real Web/Cognito/API Gateway probe proved a DynamoDB Number/Python `Decimal` entitlement override is emitted as valid numeric JSON (`current_count: 0`, `max_allowed: 1`) without Decimal serialization errors or application/data side effects. B1A full real Web/API write-path validation remains a separate planning/approval gate. |
+| P1 Decimal entitlement serialization | **DEPLOYED / PRODUCTION ACCEPTANCE PASS / COMPLETE** (2026-09-02). The approved package-only release updated all 13 Lambdas in place. A one-time guarded real Web/Cognito/API Gateway probe proved a DynamoDB Number/Python `Decimal` entitlement override is emitted as valid numeric JSON (`current_count: 0`, `max_allowed: 1`) without Decimal serialization errors or application/data side effects. The separate successful B1A persisted-write proof subsequently passed as recorded above; the guarded P1 probe itself did not persist a record. |
 
 ## Ryan Workflow Alignment
 
