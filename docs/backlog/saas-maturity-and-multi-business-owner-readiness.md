@@ -12,6 +12,8 @@
 
 The platform has an active primary tenant (`tog_and_dogs`) and an existing internal test tenant (`test_tenant_alpha`). Strict tenant resolution, tenant isolation, entitlement gates, Decimal-safe entitlement decision logging, provisioning tooling, branding, and per-tenant Google token isolation are deployed and validated. This backlog now tracks the product, billing, self-service, and operating work required before onboarding a future production/customer tenant. Further tenant provisioning remains approval-gated.
 
+**2026-09-02 PTM-0 audit qualification:** The above records bounded completed releases, not universal tenant-isolation assurance. Repository-only reconciliation found architecture conflicts in legacy-record reads, Google fallback, availability/role gates, and governance details. **C — narrow implementation changes required; PTM-0 implementation is not complete.** See [the source-of-truth audit](../planning/ptm-0-source-of-truth-reconciliation-audit.md) for R01–R18, F01–F09, deployment/source boundaries, and proposed slices. Independent review is next; no implementation or production action is authorized.
+
 ---
 
 ## Current Readiness for Future Customer-Tenant Onboarding
@@ -39,7 +41,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Tenant-resolution regression | Critical | Production Terraform and all 13 Lambdas use strict `TENANT_RESOLUTION_MODE=multi`, enabled in 18T and monitored in 18U. Missing/invalid tenant claims fail rather than silently using the compatibility fallback. Do not change the mode without explicit Matthew approval. |
+| Tenant-resolution / boundary gaps | Critical | Recorded production uses strict `multi`; core resolver rejects missing claims. PTM-0 F01–F03 identify separate untagged-record, Google fallback, and fail-open availability paths not covered by that guarantee. Review before broad customer-ready signoff; do not change production/mode or infer an incident. |
 | Premature customer-tenant onboarding | High | `test_tenant_alpha` is an internal validation tenant, not a customer onboarding precedent. Require explicit approval plus product, billing, security, and operating readiness for any further tenant. |
 
 ---
@@ -78,7 +80,7 @@ Recently completed: former item 20, the entitlement observability Decimal serial
 
 | Stage | Scope | Status | Priority |
 |-------|-------|--------|----------|
-| PTM-0 | Control Plane Architecture & Source-of-Truth Reconciliation (Cognito role groups vs `custom:company_id`, lifecycle states, app client policy) | ✅ Specification Approved (2026-08-25) | P0 |
+| PTM-0 | Control Plane Architecture & Source-of-Truth Reconciliation (Cognito role groups vs `custom:company_id`, lifecycle states, app client policy) | Specification Approved; repository audit complete 2026-09-02; **C / PTM0_ARCHITECTURE_CONFLICT_FOUND**; independent review pending, implementation NOT complete | P0 |
 | PTM-1 | Read-Only Tenant Directory Enhancement (`display_name`, `company_id`, `slug`, `lifecycle_state`, `owner_count`, `active_staff`) | Backlog Specification | P0 |
 | PTM-2 | Read-Only Tenant Details View (8 sections: Overview, Routing, Owners/Users, Subscriptions, Onboarding, Health, Audit, Presentation & Branding) | Backlog Specification | P0 |
 | PTM-3 | Routing & Domain Visibility (Slug mapping, generated subdomain status, custom domain verification) | Backlog Specification | P1 |
@@ -120,7 +122,7 @@ Recently completed: former item 20, the entitlement observability Decimal serial
 
 Gate B1A does not need to wait for DOMAIN-3 wildcard delivery. The bounded route is deployed to production (Backend v3 and Web v2); ROUTE-GATE-C login isolation, the B1A read-only API layer, and B1A Gate-C synthetic cleanup are complete. The separately approved representative real Web/API write-path validation passed on 2026-09-02: one Alpha Profile Only `POST /admin/staff` persisted one item and one exact conditional cleanup restored the metadata-only baseline. The successful persisted-write gap is closed; see `docs/release-notes/b1a-real-web-api-write-path-validation.md`. FULL END-TO-END B1A IS NOT CLAIMED.
 
-Remaining real-route intake/M&G/approval/async-job/assignment and downstream notification/Calendar scope is **A — future optional confidence testing**, not an automatic release gate. Backend workflow evidence plus the representative write closes the approved narrow gap, but does not prove every external route. Any future capability-specific gate or full-E2E claim must define its own evidence and explicit Matthew approval. No further workflow is authorized. Next recommendation: select separately scoped roadmap work, such as repository-only PTM-0 source-of-truth reconciliation; existing customer-tenant/PTM gates remain unchanged.
+Remaining real-route intake/M&G/approval/async-job/assignment and downstream notification/Calendar scope is **A — future optional confidence testing**, not an automatic release gate. Backend workflow evidence plus the representative write closes the approved narrow gap, but does not prove every external route. Any future capability-specific gate or full-E2E claim must define its own evidence and explicit Matthew approval. No further workflow is authorized. PTM-0 repository-only reconciliation is now audited; next recommendation is independent AG/Kiro review, then explicit Matthew approval for the proposed smallest local slice (PTM0-S1 legacy-record read isolation). Existing customer-tenant/PTM gates remain unchanged.
 
 ---
 

@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-09-02 (B1A real Web/API write-path validation PASS / Alpha baseline restored)
+**Last Updated:** 2026-09-02 (PTM-0 repository-only reconciliation audit complete; architecture conflicts require independent review)
 
 ---
 
@@ -8,7 +8,7 @@
 
 | Component | Status |
 |-----------|--------|
-| Web app (React/Vite) | ✅ DOMAIN-1 tenant-route Web v2 artifact from runtime source `440cab2` deployed to the shared compatibility host; direct tenant deep links and fail-closed unauthenticated boundary verified |
+| Web app (React/Vite) | ✅ Latest recorded Web release: PTM-3D.1 neutral presentation, `assets/index-CdPio7XK.js`; includes the deployed DOMAIN-1 tenant route. Earlier Web v2 artifact `440cab2` is historical. No new deployment or live check in the PTM-0 audit. |
 | Backend (Python/Lambda) | ✅ P1 deployed and production-accepted — all 13 functions Active/Successful on approved `CodeSha256 K/ZU4P5+tp3RdSQQwrp32JdlXSi9ReB/2CKnKJqTOSU=`; DOMAIN-1 expected-tenant route bridge remains active |
 | API Gateway | ✅ Active — production `prod -> atxpw3`; `GET /admin/tenant-info` is Cognito-authorized, Lambda-proxy integrated, and authenticated end-to-end for `test_tenant_alpha` |
 | DynamoDB | ✅ Single table, shared-tenant model |
@@ -41,18 +41,19 @@
 
 | Feature | Status |
 |---------|--------|
-| Tenant Resolution Engine | ✅ Deployed (header, query parameter, subdomain, and path sources); active strict `multi` mode rejects unresolved tenants instead of using the compatibility fallback |
+| Tenant Resolution Engine | Strict claim-based resolver plus DOMAIN-1 expected-slug bridge and server-owned public-intake domain map; arbitrary headers/query parameters are not tenant authority. Generalized host registry remains future. PTM-0 audit identified separate fallback exceptions; see audit F02/F03. |
 | Tenant Resolution Mode | ✅ Strict `TENANT_RESOLUTION_MODE=multi` active in production and validated (18T/18U); do not change without explicit Matthew approval |
-| Tenant Isolation | ✅ Enforced across all primary database helpers (11E, 18V, 19K) |
+| Tenant Isolation | Recorded bounded 11E/18V/19K and later validation remains accepted; not universal proof. PTM-0 static audit found untagged list/export filters and other boundary conflicts (F01–F05); no live exposure asserted. |
 | Entitlement Framework | ✅ Active with 8 enforced metrics (17A–17W) |
-| Platform Admin Panel | ✅ Deployed (`/platform-admin/metrics`, `/platform-admin/tenants`) |
+| Platform Admin Panel | Deployed foundation: `/platform-admin`, `/platform-admin/tenants/:companyId`, `/platform-admin/audit`; enhanced directory/details/membership remain separate PTM work. No `/platform-admin/metrics` route found in current source. |
 | Platform Tenant Management Control Plane | ✅ Specification Approved (2026-08-25); PTM-0 through PTM-13 defined (including PTM-3B read-only branding, PTM-3C mobile presentation, PTM-3D Web presentation, & PTM-3E cross-platform validation); Tier-1 PTM-0..2+4+5 required before 2nd customer tenant creation (does not block existing internal test_tenant_alpha); Tier-2 PTM-3B+3D+3E required for Web launch; Tier-3 Tier-2+PTM-3C+3E for Mobile launch; `docs/planning/platform-tenant-management-control-plane.md` |
+| PTM-0 implementation reconciliation | Audit complete at starting checkpoint `3d584851407d5341a4121a17ca61d27d173dc4ab`; **C — narrow implementation changes required / PTM0_ARCHITECTURE_CONFLICT_FOUND**. PTM-0 is not implementation-complete. Independent AG/Kiro review and Matthew approval precede any implementation. See `docs/planning/ptm-0-source-of-truth-reconciliation-audit.md`. |
 | Control-plane / tenant-plane URL separation | 🟡 DOMAIN-1 backend bridge and `/t/:tenantSlug/admin` Web route are deployed; canonical tenant host/DNS separation remains unimplemented and unapproved |
 | Strict-mode observation | ✅ Post-enable monitoring complete (18U — PASS) |
 | Second tenant | ✅ Internal test tenant `test_tenant_alpha` created and validated (19D/19E); future customer/additional tenant provisioning remains approval-gated |
 | Second-tenant application landing | ✅ `/t/test-tenant-alpha/admin` is deployed; authenticated tenant-route isolation and the real API Gateway tenant bootstrap are verified for the internal Alpha tenant |
 | Tenant provisioning script | ✅ Dry run and controlled test-tenant apply validated (19B/19D) |
-| Tenant display branding | ✅ Single shared React application and single shared Expo app preserve runtime presentation (`docs/planning/tenant-aware-mobile-presentation-architecture.md`); PTM-3B/3C/3D/3E specified; PTM-10 subdomains require DNS-safe slug `test-tenant-alpha` |
+| Tenant display branding | Shared React/Expo architecture approved; bounded Web PTM-3D.1 neutral/Alpha presentation deployed and validated. General Mobile tenant bootstrap and full PTM-3B/3C/3E acceptance are not established by that Web result. PTM-10 remains flat DNS-safe slug architecture, not deployed. |
 | Tenant disable & restore | ✅ Gated & Validated in Production (20F — PASS) |
 | Google Calendar Per-Tenant Token Isolation | ✅ Deployed & Validated (21H — PASS) |
 
@@ -61,8 +62,14 @@
 | Blocker | Impact | Owner |
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
+| PTM-0 authority/boundary conflicts | Blocks broad customer-ready signoff, not a rollback directive; static F01/F02 blocker findings and F03–F08 gaps need review. Existing Tier-1 gate unchanged. | Matthew / independent reviewer |
 
 ## Current Work and Latest Closeouts
+
+- PTM-0 Source-of-Truth Reconciliation (AUDIT COMPLETE / IMPLEMENTATION NOT COMPLETE — 2026-09-02)
+  - Repository-only comparison establishes **C — narrow implementation changes required**, disposition `PTM0_ARCHITECTURE_CONFLICT_FOUND`. Core tenant identity and shared-client architecture exist, but untagged list/export reads, Google fallback, entitlement availability exceptions, legacy email role elevation, membership drift, provisioning atomicity, and audit completeness need separate reviewed slices.
+  - Evidence distinguishes main from the recorded P1 runtime, local-only Preview V1, deployed DOMAIN-1/Web presentation, and unimplemented lifecycle/slug/read models. Historical P1 and narrow B1A PASS remain accepted; no production incident or new live validation is claimed.
+  - Next: AG/Kiro independently review `docs/planning/ptm-0-source-of-truth-reconciliation-audit.md`, then Matthew may authorize the proposed smallest local slice, PTM0-S1 legacy-record read isolation. No code, tests, AWS, Terraform, browser/session, or production action occurred. No implementation/deployment authorization is implied.
 
 The Phase 24A entries below preserve their local-closeout wording at the time each phase was committed. The authoritative current mobile distribution state is the corrected internal pair: iOS `1.0.0 (6)` on TestFlight and Android `1.0.0` versionCode `4` on Google Play Internal Testing. Phase 24A mobile work is internally distributed and revalidated, but not publicly released.
 
@@ -612,7 +619,7 @@ The Phase 24A entries below preserve their local-closeout wording at the time ea
 **Production deployment 22P/22R failed manual validation due to drawer stability and viewport scrollbar/overflow issues. Release 22V deployed the combined drawer fixes (22S) and client bookings date/window display fixes (22U) to production. Manual validation passed successfully. No hotfix/main branch divergence remains — production now runs from `main`. Matthew ran a controlled smoke test (Release 22X) and found three findings. Release 22Y completed a read-only triage of these findings, identifying Cognito password reset restrictions and API Gateway DELETE method deployment issues as root causes. Release 22ZA implemented the mobile responsive foundation and accessible slide-out navigation drawer (pre-deploy validated). Release 22ZB implemented the full-screen Profile Editor mobile sheet layout (pre-deploy validated). Release 22ZC added keyboard-accessible stat cards, responsive filter controls stacking, and accessible data-label column labels on mobile request cards (pre-deploy validated). Phase 1B.2A backend-only Lambda package apply completed successfully, deploying the pet creation is_active hardening code to production. Phase 1B.2A ClientPetIndex GSI-only apply completed successfully, creating the global secondary database index in production (index backfilled and status ACTIVE). Phase 1B.2A ClientPetIndex query cutover deployed to production on 2026-07-20 (0 added, 13 changed, 0 destroyed). All 13 Lambda functions verified Active/Successful with expected CodeSha256. Matthew authenticated manual smoke PASSED (admin login, Client Management page, client drawer, admin pet list). Phase 1B.3 frontend deployed to production with /my-pets route, card-click drawer interaction, accessible cards, and mobile bottom-sheet. Hook-order hotfix applied. Matthew confirmed production works. Phase 1B.3 COMPLETE and CLOSED. Phase 1B.4A–E Client Drawer Editor Consolidation deployed to production. Matthew confirmed drawer View/Edit/Create experience works correctly, inline editor retired, Staff Management unaffected. Phase 1B.4A–E COMPLETE and CLOSED. Phase 1B.4F–H remain deferred. Phase 1B.5 (Pet Management and Client–Pet Association) is active. Phase 1B.5A and 1B.5A.1 deployed and validated (2026-07-22). Phase 1B.5B-A Staff Pet Editor and hotfixes deployed and validated (2026-07-23). Phase 1B.5C-A Customer Pet Editing deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-A.1 admin pet care field hotfix deployed and validated (2026-07-30). Phase 1B.5C-B (active staff count fix) and 1B.5C-C (staff edit double-click fix) deployed (2026-07-28) and validated (2026-07-30). Phase 1B.5C-D.1 (platform-managed protected admin controls) deployed, seeded, and validated (2026-07-30). Phase 1B.5C-D.2 (remove legacy config protection) converged via D.1 deployment and validated (2026-07-30). The later Web Customer Self-Service Password Recovery frontend deployment completed safe production smoke and live Cognito E2E validation on 2026-08-15; the established backend deployment baseline remains Phase 1B.5C-D.2.**
 
 **Next options:**
-- B1A representative real Web/API write-path validation is closed/pass; no repeat or further workflow is authorized. Classify the remaining full-route workflow as A (future optional confidence test), and select the next separately scoped roadmap item, such as repository-only PTM-0 source-of-truth reconciliation.
+- B1A representative real Web/API write-path validation is closed/pass; no repeat or further workflow is authorized. Remaining full-route workflow is A (future optional confidence testing). PTM-0 repository-only reconciliation is now audited with architecture conflicts; independent AG/Kiro review is next, before Matthew approves any implementation slice. Tier-1/2/3 gates remain unchanged.
 - Preview V1 onboarding deployment assessment (read-only/design-only); password recovery was already deployed separately on 2026-08-15
 - Phase 24A-9D: Formal production-write validation (separately gated; not authorized by the completed 9C revalidation)
 - Phase 1B.5D–E: Pet Lifecycle safeguards and booking integration (deferred)

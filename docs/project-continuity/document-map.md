@@ -58,6 +58,7 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 |-------|-----------|
 | SaaS architecture roadmap | `docs/planning/release-11a-multi-business-saas-architecture-and-product-roadmap.md` |
 | Platform Tenant Management Control Plane specification (PTM-0 through PTM-13) | `docs/planning/platform-tenant-management-control-plane.md` |
+| PTM-0 source-of-truth reconciliation audit (C; architecture conflicts; independent review pending) | `docs/planning/ptm-0-source-of-truth-reconciliation-audit.md` |
 | Tenant-Aware Mobile Presentation Architecture & Cross-Platform Branding Model | `docs/planning/tenant-aware-mobile-presentation-architecture.md` |
 | DOMAIN-1 tenant access routing ADR | `docs/planning/adr-domain-1-tenant-access-routing.md` |
 | Tenant access, client onboarding, Visit Requests, Request List, and Mobile operations alignment (authoritative 2026-08-23 reconciliation) | `docs/planning/tenant-access-client-onboarding-operational-workflow-alignment.md` |
