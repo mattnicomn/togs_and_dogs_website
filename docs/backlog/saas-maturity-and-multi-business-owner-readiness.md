@@ -117,7 +117,7 @@ Recently completed: former item 20, the entitlement observability Decimal serial
 | DOMAIN-6 | Provision and validate a unique DNS-safe tenant slug during approved onboarding | Not implemented | P4 |
 | DOMAIN-7 | Optional verified custom business domains | Deferred | P4 |
 
-Gate B1A does not need to wait for DOMAIN-3 wildcard delivery. The bounded route is deployed to production (Backend v3 and Web v2); ROUTE-GATE-C login isolation, the B1A read-only API layer, and B1A Gate-C synthetic cleanup are complete. Full real Web/API write-path validation remains separately approval-gated and is not claimed.
+Gate B1A does not need to wait for DOMAIN-3 wildcard delivery. The bounded route is deployed to production (Backend v3 and Web v2); ROUTE-GATE-C login isolation, the B1A read-only API layer, and B1A Gate-C synthetic cleanup are complete. The documentation-only real Web/API write-path plan is ready at `docs/planning/b1a-real-web-api-write-path-validation-plan.md`; its one-write/exact-cleanup execution remains separately Matthew-approval-gated and is not claimed.
 
 ---
 
