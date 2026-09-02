@@ -3,6 +3,7 @@ import json
 import pytest
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timezone
+from test_ptm0_s1_untagged_isolation import s1_read_table, s1_request, s1_event
 
 # Set required env vars
 os.environ.setdefault('DEFAULT_COMPANY_ID', 'tog_and_dogs')
@@ -13,6 +14,51 @@ os.environ.setdefault('GOOGLE_USER_TOKENS_NAME', 'google-tokens')
 
 from handlers.google_auth_handler import get_status, calendar_health_check, initiate_auth, handle_callback, disconnect_auth
 from handlers.admin_handler import handler as admin_handler
+
+
+@pytest.mark.parametrize('company', ['tog_and_dogs', 'test_tenant_alpha', 'future_tenant'])
+@pytest.mark.parametrize('status', ['ALL', 'PENDING_REVIEW', None])
+def test_s1_admin_request_lists_scope_every_page(s1_read_table, company, status):
+    rows = [s1_request('own', company), s1_request('wrong', 'other_company'),
+            s1_request('primary', 'tog_and_dogs'), s1_request('legacy'),
+            s1_request('null', None), s1_request('empty', ''),
+            s1_request('space', ' '), s1_request('numeric', 42),
+            s1_request('list', [company]), s1_request('map', {'id': company}),
+            s1_request('deleted', company, status='DELETED'),
+            s1_request('archived', company, status='ARCHIVED')]
+    rows.append(dict(s1_request('job', company), PK='JOB#job', entity_type='JOB'))
+    s1_read_table.seed(rows)
+    query = {'limit': '1'}
+    if status is not None:
+        query['status'] = status
+    original_scan = s1_read_table.table.scan
+    with patch.object(s1_read_table.table, 'scan', side_effect=lambda **kw: original_scan(**dict(kw, Limit=1))) as scans, \
+         patch.object(s1_read_table.table, 'query', wraps=s1_read_table.table.query) as queries:
+        seen, cursors, empty_pages = [], [], 0
+        for _ in range(30):
+            response = admin_handler(s1_event(company, query=query), {})
+            assert response['statusCode'] == 200
+            body = json.loads(response['body'])
+            seen.extend(item['request_id'] for item in body['requests'])
+            empty_pages += not body['requests']
+            cursor = body['lastKey']
+            if not cursor:
+                break
+            assert cursor not in cursors
+            cursors.append(cursor)
+            query['startKey'] = cursor
+        else:
+            pytest.fail('S1 pagination did not terminate')
+    expected = {'own', 'primary', 'legacy'} if company == 'tog_and_dogs' else {'own'}
+    assert set(seen) == expected
+    assert len(seen) == len(expected)
+    assert empty_pages > 0  # Empty filtered pages must still allow safe continuation.
+    calls = scans.call_args_list if status == 'ALL' else queries.call_args_list
+    assert len(calls) > 1
+    filters = [call.kwargs['FilterExpression'] for call in calls]
+    assert all(condition == filters[0] for condition in filters)
+    assert all('ExclusiveStartKey' in call.kwargs for call in calls[1:])
+    s1_read_table.audit.assert_not_called()
 
 def make_event(path, http_method='GET', groups=None, custom_company_id=None, email='user@example.com', sub='test-sub-123', body=None):
     claims = {

@@ -18,6 +18,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src', 'backend'))
 
 from unittest.mock import patch, MagicMock
+from test_ptm0_s1_untagged_isolation import s1_read_table, s1_request, s1_event
 
 # Import the handlers at module load time so their namespaces exist
 from handlers.review_handler import handler as review_handler
@@ -281,36 +282,36 @@ def test_admin_handler_job_complete_cross_tenant_blocked(mock_get):
 # 5. admin_handler — export-data returns only caller's company records
 # ===========================================================================
 
-@patch('common.audit.log_action')
-@patch('common.db.table')
-@sync_mocks
-def test_admin_handler_export_filters_by_company(mock_table, mock_log):
-    """admin_handler export-data: scan is filtered by company_id."""
-    # Mix of records from different companies
-    records = [
-        {'PK': 'REQ#a', 'SK': 'CLIENT#c1', 'entity_type': 'REQUEST', 'company_id': 'tog_and_dogs'},
-        {'PK': 'REQ#b', 'SK': 'CLIENT#c2', 'entity_type': 'REQUEST', 'company_id': 'other_company'},
-    ]
-
-    # Simulate DynamoDB scan returning only the filtered results
-    mock_table.scan.return_value = {
-        'Items': [records[0]]  # Only tog_and_dogs record returned
-    }
-
-    event = make_event(role='admin', company_id='tog_and_dogs',
-                       body={}, method='GET', path='/admin/export-data')
-
-    resp = admin_handler(event, {})
-    assert resp['statusCode'] == 200, f"Expected 200, got {resp['statusCode']}"
-    body = json.loads(resp['body'])
-    data = body.get('data', body)
-    all_items = (
-        data.get('requests', []) + data.get('clients', []) +
-        data.get('pets', []) + data.get('staff', []) + data.get('jobs', [])
-    )
-    for item in all_items:
-        assert item.get('company_id') != 'other_company', \
-            f"Cross-tenant record leaked into export: {item}"
+@pytest.mark.parametrize('company', ['tog_and_dogs', 'test_tenant_alpha', 'future_tenant'])
+def test_admin_handler_export_filters_by_company(s1_read_table, company):
+    """Evaluate the actual filter over mixed records, including absent fields."""
+    records = [s1_request('own', company), s1_request('wrong', 'other_company'),
+               s1_request('legacy'), s1_request('null', None), s1_request('empty', '')]
+    for kind, prefix in [('PET', 'PET'), ('JOB', 'JOB'), ('STAFF', 'COMPANY'), ('CLIENT', 'COMPANY')]:
+        for label, association in [('own', company), ('wrong', 'other_company'), ('legacy', None)]:
+            row = {'PK': f'{prefix}#{label}-{kind}', 'SK': f'{kind}#{label}', 'entity_type': kind}
+            if association is not None:
+                row['company_id'] = association
+            records.append(row)
+    s1_read_table.seed(records)
+    # Force small DynamoDB pages: every real scan must retain the same filter.
+    original_scan = s1_read_table.table.scan
+    with patch.object(s1_read_table.table, 'scan', side_effect=lambda **kw: original_scan(**dict(kw, Limit=2))) as scans:
+        resp = admin_handler(s1_event(company, '/admin/export-data'), {})
+    assert resp['statusCode'] == 200
+    data = json.loads(resp['body'])
+    all_items = sum((data[key] for key in ('requests', 'clients', 'pets', 'staff', 'jobs')), [])
+    expected = {row['PK'] for row in records if row.get('company_id') == company
+                or (company == 'tog_and_dogs' and 'company_id' not in row)}
+    assert {item['PK'] for item in all_items} == expected
+    assert len(scans.call_args_list) > 1
+    filters = [call.kwargs['FilterExpression'] for call in scans.call_args_list]
+    assert all(condition == filters[0] for condition in filters)
+    assert all('ExclusiveStartKey' in call.kwargs for call in scans.call_args_list[1:])
+    # Successful exports already audit once. S1 must not add or remove this write;
+    # the audit is mocked, and no production export is invoked.
+    s1_read_table.audit.assert_called_once()
+    assert s1_read_table.audit.call_args.args[1] == 'EXPORT_BACKUP'
 
 
 # ===========================================================================

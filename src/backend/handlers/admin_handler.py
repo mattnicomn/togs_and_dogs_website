@@ -7,6 +7,7 @@ from common.notifications.service import notify_event
 from common.google_calendar import sync_calendar_event, delete_event
 from common.response import success, bad_request, internal_error, not_found, error
 from common.auth import get_effective_role, sanitize_booking_for_role, get_claims
+from common.tenant_read_scope import build_tenant_read_filter
 from common.entitlement import EntitlementDenied
 from common.audit import log_action
 import uuid
@@ -528,7 +529,11 @@ def handler(event, context):
                 from boto3.dynamodb.conditions import Attr
                 
                 scan_kwargs = {
-                    "FilterExpression": Attr("client_id").eq(client_id) & Attr("entity_type").eq("REQUEST")
+                    "FilterExpression": (
+                        Attr("client_id").eq(client_id)
+                        & Attr("entity_type").eq("REQUEST")
+                        & build_tenant_read_filter(company_id, allow_primary_legacy=True)
+                    )
                 }
                 
                 response = items_table.scan(**scan_kwargs)
@@ -553,8 +558,7 @@ def handler(event, context):
                 return error(403, "Forbidden", event)
             
             from common.db import table as _table
-            from common.auth import get_current_company_id as _get_company_id, DEFAULT_COMPANY_ID
-            from boto3.dynamodb.conditions import Attr as _Attr
+            from common.auth import get_current_company_id as _get_company_id
 
             # Release 11E: Filter export to caller's company only
             _company_id = _get_company_id(event)
@@ -566,7 +570,7 @@ def handler(event, context):
             # Fetch all records for backup
             # Low-volume operational scale allows for periodic admin scans
             scan_kwargs = {
-                "FilterExpression": _Attr('company_id').eq(_company_id) | _Attr('company_id').not_exists()
+                "FilterExpression": build_tenant_read_filter(_company_id, allow_primary_legacy=True)
             }
             response = _table.scan(**scan_kwargs)
             items = response.get('Items', [])
@@ -2310,6 +2314,7 @@ def handler(event, context):
             timeframe = query_params.get('timeframe') # DAILY, WEEKLY, etc.
             
             from common.db import table as items_table, Key
+            from boto3.dynamodb.conditions import Attr
             
             # SPECIAL CASE: ALL (Scan fallback for scheduler & Client Portal)
             if status == 'ALL':
@@ -2330,43 +2335,30 @@ def handler(event, context):
                 # 2. Admins see 'All Active' (excludes DELETED and ARCHIVED) by default in this view
                 # 3. EXCLUSION: Only include records that look like requests or jobs (REQ# or JOB#)
                 #    to prevent system metadata (COMPANY#) or audit logs (AUDIT#) from polluting the list.
-                filter_expressions = []
-                expression_values = {}
-                expression_names = {"#stat": "status"}
-
                 from common.auth import get_current_company_id
                 company_id = get_current_company_id(event)
                 
-                # Scope to company or shared/orphaned records
-                filter_expressions.append("(company_id = :cid OR attribute_not_exists(company_id))")
-                expression_values[":cid"] = company_id
+                # Untagged compatibility is exclusive to the historical primary tenant.
+                read_filter = build_tenant_read_filter(company_id, allow_primary_legacy=True)
 
                 # Identity Scoping
                 if role == 'staff' and user_email:
                     # Staff only see jobs assigned to them
-                    filter_expressions.append("worker_id = :wid")
-                    expression_values[":wid"] = user_email
+                    read_filter = read_filter & Attr('worker_id').eq(user_email)
                 elif not is_admin and user_email:
                     # Clients only see their own records
-                    filter_expressions.append("client_email = :email")
-                    expression_values[":email"] = user_email
+                    read_filter = read_filter & Attr('client_email').eq(user_email)
                 
                 # Terminal State Exclusion
-                filter_expressions.append("#stat <> :deleted")
-                filter_expressions.append("#stat <> :archived")
-                expression_values[":deleted"] = 'DELETED'
-                expression_values[":archived"] = 'ARCHIVED'
+                read_filter = read_filter & Attr('status').ne('DELETED') & Attr('status').ne('ARCHIVED')
 
                 # Release 1: Request List shows parent REQ# records only.
                 # JOB# records are internal child records used for worker assignment and calendar sync.
                 # They should not appear as separate rows in the admin request list.
                 # Previously this included JOB# which caused duplicate rows for the same booking.
-                filter_expressions.append("contains(PK, :req_tag)")
-                expression_values[":req_tag"] = "REQ#"
+                read_filter = read_filter & Attr('PK').contains('REQ#')
                 
-                scan_kwargs["FilterExpression"] = " AND ".join(filter_expressions)
-                scan_kwargs["ExpressionAttributeValues"] = expression_values
-                scan_kwargs["ExpressionAttributeNames"] = expression_names
+                scan_kwargs["FilterExpression"] = read_filter
                 
                 if last_key:
                     scan_kwargs["ExclusiveStartKey"] = json.loads(last_key)
@@ -2394,8 +2386,10 @@ def handler(event, context):
                 "KeyConditionExpression": Key('status').eq(status),
                 # Release 1: Exclude JOB# records from status-specific queries.
                 # Only parent REQ# records should appear in the admin request list.
-                "FilterExpression": "(company_id = :cid OR attribute_not_exists(company_id)) AND contains(PK, :req_tag)",
-                "ExpressionAttributeValues": {":cid": company_id, ":req_tag": "REQ#"},
+                "FilterExpression": (
+                    build_tenant_read_filter(company_id, allow_primary_legacy=True)
+                    & Attr('PK').contains('REQ#')
+                ),
                 "Limit": limit,
                 "ScanIndexForward": False # Newest first
             }
