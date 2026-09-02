@@ -4,9 +4,16 @@
 
 **Starting checkpoint:** `main` at `26693a52864cd8386d923f95a8f6482ae3efad1c`
 
-**Status:** LOCAL FIX IMPLEMENTED / VALIDATED / INDEPENDENTLY REVIEWED / NOT DEPLOYED
+**Status:** HISTORICAL LOCAL FIX / SUPERSEDED BY SUCCESSFUL DEPLOYMENT AND PRODUCTION ACCEPTANCE
 
 **Independent review disposition:** `P1_DECIMAL_FIX_REVIEW_APPROVED`
+
+> **2026-09-02 reconciliation:** This record preserves the original local-fix
+> checkpoint. The exact reviewed correction was subsequently isolated,
+> packaged, deployed to all 13 Lambdas, and accepted through one guarded real
+> Web/Cognito/API Gateway execution. Final disposition:
+> `P1_PRODUCTION_DECIMAL_ACCEPTANCE_PASS`. See
+> `p1-decimal-entitlement-serialization-production-acceptance.md`.
 
 ## Defect and observed B1A impact
 

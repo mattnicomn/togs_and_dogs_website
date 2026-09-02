@@ -10,7 +10,7 @@
 
 ## Summary
 
-The platform has an active primary tenant (`tog_and_dogs`) and an existing internal test tenant (`test_tenant_alpha`). Strict tenant resolution, tenant isolation, entitlement gates, provisioning tooling, branding, and per-tenant Google token isolation are deployed and validated. This backlog now tracks the product, billing, self-service, and operating work required before onboarding a future production/customer tenant. Further tenant provisioning remains approval-gated.
+The platform has an active primary tenant (`tog_and_dogs`) and an existing internal test tenant (`test_tenant_alpha`). Strict tenant resolution, tenant isolation, entitlement gates, Decimal-safe entitlement decision logging, provisioning tooling, branding, and per-tenant Google token isolation are deployed and validated. This backlog now tracks the product, billing, self-service, and operating work required before onboarding a future production/customer tenant. Further tenant provisioning remains approval-gated.
 
 ---
 
@@ -30,7 +30,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 10 | Pricing/signup page | ⛔ Blocked by product/pricing decision and payment direction | Medium | #8 |
 | 11 | "Getting Started" guide for business owners | ✅ LOCALLY COMPLETE / `GUIDE_CORRECT` / COMMITTED / PUSHED / NOT PUBLIC | Low | — |
 | 12 | Tenant-specific application landing and login-context agreement | ✅ DOMAIN-1 deployed; ROUTE-GATE-C and B1A real API Gateway tenant bootstrap validated | Done | DOMAIN-2–DOMAIN-4 remain future canonical-host work |
-| 13 | Decimal-safe entitlement decision serialization | ✅ Local fix implemented, validated, and independently reviewed; NOT DEPLOYED | High | Isolated backend/Lambda RC planning/review + separately approved deployment |
+| 13 | Decimal-safe entitlement decision serialization | ✅ Deployed / production acceptance PASS / complete (2026-09-02) | Done | — |
 
 ---
 
@@ -40,7 +40,6 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 |------|--------|------------|
 | Tenant-resolution regression | Critical | Production Terraform and all 13 Lambdas use strict `TENANT_RESOLUTION_MODE=multi`, enabled in 18T and monitored in 18U. Missing/invalid tenant claims fail rather than silently using the compatibility fallback. Do not change the mode without explicit Matthew approval. |
 | Premature customer-tenant onboarding | High | `test_tenant_alpha` is an internal validation tenant, not a customer onboarding precedent. Require explicit approval plus product, billing, security, and operating readiness for any further tenant. |
-| DynamoDB `Decimal` values in tenant limit overrides break entitlement decision logging | High | Local fix uses the canonical `DecimalEncoder` and real `Decimal` coverage for `max_staff`, active-client, and monthly-booking paths. Production risk remains until a separately approved backend deployment. |
 
 ---
 
@@ -67,7 +66,8 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 | 17 | Web Request List / Visit Requests queue correction | ⚠️ Audit found predicate, counter, navigation, and duplicate-fetch risks | P1 |
 | 18 | Mobile Dashboard exact destination filters | ⚠️ Five cards are pressable in source but counts/targets need refinement; D1 not in current builds | P3 |
 | 19 | Mobile bottom-navigation inset handling | ⚠️ Fixed tab height/padding does not derive from safe-area/system insets | P3 |
-| 20 | Entitlement observability Decimal serialization defect | ✅ LOCAL FIX IMPLEMENTED / VALIDATED / INDEPENDENTLY REVIEWED / NOT DEPLOYED; production `POST /admin/staff` and shared `check_limit` paths remain affected until separately approved backend deployment | P1 |
+
+Recently completed: former item 20, the entitlement observability Decimal serialization defect, is **DEPLOYED / PRODUCTION ACCEPTANCE PASS / COMPLETE** as of 2026-09-02. It is no longer an active backlog risk.
 
 ---
 
@@ -198,7 +198,7 @@ The internal test tenant already exists. Do not provision another tenant or trea
 6. ⛔ Security/Cognito design is approved for any self-service invite path.
 7. ⚠️ Billing activation remains blocked by EIN where live subscription/payment behavior is required.
 8. ✅ Deterministic Getting Started documentation is locally complete, independently reviewed (`GUIDE_CORRECT`), committed, and pushed as repository documentation; it is not publicly published.
-9. ⛔ A normal tenant-specific owner landing and fail-closed expected-tenant/claim agreement are implemented and validated. `test_tenant_alpha` currently lacks this surface, so Gate B1A remains blocked.
+9. ✅ A normal tenant-specific owner landing and fail-closed expected-tenant/claim agreement are implemented and validated for `test_tenant_alpha`. Full B1A real Web/API write-path validation remains a separate planning/approval gate.
 
 The dated update log below is historical chronology. Statements such as “strict mode remains disabled” or “no second tenant exists” were accurate at those checkpoints and are superseded by later entries.
 
@@ -319,3 +319,5 @@ The dated update log below is historical chronology. Statements such as “stric
 **Updated 2026-08-20 (Ryan Slice E3B.1 Mobile visit workflow safety remediation):** E3B.1 is implemented and validated locally but not deployed or included in current internal builds. Start and Complete now share one authoritative child-ID resolver: occurrence identity wins, route/occurrence or parent/occurrence mismatch fails safe, singular legacy identity works without a route ID, and ambiguous multi-child identity remains blocked. A synchronous shared visit-mutation lock prevents duplicate immediate Start and Start/Complete races, while mounted/request-sequence guards prevent stale async results from updating an obsolete screen. Exact-hydration failure now retains safely known parent date/window visibility as distinct refresh-required, non-actionable placeholders with no guessed IDs. Existing E3A/E3B status, Calendar, notification, and Complete semantics are unchanged; 1 + N Mobile hydration remains a future optimization. Focused E3B.1 19/19, full Mobile 148/148, TypeScript, shared validators, and E3A 24/24 pass. No build, distribution, or deployment occurred.
 
 **Updated 2026-08-31 (P1 Decimal entitlement serialization local closeout):** The shared entitlement decision log now uses the existing canonical backend `DecimalEncoder`, preserving whole-number and fractional numeric semantics without mutating entitlements or changing enforcement. Real `Decimal` fixtures cover allowed/denied observability, `max_staff`, `max_active_clients`, and `max_monthly_bookings`. Independent review disposition is `P1_DECIMAL_FIX_REVIEW_APPROVED`. The fix is local only and not deployed; production remains affected until a separately reviewed and explicitly approved backend release. B1A real Web/API write-path validation remains outstanding. Next action is isolated backend/Lambda RC preparation, planning/review only.
+
+**Updated 2026-09-02 (P1 Decimal entitlement serialization production acceptance):** The P1 backend package is deployed to all 13 Lambdas and the one-time guarded real Web/Cognito/API Gateway acceptance probe passed. Exactly one protected-address `POST /admin/staff` attempt for `test_tenant_alpha` returned the expected HTTP 403 guard rejection while producing one valid `ENTITLEMENT_ALLOWED` limit event with numeric `current_count: 0` and `max_allowed: 1` derived from a DynamoDB Number/Python `Decimal`. No Decimal serialization error, Lambda error/Exception/Traceback, record mutation, staff creation, notification, Calendar action, or Cognito mutation occurred. All 13 Lambdas remained `Active` / `Successful` on approved `CodeSha256` `K/ZU4P5+tp3RdSQQwrp32JdlXSi9ReB/2CKnKJqTOSU=` with strict `TENANT_RESOLUTION_MODE=multi`; API `a022yxuiue` remained `prod -> atxpw3`. P1 is **DEPLOYED / PRODUCTION ACCEPTANCE PASS / COMPLETE** and is no longer an active blocker. B1A backend workflow validation, real API read-only validation, and synthetic cleanup are complete; full real Web/API write-path validation remains outstanding behind a separate planning/approval gate.

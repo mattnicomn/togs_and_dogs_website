@@ -37,6 +37,12 @@
 |---------|-----------|
 | Web customer password recovery | Frontend-only production deployment completed; safe smoke and Matthew's live Cognito E2E recovery validation passed (2026-08-15) |
 
+## P1 Backend Reliability
+
+| Release | Milestone |
+|---------|-----------|
+| P1 Decimal entitlement serialization | **DEPLOYED / PRODUCTION ACCEPTANCE PASS / COMPLETE** (2026-09-02). The approved package-only release updated all 13 Lambdas in place. A one-time guarded real Web/Cognito/API Gateway probe proved a DynamoDB Number/Python `Decimal` entitlement override is emitted as valid numeric JSON (`current_count: 0`, `max_allowed: 1`) without Decimal serialization errors or application/data side effects. B1A full real Web/API write-path validation remains a separate planning/approval gate. |
+
 ## Ryan Workflow Alignment
 
 # Release Timeline (Major Milestones)

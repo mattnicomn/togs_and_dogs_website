@@ -18,6 +18,10 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 | Release notes index | `docs/release-notes/index.md` |
 | Individual release notes | `docs/release-notes/release-*.md` |
 | P1 Decimal entitlement serialization local fix | `docs/release-notes/p1-decimal-entitlement-serialization-local-fix.md` |
+| P1 Decimal entitlement backend RC | `docs/release-notes/p1-decimal-entitlement-serialization-backend-rc.md` |
+| P1 Decimal entitlement backend deployment plan and applied-plan reconciliation | `docs/release-notes/p1-decimal-entitlement-serialization-backend-deployment-plan.md` |
+| P1 Decimal entitlement production acceptance plan | `docs/release-notes/p1-decimal-entitlement-serialization-production-acceptance-plan.md` |
+| P1 Decimal entitlement production acceptance result | `docs/release-notes/p1-decimal-entitlement-serialization-production-acceptance.md` |
 | API semantic fingerprint infrastructure RC | `docs/release-notes/api-gateway-semantic-deployment-fingerprint-infrastructure-rc.md` |
 | Failed INFRA-GATE-A and line-ending remediation | `docs/release-notes/api-gateway-semantic-fingerprint-line-ending-remediation.md` |
 | API semantic fingerprint migration v2 state-509 plan | `docs/release-notes/api-gateway-semantic-fingerprint-migration-v2-plan.md` |
