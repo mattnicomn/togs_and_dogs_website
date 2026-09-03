@@ -1,6 +1,13 @@
 # PTM0-S1 — Legacy / untagged record read isolation
 
-Status: **PTM0_S1_CURSOR_CONFIDENTIALITY_READY_FOR_REVIEW**
+Status: **HISTORICAL LOCAL CANDIDATE / SUPERSEDED BY PRODUCTION CLOSEOUT**
+
+Production closure (2026-09-03): PTM0-S1/F01 is deployed, production-accepted,
+and complete. See
+[PTM0-S1 production deployment and acceptance](ptm0-s1-production-deployment-acceptance.md).
+The local-only statements below are retained as checkpoint history. F02 remains
+untouched/unresolved, PTM0-S2 is not started, and PTM-0 overall remains
+incomplete.
 
 Date: 2026-09-02. Local implementation and offline validation only. No deployment,
 RC/package preparation, production action, or push. This is not PTM-0 completion

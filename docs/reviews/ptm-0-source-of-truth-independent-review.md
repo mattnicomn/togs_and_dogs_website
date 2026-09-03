@@ -6,6 +6,18 @@ Type: **REVIEW ONLY — no implementation, no production action, no tests run, n
 
 Final disposition: **PTM0_INDEPENDENT_REVIEW_CHANGES_REQUIRED**
 
+## 2026-09-03 status addendum
+
+This document preserves the independent review at its 2026-09-02 checkpoint.
+Its approved first slice was subsequently implemented, independently reviewed,
+deployed, and production-accepted. **F01 / PTM0-S1 is now COMPLETE** under
+`PTM0_S1_PRODUCTION_ACCEPTANCE_EVIDENCE_SUFFICIENT`; see
+[the final production closeout](../release-notes/ptm0-s1-production-deployment-acceptance.md).
+
+The original F01 descriptions below are historical defect evidence, not the
+current production status. F02 remains untouched/unresolved, PTM0-S2 is not
+started, and PTM-0 overall remains incomplete.
+
 This review independently reproduces the source-only caller chains behind the audit
 `docs/planning/ptm-0-source-of-truth-reconciliation-audit.md` and assesses each
 material classification. It does not accept the audit's conclusions on trust; the

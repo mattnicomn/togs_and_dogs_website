@@ -14,6 +14,13 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 
 **2026-09-02 PTM-0 audit qualification:** The above records bounded completed releases, not universal tenant-isolation assurance. Repository-only reconciliation found architecture conflicts in legacy-record reads, Google fallback, availability/role gates, and governance details. **C — narrow implementation changes required; PTM-0 implementation is not complete.** See [the source-of-truth audit](../planning/ptm-0-source-of-truth-reconciliation-audit.md) for R01–R18, F01–F09, deployment/source boundaries, and proposed slices. Independent review is next; no implementation or production action is authorized.
 
+**2026-09-03 PTM0-S1 closure:** F01 legacy/untagged record read isolation is
+**DEPLOYED / PRODUCTION ACCEPTANCE PASS / COMPLETE**. The bounded production and
+offline evidence is recorded in the
+[final S1 closeout](../release-notes/ptm0-s1-production-deployment-acceptance.md).
+PTM-0 is still incomplete: F02 is untouched/unresolved, PTM0-S2 is not started,
+and later findings remain separately gated. No additional tenant was created.
+
 ---
 
 ## Current Readiness for Future Customer-Tenant Onboarding
@@ -41,7 +48,7 @@ The platform has an active primary tenant (`tog_and_dogs`) and an existing inter
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Tenant-resolution / boundary gaps | Critical | Recorded production uses strict `multi`; core resolver rejects missing claims. PTM-0 F01–F03 identify separate untagged-record, Google fallback, and fail-open availability paths not covered by that guarantee. Review before broad customer-ready signoff; do not change production/mode or infer an incident. |
+| Tenant-resolution / boundary gaps | Critical | Recorded production uses strict `multi`; core resolver rejects missing claims. F01 is closed by completed PTM0-S1. PTM-0 F02/F03 identify separate Google fallback and fail-open availability paths not covered by that guarantee. Review them before broad customer-ready signoff; do not change production/mode or infer an incident. |
 | Premature customer-tenant onboarding | High | `test_tenant_alpha` is an internal validation tenant, not a customer onboarding precedent. Require explicit approval plus product, billing, security, and operating readiness for any further tenant. |
 
 ---
@@ -122,7 +129,7 @@ Recently completed: former item 20, the entitlement observability Decimal serial
 
 Gate B1A does not need to wait for DOMAIN-3 wildcard delivery. The bounded route is deployed to production (Backend v3 and Web v2); ROUTE-GATE-C login isolation, the B1A read-only API layer, and B1A Gate-C synthetic cleanup are complete. The separately approved representative real Web/API write-path validation passed on 2026-09-02: one Alpha Profile Only `POST /admin/staff` persisted one item and one exact conditional cleanup restored the metadata-only baseline. The successful persisted-write gap is closed; see `docs/release-notes/b1a-real-web-api-write-path-validation.md`. FULL END-TO-END B1A IS NOT CLAIMED.
 
-Remaining real-route intake/M&G/approval/async-job/assignment and downstream notification/Calendar scope is **A — future optional confidence testing**, not an automatic release gate. Backend workflow evidence plus the representative write closes the approved narrow gap, but does not prove every external route. Any future capability-specific gate or full-E2E claim must define its own evidence and explicit Matthew approval. No further workflow is authorized. PTM-0 repository-only reconciliation is now audited; next recommendation is independent AG/Kiro review, then explicit Matthew approval for the proposed smallest local slice (PTM0-S1 legacy-record read isolation). Existing customer-tenant/PTM gates remain unchanged.
+Remaining real-route intake/M&G/approval/async-job/assignment and downstream notification/Calendar scope is **A — future optional confidence testing**, not an automatic release gate. Backend workflow evidence plus the representative write closes the approved narrow gap, but does not prove every external route. Any future capability-specific gate or full-E2E claim must define its own evidence and explicit Matthew approval. No further workflow is authorized. PTM0-S1/F01 is complete; F02 remains untouched/unresolved and PTM0-S2 is not started. Existing customer-tenant/PTM gates remain unchanged.
 
 ---
 

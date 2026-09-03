@@ -59,6 +59,12 @@ original checkpoint and approval boundaries.
 |---------|-----------|
 | P1 Decimal entitlement serialization | **DEPLOYED / PRODUCTION ACCEPTANCE PASS / COMPLETE** (2026-09-02). The approved package-only release updated all 13 Lambdas in place. A one-time guarded real Web/Cognito/API Gateway probe proved a DynamoDB Number/Python `Decimal` entitlement override is emitted as valid numeric JSON (`current_count: 0`, `max_allowed: 1`) without Decimal serialization errors or application/data side effects. The separate successful B1A persisted-write proof subsequently passed as recorded above; the guarded P1 probe itself did not persist a record. |
 
+## PTM-0 Bounded Remediation
+
+| Release | Milestone |
+|---------|-----------|
+| PTM0-S1 / F01 legacy-read isolation | **DEPLOYED / PRODUCTION ACCEPTANCE PASS / COMPLETE** (2026-09-03). The isolated package updated 13 Lambdas in place (`0 add / 13 change / 0 destroy`, zero replacements). Live evidence proved Alpha denial, primary legacy compatibility, wrong-company exclusion, bounded generic 503 confidentiality, safe cursor continuation, and Platform Admin separation; offline adversarial coverage and `118/118` deployed-identical tests supplement it. No production fixtures were required or created. **PTM-0 remains incomplete:** F02 is untouched/unresolved and PTM0-S2 is not started. |
+
 ## Ryan Workflow Alignment
 
 # Release Timeline (Major Milestones)

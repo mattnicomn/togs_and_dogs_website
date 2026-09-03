@@ -17,6 +17,8 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 |-------|----------|
 | Release notes index | `docs/release-notes/index.md` |
 | Individual release notes | `docs/release-notes/release-*.md` |
+| PTM0-S1 production deployment and acceptance (complete; PTM-0 incomplete) | `docs/release-notes/ptm0-s1-production-deployment-acceptance.md` |
+| PTM0-S1 local implementation and cursor-confidentiality history | `docs/release-notes/ptm0-s1-legacy-record-read-isolation-local.md` |
 | B1A real Web/API write-path validation result (PASS; not full E2E) | `docs/release-notes/b1a-real-web-api-write-path-validation.md` |
 | B1A real Web/API write-path validation plan (executed once; historical) | `docs/planning/b1a-real-web-api-write-path-validation-plan.md` |
 | P1 Decimal entitlement serialization local fix | `docs/release-notes/p1-decimal-entitlement-serialization-local-fix.md` |
@@ -58,7 +60,7 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 |-------|-----------|
 | SaaS architecture roadmap | `docs/planning/release-11a-multi-business-saas-architecture-and-product-roadmap.md` |
 | Platform Tenant Management Control Plane specification (PTM-0 through PTM-13) | `docs/planning/platform-tenant-management-control-plane.md` |
-| PTM-0 source-of-truth reconciliation audit (C; architecture conflicts; independent review pending) | `docs/planning/ptm-0-source-of-truth-reconciliation-audit.md` |
+| PTM-0 source-of-truth reconciliation audit (C; F01 closed by completed S1; F02 and later findings remain) | `docs/planning/ptm-0-source-of-truth-reconciliation-audit.md` |
 | Tenant-Aware Mobile Presentation Architecture & Cross-Platform Branding Model | `docs/planning/tenant-aware-mobile-presentation-architecture.md` |
 | DOMAIN-1 tenant access routing ADR | `docs/planning/adr-domain-1-tenant-access-routing.md` |
 | Tenant access, client onboarding, Visit Requests, Request List, and Mobile operations alignment (authoritative 2026-08-23 reconciliation) | `docs/planning/tenant-access-client-onboarding-operational-workflow-alignment.md` |

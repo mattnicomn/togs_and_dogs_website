@@ -57,6 +57,11 @@ After every release (planning or implementation), verify:
 | 9 | Next recommended action documented | ___ |
 | 10 | Paused/deferred items documented | ___ |
 | 11 | Guardrails still accurate | ___ |
+| 12 | A completed sub-slice is explicitly distinguished from its incomplete parent program | ___ |
+
+For PTM closeouts, record finding, slice, and parent status separately. For
+example, `F01 / PTM0-S1 COMPLETE` must not be shortened to `PTM-0 COMPLETE` while
+F02 or later PTM-0 work remains unresolved.
 
 ---
 

@@ -10,6 +10,20 @@ Overall completion classification: **C — requires narrow implementation change
 
 Audit complete for independent review; PTM-0 implementation/acceptance is **not complete**.
 
+## 2026-09-03 implementation-status addendum
+
+This audit remains the historical source for the original classification and
+findings. Since it was written, **F01 / PTM0-S1 has been deployed,
+production-accepted, and completed** under disposition
+`PTM0_S1_PRODUCTION_ACCEPTANCE_EVIDENCE_SUFFICIENT`. See
+[the final S1 production closeout](../release-notes/ptm0-s1-production-deployment-acceptance.md).
+
+This bounded closure does not change the audit's overall conclusion: **PTM-0 is
+still incomplete**. F02 is untouched/unresolved, PTM0-S2 is not started, and
+F03–F08 retain their separate scope and approval gates. Strict multi, tenant
+inventory, Stripe sandbox status, Ryan testing, and Mobile/TestFlight/App Store
+state were unchanged by S1.
+
 ## 1. Checkpoint, method, and evidence limits
 
 Starting branch `main`; HEAD and local `origin/main` both
@@ -270,7 +284,7 @@ signoff**, not an instruction to roll back, disable a tenant, or alter productio
 
 | ID / severity | Concrete finding and evidence | Exposure limits / review needed |
 |---|---|---|
-| F01 — BLOCKER | Untagged records are shared by list/export predicates: `admin_handler.py:569,2341,2397` allows matching company OR missing company, without subsequent ownership filtering before response (`595–600,2374–2381,2406–2408`). This conflicts with `auth.py:291–297`, which assigns legacy untagged ownership only to default company. | Any eligible non-primary owner/admin can match legacy untagged records if present; no live records were read and actual exposure is unknown. Export also requires export feature. `test_r11e_tenant_enforcement.py:287–313` prefilters its mock and has no untagged fixture, so PASS does not disprove this. Client request scan at `admin_handler.py:525–543` also relies on client_id alone; confirm tenant predicate independently. |
+| F01 — CLOSED BY PTM0-S1 (historical finding) | At audit time, untagged records were shared by list/export predicates: `admin_handler.py:569,2341,2397` allowed matching company OR missing company, without subsequent ownership filtering before response (`595–600,2374–2381,2406–2408`). This conflicted with `auth.py:291–297`, which assigned legacy untagged ownership only to default company. | Remediated by the independently reviewed primary-only compatibility and bounded-pagination implementation. PTM0-S1 was deployed and production-accepted on 2026-09-03; see the final closeout. This row preserves the original finding and does not alter F02 or later findings. |
 | F02 — BLOCKER | `google_auth_handler.py:89–101` catches failed strict tenant resolution and returns DEFAULT_COMPANY_ID. Shared gate swallows missing-claim PermissionError (`entitlement.py:511–516`); `/admin/auth/status` then calls this helper and can read primary metadata/provider state. `get_status:380–395` may refresh and save credentials; platform detail also calls it with caller context. | Not proof of leaked credential values. Scheduled-primary health is an explicit compatibility use, but authenticated missing-claim fallback is not. Existing disconnect legacy-secret guard and platform IAM restrictions narrow effects; neither makes the resolver fail closed. No provider/production request was made. |
 | F03 — HIGH | Fail-open metadata loader, ignored is_active, privileged tenant-gate bypass, and inconsistent override/grace precedence (`entitlement.py:126–154,506–526`; `billing.py:80–145,210–227`; `auth.py:384–396`). | Route bridge is stronger; ordinary disabled-owner behavior is validated. Mixed owner+platform or protected identities bypass status, not every endpoint role check. Missing metadata/load-error paths and inactive+active combination need negative tests. |
 | F04 — HIGH | Backend/Web/Mobile legacy email owner elevation conflicts with group-only authorization (`auth.py:65–67`; `auth.js:97–99`; `cognito.ts:183–185`). | Source proves an alternate authority, not current group/user inventory or exploitation. Preserve protected-account safety; do not change users or remove guards as part of this audit. |
@@ -351,14 +365,16 @@ These criteria are proposals for Matthew/AG/Kiro review, **not new authority**:
    targeted regressions for current valid tenants. Separately approve any RC,
    deployment, read-only production checks, or production write validation.
 
-**Recommended smallest implementation slice: PTM0-S1 — legacy-record read
-isolation.** It directly addresses F01 in the existing admin handler; it does not
-introduce a new registry, tenant, lifecycle field, app client, or provider action.
-No implementation begins before independent review and explicit approval.
+**Executed first implementation slice: PTM0-S1 — legacy-record read isolation.**
+The independently reviewed slice addressed F01 in the existing admin handler
+without introducing a new registry, tenant, lifecycle field, app client, or
+provider action. It is now deployed and production-accepted. The table retains
+the original proposed slice boundaries; completion of S1 grants no authority to
+start S2 or any later slice.
 
 | Slice | Exact problem / likely files | Production impact / migration | Tests / deployment / gates |
 |---|---|---|---|
-| S1 — legacy-record read isolation (first) | Constrain untagged records in export, ALL/status request lists; add company filter to client request list. Likely `src/backend/handlers/admin_handler.py`, `tests/backend/test_r11e_tenant_enforcement.py`, `tests/backend/test_r19k_tenant_isolation.py`; if useful, a dedicated new boundary-test file | Narrows read visibility; proposed compatibility permits untagged legacy records only for primary company, matching existing ownership helper. No data migration needed for that option. Blanket removal/backfill is a separate decision. Export's existing audit side effect must not be used for live read-only testing. | Assert actual predicate semantics plus returned records for primary, Alpha, third tenant, missing/empty/mismatched company, mixed client IDs, both list branches, pagination. Existing mocks must not prefilter away the defect. Backend RC/deploy required later; approve compatibility decision, local implementation, review, release separately. |
+| S1 — legacy-record read isolation (**COMPLETE**) | Constrain untagged records in export, ALL/status request lists; add company filter to client request list. Implemented through `src/backend/handlers/admin_handler.py` and `src/backend/common/tenant_read_scope.py`, with focused boundary/regression coverage. | Read visibility narrowed; untagged legacy records remain compatible only for the primary company. No data migration or production fixture was required. | Independently reviewed, deployed across the shared 13-Lambda package, risk-based production acceptance passed, and deployed-identical focused tests passed `118/118`. See the final closeout. |
 | S2 — Google resolver/control-read boundary | Reject authenticated missing-claim fallback; separate scheduled primary compatibility and explicit platform target/status read. Likely `google_auth_handler.py`, `platform_handler.py`, relevant common Calendar helper, `test_google_auth_rbac.py`, `test_r21g_google_token_isolation.py`, `test_r6g_calendar_health.py` | May stop previously accepted malformed sessions; no credential migration intended. Do not alter scheduled primary behavior or authorize provider writes implicitly. | Mock all provider/secret calls; assert absent/wrong claim makes zero reads/writes; explicit target != caller; control GET no refresh/persist. Backend RC/deploy later; integration policy/approval distinct from S1. |
 | S3 — tenant availability gate reconciliation | Fail-open loader, is_active disagreement and mixed-role/protected bypass. Likely `common/entitlement.py`, `common/billing.py`, `common/auth.py`, `common/tenant_route.py`, `test_r20e_disabled_tenant_enforcement.py`, `test_r17b_entitlement_enforcement.py`, `test_tenant_route_context.py`, `test_public_intake_tenant_routing.py` | May deny access previously allowed during metadata failure/override. Needs reviewed truth table and legacy-field policy; not automatic persisted lifecycle migration. | Missing/error/inactive/disabled/unknown statuses, override/grace timing, platform-only and mixed roles, protected identity, no downstream work, Decimal limits. Backend release later; explicit business/security approval before semantics change. |
 | S4 — role authority reconciliation | Remove or explicitly resolve legacy email authority; distinguish UI admin alias; define DDB role editing vs Cognito demotion. Likely `common/auth.py`, `admin_handler.py`, Web auth helper/tests; Mobile helper/tests only in separately approved Mobile sub-slice | Existing allowlisted identities may depend on fallback. **No automatic user/group migration**; require a separately approved safe inventory/membership/session-transition plan. | Group/no-group/unknown/string/list/mixed-role cases, stale tokens/profile demotion, protected-user safeguards; backend/Web deployment and any Mobile build separately approved, never bundled into S1. |
@@ -421,12 +437,11 @@ Release-note references below are under `docs/release-notes/`:
   exact cleanup accepted; full real-route E2E and generalized tenant admission
   are not proved.
 
-AG/Kiro should first reproduce source-only F01/F02 caller chains, verify the
-seven-file deployed-source comparison, and assess F03/F04 mixed-role and
-privilege exceptions. Then confirm matrix classifications, C vs D, the proposed
-primary-only legacy policy, and the scope of S1. Do not invoke application routes
-to review these findings. A future approved offline test slice should make the
-negative cases executable before remediation; no tests were changed or run here.
+The original independent-review handoff for F01/S1 has been completed and is
+superseded by the production closeout. F02 remains the next unresolved blocker,
+but PTM0-S2 has not started. Any F02/S2 investigation, implementation, RC,
+production validation, or deployment requires a new bounded scope, independent
+review, and explicit Matthew approval. F03–F08 remain separately scoped.
 
 Documentation integrity checks: targeted diff review, source-path existence,
 and Markdown local-link existence passed (zero missing local links). The seven
