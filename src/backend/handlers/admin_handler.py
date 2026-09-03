@@ -7,7 +7,9 @@ from common.notifications.service import notify_event
 from common.google_calendar import sync_calendar_event, delete_event
 from common.response import success, bad_request, internal_error, not_found, error
 from common.auth import get_effective_role, sanitize_booking_for_role, get_claims
-from common.tenant_read_scope import build_tenant_read_filter
+from common.tenant_read_scope import (
+    build_tenant_read_filter, read_confidential_page, PaginationTraversalLimitReached,
+)
 from common.entitlement import EntitlementDenied
 from common.audit import log_action
 import uuid
@@ -2363,7 +2365,12 @@ def handler(event, context):
                 if last_key:
                     scan_kwargs["ExclusiveStartKey"] = json.loads(last_key)
                 
-                response = items_table.scan(**scan_kwargs)
+                try:
+                    response = read_confidential_page(
+                        items_table.scan, scan_kwargs, key_fields=('PK', 'SK'),
+                    )
+                except PaginationTraversalLimitReached:
+                    return error(503, 'PAGINATION_TRAVERSAL_LIMIT_REACHED', event)
                 items = response.get('Items', [])
                 items = [sanitize_booking_for_role(item, role) for item in items]
                 
@@ -2397,7 +2404,13 @@ def handler(event, context):
             if last_key:
                 query_kwargs["ExclusiveStartKey"] = json.loads(last_key)
             
-            response = items_table.query(**query_kwargs)
+            try:
+                response = read_confidential_page(
+                    items_table.query, query_kwargs,
+                    key_fields=('PK', 'SK', 'status', 'created_at'),
+                )
+            except PaginationTraversalLimitReached:
+                return error(503, 'PAGINATION_TRAVERSAL_LIMIT_REACHED', event)
             items = response.get('Items', [])
             items = [sanitize_booking_for_role(item, role) for item in items]
 
