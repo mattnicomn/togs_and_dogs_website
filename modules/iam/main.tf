@@ -93,6 +93,11 @@ resource "aws_iam_policy" "google_secrets_access" {
         Resource = [
           var.postmark_token_arn
         ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = "secretsmanager:DescribeSecret"
+        Resource = var.google_user_tokens_arn
       }
     ]
   })

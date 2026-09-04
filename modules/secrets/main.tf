@@ -7,7 +7,9 @@ resource "aws_secretsmanager_secret" "google_client_creds" {
 resource "aws_secretsmanager_secret" "google_user_tokens" {
   name        = "${var.name_prefix}/google/user-tokens"
   description = "Google OAuth Tokens (Refresh Token)"
-  tags        = var.tags
+  tags = merge(var.tags, {
+    CompanyId = "tog_and_dogs"
+  })
 }
 
 resource "aws_secretsmanager_secret_version" "google_user_tokens_init" {
