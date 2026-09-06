@@ -62,46 +62,69 @@ def _set_multi_tenant_mode():
 
 class TestGoogleTokenIsolation:
 
-    @patch('common.db.get_item')
+    @pytest.fixture(autouse=True)
+    def _secret_metadata(self):
+        """Mock only the metadata/value boundary, never the ownership resolver."""
+        owners = {
+            'togs-and-dogs-prod/google/user-tokens': 'tog_and_dogs',
+            'custom/path/to/tokens': 'test_tenant_alpha',
+            'togs-and-dogs-prod/calendar/custom_tenant_beta/tokens': 'custom_tenant_beta',
+            'togs-and-dogs-prod/calendar/test_tenant_alpha/tokens': 'test_tenant_alpha',
+        }
+        with patch('common.google_calendar.secrets') as sdk:
+            sdk.meta.region_name = 'us-east-1'
+            sdk.describe_secret.side_effect = lambda SecretId: {
+                'Name': SecretId,
+                'ARN': 'arn:aws:secretsmanager:us-east-1:123456789012:secret:' + SecretId + '-Ab1234',
+                'Tags': [{'Key': 'CompanyId', 'Value': owners[SecretId]}],
+            }
+            sdk.get_secret_value.return_value = {'SecretString': '{}'}
+            yield sdk
+
+    @patch('common.db.table.get_item')
     def test_default_tenant_legacy_fallback(self, mock_get_item):
         """1. tog_and_dogs with no calendar_secret_ref uses legacy fallback."""
-        mock_get_item.return_value = {
+        mock_get_item.return_value = {'Item': {
+            "PK": "TENANT#tog_and_dogs", "SK": "METADATA",
             "company_id": "tog_and_dogs",
             "display_name": "Tog & Dogs"
-        }
+        }}
         secret_name = resolve_google_token_secret_name("tog_and_dogs")
         assert secret_name == "togs-and-dogs-prod/google/user-tokens"
 
-    @patch('common.db.get_item')
+    @patch('common.db.table.get_item')
     def test_tenant_explicit_secret_ref(self, mock_get_item):
         """2. Tenant with explicit calendar_secret_ref uses tenant-specific secret path."""
-        mock_get_item.return_value = {
+        mock_get_item.return_value = {'Item': {
+            "PK": "TENANT#test_tenant_alpha", "SK": "METADATA",
             "company_id": "test_tenant_alpha",
             "calendar_secret_ref": "custom/path/to/tokens"
-        }
+        }}
         secret_name = resolve_google_token_secret_name("test_tenant_alpha")
         assert secret_name == "custom/path/to/tokens"
 
-    @patch('common.db.get_item')
+    @patch('common.db.table.get_item')
     def test_non_default_tenant_not_enabled_returns_none(self, mock_get_item):
         """3. non-default tenant without Google enabled does not resolve secret path (None)."""
-        mock_get_item.return_value = {
+        mock_get_item.return_value = {'Item': {
+            "PK": "TENANT#test_tenant_alpha", "SK": "METADATA",
             "company_id": "test_tenant_alpha",
             "calendar_provider": "none",
             "calendar_enabled": False
-        }
+        }}
         secret_name = resolve_google_token_secret_name("test_tenant_alpha")
         assert secret_name is None
 
-    @patch('common.db.get_item')
+    @patch('common.db.table.get_item')
     @patch('common.entitlement._get_entitlement_safely')
     def test_non_default_tenant_blocked_from_connect(self, mock_get_entitlement, mock_get_item):
         """4. non-default tenant cannot trigger Google connect unless metadata/provider says Google is enabled."""
-        mock_get_item.return_value = {
+        mock_get_item.return_value = {'Item': {
+            "PK": "TENANT#test_tenant_alpha", "SK": "METADATA",
             "company_id": "test_tenant_alpha",
             "calendar_provider": "none",
             "calendar_enabled": False
-        }
+        }}
         mock_get_entitlement.return_value = MagicMock(is_access_allowed=True, is_blocked=False)
         
         event = make_event('/admin/auth/google', http_method='GET', custom_company_id='test_tenant_alpha', groups=['owner'])
@@ -123,18 +146,23 @@ class TestGoogleTokenIsolation:
         mock_get_entitlement.return_value = MagicMock(is_access_allowed=True, is_blocked=False)
         
         # Mock state record
-        mock_table_get_item.return_value = {
+        state_response = {
             "Item": {
                 "PK": "OAUTHSTATE#some-state",
                 "company_id": "custom_tenant_beta"
             }
         }
         # Mock tenant enabled Google
-        mock_db_get_item.return_value = {
+        tenant_metadata = {
+            "PK": "TENANT#custom_tenant_beta", "SK": "METADATA",
             "company_id": "custom_tenant_beta",
+            "calendar_secret_ref": "togs-and-dogs-prod/calendar/custom_tenant_beta/tokens",
             "calendar_provider": "google",
             "calendar_enabled": True
         }
+        mock_db_get_item.return_value = tenant_metadata
+        mock_table_get_item.side_effect = lambda **kw: (
+            state_response if kw['Key']['PK'].startswith('OAUTHSTATE#') else {'Item': tenant_metadata})
         # Mock google OAuth client credentials
         mock_config.return_value = {"client_id": "id", "client_secret": "secret"}
         
@@ -159,7 +187,7 @@ class TestGoogleTokenIsolation:
         assert saved_body['refresh_token'] == "xyz"
 
     @patch('handlers.google_auth_handler.secrets')
-    @patch('common.db.get_item')
+    @patch('common.db.table.get_item')
     @patch('common.entitlement._get_entitlement_safely')
     def test_disconnect_preserves_global_fallback(self, mock_get_entitlement, mock_db_get_item, mock_secrets):
         """7. disconnect clears only tenant-specific secret path and never global fallback."""
@@ -167,9 +195,10 @@ class TestGoogleTokenIsolation:
         mock_get_entitlement.return_value = MagicMock(is_access_allowed=True, is_blocked=False)
 
         # Scenario A: Default tenant using global fallback
-        mock_db_get_item.return_value = {
+        mock_db_get_item.return_value = {'Item': {
+            "PK": "TENANT#tog_and_dogs", "SK": "METADATA",
             "company_id": "tog_and_dogs"
-        }
+        }}
         event = make_event('/admin/auth/google', http_method='DELETE', custom_company_id='tog_and_dogs', groups=['owner'])
         result = google_auth_handler(event, None)
         assert result['statusCode'] == 200
@@ -177,11 +206,13 @@ class TestGoogleTokenIsolation:
         mock_secrets.put_secret_value.assert_not_called()
 
         # Scenario B: Custom tenant using per-tenant secret path
-        mock_db_get_item.return_value = {
+        mock_db_get_item.return_value = {'Item': {
+            "PK": "TENANT#test_tenant_alpha", "SK": "METADATA",
             "company_id": "test_tenant_alpha",
+            "calendar_secret_ref": "togs-and-dogs-prod/calendar/test_tenant_alpha/tokens",
             "calendar_provider": "google",
             "calendar_enabled": True
-        }
+        }}
         event = make_event('/admin/auth/google', http_method='DELETE', custom_company_id='test_tenant_alpha', groups=['owner'])
         result = google_auth_handler(event, None)
         assert result['statusCode'] == 200

@@ -37,7 +37,9 @@ def mock_db():
          patch('handlers.google_auth_handler.table', mock_table, create=True), \
          patch('common.db.get_item') as mock_get, \
          patch('handlers.admin_handler.get_item', mock_get, create=True), \
-         patch('handlers.google_auth_handler.table.get_item', mock_get, create=True):
+         patch('handlers.google_auth_handler.table.get_item',
+               side_effect=lambda **kw: {'Item': mock_get(kw['Key']['PK'], kw['Key']['SK'])},
+               create=True):
         yield {"table": mock_table, "get_item": mock_get}
 
 
@@ -132,6 +134,7 @@ def test_export_enabled_denies_invalid_tier(mock_db):
 # 2. Google OAuth Initiation Gate Tests
 # ---------------------------------------------------------------------------
 
+@pytest.mark.usefixtures('primary_google_binding')
 def test_google_oauth_disabled_allows_all(mock_db):
     """When enforcement is disabled, google oauth initiation is allowed."""
     os.environ['ENTITLEMENT_ENFORCEMENT_ENABLED'] = 'false'
@@ -151,6 +154,7 @@ def test_google_oauth_disabled_allows_all(mock_db):
         assert "auth_url" in json.loads(resp["body"])
 
 
+@pytest.mark.usefixtures('primary_google_binding')
 def test_google_oauth_enabled_allows_valid_tier(mock_db):
     """When enforcement is enabled, google oauth is allowed for professional/premium."""
     event = create_event("Admin", "/admin/auth/google", company_id="tog_and_dogs")
@@ -168,6 +172,7 @@ def test_google_oauth_enabled_allows_valid_tier(mock_db):
         assert "auth_url" in json.loads(resp["body"])
 
 
+@pytest.mark.usefixtures('primary_google_binding')
 def test_google_oauth_enabled_denies_invalid_tier(mock_db):
     """When enforcement is enabled, google oauth is denied for starter tier."""
     event = create_event("Admin", "/admin/auth/google", company_id="tog_and_dogs")

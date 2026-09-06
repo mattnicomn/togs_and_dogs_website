@@ -4,6 +4,9 @@ Release 6G Phase 3: Tests for scheduled Google Calendar health check.
 import sys
 import os
 import json
+import pytest
+
+pytestmark = pytest.mark.usefixtures('primary_google_binding')
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src', 'backend'))
 

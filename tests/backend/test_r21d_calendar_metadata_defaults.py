@@ -149,8 +149,14 @@ class TestAdminTenantInfoEndpoint:
         assert "calendar_capabilities" not in body
 
 class TestCalendarGatingAndPreservation:
-    def test_non_default_tenant_blocks_google_connect(self):
+    @patch('common.db.table.get_item')
+    @patch('common.entitlement._get_entitlement_safely')
+    def test_non_default_tenant_blocks_google_connect(self, entitlement, metadata):
         """6. Non-default tenant does not trigger Google auth/connect path."""
+        entitlement.return_value = MagicMock(is_access_allowed=True, is_blocked=False)
+        metadata.return_value = {'Item': {
+            'PK': 'TENANT#test_tenant_alpha', 'SK': 'METADATA',
+            'company_id': 'test_tenant_alpha', 'calendar_provider': 'none'}}
         event = make_event('/admin/auth/google', custom_company_id='test_tenant_alpha', groups=['owner'])
         result = google_auth_handler(event, None)
         assert result['statusCode'] == 403

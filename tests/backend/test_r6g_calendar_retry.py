@@ -4,6 +4,9 @@ Release 6G Phase 4: Tests for calendar sync retry mechanism.
 import sys
 import os
 import json
+import pytest
+
+pytestmark = pytest.mark.usefixtures('primary_google_binding')
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src', 'backend'))
 
@@ -13,6 +16,7 @@ from common.google_calendar import sync_calendar_event, _is_retryable_error
 
 
 VALID_ITEM = {
+    "company_id": "tog_and_dogs",
     "request_id": "req-retry-001",
     "client_name": "Retry Test",
     "pet_names": "Buddy",
@@ -149,7 +153,7 @@ def test_network_timeout_retries():
 
 def test_validation_skip_does_not_retry():
     """Missing fields causing skip should not trigger retry."""
-    item = {"request_id": "req-skip"}  # Missing required fields
+    item = {"request_id": "req-skip", "company_id": "tog_and_dogs"}  # Missing scheduling fields
 
     with patch('common.google_calendar._get_valid_token', return_value="fake_token"), \
          patch('urllib.request.urlopen') as mock_url:
@@ -164,7 +168,7 @@ def test_revoked_token_does_not_retry():
     """Revoked token should fail immediately without retry."""
     revoked_tokens = {"token_status": "revoked", "refresh_token": "dead"}
 
-    with patch('common.google_calendar._get_stored_tokens', return_value=revoked_tokens), \
+    with patch('common.google_calendar._read_bound_tokens', return_value=revoked_tokens), \
          patch('urllib.request.urlopen') as mock_url:
         result = sync_calendar_event(VALID_ITEM)
 

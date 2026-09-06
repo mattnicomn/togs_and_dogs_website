@@ -199,9 +199,10 @@ def test_all_day_leap_year():
 
 # --- Non-Blocking Behavior ---
 
-def test_sync_nonblocking_on_invalid_date():
+def test_sync_nonblocking_on_invalid_date(primary_google_binding):
     """sync_calendar_event must not raise even with an invalid date format."""
     item = {
+        "company_id": "tog_and_dogs",
         "request_id": "req-bad",
         "client_name": "Bad Date",
         "pet_names": "Dog",
@@ -214,18 +215,18 @@ def test_sync_nonblocking_on_invalid_date():
 
     assert result is not None
     # Should be skipped, not crashed
-    assert result.get("status") in ["calendar_skipped_invalid_date_format", "calendar_failed"]
+    assert result.get("status") == "calendar_skipped_invalid_date_format"
     print("PASS: test_sync_nonblocking_on_invalid_date")
 
 
-def test_sync_nonblocking_on_missing_fields():
+def test_sync_nonblocking_on_missing_fields(primary_google_binding):
     """sync_calendar_event must not raise when required fields are missing."""
-    item = {"request_id": "req-empty"}
+    item = {"request_id": "req-empty", "company_id": "tog_and_dogs"}
     with patch('common.google_calendar._get_valid_token', return_value="fake_token"):
         result = sync_calendar_event(item)
 
     assert result is not None
-    assert "skipped" in result.get("status", "") or "failed" in result.get("status", "")
+    assert "skipped" in result.get("status", "")
     print("PASS: test_sync_nonblocking_on_missing_fields")
 
 

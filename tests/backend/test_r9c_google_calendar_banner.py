@@ -4,6 +4,9 @@ Release 9C: Tests for Google Calendar connection status validation and caching.
 import sys
 import os
 import json
+import pytest
+
+pytestmark = pytest.mark.usefixtures('primary_google_binding')
 import time
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
@@ -13,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src', 'b
 import handlers.google_auth_handler as google_auth_handler
 
 def create_event(role, body_dict=None):
-    claims = {"email": "admin@test.com"}
+    claims = {"email": "admin@test.com", "custom:company_id": "tog_and_dogs"}
     claims["cognito:groups"] = "Admin"
     return {
         "requestContext": {

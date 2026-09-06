@@ -46,18 +46,32 @@ def _set_multi_tenant_mode():
 
 class TestGoogleAuthRBAC:
 
-    @patch('common.db.get_item')
+    @pytest.fixture(autouse=True)
+    def _owned_provider_metadata(self):
+        owners = {'togs-and-dogs-prod/google/user-tokens': 'tog_and_dogs',
+                  'opaque/alpha-token': 'test_tenant_alpha'}
+        with patch('common.google_calendar.secrets') as sdk:
+            sdk.meta.region_name = 'us-east-1'
+            sdk.describe_secret.side_effect = lambda SecretId: {
+                'Name': SecretId,
+                'ARN': 'arn:aws:secretsmanager:us-east-1:123456789012:secret:' + SecretId + '-Ab1234',
+                'Tags': [{'Key': 'CompanyId', 'Value': owners[SecretId]}]}
+            sdk.get_secret_value.return_value = {'SecretString': '{}'}
+            yield
+
+    @patch('common.db.table.get_item')
     @patch('common.entitlement._get_entitlement_safely')
     @patch('handlers.google_auth_handler.get_google_config')
     @patch('common.db.table.put_item')
     def test_initiate_auth_by_role(self, mock_put_item, mock_config, mock_get_entitlement, mock_db_get_item):
         """Prove initiate_auth allows owner/admin but denies staff, client, and others."""
         mock_get_entitlement.return_value = MagicMock(is_access_allowed=True, is_blocked=False)
-        mock_db_get_item.return_value = {
+        mock_db_get_item.return_value = {'Item': {
+            "PK": "TENANT#tog_and_dogs", "SK": "METADATA",
             "company_id": "tog_and_dogs",
             "calendar_provider": "google",
             "calendar_enabled": True
-        }
+        }}
         mock_config.return_value = {"client_id": "id", "client_secret": "secret"}
 
         # 1. Staff role - Denied
@@ -104,16 +118,18 @@ class TestGoogleAuthRBAC:
         mock_put_item.assert_called_once()
 
     @patch('handlers.google_auth_handler.secrets')
-    @patch('common.db.get_item')
+    @patch('common.db.table.get_item')
     @patch('common.entitlement._get_entitlement_safely')
     def test_disconnect_by_role(self, mock_get_entitlement, mock_db_get_item, mock_secrets):
         """Prove disconnect allows owner/admin but denies staff, client, and others."""
         mock_get_entitlement.return_value = MagicMock(is_access_allowed=True, is_blocked=False)
-        mock_db_get_item.return_value = {
+        mock_db_get_item.return_value = {'Item': {
+            "PK": "TENANT#test_tenant_alpha", "SK": "METADATA",
             "company_id": "test_tenant_alpha",
+            "calendar_secret_ref": "opaque/alpha-token",
             "calendar_provider": "google",
             "calendar_enabled": True
-        }
+        }}
 
         # 1. Staff role - Denied
         event_staff = make_event('/admin/auth/google', http_method='DELETE', groups=['staff'], custom_company_id='test_tenant_alpha')
@@ -142,18 +158,19 @@ class TestGoogleAuthRBAC:
         assert result['statusCode'] == 200
         mock_secrets.put_secret_value.assert_called_once()
 
-    @patch('common.db.get_item')
+    @patch('common.db.table.get_item')
     @patch('common.entitlement._get_entitlement_safely')
     @patch('handlers.google_auth_handler.get_google_config')
     @patch('handlers.google_auth_handler.get_stored_tokens')
     def test_get_status_allowed_for_staff(self, mock_tokens, mock_config, mock_get_entitlement, mock_db_get_item):
         """Prove read-only status remains readable by staff."""
         mock_get_entitlement.return_value = MagicMock(is_access_allowed=True, is_blocked=False)
-        mock_db_get_item.return_value = {
+        mock_db_get_item.return_value = {'Item': {
+            "PK": "TENANT#tog_and_dogs", "SK": "METADATA",
             "company_id": "tog_and_dogs",
             "calendar_provider": "google",
             "calendar_enabled": True
-        }
+        }}
         mock_config.return_value = {"client_id": "id", "client_secret": "secret"}
         
         now_str = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')

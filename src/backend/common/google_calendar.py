@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 import urllib.request
 import urllib.parse
@@ -39,51 +40,126 @@ def get_tenant_secret_path(company_id):
         
     return f"{prefix}/calendar/{company_id}/tokens"
 
-def resolve_google_token_secret_name(company_id=None):
-    """
-    Resolves the Secrets Manager secret name/path for the given tenant's Google Calendar tokens.
-    """
-    from common.auth import DEFAULT_COMPANY_ID
-    if company_id is None:
-        company_id = DEFAULT_COMPANY_ID
-        
-    # 1. Fetch tenant metadata
-    from common.db import get_item
-    tenant = get_item(f"TENANT#{company_id}", "METADATA")
-    
-    # 2. Check if explicit secret ref is configured in metadata
-    if tenant and tenant.get("calendar_secret_ref"):
-        return tenant.get("calendar_secret_ref")
-        
-    # 3. Legacy fallback for default tenant
-    if company_id == DEFAULT_COMPANY_ID:
-        return os.environ.get('GOOGLE_USER_TOKENS_NAME') or 'togs-and-dogs-prod/google/user-tokens'
+class ProviderBindingError(ValueError):
+    """Only fixed, non-sensitive error codes may cross the common boundary."""
 
-        
-    # 4. Construct path if Google provider is enabled for this tenant
-    if tenant and (tenant.get("calendar_provider") == "google" or tenant.get("calendar_enabled") is True):
-        return get_tenant_secret_path(company_id)
-        
-    return None
+
+_SECRET_NAME = re.compile(r"[A-Za-z0-9/_+=.@-]{1,512}")
+_SECRET_ARN = re.compile(
+    r"arn:(aws(?:-us-gov|-cn)?):secretsmanager:([a-z0-9-]+):([0-9]{12}):secret:"
+    r"([A-Za-z0-9/_+=.@-]{1,512})-([A-Za-z0-9]{6})"
+)
+_PRIMARY_LEGACY_SECRET = 'togs-and-dogs-prod/google/user-tokens'
+
+
+def _resolve_google_token_binding(company_id):
+    """Return (validated locator, canonical ARN), or None when unconfigured.
+
+    No value reads, naming-based ownership inference, or positive cache.
+    The configured full legacy ARN anchors the account/partition boundary.
+    Without that anchor only local names (not cross-account ARNs) are accepted.
+    """
+    # Same canonical ID shape as tenant_provisioning; do not normalize input.
+    if not isinstance(company_id, str) or not re.fullmatch(r"[a-z0-9_]{3,64}", company_id):
+        raise ProviderBindingError('INVALID_TENANT_PROVIDER_BINDING')
+    from common.db import table
+    try:
+        response = table.get_item(
+            Key={'PK': f'TENANT#{company_id}', 'SK': 'METADATA'},
+            ConsistentRead=True,
+            ProjectionExpression='PK, SK, company_id, calendar_secret_ref',
+        )
+    except Exception:
+        raise ProviderBindingError('PROVIDER_METADATA_INACCESSIBLE') from None
+    tenant = response.get('Item') if isinstance(response, dict) else None
+    if not isinstance(tenant, dict) or any((
+        tenant.get('PK') != f'TENANT#{company_id}',
+        tenant.get('SK') != 'METADATA',
+        tenant.get('company_id') != company_id,
+    )):
+        raise ProviderBindingError('INVALID_TENANT_PROVIDER_BINDING')
+
+    legacy = os.environ.get('GOOGLE_USER_TOKENS_NAME', _PRIMARY_LEGACY_SECRET)
+    if 'calendar_secret_ref' in tenant:
+        locator = tenant['calendar_secret_ref']
+    elif company_id == 'tog_and_dogs':
+        # Option B: literal explicit primary + verified metadata + ABSENT ref.
+        locator = legacy
+    else:
+        return None
+
+    if not isinstance(locator, str):
+        raise ProviderBindingError('INVALID_TENANT_PROVIDER_BINDING')
+    locator_arn = _SECRET_ARN.fullmatch(locator)
+    anchor = _SECRET_ARN.fullmatch(legacy) if isinstance(legacy, str) else None
+    region = secrets.meta.region_name
+    if locator_arn:
+        if not anchor or locator_arn.groups()[:3] != anchor.groups()[:3] or locator_arn[2] != region:
+            raise ProviderBindingError('INVALID_TENANT_PROVIDER_BINDING')
+    elif not _SECRET_NAME.fullmatch(locator):
+        raise ProviderBindingError('INVALID_TENANT_PROVIDER_BINDING')
+    try:
+        description = secrets.describe_secret(SecretId=locator)
+    except Exception:
+        raise ProviderBindingError('PROVIDER_METADATA_INACCESSIBLE') from None
+    arn = description.get('ARN') if isinstance(description, dict) else None
+    canonical = _SECRET_ARN.fullmatch(arn) if isinstance(arn, str) else None
+    if (not canonical or canonical[2] != region or
+            (anchor and canonical.groups()[:3] != anchor.groups()[:3]) or
+            (locator_arn and arn != locator) or
+            (not locator_arn and canonical[4] != locator) or
+            description.get('Name') != canonical[4] or description.get('DeletedDate') is not None):
+        raise ProviderBindingError('INVALID_TENANT_PROVIDER_BINDING')
+    tags = description.get('Tags')
+    if not isinstance(tags, list) or any(
+        not isinstance(tag, dict) or not isinstance(tag.get('Key'), str) or
+        not isinstance(tag.get('Value'), str) for tag in tags
+    ):
+        raise ProviderBindingError('INVALID_TENANT_PROVIDER_BINDING')
+    owners = [tag for tag in tags if tag['Key'].lower() == 'companyid']
+    if len(owners) != 1 or owners[0]['Key'] != 'CompanyId' or not owners[0]['Value']:
+        raise ProviderBindingError('INVALID_TENANT_PROVIDER_BINDING')
+    if owners[0]['Value'] != company_id:
+        raise ProviderBindingError('PROVIDER_OWNERSHIP_MISMATCH')
+    return locator, arn
+
+
+def resolve_google_token_secret_name(company_id=None):
+    """Validate ownership, preserving the locator interface used by handlers.
+
+    In particular, do not alter the legacy disconnect locator-equality guard.
+    Common token operations below use the validated canonical ARN instead.
+    """
+    binding = _resolve_google_token_binding(company_id)
+    return binding[0] if binding else None
 
 def _get_stored_tokens(company_id=None):
     """Internal: Retrieves tokens from Secrets Manager."""
-    secret_name = resolve_google_token_secret_name(company_id)
-    if not secret_name:
+    binding = _resolve_google_token_binding(company_id)
+    if not binding:
         return {}
+    return _read_bound_tokens(binding[1])
+
+
+def _read_bound_tokens(secret_name):
+    """Internal only: caller must have resolved/validated this operation's ARN."""
     try:
         response = secrets.get_secret_value(SecretId=secret_name)
         return json.loads(response['SecretString'])
-    except Exception as e:
-        print(f"INFO: No existing tokens found for tenant {company_id}: {e}")
+    except Exception:
+        print('PROVIDER_TOKEN_READ_FAILED')
         return {}
 
 def _save_tokens(new_tokens, company_id=None):
     """Internal: Saves/Updates tokens in Secrets Manager."""
-    secret_name = resolve_google_token_secret_name(company_id)
-    if not secret_name:
+    binding = _resolve_google_token_binding(company_id)
+    if not binding:
         return False
-    existing = _get_stored_tokens(company_id)
+    return _save_bound_tokens(new_tokens, binding[1])
+
+
+def _save_bound_tokens(new_tokens, secret_name):
+    existing = _read_bound_tokens(secret_name)
     merged = {**existing, **new_tokens}
     
     # Preserve refresh_token if not in new_tokens
@@ -99,13 +175,20 @@ def _save_tokens(new_tokens, company_id=None):
             SecretString=json.dumps(merged)
         )
         return True
-    except Exception as e:
-        print(f"ERROR: Failed to persist refreshed tokens for tenant {company_id}: {e}")
+    except Exception:
+        print('PROVIDER_TOKEN_SAVE_FAILED')
         return False
 
 
 def _refresh_access_token(tokens, request_id="UNKNOWN", company_id=None):
     """Internal: Refreshes the Google access token."""
+    binding = _resolve_google_token_binding(company_id)
+    if not binding:
+        return None
+    return _refresh_bound_tokens(tokens, request_id, binding[1])
+
+
+def _refresh_bound_tokens(tokens, request_id, secret_name):
     print(f"INFO: [Req:{request_id}] Starting Google access token refresh.")
     refresh_token = tokens.get('refresh_token')
     
@@ -128,7 +211,7 @@ def _refresh_access_token(tokens, request_id="UNKNOWN", company_id=None):
         req = urllib.request.Request("https://oauth2.googleapis.com/token", data=data)
         with urllib.request.urlopen(req) as response:
             res_data = json.loads(response.read().decode())
-            _save_tokens(res_data, company_id)
+            _save_bound_tokens(res_data, secret_name)
             print(f"SUCCESS: [Req:{request_id}] Google access token refreshed.")
             return res_data['access_token']
     except urllib.error.HTTPError as http_err:
@@ -144,10 +227,7 @@ def _refresh_access_token(tokens, request_id="UNKNOWN", company_id=None):
         if error_code == 'invalid_grant':
             print(f"CALENDAR_SYNC_TOKEN_REVOKED: [Req:{request_id}] Google refresh token is revoked or expired (invalid_grant). Admin must reconnect Google Calendar.")
             # Mark the stored tokens as revoked so status endpoint reflects reality
-            if company_id is not None:
-                _mark_token_revoked(request_id, company_id)
-            else:
-                _mark_token_revoked(request_id)
+            _mark_bound_token_revoked(request_id, secret_name)
             return None
 
         else:
@@ -164,14 +244,15 @@ def _mark_token_revoked(request_id="UNKNOWN", company_id=None):
     This ensures the /admin/auth/status endpoint returns VALIDATION_FAILED
     and the admin knows they need to reconnect.
     """
-    from common.auth import DEFAULT_COMPANY_ID
-    if company_id is None:
-        company_id = DEFAULT_COMPANY_ID
+    binding = _resolve_google_token_binding(company_id)
+    if not binding:
+        return
+    _mark_bound_token_revoked(request_id, binding[1])
+
+
+def _mark_bound_token_revoked(request_id, secret_name):
     try:
-        secret_name = resolve_google_token_secret_name(company_id)
-        if not secret_name:
-            return
-        existing = _get_stored_tokens(company_id)
+        existing = _read_bound_tokens(secret_name)
         existing['token_status'] = 'revoked'
         from datetime import timezone
         existing['revoked_at'] = datetime.now(timezone.utc).isoformat()
@@ -184,14 +265,17 @@ def _mark_token_revoked(request_id="UNKNOWN", company_id=None):
             SecretId=secret_name,
             SecretString=json.dumps(existing)
         )
-        print(f"INFO: [Req:{request_id}] Marked Google token as revoked in Secrets Manager for tenant {company_id}.")
-    except Exception as e:
-        print(f"WARNING: [Req:{request_id}] Failed to mark token as revoked for tenant {company_id}: {e}")
+        print(f"INFO: [Req:{request_id}] Marked Google token as revoked.")
+    except Exception:
+        print('PROVIDER_TOKEN_REVOCATION_FAILED')
 
 
 def _get_valid_token(request_id="UNKNOWN", company_id=None):
     """Internal: Gets a valid access token, refreshing if necessary."""
-    tokens = _get_stored_tokens(company_id)
+    binding = _resolve_google_token_binding(company_id)
+    if not binding:
+        return None
+    tokens = _read_bound_tokens(binding[1])
     
     # Release 6G Phase 0C: Check if token is marked as revoked
     if tokens.get('token_status') == 'revoked':
@@ -218,7 +302,7 @@ def _get_valid_token(request_id="UNKNOWN", company_id=None):
         except Exception as e:
             print(f"WARNING: Token expiry check failed: {e}")
 
-    return _refresh_access_token(tokens, request_id, company_id)
+    return _refresh_bound_tokens(tokens, request_id, binding[1])
 
 SERVICE_DURATIONS = {
     service_type: metadata["durationMinutes"]
@@ -624,7 +708,11 @@ def delete_event_detailed(google_event_id, request_id="UNKNOWN", company_id=None
     Deletes a Google Calendar event and returns detailed status:
     (success, already_gone, error_str)
     """
-    token = _get_valid_token(request_id, company_id)
+    try:
+        token = _get_valid_token(request_id, company_id)
+    except ProviderBindingError as exc:
+        # Denial is not successful deletion; callers must retain event references.
+        return False, False, str(exc)
     if not token:
         return True, True, "Not configured"
 
