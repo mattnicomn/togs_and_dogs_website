@@ -67,7 +67,7 @@ def _run_check_in_job(dates, windows, *, request_id="req-slice-b"):
         "SK": "CLIENT#client-slice-b",
         "request_id": request_id,
         "client_id": "client-slice-b",
-        "company_id": "test-company",
+        "company_id": "test_company",
         "client_name": "Slice B Client",
         "pet_names": "Scout",
         "service_type": "CHECK_IN",
@@ -118,7 +118,7 @@ def _run_check_in_job(dates, windows, *, request_id="req-slice-b"):
     entered = [context.__enter__() for context in patches]
     try:
         result = job_handler(
-            {"request_id": request_id, "client_id": "client-slice-b"}, None
+            {"request_id": request_id, "client_id": "client-slice-b", "expected_company_id": "test_company"}, None
         )
         return request, jobs, result, table, entered[4], patches
     except Exception:
@@ -211,7 +211,7 @@ def test_each_check_in_child_has_one_window_and_one_calendar_event():
 def test_deterministic_calendar_insert_conflict_resolves_to_existing_event():
     item = {
         "request_id": "req-calendar-replay",
-        "company_id": "test-company",
+        "company_id": "test_company",
         "client_name": "Calendar Client",
         "pet_names": "Scout",
         "service_type": "CHECK_IN",
@@ -399,6 +399,9 @@ def test_client_portal_check_in_write_accepts_and_persists_contract_fields():
 
 def test_job_handler_rejects_invalid_persisted_check_in_before_side_effects():
     request = {
+        "PK": "REQ#req-invalid-check-in",
+        "SK": "CLIENT#client-slice-b",
+        "company_id": "test_company",
         "request_id": "req-invalid-check-in",
         "client_id": "client-slice-b",
         "service_type": "CHECK_IN",

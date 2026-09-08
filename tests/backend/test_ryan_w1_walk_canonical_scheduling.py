@@ -62,7 +62,7 @@ def _run_walk_job(day_count, window="MIDDAY", request_id="req-w1"):
         "SK": "CLIENT#client-w1",
         "request_id": request_id,
         "client_id": "client-w1",
-        "company_id": "test-company",
+        "company_id": "test_company",
         "client_name": "Walk Client",
         "pet_names": "Scout",
         "service_type": "WALK_20MIN",
@@ -105,7 +105,7 @@ def _run_walk_job(day_count, window="MIDDAY", request_id="req-w1"):
     for context in patches:
         context.__enter__()
     try:
-        result = job_handler({"request_id": request_id, "client_id": "client-w1"}, None)
+        result = job_handler({"request_id": request_id, "client_id": "client-w1", "expected_company_id": "test_company"}, None)
         return request, jobs, result, calendar, patches
     except Exception:
         for context in reversed(patches):

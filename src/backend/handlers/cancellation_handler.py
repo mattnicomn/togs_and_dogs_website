@@ -210,7 +210,7 @@ def handle_admin_decision(body, event):
         # Collect event IDs from parent Request and all child Jobs
         event_to_records = {} # unique_event_id -> list of record keys to update
         job_ids = item.get('job_ids') or []
-        company_id = item.get('company_id') or 'tog_and_dogs'
+        company_id = item.get('company_id')
         
         parent_event_id = item.get('google_event_id')
         if parent_event_id:
@@ -222,6 +222,10 @@ def handle_admin_decision(body, event):
         for jid in job_ids:
             job_item = get_item(f"JOB#{jid}", f"REQ#{request_id}")
             if job_item and job_item.get('google_event_id'):
+                if not company_id or job_item.get('company_id') != company_id:
+                    record_sync_failure(request_id, client_id, 'GOOGLE_CALENDAR',
+                                        'INVALID_CALENDAR_TENANT_CONTEXT')
+                    continue
                 jid_event_id = job_item['google_event_id']
                 event_to_records.setdefault(jid_event_id, []).append({
                     "PK": f"JOB#{jid}",
@@ -245,7 +249,10 @@ def handle_admin_decision(body, event):
             deleted_count = 0
             for event_id in unique_event_ids:
                 try:
-                    gcal_success, already_gone, err_msg = delete_event_detailed(event_id, request_id)
+                    if not company_id:
+                        raise ValueError('MISSING_CALENDAR_TENANT_CONTEXT')
+                    gcal_success, already_gone, err_msg = delete_event_detailed(
+                        event_id, request_id, company_id=company_id)
                     if gcal_success:
                         if already_gone:
                             print(json.dumps({

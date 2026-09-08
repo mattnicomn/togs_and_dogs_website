@@ -15,13 +15,15 @@ from unittest.mock import MagicMock
 # --- Mocks ---
 
 def mock_get_item(pk, sk):
+    if pk in ('JOB#existing-job-id', 'JOB#job1', 'JOB#job2'):
+        return {'PK': pk, 'SK': sk, 'company_id': 'test_company'}
     req_id = pk.replace("REQ#", "")
     base = {
         "PK": pk,
         "SK": sk,
         "request_id": req_id,
         "client_id": "client-123",
-        "company_id": "test-company",
+        "company_id": "test_company",
         "service_type": "WALK_30MIN",
         "visit_window": "MORNING",
         "start_date": "2026-07-20",
@@ -101,7 +103,7 @@ def mock_pet_create(*args, **kwargs):
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_single_day_no_end_date(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-single-no-end", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-single-no-end", "client_id": "client-123"}
     res = job_handler(event, None)
     
     assert mock_put.call_count == 1
@@ -117,7 +119,7 @@ def test_single_day_no_end_date(mock_pet, mock_table, mock_put, mock_get):
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_single_day_same_end_date(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-single-same-end", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-single-same-end", "client_id": "client-123"}
     job_handler(event, None)
     assert mock_put.call_count == 1
 
@@ -127,7 +129,7 @@ def test_single_day_same_end_date(mock_pet, mock_table, mock_put, mock_get):
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 @patch('common.google_calendar.sync_calendar_event', return_value={"event_id": "child_cal_id"})
 def test_two_day_range(mock_sync, mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-multi-2", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-multi-2", "client_id": "client-123"}
     res = job_handler(event, None)
     
     assert mock_put.call_count == 2
@@ -158,7 +160,7 @@ def test_two_day_range(mock_sync, mock_pet, mock_table, mock_put, mock_get):
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_five_day_range(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-multi-5", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-multi-5", "client_id": "client-123"}
     res = job_handler(event, None)
     assert mock_put.call_count == 5
     assert len(res["job_ids"]) == 5
@@ -168,7 +170,7 @@ def test_five_day_range(mock_pet, mock_table, mock_put, mock_get):
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_fourteen_day_range(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-multi-14", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-multi-14", "client_id": "client-123"}
     res = job_handler(event, None)
     assert mock_put.call_count == 14
 
@@ -177,7 +179,7 @@ def test_fourteen_day_range(mock_pet, mock_table, mock_put, mock_get):
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_fifteen_day_range_rejected(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-multi-15", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-multi-15", "client_id": "client-123"}
     res = job_handler(event, None)
     assert "exceeds maximum of 14 days" in res.get("error", "")
     assert mock_put.call_count == 0
@@ -187,7 +189,7 @@ def test_fifteen_day_range_rejected(mock_pet, mock_table, mock_put, mock_get):
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_multi_day_jobs_inherit_visit_window(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-multi-2", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-multi-2", "client_id": "client-123"}
     job_handler(event, None)
     put1 = mock_put.call_args_list[0][0][0]
     assert put1["visit_window"] == "MORNING"
@@ -198,7 +200,7 @@ def test_multi_day_jobs_inherit_visit_window(mock_pet, mock_table, mock_put, moc
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_parent_req_updated_with_job_ids(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-multi-2", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-multi-2", "client_id": "client-123"}
     res = job_handler(event, None)
     
     mock_table.update_item.assert_called_once()
@@ -212,7 +214,7 @@ def test_parent_req_updated_with_job_ids(mock_pet, mock_table, mock_put, mock_ge
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_multi_day_jobs_do_not_inherit_google_event_id(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-multi-google-event", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-multi-google-event", "client_id": "client-123"}
     job_handler(event, None)
     put1 = mock_put.call_args_list[0][0][0]
     assert "google_event_id" not in put1
@@ -222,7 +224,7 @@ def test_multi_day_jobs_do_not_inherit_google_event_id(mock_pet, mock_table, moc
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_existing_job_id_skips_creation(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-existing-job", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-existing-job", "client_id": "client-123"}
     res = job_handler(event, None)
     assert res["status"] == "EXISTING_JOBS_SKIPPED"
     assert res["job_id"] == "existing-job-id"
@@ -233,7 +235,7 @@ def test_existing_job_id_skips_creation(mock_pet, mock_table, mock_put, mock_get
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_existing_job_ids_skips_creation(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-existing-job-ids", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-existing-job-ids", "client_id": "client-123"}
     res = job_handler(event, None)
     assert res["status"] == "EXISTING_JOBS_SKIPPED"
     assert "job1" in res["job_ids"]
@@ -289,7 +291,7 @@ def test_partial_put_item_failure(mock_pet, mock_table, mock_put, mock_get):
     # Simulate first job succeeds, second fails
     mock_put.side_effect = [True, False]
     
-    event = {"request_id": "req-multi-2", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-multi-2", "client_id": "client-123"}
     res = job_handler(event, None)
     
     assert mock_put.call_count == 2
@@ -310,7 +312,7 @@ def test_partial_put_item_failure(mock_pet, mock_table, mock_put, mock_get):
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 @patch('common.google_calendar.sync_calendar_event', return_value={"event_id": "child_cal_id"})
 def test_selected_dates_creates_correct_jobs(mock_sync, mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-selected-4", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-selected-4", "client_id": "client-123"}
     res = job_handler(event, None)
     
     assert mock_put.call_count == 4
@@ -332,7 +334,7 @@ def test_selected_dates_creates_correct_jobs(mock_sync, mock_pet, mock_table, mo
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_selected_dates_priority_over_range(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-selected-priority", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-selected-priority", "client_id": "client-123"}
     res = job_handler(event, None)
     
     assert mock_put.call_count == 2
@@ -344,7 +346,7 @@ def test_selected_dates_priority_over_range(mock_pet, mock_table, mock_put, mock
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_selected_dates_dedup(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-selected-dedup", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-selected-dedup", "client_id": "client-123"}
     res = job_handler(event, None)
     assert mock_put.call_count == 2
 
@@ -353,7 +355,7 @@ def test_selected_dates_dedup(mock_pet, mock_table, mock_put, mock_get):
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_selected_dates_sorted(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-selected-unsorted", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-selected-unsorted", "client_id": "client-123"}
     res = job_handler(event, None)
     assert mock_put.call_count == 3
     put1 = mock_put.call_args_list[0][0][0]
@@ -368,7 +370,7 @@ def test_selected_dates_sorted(mock_pet, mock_table, mock_put, mock_get):
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_selected_dates_invalid_filtered(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-selected-invalid", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-selected-invalid", "client_id": "client-123"}
     res = job_handler(event, None)
     assert mock_put.call_count == 2
 
@@ -377,7 +379,7 @@ def test_selected_dates_invalid_filtered(mock_pet, mock_table, mock_put, mock_ge
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_selected_dates_single_treated_as_single_day(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-selected-1", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-selected-1", "client_id": "client-123"}
     res = job_handler(event, None)
     assert mock_put.call_count == 1
     put1 = mock_put.call_args_list[0][0][0]
@@ -388,7 +390,7 @@ def test_selected_dates_single_treated_as_single_day(mock_pet, mock_table, mock_
 @patch('handlers.job_handler.table')
 @patch('common.pet_profile.create_or_link_pets_from_request', side_effect=mock_pet_create)
 def test_selected_dates_max_14(mock_pet, mock_table, mock_put, mock_get):
-    event = {"request_id": "req-selected-15", "client_id": "client-123"}
+    event = {"expected_company_id": "test_company", "request_id": "req-selected-15", "client_id": "client-123"}
     res = job_handler(event, None)
     assert "exceeds maximum of 14" in res.get("error", "")
     assert mock_put.call_count == 0

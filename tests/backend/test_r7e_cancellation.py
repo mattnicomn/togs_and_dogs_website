@@ -18,6 +18,7 @@ def mock_get_item(pk, sk):
         if req_id == "req-single":
             return {
                 "PK": pk,
+                "company_id": "tog_and_dogs",
                 "SK": sk,
                 "request_id": req_id,
                 "client_id": "client-123",
@@ -27,6 +28,7 @@ def mock_get_item(pk, sk):
         if req_id == "req-multi":
             return {
                 "PK": pk,
+                "company_id": "tog_and_dogs",
                 "SK": sk,
                 "request_id": req_id,
                 "client_id": "client-123",
@@ -39,12 +41,14 @@ def mock_get_item(pk, sk):
         if req_id == "job-1":
             return {
                 "PK": pk,
+                "company_id": "tog_and_dogs",
                 "SK": sk,
                 "google_event_id": "child_event_1",
             }
         if req_id == "job-2":
             return {
                 "PK": pk,
+                "company_id": "tog_and_dogs",
                 "SK": sk,
                 # Missing google_event_id to test failure resilience
             }
@@ -64,7 +68,7 @@ def mock_get_effective_role(event):
 @patch('common.cascade.cascade_status_to_job')
 @patch('handlers.cancellation_handler.log_action')
 def test_cancel_single_day_req(mock_log, mock_cascade, mock_role, mock_notify, mock_delete, mock_table, mock_get):
-    event = {}
+    event = {"requestContext": {"authorizer": {"claims": {"custom:company_id": "tog_and_dogs"}}}}
     body = {
         "request_id": "req-single",
         "client_id": "client-123",
@@ -75,7 +79,7 @@ def test_cancel_single_day_req(mock_log, mock_cascade, mock_role, mock_notify, m
     
     assert res["statusCode"] == 200
     # Should delete the single parent event
-    mock_delete.assert_called_once_with("parent_event_1", "req-single")
+    mock_delete.assert_called_once_with("parent_event_1", "req-single", company_id="tog_and_dogs")
 
 @patch('handlers.cancellation_handler.get_item', side_effect=mock_get_item)
 @patch('handlers.cancellation_handler.table')
@@ -85,7 +89,7 @@ def test_cancel_single_day_req(mock_log, mock_cascade, mock_role, mock_notify, m
 @patch('common.cascade.cascade_status_to_job')
 @patch('handlers.cancellation_handler.log_action')
 def test_cancel_multi_day_req(mock_log, mock_cascade, mock_role, mock_notify, mock_delete, mock_table, mock_get):
-    event = {}
+    event = {"requestContext": {"authorizer": {"claims": {"custom:company_id": "tog_and_dogs"}}}}
     body = {
         "request_id": "req-multi",
         "client_id": "client-123",
@@ -96,7 +100,7 @@ def test_cancel_multi_day_req(mock_log, mock_cascade, mock_role, mock_notify, mo
     
     assert res["statusCode"] == 200
     # Should delete the child event only
-    mock_delete.assert_called_once_with("child_event_1", "req-multi")
+    mock_delete.assert_called_once_with("child_event_1", "req-multi", company_id="tog_and_dogs")
     
     import json
     res_body = json.loads(res["body"])

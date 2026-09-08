@@ -124,7 +124,7 @@ def _run_overnight_job(day_count, request_id="req-o1"):
         "SK": "CLIENT#client-o1",
         "request_id": request_id,
         "client_id": "client-o1",
-        "company_id": "test-company",
+        "company_id": "test_company",
         "client_name": "Overnight Client",
         "pet_names": "Scout",
         "service_type": "OVERNIGHT",
@@ -173,7 +173,7 @@ def _run_overnight_job(day_count, request_id="req-o1"):
 def test_overnight_creates_one_deterministic_child_per_selected_start_date(day_count):
     request, jobs, calendar, contexts = _run_overnight_job(day_count)
     try:
-        result = job_handler({"request_id": request["request_id"], "client_id": request["client_id"]}, None)
+        result = job_handler({"request_id": request["request_id"], "client_id": request["client_id"], "expected_company_id": request["company_id"]}, None)
         assert len(result["job_ids"]) == day_count
         assert len(jobs) == day_count
         assert calendar.call_count == day_count
@@ -282,7 +282,7 @@ def _overnight_children(request_id, child_ids):
             "PK": f"JOB#{child_id}",
             "SK": f"REQ#{request_id}",
             "request_id": request_id,
-            "company_id": "test-company",
+            "company_id": "test_company",
             "client_id": "client-o1",
             "service_type": "OVERNIGHT",
             "status": "JOB_CREATED",
@@ -302,6 +302,7 @@ def test_overnight_cancellation_reaches_each_child_and_only_its_calendar_event()
     child_ids = ["overnight-1", "overnight-2", "overnight-3"]
     request = {
         "PK": f"REQ#{request_id}", "SK": "CLIENT#client-o1", "request_id": request_id,
+        "company_id": "test_company",
         "client_id": "client-o1", "service_type": "OVERNIGHT", "job_ids": child_ids,
         "status": "CANCELLATION_REQUESTED", **EXPECTED_FIXED_FIELDS,
     }
@@ -330,7 +331,7 @@ def test_overnight_cancellation_reaches_each_child_and_only_its_calendar_event()
     assert response["statusCode"] == 200
     assert all(jobs[f"JOB#{child_id}"]["status"] == "CANCELLED" for child_id in child_ids)
     assert calendar_delete.call_args_list == [
-        call(f"event-{child_id}", request_id) for child_id in child_ids
+        call(f"event-{child_id}", request_id, company_id="test_company") for child_id in child_ids
     ]
     assert unrelated["status"] == "ASSIGNED"
 
@@ -340,7 +341,8 @@ def test_overnight_assignment_reaches_all_children_and_batches_notifications():
     child_ids = ["overnight-1", "overnight-2", "overnight-3"]
     request = {
         "PK": f"REQ#{request_id}", "SK": "CLIENT#client-o1", "request_id": request_id,
-        "client_id": "client-o1", "company_id": "test-company", "service_type": "OVERNIGHT",
+        "company_id": "test_company",
+        "client_id": "client-o1", "company_id": "test_company", "service_type": "OVERNIGHT",
         "job_id": child_ids[0], "job_ids": child_ids, "is_multi_day": True, **EXPECTED_FIXED_FIELDS,
     }
     jobs = _overnight_children(request_id, child_ids)
@@ -368,7 +370,7 @@ def test_overnight_assignment_reaches_all_children_and_batches_notifications():
     with patch("common.entitlement.require_active_tenant", return_value=None), patch(
         "common.auth.get_effective_role", return_value="admin"
     ), patch("common.auth.get_claims", return_value={"email": "owner@example.com"}), patch(
-        "common.auth.get_current_company_id", return_value="test-company"
+        "common.auth.get_current_company_id", return_value="test_company"
     ), patch("common.auth.validate_tenant_ownership", return_value=None), patch(
         "common.db.get_item", side_effect=get_item
     ), patch("common.db.table", table), patch(

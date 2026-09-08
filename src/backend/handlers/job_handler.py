@@ -1,3 +1,4 @@
+import re
 import uuid
 import time
 from datetime import datetime, timezone, timedelta
@@ -14,6 +15,13 @@ from common.check_in import (
 )
 
 MAX_MULTI_DAY_OCCURRENCES = 14
+
+def _validate_job_owner(job, job_id, request_id, company_id):
+    if (not isinstance(job, dict) or job.get('company_id') != company_id
+            or job.get('PK') != f'JOB#{job_id}' or job.get('SK') != f'REQ#{request_id}'
+            or (job.get('request_id') is not None and job['request_id'] != request_id)):
+        raise ValueError('INVALID_JOB_TENANT_CONTEXT')
+
 
 def handler(event, context):
     """
@@ -36,6 +44,24 @@ def handler(event, context):
             print(f"Error: Request REQ#{request_id} not found")
             return {"error": "Request not found"}
 
+        company_id = request_item.get('company_id')
+        if (not isinstance(company_id, str) or not re.fullmatch(r'[a-z0-9_]{3,64}', company_id)
+                or request_item.get('PK') != f'REQ#{request_id}'
+                or request_item.get('SK') != f'CLIENT#{client_id}'
+                or (request_item.get('request_id') is not None and request_item['request_id'] != request_id)
+                or (request_item.get('client_id') is not None and request_item['client_id'] != client_id)):
+            return {'error': 'INVALID_JOB_TENANT_CONTEXT'}
+        has_expected_owner = 'expected_company_id' in event
+        if has_expected_owner:
+            expected_owner = event['expected_company_id']
+            if (not isinstance(expected_owner, str) or not re.fullmatch(r'[a-z0-9_]{3,64}', expected_owner)
+                    or expected_owner != company_id):
+                return {'error': 'INVALID_JOB_TENANT_CONTEXT'}
+        # Input hints never override the validated persisted request reference.
+        if ('google_event_id' in event and event['google_event_id'] is not None
+                and event['google_event_id'] != request_item.get('google_event_id')):
+            return {'error': 'INVALID_JOB_EVENT_REFERENCE'}
+
         try:
             canonical_window_fields = validate_booking_window_fields(request_item, persisted=True)
         except BookingWindowValidationError as exc:
@@ -46,6 +72,12 @@ def handler(event, context):
         existing_job_id = request_item.get('job_id')
         existing_job_ids = request_item.get('job_ids')
         if existing_job_id or existing_job_ids:
+            linked_ids = list(existing_job_ids or [])
+            if existing_job_id and existing_job_id not in linked_ids:
+                linked_ids.append(existing_job_id)
+            for linked_id in linked_ids:
+                _validate_job_owner(get_item(f'JOB#{linked_id}', f'REQ#{request_id}'),
+                                    linked_id, request_id, company_id)
             print(f"INFO: JOBs already exist for REQ#{request_id}. Skipping creation.")
             return {
                 "job_id": existing_job_id,
@@ -54,27 +86,6 @@ def handler(event, context):
                 "status": "EXISTING_JOBS_SKIPPED",
                 "message": "JOB records already exist for this request."
             }
-
-        from common.auth import get_current_company_id
-        company_id = request_item.get('company_id') or get_current_company_id(event if 'event' in locals() else {})
-
-        # Release 4: Use multi-pet profile utility for PET# record creation.
-        # This replaces the inline single-pet creation with a utility that:
-        # - Supports multiple pets from the 'pets' array
-        # - Falls back to legacy pet_names string for old requests
-        # - Uses pet_ids array as idempotency guard
-        # - Links PET# records to client profile ID when available
-        # - Handles name matching and duplicate detection
-        from common.pet_profile import create_or_link_pets_from_request
-        pet_result = create_or_link_pets_from_request(
-            request_item=request_item,
-            request_id=request_id,
-            client_id=client_id,
-            company_id=company_id,
-            updated_by='system_job_handler'
-        )
-        pet_ids = pet_result.get('pet_ids', [])
-        pet_id = pet_ids[0] if pet_ids else None
 
         # Release 7E Phase 1: Multi-Day JOB Expansion
         start_date_str = request_item.get('start_date')
@@ -139,21 +150,51 @@ def handler(event, context):
         created_job_ids = []
         first_job_id = None
 
-        event_id = event.get('google_event_id') or request_item.get('google_event_id')
-
-        for idx, (occurrence_date, occurrence_window) in enumerate(occurrences):
+        event_id = request_item.get('google_event_id')
+        # Preflight every occurrence before any pet/job/provider side effect. Legacy
+        # input may recover existing canonical jobs, but cannot create missing jobs.
+        occurrence_jobs = []
+        for occurrence_date, occurrence_window in occurrences:
+            existing_job = None
             if uses_canonical_occurrences:
-                occurrence_namespace = (
-                    'check-in' if is_check_in
-                    else 'walk-20min' if is_walk
-                    else 'overnight-fixed'
-                )
-                logical_occurrence = (
-                    f"togs-and-dogs:{occurrence_namespace}:{request_id}:"
-                    f"{occurrence_date or ''}:{occurrence_window}"
-                )
+                occurrence_namespace = ('check-in' if is_check_in else
+                                        'walk-20min' if is_walk else 'overnight-fixed')
+                logical_occurrence = (f'togs-and-dogs:{occurrence_namespace}:{request_id}:'
+                                      f"{occurrence_date or ''}:{occurrence_window}")
                 job_id = str(uuid.uuid5(uuid.NAMESPACE_URL, logical_occurrence))
-                existing_job = get_item(f"JOB#{job_id}", f"REQ#{request_id}")
+                existing_job = get_item(f'JOB#{job_id}', f'REQ#{request_id}')
+                if existing_job is not None:
+                    _validate_job_owner(existing_job, job_id, request_id, company_id)
+            else:
+                job_id = str(uuid.uuid4())
+            if not existing_job and not has_expected_owner:
+                return {'error': 'EXPECTED_COMPANY_ID_REQUIRED_FOR_CREATION'}
+            occurrence_jobs.append((job_id, existing_job))
+
+        pet_ids = []
+        pet_id = None
+        if any(existing is None for _, existing in occurrence_jobs):
+            # Release 4: Use multi-pet profile utility for PET# record creation.
+            # This replaces the inline single-pet creation with a utility that:
+            # - Supports multiple pets from the 'pets' array
+            # - Falls back to legacy pet_names string for old requests
+            # - Uses pet_ids array as idempotency guard
+            # - Links PET# records to client profile ID when available
+            # - Handles name matching and duplicate detection
+            from common.pet_profile import create_or_link_pets_from_request
+            pet_result = create_or_link_pets_from_request(
+                request_item=request_item,
+                request_id=request_id,
+                client_id=client_id,
+                company_id=company_id,
+                updated_by='system_job_handler'
+            )
+            pet_ids = pet_result.get('pet_ids', [])
+            pet_id = pet_ids[0] if pet_ids else None
+
+        for idx, ((occurrence_date, occurrence_window), (job_id, existing_job)) in enumerate(
+                zip(occurrences, occurrence_jobs)):
+            if uses_canonical_occurrences:
                 if existing_job:
                     if (
                         existing_job.get('calendar_event_id')
@@ -181,9 +222,6 @@ def handler(event, context):
                         f"for {occurrence_date} {occurrence_window}; reusing."
                     )
                     continue
-            else:
-                job_id = str(uuid.uuid4())
-
             occurrence_end_date = occurrence_date
             if is_overnight and occurrence_date:
                 occurrence_end_date = (

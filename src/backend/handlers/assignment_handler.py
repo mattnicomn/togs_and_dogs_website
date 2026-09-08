@@ -203,7 +203,11 @@ def handler(event, context):
                 
                 cal_res = None
                 try:
-                    cal_res = sync_calendar_event(sync_data, google_event_id=google_event_id, assigned_worker=worker_name)
+                    if not item.get('company_id'):
+                        raise ValueError('MISSING_CALENDAR_TENANT_CONTEXT')
+                    cal_res = sync_calendar_event(
+                        {**sync_data, 'company_id': item['company_id']},
+                        google_event_id=google_event_id, assigned_worker=worker_name)
                     if cal_res.get('event_id') and cal_res.get('event_id') != google_event_id:
                         # Persist the new event ID back to DB
                         try:

@@ -17,25 +17,25 @@ def mock_get_effective_role(event):
     return 'admin'
 
 def mock_get_claims(event):
-    return {'email': 'admin@usmissionhero.com'}
+    return {'email': 'admin@usmissionhero.com', 'custom:company_id': 'tog_and_dogs'}
 
 def mock_get_item(pk, sk):
     # Mocking REQ and JOB retrieval
     if pk == "REQ#req-multi-3":
         return {
-            "PK": pk, "SK": sk, "status": "APPROVED",
+            "PK": pk, "SK": sk, "company_id": "tog_and_dogs", "status": "APPROVED",
             "job_ids": ["job-1", "job-2", "job-3"],
             "client_id": "client-123"
         }
     if pk == "REQ#req-single":
         return {
-            "PK": pk, "SK": sk, "status": "APPROVED",
+            "PK": pk, "SK": sk, "company_id": "tog_and_dogs", "status": "APPROVED",
             "job_id": "job-single",
             "client_id": "client-123"
         }
     if pk == "REQ#req-missing-job":
         return {
-            "PK": pk, "SK": sk, "status": "APPROVED",
+            "PK": pk, "SK": sk, "company_id": "tog_and_dogs", "status": "APPROVED",
             "job_ids": ["job-ok-1", "job-missing", "job-ok-2"],
             "client_id": "client-123"
         }
@@ -47,7 +47,7 @@ def mock_get_item(pk, sk):
             return None # Simulate missing job
             
         return {
-            "PK": pk, "SK": sk, "status": "APPROVED",
+            "PK": pk, "SK": sk, "company_id": "tog_and_dogs", "status": "APPROVED",
             "client_id": "client-123",
             "start_date": "2026-07-20",
             "google_event_id": f"cal-{job_id}"
@@ -210,7 +210,7 @@ def test_multi_day_primary_job_assignment_cascade(mock_notify, mock_sync, mock_t
     def local_get_item(pk, sk):
         if pk == "REQ#req-multi-cascade":
             return {
-                "PK": pk, "SK": sk, "status": "APPROVED",
+                "PK": pk, "SK": sk, "company_id": "tog_and_dogs", "status": "APPROVED",
                 "job_id": "job-1",
                 "job_ids": ["job-1", "job-2", "job-3"],
                 "client_id": "client-123",
@@ -219,7 +219,7 @@ def test_multi_day_primary_job_assignment_cascade(mock_notify, mock_sync, mock_t
         if pk.startswith("JOB#"):
             job_id = pk.split("#")[1]
             return {
-                "PK": pk, "SK": sk, "status": "APPROVED",
+                "PK": pk, "SK": sk, "company_id": "tog_and_dogs", "status": "APPROVED",
                 "client_id": "client-123",
                 "start_date": "2026-07-20",
                 "google_event_id": f"cal-{job_id}"
@@ -268,7 +268,7 @@ def test_multi_day_single_child_explicit_assignment(mock_notify, mock_sync, mock
     def local_get_item(pk, sk):
         if pk == "REQ#req-multi-explicit":
             return {
-                "PK": pk, "SK": sk, "status": "APPROVED",
+                "PK": pk, "SK": sk, "company_id": "tog_and_dogs", "status": "APPROVED",
                 "job_id": "job-1",
                 "job_ids": ["job-1", "job-2", "job-3"],
                 "client_id": "client-123",
@@ -277,7 +277,7 @@ def test_multi_day_single_child_explicit_assignment(mock_notify, mock_sync, mock
         if pk.startswith("JOB#"):
             job_id = pk.split("#")[1]
             return {
-                "PK": pk, "SK": sk, "status": "APPROVED",
+                "PK": pk, "SK": sk, "company_id": "tog_and_dogs", "status": "APPROVED",
                 "client_id": "client-123",
                 "start_date": "2026-07-20",
                 "google_event_id": f"cal-{job_id}"

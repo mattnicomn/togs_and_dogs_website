@@ -15,7 +15,7 @@ def _check_in_request(request_id, dates, windows):
         "SK": "CLIENT#client-r1",
         "request_id": request_id,
         "client_id": "client-r1",
-        "company_id": "test-company",
+        "company_id": "test_company",
         "client_name": "R1 Client",
         "pet_names": "Scout",
         "service_type": "CHECK_IN",
@@ -76,7 +76,7 @@ def test_check_in_mid_batch_failure_retry_converges_to_exact_deterministic_child
         "handlers.job_handler.time.sleep"
     ):
         first = job_handler(
-            {"request_id": request["request_id"], "client_id": request["client_id"]},
+            {"request_id": request["request_id"], "client_id": request["client_id"], "expected_company_id": request["company_id"]},
             None,
         )
         first_ids = {pk.removeprefix("JOB#") for pk in jobs}
@@ -86,7 +86,7 @@ def test_check_in_mid_batch_failure_retry_converges_to_exact_deterministic_child
 
         fail_on_third_write["enabled"] = False
         retry = job_handler(
-            {"request_id": request["request_id"], "client_id": request["client_id"]},
+            {"request_id": request["request_id"], "client_id": request["client_id"], "expected_company_id": request["company_id"]},
             None,
         )
 
@@ -144,6 +144,7 @@ def test_check_in_multi_window_cancellation_cascades_and_deduplicates_calendar_c
     jobs = {
         f"JOB#{child_id}": {
             "PK": f"JOB#{child_id}",
+            "company_id": request["company_id"],
             "SK": f"REQ#{request_id}",
             "request_id": request_id,
             "status": "ASSIGNED",
@@ -165,7 +166,8 @@ def test_check_in_multi_window_cancellation_cascades_and_deduplicates_calendar_c
             return request
         return jobs.get(pk)
 
-    def delete_event(event_id, _request_id):
+    def delete_event(event_id, _request_id, *, company_id):
+        assert company_id == 'test_company'
         return (True, event_id in {"event-404", "event-410"}, None)
 
     with patch("common.auth.get_effective_role", return_value="admin"), patch(
@@ -196,10 +198,10 @@ def test_check_in_multi_window_cancellation_cascades_and_deduplicates_calendar_c
         "google_event_id": "unrelated-event",
     }
     assert calendar_delete.call_args_list == [
-        call("event-a", request_id),
-        call("event-b", request_id),
-        call("event-404", request_id),
-        call("event-410", request_id),
+        call("event-a", request_id, company_id="test_company"),
+        call("event-b", request_id, company_id="test_company"),
+        call("event-404", request_id, company_id="test_company"),
+        call("event-410", request_id, company_id="test_company"),
     ]
     assert "google_event_id" not in jobs["JOB#child-1"]
     assert "google_event_id" not in jobs["JOB#child-2"]
@@ -225,8 +227,9 @@ def test_check_in_multi_window_assignment_cascades_to_all_children_and_batches_n
     jobs = {
         f"JOB#{child_id}": {
             "PK": f"JOB#{child_id}",
+            "company_id": request["company_id"],
             "SK": f"REQ#{request_id}",
-            "company_id": "test-company",
+            "company_id": "test_company",
             "request_id": request_id,
             "client_id": request["client_id"],
             "service_type": "CHECK_IN",
@@ -282,7 +285,7 @@ def test_check_in_multi_window_assignment_cascades_to_all_children_and_batches_n
     with patch("common.entitlement.require_active_tenant", return_value=None), patch(
         "common.auth.get_effective_role", return_value="admin"
     ), patch("common.auth.get_claims", return_value={"email": "owner@example.com"}), patch(
-        "common.auth.get_current_company_id", return_value="test-company"
+        "common.auth.get_current_company_id", return_value="test_company"
     ), patch("common.auth.validate_tenant_ownership", return_value=None), patch(
         "common.db.get_item", side_effect=get_item
     ), patch("common.db.table", table), patch(

@@ -14,6 +14,7 @@ from common.auth import sanitize_booking_for_role
 
 MOCK_REQ = {
     "PK": "REQ#123",
+    "company_id": "tog_and_dogs",
     "SK": "CLIENT#1",
     "request_id": "123",
     "status": "ASSIGNED",
@@ -25,12 +26,14 @@ MOCK_REQ = {
 MOCK_JOBS = {
     "JOB#active-job": {
         "PK": "JOB#active-job",
+        "company_id": "tog_and_dogs",
         "SK": "REQ#123",
         "status": "ASSIGNED",
         "google_event_id": "g-active"
     },
     "JOB#completed-job": {
         "PK": "JOB#completed-job",
+        "company_id": "tog_and_dogs",
         "SK": "REQ#123",
         "status": "COMPLETED",
         "visit_notes": "Preserve me!",
@@ -68,7 +71,7 @@ def setup_db_mocks(monkeypatch):
 # --- Event Helper ---
 
 def create_event(role, body_dict=None, path="/admin/requests", method="POST"):
-    claims = {"email": f"{role.lower()}@test.com"}
+    claims = {"email": f"{role.lower()}@test.com", "custom:company_id": "tog_and_dogs"}
     if role.lower() == "admin":
         claims["cognito:groups"] = "Admin"
     elif role.lower() == "owner":
@@ -258,7 +261,7 @@ def test_google_calendar_preserves_completed_events(mock_delete_event, mock_upda
     assert resp["statusCode"] == 200
     
     # Verify calendar event deletion was ONLY called for the active job, not the completed one
-    mock_delete_event.assert_called_once_with("g-active", "REQ#123")
+    mock_delete_event.assert_called_once_with("g-active", "REQ#123", company_id="tog_and_dogs")
 
 def test_client_role_redacts_lifecycle_metadata():
     """Verify is_test_booking, archive_reason, archived_at, and archived_by are redacted for clients."""

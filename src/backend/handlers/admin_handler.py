@@ -3149,8 +3149,27 @@ def handler(event, context):
 
                     # ID Healing Resolution — pass company_id for tenant-scoped scan fallback (Release 11E)
                     from common.auth import get_current_company_id as _gcc
-                    _action_company_id = _gcc(event)
-                    current_item, actual_pk, actual_sk = _resolve_admin_record(item_pk, item_sk, company_id=_action_company_id)
+                    try:
+                        import re
+                        caller_owner = get_claims(event).get('custom:company_id')
+                        if not isinstance(caller_owner, str) or not re.fullmatch(r'[a-z0-9_]{3,64}', caller_owner):
+                            raise ValueError('INVALID_CALENDAR_TENANT_CONTEXT')
+                        _action_company_id = _gcc(event)
+                        current_item, actual_pk, actual_sk = _resolve_admin_record(
+                            item_pk, item_sk, company_id=_action_company_id)
+                        if current_item:
+                            if not isinstance(current_item, dict):
+                                raise ValueError('INVALID_CALENDAR_TENANT_CONTEXT')
+                            owner = current_item.get('company_id')
+                            if (not isinstance(owner, str) or not re.fullmatch(r'[a-z0-9_]{3,64}', owner)
+                                    or owner != _action_company_id or owner != caller_owner
+                                    or current_item.get('PK') != actual_pk or current_item.get('SK') != actual_sk):
+                                raise ValueError('INVALID_CALENDAR_TENANT_CONTEXT')
+                    except (ValueError, PermissionError):
+                        results['failed'] += 1
+                        results['failures'].append({'record': f'{item_pk}/{item_sk}',
+                                                    'reason': 'Invalid tenant context'})
+                        continue
                     
                     if not current_item:
                         results["failed"] += 1
@@ -3265,7 +3284,8 @@ def handler(event, context):
 
                             if effective_new_status in ['APPROVED', 'ASSIGNED', 'BOOKED', 'SCHEDULED']:
                                 if not is_multi_day_req:
-                                    sync_data = {**current_item, 'status': effective_new_status}
+                                    sync_data = {**current_item, 'status': effective_new_status,
+                                                 'company_id': current_item['company_id']}
                                     if action == 'ARCHIVE' or action == 'DELETE':
                                         pass
                                     else:
@@ -3280,8 +3300,10 @@ def handler(event, context):
                                 if not is_multi_day_req:
                                     eid = current_item.get('google_event_id')
                                     if eid:
-                                        if delete_event(eid, actual_pk):
+                                        if delete_event(eid, actual_pk, company_id=current_item['company_id']):
                                             _table.update_item(Key={'PK': actual_pk, 'SK': actual_sk}, UpdateExpression="REMOVE google_event_id")
+                                        else:
+                                            raise ValueError('CALENDAR_DELETE_FAILED')
                                 else:
                                     if current_item.get('job_ids'):
                                         for jid in current_item.get('job_ids'):
@@ -3291,15 +3313,27 @@ def handler(event, context):
                                                 continue
                                             if job_item and job_item.get('google_event_id'):
                                                 try:
-                                                    delete_event(job_item['google_event_id'], actual_pk)
+                                                    if (job_item.get('company_id') != current_item['company_id']
+                                                            or job_item.get('PK') != f'JOB#{jid}'
+                                                            or job_item.get('SK') != actual_pk
+                                                            or (job_item.get('request_id') is not None and
+                                                                job_item['request_id'] != actual_pk.removeprefix('REQ#'))):
+                                                        raise ValueError('INVALID_CALENDAR_TENANT_CONTEXT')
+                                                    if not delete_event(job_item['google_event_id'], actual_pk,
+                                                                        company_id=job_item['company_id']):
+                                                        raise ValueError('CALENDAR_DELETE_FAILED')
                                                     _table.update_item(
                                                         Key={'PK': f"JOB#{jid}", 'SK': actual_pk},
                                                         UpdateExpression="REMOVE google_event_id"
                                                     )
                                                 except Exception as cal_err:
                                                     print(f"WARNING: [AdminBulk] Failed to delete child JOB cal event: {cal_err}")
+                                                    results['failures'].append({'record': f'JOB#{jid}/{actual_pk}',
+                                                                                'reason': 'Calendar cleanup failed'})
                         except Exception as cal_err:
                             print(f"WARNING: [AdminBulk] Calendar sync failed for {actual_pk}: {cal_err}")
+                            results['failures'].append({'record': f'{actual_pk}/{actual_sk}',
+                                                        'reason': 'Calendar operation failed'})
 
                         # Trigger notifications for relevant changes
                         if effective_new_status == 'APPROVED' and current_item.get('workflow_type') == 'CUSTOMER_INTAKE':

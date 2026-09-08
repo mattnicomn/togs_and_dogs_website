@@ -305,7 +305,11 @@ def handler(event, context):
                         
                     if not is_multi_day_req:
                         print(f"INFO: [Req:{request_id}] Attempting Google Calendar sync (Status: {new_status})")
-                        calendar_result = sync_calendar_event(sync_data, google_event_id=existing_event_id, assigned_worker=assigned_worker)
+                        if not request_item.get('company_id'):
+                            raise ValueError('MISSING_CALENDAR_TENANT_CONTEXT')
+                        calendar_result = sync_calendar_event(
+                            {**sync_data, 'company_id': request_item['company_id']},
+                            google_event_id=existing_event_id, assigned_worker=assigned_worker)
                         
                         if calendar_result.get('event_id') and calendar_result.get('event_id') != existing_event_id:
                             # Persist the event ID back to the Request record
@@ -342,7 +346,10 @@ def handler(event, context):
                     existing_event_id = request_item.get('google_event_id')
                     if existing_event_id:
                         try:
-                            success_delete = delete_event(existing_event_id, request_id)
+                            if not request_item.get('company_id'):
+                                raise ValueError('MISSING_CALENDAR_TENANT_CONTEXT')
+                            success_delete = delete_event(
+                                existing_event_id, request_id, company_id=request_item['company_id'])
                             if success_delete:
                                 calendar_result = {"status": "calendar_deleted", "message": "Calendar event deleted."}
                                 table.update_item(
@@ -357,19 +364,26 @@ def handler(event, context):
                 else:
                     if request_item.get('job_ids'):
                         deleted_count = 0
+                        failed_count = 0
                         for jid in request_item.get('job_ids'):
                             job_item = get_item(f"JOB#{jid}", f"REQ#{request_id}")
                             if job_item and job_item.get('google_event_id'):
                                 try:
-                                    delete_event(job_item['google_event_id'], request_id)
+                                    if (not request_item.get('company_id') or
+                                            job_item.get('company_id') != request_item['company_id']):
+                                        raise ValueError('INVALID_CALENDAR_TENANT_CONTEXT')
+                                    if not delete_event(job_item['google_event_id'], request_id,
+                                                        company_id=job_item['company_id']):
+                                        raise ValueError('CALENDAR_DELETE_FAILED')
                                     table.update_item(
                                         Key={'PK': f"JOB#{jid}", 'SK': f"REQ#{request_id}"},
                                         UpdateExpression="REMOVE google_event_id"
                                     )
                                     deleted_count += 1
                                 except Exception as del_err:
+                                    failed_count += 1
                                     print(f"WARNING: [Job:{jid}] Calendar delete failed: {del_err}")
-                        calendar_result = {"status": "calendar_deleted", "message": f"Deleted {deleted_count} child calendar events."}
+                        calendar_result = {"status": "calendar_failed" if failed_count else "calendar_deleted", "message": f"Deleted {deleted_count} child calendar events; {failed_count} failed."}
 
             # --- JOB CREATION LAMBDA TRIGGER ---
             if new_status == 'APPROVED':
@@ -377,7 +391,12 @@ def handler(event, context):
                     lambda_client = boto3.client('lambda')
                     job_fn_name = os.environ.get('JOB_FUNCTION_NAME')
                     if job_fn_name:
+                        import re
+                        owner = request_item.get('company_id')
+                        if not isinstance(owner, str) or not re.fullmatch(r'[a-z0-9_]{3,64}', owner):
+                            raise ValueError('INVALID_JOB_TENANT_CONTEXT')
                         payload = {
+                            "expected_company_id": owner,
                             "request_id": request_id,
                             "client_id": client_id,
                             "google_event_id": calendar_result.get('event_id') if calendar_result else request_item.get('google_event_id')

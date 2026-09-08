@@ -268,6 +268,7 @@ def _handle_admin_created_booking(event, body):
         job_fn_name = os.environ.get('JOB_FUNCTION_NAME')
         if job_fn_name:
             payload = {
+                "expected_company_id": company_id,
                 "request_id": request_id,
                 "client_id": client_id,
             }
@@ -560,6 +561,7 @@ def handler(event, context):
                         stateMachineArn=STATE_MACHINE_ARN,
                         name=f"req-{request_id}", # Unique execution name
                         input=json.dumps({
+                            "expected_company_id": item['company_id'],
                             "request_id": request_id, 
                             "client_id": client_id,
                             "status": item['status']

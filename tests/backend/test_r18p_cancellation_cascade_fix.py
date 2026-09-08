@@ -51,6 +51,7 @@ def test_18p_parent_only(mock_get_item, mock_log, mock_cascade, mock_role, mock_
     }
     job_items = {
         "job-1": {
+            "company_id": "tog_and_dogs",
             "PK": "JOB#job-1",
             "SK": "REQ#req-parent-only"
             # google_event_id is missing
@@ -66,11 +67,11 @@ def test_18p_parent_only(mock_get_item, mock_log, mock_cascade, mock_role, mock_
         "decision": "APPROVE"
     }
 
-    res = handle_admin_decision(body, {})
+    res = handle_admin_decision(body, {"requestContext": {"authorizer": {"claims": {"custom:company_id": "tog_and_dogs"}}}})
     assert res["statusCode"] == 200
     
     # Assert delete_event_detailed was called for parent event id
-    mock_delete_detailed.assert_called_once_with("parent-event-id", "req-parent-only")
+    mock_delete_detailed.assert_called_once_with("parent-event-id", "req-parent-only", company_id="tog_and_dogs")
     
     # Assert database REMOVE update is triggered
     mock_table.update_item.assert_any_call(
@@ -97,6 +98,7 @@ def test_18p_child_only(mock_get_item, mock_log, mock_cascade, mock_role, mock_n
     }
     job_items = {
         "job-1": {
+            "company_id": "tog_and_dogs",
             "PK": "JOB#job-1",
             "SK": "REQ#req-child-only",
             "google_event_id": "child-event-id"
@@ -112,10 +114,10 @@ def test_18p_child_only(mock_get_item, mock_log, mock_cascade, mock_role, mock_n
         "decision": "APPROVE"
     }
 
-    res = handle_admin_decision(body, {})
+    res = handle_admin_decision(body, {"requestContext": {"authorizer": {"claims": {"custom:company_id": "tog_and_dogs"}}}})
     assert res["statusCode"] == 200
     
-    mock_delete_detailed.assert_called_once_with("child-event-id", "req-child-only")
+    mock_delete_detailed.assert_called_once_with("child-event-id", "req-child-only", company_id="tog_and_dogs")
     mock_table.update_item.assert_any_call(
         Key={"PK": "JOB#job-1", "SK": "REQ#req-child-only"},
         UpdateExpression="REMOVE google_event_id"
@@ -141,6 +143,7 @@ def test_18p_duplicate_event_ids(mock_get_item, mock_log, mock_cascade, mock_rol
     }
     job_items = {
         "job-1": {
+            "company_id": "tog_and_dogs",
             "PK": "JOB#job-1",
             "SK": "REQ#req-dup",
             "google_event_id": "shared-event-id"
@@ -156,11 +159,11 @@ def test_18p_duplicate_event_ids(mock_get_item, mock_log, mock_cascade, mock_rol
         "decision": "APPROVE"
     }
 
-    res = handle_admin_decision(body, {})
+    res = handle_admin_decision(body, {"requestContext": {"authorizer": {"claims": {"custom:company_id": "tog_and_dogs"}}}})
     assert res["statusCode"] == 200
     
     # Assert it was only called once (deduplicated)
-    mock_delete_detailed.assert_called_once_with("shared-event-id", "req-dup")
+    mock_delete_detailed.assert_called_once_with("shared-event-id", "req-dup", company_id="tog_and_dogs")
     
     # Updates should be sent for both records
     mock_table.update_item.assert_any_call(
@@ -192,6 +195,7 @@ def test_18p_different_event_ids(mock_get_item, mock_log, mock_cascade, mock_rol
     }
     job_items = {
         "job-1": {
+            "company_id": "tog_and_dogs",
             "PK": "JOB#job-1",
             "SK": "REQ#req-diff",
             "google_event_id": "child-event-id"
@@ -207,12 +211,12 @@ def test_18p_different_event_ids(mock_get_item, mock_log, mock_cascade, mock_rol
         "decision": "APPROVE"
     }
 
-    res = handle_admin_decision(body, {})
+    res = handle_admin_decision(body, {"requestContext": {"authorizer": {"claims": {"custom:company_id": "tog_and_dogs"}}}})
     assert res["statusCode"] == 200
     
     assert mock_delete_detailed.call_count == 2
-    mock_delete_detailed.assert_any_call("parent-event-id", "req-diff")
-    mock_delete_detailed.assert_any_call("child-event-id", "req-diff")
+    mock_delete_detailed.assert_any_call("parent-event-id", "req-diff", company_id="tog_and_dogs")
+    mock_delete_detailed.assert_any_call("child-event-id", "req-diff", company_id="tog_and_dogs")
     
     mock_table.update_item.assert_any_call(
         Key={"PK": "REQ#req-diff", "SK": "CLIENT#client-123"},
@@ -253,10 +257,10 @@ def test_18p_already_deleted(mock_get_item, mock_log, mock_cascade, mock_role, m
         "decision": "APPROVE"
     }
 
-    res = handle_admin_decision(body, {})
+    res = handle_admin_decision(body, {"requestContext": {"authorizer": {"claims": {"custom:company_id": "tog_and_dogs"}}}})
     assert res["statusCode"] == 200
     
-    mock_delete_detailed.assert_called_once_with("missing-event-id", "req-404")
+    mock_delete_detailed.assert_called_once_with("missing-event-id", "req-404", company_id="tog_and_dogs")
     
     # Even if 404, we clean it up from database
     mock_table.update_item.assert_any_call(
@@ -294,11 +298,11 @@ def test_18p_generic_api_error(mock_get_item, mock_log, mock_cascade, mock_role,
         "decision": "APPROVE"
     }
 
-    res = handle_admin_decision(body, {})
+    res = handle_admin_decision(body, {"requestContext": {"authorizer": {"claims": {"custom:company_id": "tog_and_dogs"}}}})
     
     # Deletion failure must NOT block overall cancellation workflow success
     assert res["statusCode"] == 200
-    mock_delete_detailed.assert_called_once_with("erroneous-event-id", "req-error")
+    mock_delete_detailed.assert_called_once_with("erroneous-event-id", "req-error", company_id="tog_and_dogs")
     
     # Check that it did NOT remove the event ID from DB because it was a failure
     # (So it only updated the status and audit_log, not REMOVE google_event_id)
@@ -328,6 +332,7 @@ def test_18p_no_event_ids(mock_get_item, mock_log, mock_cascade, mock_role, mock
     }
     job_items = {
         "job-1": {
+            "company_id": "tog_and_dogs",
             "PK": "JOB#job-1",
             "SK": "REQ#req-none"
         }
@@ -341,7 +346,7 @@ def test_18p_no_event_ids(mock_get_item, mock_log, mock_cascade, mock_role, mock
         "decision": "APPROVE"
     }
 
-    res = handle_admin_decision(body, {})
+    res = handle_admin_decision(body, {"requestContext": {"authorizer": {"claims": {"custom:company_id": "tog_and_dogs"}}}})
     assert res["statusCode"] == 200
     mock_delete_detailed.assert_not_called()
 
@@ -365,6 +370,7 @@ def test_18p_cancellation_transitions_and_cascade(mock_get_item, mock_log, mock_
     }
     job_items = {
         "job-1": {
+            "company_id": "tog_and_dogs",
             "PK": "JOB#job-1",
             "SK": "REQ#req-cascade",
             "status": "ASSIGNED"
@@ -379,7 +385,7 @@ def test_18p_cancellation_transitions_and_cascade(mock_get_item, mock_log, mock_
         "decision": "APPROVE"
     }
 
-    res = handle_admin_decision(body, {})
+    res = handle_admin_decision(body, {"requestContext": {"authorizer": {"claims": {"custom:company_id": "tog_and_dogs"}}}})
     assert res["statusCode"] == 200
     
     # Assert database update is called for the request record to set status to CANCELLED
@@ -430,7 +436,7 @@ def test_18p_notification_behavior(mock_get_item, mock_log, mock_cascade, mock_r
         "decision": "APPROVE"
     }
 
-    res = handle_admin_decision(body, {})
+    res = handle_admin_decision(body, {"requestContext": {"authorizer": {"claims": {"custom:company_id": "tog_and_dogs"}}}})
     assert res["statusCode"] == 200
     
     # Assert new modular notification was fired
