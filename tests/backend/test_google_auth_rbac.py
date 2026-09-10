@@ -70,7 +70,8 @@ class TestGoogleAuthRBAC:
             "PK": "TENANT#tog_and_dogs", "SK": "METADATA",
             "company_id": "tog_and_dogs",
             "calendar_provider": "google",
-            "calendar_enabled": True
+            "calendar_enabled": True,
+            "subscription_status": "active"
         }}
         mock_config.return_value = {"client_id": "id", "client_secret": "secret"}
 

@@ -187,10 +187,9 @@ def test_google_oauth_enabled_denies_invalid_tier(mock_db):
     resp = google_auth_handler(event, None)
     assert resp["statusCode"] == 403
     body = json.loads(resp["body"])
-    assert body["error"] == "EntitlementDenied"
-    assert "requires a higher plan" in body["message"]
-    assert body["feature"] == "google_calendar_enabled"
-    assert body["upgrade_hint"] == "upgrade"
+    # S2B.2 uses the same fixed denial category for OAuth eligibility failures.
+    assert body == {"error": "OAUTH_ACCESS_DENIED"}
+    assert "auth_url" not in body
 
 
 # ---------------------------------------------------------------------------

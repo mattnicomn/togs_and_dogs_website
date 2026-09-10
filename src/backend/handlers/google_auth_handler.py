@@ -135,8 +135,9 @@ def handler(event, context):
         return calendar_health_check(event)
     
     try:
-        if not path.endswith('/callback'):
-            _require_http_company_id(event)
+        if path.endswith('/callback'):
+            return handle_callback(event)
+        _require_http_company_id(event)
         from common.entitlement import require_active_tenant
         block_resp = require_active_tenant(event)
         if block_resp:
@@ -147,8 +148,6 @@ def handler(event, context):
             if method == 'DELETE':
                 return disconnect_auth(event)
             return initiate_auth(event)
-        elif path.endswith('/callback'):
-            return handle_callback(event)
         elif path.endswith('/status'):
             return get_status(event)
         elif path.endswith('/health'):
@@ -209,159 +208,208 @@ def disconnect_auth(event):
         return internal_error("Failed to disconnect Google Calendar.", event)
 
 
-def initiate_auth(event):
-    """
-    GET /admin/auth/google
-    Generates auth URL and stores state in DynamoDB.
-    """
-    role = get_effective_role(event)
-    if role not in ['owner', 'admin']:
-        return error(403, "Forbidden: Insufficient permissions to manage calendar integration.", event)
+_OAUTH_PROD_REDIRECT = 'https://a022yxuiue.execute-api.us-east-1.amazonaws.com/prod/admin/auth/callback'
+_OAUTH_PROD_DESTINATION = 'https://toganddogs.usmissionhero.com/admin'
+_OAUTH_LOCAL_ORIGIN = 'http://localhost:5173'
+_OAUTH_STATE_PATTERN = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}')
 
+
+class _OAuthFailure(Exception):
+    def __init__(self, status, category):
+        self.status = status
+        self.category = category
+
+
+def _oauth_text(value, limit):
+    return isinstance(value, str) and 0 < len(value) <= limit and all(33 <= ord(c) <= 126 for c in value)
+
+
+def _oauth_destinations(event):
+    headers = event.get('headers') or {}
+    origin = headers.get('origin') or headers.get('Origin')
+    if origin is not None and origin not in ALLOWED_ORIGINS:
+        raise _OAuthFailure(403, 'OAUTH_ORIGIN_DENIED')
+    if origin == _OAUTH_LOCAL_ORIGIN:
+        return (_OAUTH_LOCAL_ORIGIN + '/admin/auth/callback', _OAUTH_LOCAL_ORIGIN + '/admin')
+    return _OAUTH_PROD_REDIRECT, _OAUTH_PROD_DESTINATION
+
+
+def _require_oauth_binding(company_id, expected_arn=None):
+    from common.google_calendar import _resolve_google_token_binding, ProviderBindingError
+    try:
+        binding = _resolve_google_token_binding(company_id)
+    except ProviderBindingError as exc:
+        if str(exc) == 'PROVIDER_METADATA_INACCESSIBLE':
+            raise _OAuthFailure(503, 'OAUTH_UNAVAILABLE') from None
+        raise _OAuthFailure(403, 'OAUTH_ACCESS_DENIED') from None
+    if not binding or (expected_arn is not None and binding[1] != expected_arn):
+        raise _OAuthFailure(403, 'OAUTH_ACCESS_DENIED')
+    return binding[1]
+
+
+def _require_oauth_tenant_eligible(company_id):
+    # Never use the general fail-open entitlement loader for a public callback.
+    response = table.get_item(Key={'PK': 'TENANT#' + company_id, 'SK': 'METADATA'}, ConsistentRead=True)
+    tenant = response.get('Item')
+    if not isinstance(tenant, dict) or any((
+        tenant.get('PK') != 'TENANT#' + company_id,
+        tenant.get('SK') != 'METADATA', tenant.get('company_id') != company_id,
+    )):
+        raise _OAuthFailure(403, 'OAUTH_ACCESS_DENIED')
+    from common.billing import _build_entitlement
+    ent = _build_entitlement(tenant)
+    if (not ent.is_access_allowed or ent.is_blocked or
+            ('is_active' in tenant and tenant['is_active'] is not True) or
+            ('calendar_enabled' in tenant and tenant['calendar_enabled'] is not True) or
+            tenant.get('calendar_provider', 'google') != 'google'):
+        raise _OAuthFailure(403, 'OAUTH_ACCESS_DENIED')
+    if os.environ.get('ENTITLEMENT_ENFORCEMENT_ENABLED', '').lower() == 'true':
+        if not (ent.limits.get('google_calendar_enabled', False) or
+                ent.feature_flags.get('google_calendar_enabled', False)):
+            raise _OAuthFailure(403, 'OAUTH_ACCESS_DENIED')
+
+
+def _load_oauth_transaction(state, now):
+    from decimal import Decimal
+    record = table.get_item(Key={'PK': 'OAUTHSTATE#' + state, 'SK': 'META'}, ConsistentRead=True).get('Item')
+    if not isinstance(record, dict):
+        raise _OAuthFailure(400, 'INVALID_OAUTH_STATE')
+    created, expires = record.get('created_at'), record.get('expires_at')
+    def integer(value):
+        try:
+            return (not isinstance(value, bool) and isinstance(value, (int, Decimal))
+                    and value == int(value))
+        except (ValueError, OverflowError):
+            return False
+    from common.google_calendar import _SECRET_ARN
+    destinations = {(_OAUTH_PROD_REDIRECT, _OAUTH_PROD_DESTINATION),
+                    (_OAUTH_LOCAL_ORIGIN + '/admin/auth/callback', _OAUTH_LOCAL_ORIGIN + '/admin')}
+    if (record.get('PK') != 'OAUTHSTATE#' + state or record.get('SK') != 'META' or
+            record.get('schema_version') != 'v2' or record.get('status') != 'PENDING' or
+            not isinstance(record.get('company_id'), str) or
+            not re.fullmatch(r'[a-z0-9_]{3,64}', record['company_id']) or
+            not _oauth_text(record.get('initiating_principal'), 128) or
+            not _oauth_text(record.get('provider_secret_arn'), 2048) or
+            not _SECRET_ARN.fullmatch(record['provider_secret_arn']) or
+            not isinstance(record.get('redirect_uri'), str) or
+            not isinstance(record.get('post_auth_destination'), str) or
+            (record['redirect_uri'], record['post_auth_destination']) not in destinations or
+            not integer(created) or not integer(expires) or
+            not (created <= now < expires <= created + 600)):
+        raise _OAuthFailure(400, 'INVALID_OAUTH_STATE')
+    return record
+
+
+def _claim_oauth_transaction(record):
+    from botocore.exceptions import ClientError
+    names, values, conditions = {}, {':now': int(time.time()), ':consumed': 'CONSUMED'}, []
+    fields = ('schema_version', 'status', 'company_id', 'initiating_principal',
+              'provider_secret_arn', 'redirect_uri', 'post_auth_destination', 'created_at', 'expires_at')
+    for field in fields:
+        names['#' + field] = field
+        values[':' + field] = record[field]
+        conditions.append('#' + field + ' = :' + field)
+    try:
+        table.update_item(
+            Key={'PK': record['PK'], 'SK': record['SK']},
+            UpdateExpression='SET #status = :consumed',
+            ConditionExpression='attribute_exists(PK) AND attribute_exists(SK) AND #expires_at > :now AND ' + ' AND '.join(conditions),
+            ExpressionAttributeNames=names, ExpressionAttributeValues=values)
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            raise _OAuthFailure(400, 'INVALID_OAUTH_STATE') from None
+        raise _OAuthFailure(503, 'OAUTH_UNAVAILABLE') from None
+
+
+def _persist_oauth_tokens(record, new_tokens):
+    # This reconnect-specific operation intentionally clears revocation markers.
+    if (not isinstance(new_tokens, dict) or not _oauth_text(new_tokens.get('access_token'), 16384) or
+            isinstance(new_tokens.get('expires_in'), bool) or
+            not isinstance(new_tokens.get('expires_in'), (int, float)) or
+            not math.isfinite(new_tokens['expires_in']) or new_tokens['expires_in'] <= 0 or
+            ('refresh_token' in new_tokens and not _oauth_text(new_tokens['refresh_token'], 16384))):
+        raise _OAuthFailure(502, 'OAUTH_EXCHANGE_FAILED')
+    arn = _require_oauth_binding(record['company_id'], record['provider_secret_arn'])
+    existing = json.loads(secrets.get_secret_value(SecretId=arn)['SecretString'])
+    if not isinstance(existing, dict):
+        raise _OAuthFailure(503, 'OAUTH_UNAVAILABLE')
+    merged = {**existing, **new_tokens}
+    if not _oauth_text(merged.get('refresh_token'), 16384):
+        raise _OAuthFailure(502, 'OAUTH_EXCHANGE_FAILED')
+    for key in ('token_status', 'revoked_at', 'revoked_reason'):
+        merged.pop(key, None)
+    merged['updated_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+    _require_oauth_binding(record['company_id'], arn)
+    secrets.put_secret_value(SecretId=arn, SecretString=json.dumps(merged))
+
+
+def initiate_auth(event):
+    """Create a server-held, single-use OAuth transaction for an authorized tenant."""
+    if get_effective_role(event) not in ['owner', 'admin']:
+        return error(403, 'Forbidden: Insufficient permissions to manage calendar integration.', event)
     try:
         company_id = _require_http_company_id(event)
-        
-        from common.google_calendar import resolve_google_token_secret_name
-        secret_name = resolve_google_token_secret_name(company_id)
-        if not secret_name:
-            return error(403, "Google Calendar integration is not supported for this tenant in this release.", event)
-        
-        # Release 17D: Entitlement gate for google calendar enabled
-        from common.entitlement import check_feature
-        check_feature(company_id, 'google_calendar_enabled', context=event)
-    except EntitlementDenied:
-        raise
-    except Exception as e:
-        return _provider_failure_response(e, event)
-
-    config = get_google_config()
-    if not config:
-        return internal_error("Google OAuth credentials not configured in Secrets Manager.", event)
-    
-    client_id = config.get('client_id')
-    
-    # Identify redirect URI based on origin
-    headers = event.get('headers', {})
-    origin = headers.get('origin') or headers.get('Origin') or "https://app.toganddogs.com"
-    
-    # Decisions: support both local and prod
-    redirect_uri = "https://a022yxuiue.execute-api.us-east-1.amazonaws.com/prod/admin/auth/callback"
-    if "localhost" in origin:
-        redirect_uri = "http://localhost:5173/admin/auth/callback"
-    
-    # Generate secure state
-    state = str(uuid.uuid4())
-    expires_at = int(time.time()) + 600 # 10 minutes
-    
-    try:
+        principal = get_claims(event).get('sub')
+        if not _oauth_text(principal, 128):
+            raise _OAuthFailure(403, 'OAUTH_PRINCIPAL_REQUIRED')
+        redirect, destination = _oauth_destinations(event)
+        arn = _require_oauth_binding(company_id)
+        _require_oauth_tenant_eligible(company_id)
+        config = get_google_config()
+        if not isinstance(config, dict) or not _oauth_text(config.get('client_id'), 2048):
+            raise _OAuthFailure(503, 'OAUTH_UNAVAILABLE')
+        state, now = str(uuid.uuid4()), int(time.time())
         table.put_item(Item={
-            'PK': f"OAUTHSTATE#{state}",
-            'SK': 'META',
-            'company_id': company_id,
-            'expires_at': expires_at,
-            'created_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-            # Link to admin if available in context
-            'admin_id': get_claims(event).get('sub', 'dynamic-admin')
-        })
-    except Exception as e:
-        print(f"Error saving OAuth state: {e}")
-        return internal_error("Failed to initialize security state.", event)
+            'PK': 'OAUTHSTATE#' + state, 'SK': 'META', 'schema_version': 'v2',
+            'company_id': company_id, 'initiating_principal': principal,
+            'provider_secret_arn': arn, 'redirect_uri': redirect,
+            'post_auth_destination': destination, 'created_at': now,
+            'expires_at': now + 600, 'status': 'PENDING',
+        }, ConditionExpression='attribute_not_exists(PK) AND attribute_not_exists(SK)')
+        params = {'client_id': config['client_id'], 'redirect_uri': redirect,
+                  'response_type': 'code', 'scope': 'https://www.googleapis.com/auth/calendar.events',
+                  'state': state, 'access_type': 'offline', 'prompt': 'consent'}
+        return success({'auth_url': 'https://accounts.google.com/o/oauth2/v2/auth?' + urllib.parse.urlencode(params)}, event)
+    except PermissionError:
+        return error(403, 'OAUTH_ACCESS_DENIED', event)
+    except _OAuthFailure as exc:
+        return error(exc.status, exc.category, event)
+    except Exception:
+        return error(503, 'OAUTH_UNAVAILABLE', event)
 
-    # Google OAuth URL Construction (Manual to avoid heavy library dependency for scaffolding)
-    scopes = "https://www.googleapis.com/auth/calendar.events"
-    auth_url = (
-        "https://accounts.google.com/o/oauth2/v2/auth?"
-        f"client_id={client_id}&"
-        f"redirect_uri={redirect_uri}&"
-        f"response_type=code&"
-        f"scope={scopes}&"
-        f"state={state}&"
-        "access_type=offline&"
-        "prompt=consent"
-    )
-
-    return success({"auth_url": auth_url}, event)
 
 def handle_callback(event):
-    """
-    GET /admin/auth/callback?code=...&state=...
-    Validates state and exchanges code for refresh token.
-    """
-    query_params = event.get('queryStringParameters', {}) or {}
-    code = query_params.get('code')
-    state = query_params.get('state')
-
-    if not code or not state:
-        return bad_request("Missing code or state in callback.", event)
-
-    # 1. Validate state exists in DynamoDB
+    """Consume v2 state before exchange; failures never reopen the transaction."""
     try:
-        response = table.get_item(Key={'PK': f"OAUTHSTATE#{state}", 'SK': 'META'})
-        state_record = response.get('Item')
-        
-        if not state_record:
-            return bad_request("Invalid or expired OAuth state.", event)
-        
-        company_id = state_record.get('company_id')
-        from common.google_calendar import resolve_google_token_secret_name
-        secret_name = resolve_google_token_secret_name(company_id)
-        if not secret_name:
-            return error(403, "Google Calendar integration is not supported for this tenant in this release.", event)
-            
-        # Cleanup state immediately
-        table.delete_item(Key={'PK': f"OAUTHSTATE#{state}", 'SK': 'META'})
-        
-    except Exception as e:
-        print(f"Error validating state: {e}")
-        return internal_error("Error during security validation.", event)
-
-    # 2. Exchange code for token
-    config = get_google_config()
-    if not config:
-        return internal_error("Google config lost during callback.", event)
-    
-    # Re-derive redirect_uri used in initiation (must match exactly)
-    headers = event.get('headers', {})
-    origin = headers.get('origin') or headers.get('Origin') or "https://toganddogs.usmissionhero.com"
-    redirect_uri = "https://a022yxuiue.execute-api.us-east-1.amazonaws.com/prod/admin/auth/callback"
-    if origin not in ALLOWED_ORIGINS:
-        origin = "https://toganddogs.usmissionhero.com"
-    if "localhost" in origin:
-        redirect_uri = "http://localhost:5173/admin/auth/callback"
-
-    params = {
-        'client_id': config['client_id'],
-        'client_secret': config['client_secret'],
-        'code': code,
-        'grant_type': 'authorization_code',
-        'redirect_uri': redirect_uri
-    }
-    
-    try:
-        data = urllib.parse.urlencode(params).encode()
-        req = urllib.request.Request("https://oauth2.googleapis.com/token", data=data)
-        with urllib.request.urlopen(req) as res:
-            token_response = json.loads(res.read().decode())
-            
-            if save_tokens(token_response, company_id):
-                # Decision: redirect back to admin dashboard on success
-                frontend_base = "https://toganddogs.usmissionhero.com"
-                if "localhost" in origin:
-                    frontend_base = "http://localhost:5173"
-                
-                return {
-                    "statusCode": 302,
-                    "headers": {
-                        "Location": f"{frontend_base}/admin"
-                    },
-                    "body": ""
-                }
-            else:
-                return internal_error("Validated state but failed to persist tokens.", event)
-                
-    except Exception as e:
-        print(f"Token exchange failed: {e}")
-        return internal_error(f"Failed to exchange Google authorization code: {str(e)}", event)
+        params = event.get('queryStringParameters') or {}
+        if not isinstance(params, dict):
+            raise _OAuthFailure(400, 'INVALID_OAUTH_STATE')
+        code, state = params.get('code'), params.get('state')
+        if (not _oauth_text(code, 4096) or not isinstance(state, str) or
+                not _OAUTH_STATE_PATTERN.fullmatch(state)):
+            raise _OAuthFailure(400, 'INVALID_OAUTH_STATE')
+        record = _load_oauth_transaction(state, int(time.time()))
+        _require_oauth_tenant_eligible(record['company_id'])
+        _require_oauth_binding(record['company_id'], record['provider_secret_arn'])
+        _claim_oauth_transaction(record)
+        config = get_google_config()
+        if not isinstance(config, dict) or not all(_oauth_text(config.get(k), 2048) for k in ('client_id', 'client_secret')):
+            raise _OAuthFailure(503, 'OAUTH_UNAVAILABLE')
+        data = urllib.parse.urlencode({
+            'client_id': config['client_id'], 'client_secret': config['client_secret'],
+            'code': code, 'grant_type': 'authorization_code', 'redirect_uri': record['redirect_uri']}).encode()
+        try:
+            request = urllib.request.Request('https://oauth2.googleapis.com/token', data=data)
+            with urllib.request.urlopen(request, timeout=10) as response:
+                tokens = json.loads(response.read().decode())
+        except Exception:
+            raise _OAuthFailure(502, 'OAUTH_EXCHANGE_FAILED') from None
+        _persist_oauth_tokens(record, tokens)
+        return {'statusCode': 302, 'headers': {'Location': record['post_auth_destination']}, 'body': ''}
+    except _OAuthFailure as exc:
+        return error(exc.status, exc.category, event)
+    except Exception:
+        return error(503, 'OAUTH_UNAVAILABLE', event)
 
 
 def _classify_cached_status(tokens, now):

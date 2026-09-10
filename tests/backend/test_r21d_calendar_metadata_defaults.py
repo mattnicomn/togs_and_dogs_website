@@ -163,7 +163,7 @@ class TestCalendarGatingAndPreservation:
         result = google_auth_handler(event, None)
         assert result['statusCode'] == 403
         body = json.loads(result['body'])
-        assert "not supported for this tenant" in body['error']
+        assert body['error'] == 'OAUTH_ACCESS_DENIED'
 
 
 

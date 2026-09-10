@@ -131,16 +131,16 @@ class TestGoogleTokenIsolation:
         result = google_auth_handler(event, None)
         assert result['statusCode'] == 403
         body = json.loads(result['body'])
-        assert "not supported for this tenant" in body['error']
+        assert body['error'] == 'OAUTH_ACCESS_DENIED'
 
     @patch('handlers.google_auth_handler.secrets')
-    @patch('common.db.table.delete_item')
+    @patch('common.db.table.update_item')
     @patch('common.db.table.get_item')
     @patch('common.db.get_item')
     @patch('common.entitlement._get_entitlement_safely')
     @patch('handlers.google_auth_handler.get_google_config')
     @patch('urllib.request.urlopen')
-    def test_oauth_callback_resolves_tenant_and_saves(self, mock_urlopen, mock_config, mock_get_entitlement, mock_db_get_item, mock_table_get_item, mock_table_delete_item, mock_secrets):
+    def test_oauth_callback_resolves_tenant_and_saves(self, mock_urlopen, mock_config, mock_get_entitlement, mock_db_get_item, mock_table_get_item, mock_table_update_item, mock_secrets):
         """5. OAuth callback resolves tenant context safely and writes to tenant-specific secret."""
         # Mock entitlement to pass
         mock_get_entitlement.return_value = MagicMock(is_access_allowed=True, is_blocked=False)
@@ -148,8 +148,14 @@ class TestGoogleTokenIsolation:
         # Mock state record
         state_response = {
             "Item": {
-                "PK": "OAUTHSTATE#some-state",
-                "company_id": "custom_tenant_beta"
+                "PK": "OAUTHSTATE#11111111-1111-4111-8111-111111111111", "SK": "META",
+                "schema_version": "v2", "status": "PENDING",
+                "company_id": "custom_tenant_beta", "initiating_principal": "test-sub-123",
+                "provider_secret_arn": "arn:aws:secretsmanager:us-east-1:123456789012:secret:togs-and-dogs-prod/calendar/custom_tenant_beta/tokens-Ab1234",
+                "redirect_uri": "https://a022yxuiue.execute-api.us-east-1.amazonaws.com/prod/admin/auth/callback",
+                "post_auth_destination": "https://toganddogs.usmissionhero.com/admin",
+                "created_at": int(datetime.now(timezone.utc).timestamp()),
+                "expires_at": int(datetime.now(timezone.utc).timestamp()) + 600
             }
         }
         # Mock tenant enabled Google
@@ -158,7 +164,7 @@ class TestGoogleTokenIsolation:
             "company_id": "custom_tenant_beta",
             "calendar_secret_ref": "togs-and-dogs-prod/calendar/custom_tenant_beta/tokens",
             "calendar_provider": "google",
-            "calendar_enabled": True
+            "calendar_enabled": True, "subscription_status": "active"
         }
         mock_db_get_item.return_value = tenant_metadata
         mock_table_get_item.side_effect = lambda **kw: (
@@ -174,14 +180,16 @@ class TestGoogleTokenIsolation:
         # Mock get_secret_value (no existing tokens)
         mock_secrets.get_secret_value.return_value = {"SecretString": "{}"}
         
-        event = make_event('/admin/auth/callback', http_method='GET', custom_company_id='custom_tenant_beta', groups=['owner'], query_params={"code": "auth-code", "state": "some-state"})
+        event = make_event('/admin/auth/callback', http_method='GET', custom_company_id='custom_tenant_beta', groups=['owner'], query_params={"code": "auth-code", "state": "11111111-1111-4111-8111-111111111111"})
         result = google_auth_handler(event, None)
         
         assert result['statusCode'] == 302
         # Check that it saves to the correct per-tenant secret name: togs-and-dogs-prod/calendar/custom_tenant_beta/tokens
         mock_secrets.put_secret_value.assert_called_once()
         call_args = mock_secrets.put_secret_value.call_args[1]
-        assert call_args['SecretId'] == "togs-and-dogs-prod/calendar/custom_tenant_beta/tokens"
+        assert call_args['SecretId'] == "arn:aws:secretsmanager:us-east-1:123456789012:secret:togs-and-dogs-prod/calendar/custom_tenant_beta/tokens-Ab1234"
+        mock_table_update_item.assert_called_once()
+        assert ":consumed" in mock_table_update_item.call_args.kwargs["UpdateExpression"]
         saved_body = json.loads(call_args['SecretString'])
         assert saved_body['access_token'] == "abc"
         assert saved_body['refresh_token'] == "xyz"
