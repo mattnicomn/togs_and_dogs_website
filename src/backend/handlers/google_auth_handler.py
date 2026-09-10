@@ -25,65 +25,76 @@ def get_google_config():
         print("PROVIDER_CONFIG_UNAVAILABLE")
         return None
 
+def _read_bound_auth_tokens(arn):
+    """Internal only: arn must come from this operation's ownership resolution."""
+    try:
+        tokens = json.loads(secrets.get_secret_value(SecretId=arn)['SecretString'])
+        if not isinstance(tokens, dict):
+            raise ValueError()
+        return tokens
+    except Exception:
+        raise RuntimeError('PROVIDER_TOKEN_READ_FAILED') from None
+
+
+def _write_bound_auth_tokens(arn, tokens):
+    """Return success only when the write to the pinned ARN succeeds."""
+    try:
+        secrets.put_secret_value(SecretId=arn, SecretString=json.dumps(tokens))
+        return True
+    except Exception:
+        print('PROVIDER_TOKEN_SAVE_FAILED')
+        return False
+
+
+def _save_bound_auth_tokens(new_tokens, arn, require_unrevoked=False):
+    try:
+        if not isinstance(new_tokens, dict):
+            return False
+        existing = _read_bound_auth_tokens(arn)
+        if require_unrevoked and existing.get('token_status') == 'revoked':
+            return False
+        merged = {**existing, **new_tokens}
+        # Only the v2 reconnect operation may clear or replace revocation state.
+        for key in ('token_status', 'revoked_at', 'revoked_reason'):
+            if key in existing:
+                merged[key] = existing[key]
+            else:
+                merged.pop(key, None)
+        merged['updated_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        return _write_bound_auth_tokens(arn, merged)
+    except Exception:
+        print('PROVIDER_TOKEN_SAVE_FAILED')
+        return False
+
+
+def _mark_bound_auth_revoked(arn):
+    try:
+        tokens = _read_bound_auth_tokens(arn)
+        tokens.update(token_status='revoked', revoked_reason='invalid_grant',
+                      revoked_at=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
+        tokens.pop('access_token', None)
+        tokens.pop('expires_in', None)
+        return _write_bound_auth_tokens(arn, tokens)
+    except Exception:
+        print('PROVIDER_TOKEN_REVOCATION_FAILED')
+        return False
+
+
 def get_stored_tokens(company_id=None):
-    """Retrieves access and refresh tokens from Secrets Manager."""
-    from common.google_calendar import resolve_google_token_secret_name
+    from common.google_calendar import _resolve_google_token_binding
     if company_id is None:
         raise PermissionError('INVALID_TENANT_CONTEXT')
-        
-    secret_name = resolve_google_token_secret_name(company_id)
-    if not secret_name:
-        return {}
-    try:
-        response = secrets.get_secret_value(SecretId=secret_name)
-        return json.loads(response['SecretString'])
-    except Exception as e:
-        # LOGGING BREADCRUMB: If the secret is empty/new, this is expected
-        print("PROVIDER_TOKEN_READ_FAILED")
-        return {}
+    binding = _resolve_google_token_binding(company_id)
+    return _read_bound_auth_tokens(binding[1]) if binding else {}
+
 
 def save_tokens(new_tokens, company_id=None):
-    """
-    Saves/Updates tokens in Secrets Manager.
-    Decision: Preserves existing refresh_token if new one is not provided.
-    Release 6G: Clears revoked status when new valid tokens are saved.
-    """
-    from common.google_calendar import resolve_google_token_secret_name
+    """One binding per save; normal saves never clear revocation markers."""
+    from common.google_calendar import _resolve_google_token_binding
     if company_id is None:
         raise PermissionError('INVALID_TENANT_CONTEXT')
-        
-    secret_name = resolve_google_token_secret_name(company_id)
-    if not secret_name:
-        print(f"ERROR: Cannot save tokens, Google integration not configured/supported for tenant {company_id}")
-        return False
-        
-    existing = get_stored_tokens(company_id)
-    
-    # Merge
-    merged = {**existing, **new_tokens}
-    
-    # Ensure refresh_token is not lost if it was already stored but not returned now
-    if 'refresh_token' not in new_tokens and 'refresh_token' in existing:
-        merged['refresh_token'] = existing['refresh_token']
-    
-    # Release 6G Phase 0C: Clear revoked status on successful token save
-    merged.pop('token_status', None)
-    merged.pop('revoked_at', None)
-    merged.pop('revoked_reason', None)
-    
-    merged['updated_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-    
-    try:
-        print("PROVIDER_TOKEN_SAVE_ATTEMPT")
-        secrets.put_secret_value(
-            SecretId=secret_name,
-            SecretString=json.dumps(merged)
-        )
-        print("SUCCESS: Tokens persisted successfully.")
-        return True
-    except Exception as e:
-        print("PROVIDER_TOKEN_SAVE_FAILED")
-        return False
+    binding = _resolve_google_token_binding(company_id)
+    return _save_bound_auth_tokens(new_tokens, binding[1]) if binding else False
 
 
 def _require_http_company_id(event):
@@ -170,42 +181,36 @@ def handler(event, context):
             body["upgrade_hint"] = e.upgrade_hint
         return format_response(403, body, event)
 
-def disconnect_auth(event):
-    """
-    DELETE /admin/auth/google
-    Clears the stored tokens in Secrets Manager to disconnect Google Calendar.
-    """
-    role = get_effective_role(event)
-    if role not in ['owner', 'admin']:
-        return error(403, "Forbidden: Insufficient permissions to manage calendar integration.", event)
+def _is_protected_primary_binding(company_id, arn):
+    from common.google_calendar import _SECRET_ARN, _PRIMARY_LEGACY_SECRET
+    if company_id != 'tog_and_dogs':
+        return False
+    configured = os.environ.get('GOOGLE_USER_TOKENS_NAME', _PRIMARY_LEGACY_SECRET)
+    # Compare the already-verified canonical ARN/name, without another lookup.
+    canonical = _SECRET_ARN.fullmatch(arn)
+    return arn == configured or bool(canonical and canonical[4] == configured)
 
-    from common.google_calendar import resolve_google_token_secret_name, ProviderBindingError
+
+def disconnect_auth(event):
+    if get_effective_role(event) not in ['owner', 'admin']:
+        return error(403, 'Forbidden: Insufficient permissions to manage calendar integration.', event)
+    from common.google_calendar import _resolve_google_token_binding, ProviderBindingError
     try:
         company_id = _require_http_company_id(event)
-        secret_name = resolve_google_token_secret_name(company_id)
+        binding = _resolve_google_token_binding(company_id)
     except (PermissionError, ProviderBindingError) as exc:
         return _provider_failure_response(exc, event)
-    if not secret_name:
-        return success({"message": "Google Calendar disconnected successfully."}, event)
-        
-    # Disconnect clears only tenant-specific secret path and never global fallback
-    if secret_name == os.environ.get('GOOGLE_USER_TOKENS_NAME'):
-        return success({"message": "Google Calendar disconnected successfully."}, event)
-        
-    try:
-        # Clear the tokens to effectively disconnect
-        secrets.put_secret_value(
-            SecretId=secret_name,
-            SecretString=json.dumps({})
-        )
-        # Also mark it as explicitly disconnected/revoked for good measure
-        from common.google_calendar import _mark_token_revoked
-        _mark_token_revoked("admin_disconnect", company_id)
-        
-        return success({"message": "Google Calendar disconnected successfully."}, event)
-    except Exception as e:
-        print("PROVIDER_TOKEN_WRITE_FAILED")
-        return internal_error("Failed to disconnect Google Calendar.", event)
+    if not binding:
+        return success({'message': 'Google Calendar is not configured.'}, event)
+    arn = binding[1]
+    if _is_protected_primary_binding(company_id, arn):
+        return error(409, 'PROVIDER_DISCONNECT_PROTECTED', event)
+    # One atomic secret-version write clears credentials and records disconnect.
+    cleared = {'token_status': 'revoked', 'revoked_reason': 'admin_disconnect',
+               'revoked_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
+    if not _write_bound_auth_tokens(arn, cleared):
+        return error(503, 'PROVIDER_PERSISTENCE_FAILED', event)
+    return success({'message': 'Google Calendar disconnected successfully.'}, event)
 
 
 _OAUTH_PROD_REDIRECT = 'https://a022yxuiue.execute-api.us-east-1.amazonaws.com/prod/admin/auth/callback'
@@ -477,14 +482,16 @@ def calendar_health_check(event):
     print("CALENDAR_HEALTH_CHECK: Starting scheduled health check.")
     
     company_id = 'tog_and_dogs'
-    from common.google_calendar import resolve_google_token_secret_name, ProviderBindingError
+    from common.google_calendar import _resolve_google_token_binding, ProviderBindingError
     try:
-        secret_name = resolve_google_token_secret_name(company_id)
+        binding = _resolve_google_token_binding(company_id)
     except ProviderBindingError:
         return _health_response('REFRESH_FAILED', 'PROVIDER_BINDING_UNAVAILABLE', event)
-    if not secret_name:
+    if not binding:
         return _health_response("NOT_CONNECTED", "Google Calendar is not configured for this tenant.", event)
         
+    arn = binding[1]
+
     # 1. Check Google client credentials exist
     config = get_google_config()
     if not config or not config.get('client_id'):
@@ -493,7 +500,7 @@ def calendar_health_check(event):
     
     # 2. Check stored tokens; binding drift/read failures remain failures.
     try:
-        tokens = get_stored_tokens(company_id)
+        tokens = _read_bound_auth_tokens(arn)
     except Exception:
         return _health_response('REFRESH_FAILED', 'PROVIDER_UNAVAILABLE', event)
     
@@ -519,7 +526,8 @@ def calendar_health_check(event):
         
         with urllib.request.urlopen(req, timeout=10) as res:
             token_data = json.loads(res.read().decode())
-            if not save_tokens(token_data, company_id):
+            if (not isinstance(token_data, dict) or not _oauth_text(token_data.get('access_token'), 16384) or
+                    not _save_bound_auth_tokens(token_data, arn, require_unrevoked=True)):
                 return _health_response("REFRESH_FAILED", "PROVIDER_PERSISTENCE_FAILED", event)
             print("CALENDAR_HEALTH_CHECK_SUCCESS: Google Calendar connection is healthy. Token refreshed.")
             return _health_response("CONNECTED", "Google Calendar connection is healthy.", event)
@@ -536,8 +544,8 @@ def calendar_health_check(event):
         if error_code == 'invalid_grant':
             print("CALENDAR_HEALTH_CHECK_TOKEN_REVOKED: Token refresh returned invalid_grant. Token is revoked.")
             # Mark as revoked so subsequent operations skip immediately
-            from common.google_calendar import _mark_token_revoked
-            _mark_token_revoked("health_check", company_id)
+            if not _mark_bound_auth_revoked(arn):
+                return _health_response("REFRESH_FAILED", "PROVIDER_PERSISTENCE_FAILED", event)
             return _health_response("TOKEN_REVOKED", "Google Calendar token is revoked (invalid_grant). Admin must reconnect.", event)
         else:
             print("CALENDAR_HEALTH_CHECK_FAILED: PROVIDER_REFRESH_FAILED")

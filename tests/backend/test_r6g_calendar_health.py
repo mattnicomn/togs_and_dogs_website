@@ -30,8 +30,8 @@ def test_health_check_success():
     mock_response.__exit__ = MagicMock(return_value=False)
 
     with patch('handlers.google_auth_handler.get_google_config', return_value=mock_config), \
-         patch('handlers.google_auth_handler.get_stored_tokens', return_value=mock_tokens), \
-         patch('handlers.google_auth_handler.save_tokens', return_value=True), \
+         patch('handlers.google_auth_handler._read_bound_auth_tokens', return_value=mock_tokens), \
+         patch('handlers.google_auth_handler._save_bound_auth_tokens', return_value=True), \
          patch('urllib.request.urlopen', return_value=mock_response):
         result = calendar_health_check(_make_event())
 
@@ -45,7 +45,7 @@ def test_health_check_token_revoked_flag():
     mock_tokens = {"refresh_token": "dead", "token_status": "revoked"}
 
     with patch('handlers.google_auth_handler.get_google_config', return_value=mock_config), \
-         patch('handlers.google_auth_handler.get_stored_tokens', return_value=mock_tokens), \
+         patch('handlers.google_auth_handler._read_bound_auth_tokens', return_value=mock_tokens), \
          patch('urllib.request.urlopen') as mock_url:
         result = calendar_health_check(_make_event())
 
@@ -60,7 +60,7 @@ def test_health_check_missing_refresh_token():
     mock_tokens = {"access_token": "old"}  # No refresh_token
 
     with patch('handlers.google_auth_handler.get_google_config', return_value=mock_config), \
-         patch('handlers.google_auth_handler.get_stored_tokens', return_value=mock_tokens):
+         patch('handlers.google_auth_handler._read_bound_auth_tokens', return_value=mock_tokens):
         result = calendar_health_check(_make_event())
 
     assert result["status"] == "TOKEN_MISSING"
@@ -89,13 +89,13 @@ def test_health_check_invalid_grant():
     http_error.read = lambda: error_body
 
     with patch('handlers.google_auth_handler.get_google_config', return_value=mock_config), \
-         patch('handlers.google_auth_handler.get_stored_tokens', return_value=mock_tokens), \
+         patch('handlers.google_auth_handler._read_bound_auth_tokens', return_value=mock_tokens), \
          patch('urllib.request.urlopen', side_effect=http_error), \
-         patch('common.google_calendar._mark_token_revoked') as mock_mark:
+         patch('handlers.google_auth_handler._mark_bound_auth_revoked', return_value=True) as mock_mark:
         result = calendar_health_check(_make_event())
 
     assert result["status"] == "TOKEN_REVOKED"
-    mock_mark.assert_called_once_with("health_check", "tog_and_dogs")
+    mock_mark.assert_called_once_with("arn:aws:secretsmanager:us-east-1:123456789012:secret:togs-and-dogs-prod/google/user-tokens-Ab1234")
     print("PASS: test_health_check_invalid_grant")
 
 
@@ -113,7 +113,7 @@ def test_health_check_refresh_failed_other_error():
     http_error.read = lambda: error_body
 
     with patch('handlers.google_auth_handler.get_google_config', return_value=mock_config), \
-         patch('handlers.google_auth_handler.get_stored_tokens', return_value=mock_tokens), \
+         patch('handlers.google_auth_handler._read_bound_auth_tokens', return_value=mock_tokens), \
          patch('urllib.request.urlopen', side_effect=http_error):
         result = calendar_health_check(_make_event())
 
@@ -127,7 +127,7 @@ def test_health_check_network_exception():
     mock_tokens = {"refresh_token": "valid_token"}
 
     with patch('handlers.google_auth_handler.get_google_config', return_value=mock_config), \
-         patch('handlers.google_auth_handler.get_stored_tokens', return_value=mock_tokens), \
+         patch('handlers.google_auth_handler._read_bound_auth_tokens', return_value=mock_tokens), \
          patch('urllib.request.urlopen', side_effect=Exception("Network timeout")):
         result = calendar_health_check(_make_event())
 
@@ -145,7 +145,7 @@ def test_health_check_does_not_block_business():
     mock_tokens = {"refresh_token": "valid", "token_status": "revoked"}
 
     with patch('handlers.google_auth_handler.get_google_config', return_value=mock_config), \
-         patch('handlers.google_auth_handler.get_stored_tokens', return_value=mock_tokens):
+         patch('handlers.google_auth_handler._read_bound_auth_tokens', return_value=mock_tokens):
         # Should return immediately without touching any business handler
         result = calendar_health_check(event)
 

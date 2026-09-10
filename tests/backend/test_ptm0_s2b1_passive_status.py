@@ -25,6 +25,8 @@ def passive(monkeypatch, primary_google_binding):
     monkeypatch.setattr(auth.urllib.request, 'urlopen', forbidden)
     monkeypatch.setattr(auth, 'get_google_config', forbidden)
     monkeypatch.setattr(auth, 'save_tokens', forbidden)
+    monkeypatch.setattr(auth, '_mark_bound_auth_revoked', forbidden)
+    monkeypatch.setattr(auth, '_save_bound_auth_tokens', forbidden)
     monkeypatch.setattr(calendar, '_mark_token_revoked', forbidden)
     yield sdk, forbidden
     sdk.put_secret_value.assert_not_called()
@@ -126,9 +128,9 @@ def test_http_schedule_spoof(passive, monkeypatch):
 def test_active_schedule(primary_google_binding, monkeypatch, saved):
     from unittest.mock import MagicMock
     monkeypatch.setattr(auth, 'get_google_config', Mock(return_value={'client_id': 'fake', 'client_secret': 'fake'}))
-    monkeypatch.setattr(auth, 'get_stored_tokens', Mock(return_value={'refresh_token': 'fake'}))
+    monkeypatch.setattr(auth, '_read_bound_auth_tokens', Mock(return_value={'refresh_token': 'fake'}))
     save = Mock(return_value=saved)
-    monkeypatch.setattr(auth, 'save_tokens', save)
+    monkeypatch.setattr(auth, '_save_bound_auth_tokens', save)
     response = MagicMock()
     response.__enter__.return_value.read.return_value = b'{"access_token":"fake"}'
     http = Mock(return_value=response)
@@ -136,7 +138,8 @@ def test_active_schedule(primary_google_binding, monkeypatch, saved):
     result = auth.handler({'source': 'aws.events', 'action': 'health_check'}, None)
     assert result['status'] == ('CONNECTED' if saved else 'REFRESH_FAILED')
     http.assert_called_once()
-    assert save.call_args.args[1] == 'tog_and_dogs'
+    assert save.call_args.args[1] == 'arn:aws:secretsmanager:us-east-1:123456789012:secret:togs-and-dogs-prod/google/user-tokens-Ab1234'
+    assert save.call_args.kwargs['require_unrevoked'] is True
 
 
 def test_platform_summary(passive, monkeypatch):

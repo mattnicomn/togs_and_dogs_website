@@ -209,7 +209,8 @@ class TestGoogleTokenIsolation:
         }}
         event = make_event('/admin/auth/google', http_method='DELETE', custom_company_id='tog_and_dogs', groups=['owner'])
         result = google_auth_handler(event, None)
-        assert result['statusCode'] == 200
+        assert result['statusCode'] == 409
+        assert json.loads(result['body']) == {'error': 'PROVIDER_DISCONNECT_PROTECTED'}
         # Assert secrets.put_secret_value was not called (legacy global fallback preserved)
         mock_secrets.put_secret_value.assert_not_called()
 
@@ -227,8 +228,11 @@ class TestGoogleTokenIsolation:
         # Assert secrets.put_secret_value was called to clear the per-tenant secret
         mock_secrets.put_secret_value.assert_called_once()
         call_args = mock_secrets.put_secret_value.call_args[1]
-        assert call_args['SecretId'] == "togs-and-dogs-prod/calendar/test_tenant_alpha/tokens"
-        assert call_args['SecretString'] == "{}"
+        assert call_args['SecretId'] == "arn:aws:secretsmanager:us-east-1:123456789012:secret:togs-and-dogs-prod/calendar/test_tenant_alpha/tokens-Ab1234"
+        cleared = json.loads(call_args['SecretString'])
+        assert cleared['token_status'] == 'revoked'
+        assert cleared['revoked_reason'] == 'admin_disconnect'
+        assert 'access_token' not in cleared and 'refresh_token' not in cleared
 
     @patch('common.entitlement._get_entitlement_safely')
     def test_disabled_tenant_blocked_from_all_operations(self, mock_get_entitlement):

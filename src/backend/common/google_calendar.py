@@ -211,7 +211,9 @@ def _refresh_bound_tokens(tokens, request_id, secret_name):
         req = urllib.request.Request("https://oauth2.googleapis.com/token", data=data)
         with urllib.request.urlopen(req) as response:
             res_data = json.loads(response.read().decode())
-            _save_bound_tokens(res_data, secret_name)
+            if not _save_bound_tokens(res_data, secret_name):
+                print("PROVIDER_TOKEN_SAVE_FAILED")
+                return None
             print(f"SUCCESS: [Req:{request_id}] Google access token refreshed.")
             return res_data['access_token']
     except urllib.error.HTTPError as http_err:
