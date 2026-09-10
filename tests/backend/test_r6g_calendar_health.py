@@ -132,7 +132,8 @@ def test_health_check_network_exception():
         result = calendar_health_check(_make_event())
 
     assert result["status"] == "REFRESH_FAILED"
-    assert "Network timeout" in result["message"]
+    # S2B.1: raw exception text must not escape the scheduled operation.
+    assert result["message"] == "PROVIDER_REFRESH_FAILED"
     print("PASS: test_health_check_network_exception")
 
 

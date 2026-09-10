@@ -161,7 +161,7 @@ class TestGoogleAuthRBAC:
     @patch('common.db.table.get_item')
     @patch('common.entitlement._get_entitlement_safely')
     @patch('handlers.google_auth_handler.get_google_config')
-    @patch('handlers.google_auth_handler.get_stored_tokens')
+    @patch('handlers.google_auth_handler.secrets.get_secret_value')
     def test_get_status_allowed_for_staff(self, mock_tokens, mock_config, mock_get_entitlement, mock_db_get_item):
         """Prove read-only status remains readable by staff."""
         mock_get_entitlement.return_value = MagicMock(is_access_allowed=True, is_blocked=False)
@@ -174,12 +174,12 @@ class TestGoogleAuthRBAC:
         mock_config.return_value = {"client_id": "id", "client_secret": "secret"}
         
         now_str = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-        mock_tokens.return_value = {
+        mock_tokens.return_value = {'SecretString': json.dumps({
             "refresh_token": "some-token",
             "access_token": "valid-token",
             "updated_at": now_str,
             "expires_in": 3600
-        }
+        })}
 
         event_staff = make_event('/admin/auth/status', http_method='GET', groups=['staff'], custom_company_id='tog_and_dogs')
         result = google_auth_handler(event_staff, None)

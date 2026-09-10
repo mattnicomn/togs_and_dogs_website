@@ -42,10 +42,20 @@ def get_tenant_calendar_config(tenant_record, company_id=None, google_status=Non
             
         caps = tenant_record.get('calendar_capabilities', default_caps)
         
+        # Persisted configuration is not proof of cached credential readiness.
+        connection_status = 'not_configured' if provider == 'none' else 'unknown'
+        if provider == 'google':
+            connection_status = {
+                'CONNECTED': 'connected',
+                'NOT_CONNECTED': 'not_connected',
+                'UNKNOWN': 'unknown',
+                'VALIDATION_FAILED': 'needs_reconnect',
+            }.get(google_status, 'unknown')
+
         return {
             "calendar_provider": provider,
             "calendar_enabled": tenant_record.get('calendar_enabled', False),
-            "calendar_connection_status": tenant_record.get('calendar_connection_status', 'not_configured'),
+            "calendar_connection_status": connection_status,
             "calendar_connected_account_label": tenant_record.get('calendar_connected_account_label'),
             "calendar_last_check_at": tenant_record.get('calendar_last_check_at'),
             "calendar_secret_ref": tenant_record.get('calendar_secret_ref'),
@@ -55,7 +65,7 @@ def get_tenant_calendar_config(tenant_record, company_id=None, google_status=Non
     # Legacy fallback: if company is tog_and_dogs, it derives Google defaults
     from common.auth import DEFAULT_COMPANY_ID
     if comp_id == DEFAULT_COMPANY_ID:
-        connection_status = 'connected'
+        connection_status = 'unknown'
         if google_status == 'NOT_CONNECTED':
             connection_status = 'not_connected'
         elif google_status == 'VALIDATION_FAILED':
@@ -63,7 +73,7 @@ def get_tenant_calendar_config(tenant_record, company_id=None, google_status=Non
         elif google_status == 'CREDENTIALS_MISSING':
             connection_status = 'error'
         elif google_status:
-            if google_status.lower() in ['connected', 'not_connected', 'needs_reconnect', 'error', 'disabled']:
+            if google_status.lower() in ['connected', 'not_connected', 'needs_reconnect', 'error', 'disabled', 'unknown']:
                 connection_status = google_status.lower()
                 
         # Safe connected label

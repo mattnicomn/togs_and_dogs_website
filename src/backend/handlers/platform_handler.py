@@ -42,6 +42,9 @@ def _handle_get_tenant(event, company_id):
         if not tenant:
             return not_found(f"Tenant {company_id} not found", event)
             
+        if tenant.get('company_id') != company_id:
+            return error(403, 'PROVIDER_ACCESS_DENIED', event)
+
         staff_resp = table.query(
             KeyConditionExpression=Key('PK').eq(f"COMPANY#{company_id}") & Key('SK').begins_with("STAFF#")
         )
@@ -67,21 +70,14 @@ def _handle_get_tenant(event, company_id):
         ent = _build_entitlement(tenant)
         ent_summary = ent.to_dict()
         
-        # Resolve Google Calendar status for tog_and_dogs safely without raising errors
-        google_status = "NOT_CONNECTED"
-        from common.auth import DEFAULT_COMPANY_ID
-        if company_id == DEFAULT_COMPANY_ID:
-            try:
-                from handlers.google_auth_handler import get_status as _get_status
-                status_resp = _get_status(event)
-                body = json.loads(status_resp.get('body', '{}'))
-                google_status = body.get('status', 'NOT_CONNECTED')
-            except Exception as e:
-                print(f"Warning: Failed to resolve calendar status in platform handler: {e}")
-                
+        # Target metadata only; platform callers never read tenant credentials.
         from common.calendar_metadata import get_tenant_calendar_config
-        calendar_config = get_tenant_calendar_config(tenant, company_id, google_status)
-        
+        calendar_config = get_tenant_calendar_config(tenant, company_id)
+        calendar_config['calendar_connection_status'] = (
+            'configured' if tenant.get('calendar_secret_ref') or
+            tenant.get('calendar_provider') not in (None, 'none') or
+            company_id == 'tog_and_dogs' else 'not_configured')
+
         profile = {
             "company_id": tenant.get("company_id"),
             "display_name": tenant.get("display_name"),

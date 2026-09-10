@@ -90,7 +90,8 @@ class TestCalendarMetadataDerivation:
         config = get_tenant_calendar_config(tenant_record)
         assert config["calendar_provider"] == "microsoft"
         assert config["calendar_enabled"] is True
-        assert config["calendar_connection_status"] == "connected"
+        # S2B.1: persisted configuration is not validated credential health.
+        assert config["calendar_connection_status"] == "unknown"
         assert config["calendar_connected_account_label"] == "Office365 Sitter Calendar"
         assert config["calendar_secret_ref"] == "togs-and-dogs-prod/calendar/test_tenant_alpha/tokens"
         assert config["calendar_capabilities"]["disconnect_supported"] is False
@@ -109,6 +110,7 @@ class TestAdminTenantInfoEndpoint:
         }
         mock_get_entitlement.return_value = MagicMock(is_access_allowed=True, is_blocked=False)
         
+        mock_google_status.return_value = {'statusCode': 200, 'body': json.dumps({'status': 'NOT_CONNECTED'})}
         event = make_event('/admin/tenant-info', custom_company_id='test_tenant_alpha', groups=['owner'])
         result = admin_handler(event, None)
         assert result['statusCode'] == 200

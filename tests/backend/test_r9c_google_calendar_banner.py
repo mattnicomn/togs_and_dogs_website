@@ -28,15 +28,17 @@ def create_event(role, body_dict=None):
         "path": "/admin/auth/status"
     }
 
-def test_get_status_credentials_missing():
-    """Returns CREDENTIALS_MISSING when Google Client ID/Secret is missing."""
+def test_get_status_does_not_read_app_credentials():
+    """S2B.1: passive status does not inspect OAuth app credentials."""
     event = create_event("Admin")
-    with patch('handlers.google_auth_handler.get_google_config', return_value=None):
+    with patch('handlers.google_auth_handler.get_google_config', return_value=None) as config, \
+         patch('handlers.google_auth_handler.secrets.get_secret_value', return_value={'SecretString': '{}'}):
         resp = google_auth_handler.handler(event, None)
     
     assert resp["statusCode"] == 200
     body = json.loads(resp["body"])
-    assert body["status"] == "CREDENTIALS_MISSING"
+    assert body["status"] == "NOT_CONNECTED"
+    config.assert_not_called()
 
 def test_get_status_not_connected():
     """Returns NOT_CONNECTED when refresh token is missing."""
@@ -45,7 +47,7 @@ def test_get_status_not_connected():
     mock_tokens = {} # Empty
     
     with patch('handlers.google_auth_handler.get_google_config', return_value=mock_config), \
-         patch('handlers.google_auth_handler.get_stored_tokens', return_value=mock_tokens):
+         patch('handlers.google_auth_handler.secrets.get_secret_value', return_value={'SecretString': json.dumps(mock_tokens)}):
         resp = google_auth_handler.handler(event, None)
         
     assert resp["statusCode"] == 200
@@ -62,7 +64,7 @@ def test_get_status_validation_failed_on_revoked():
     }
     
     with patch('handlers.google_auth_handler.get_google_config', return_value=mock_config), \
-         patch('handlers.google_auth_handler.get_stored_tokens', return_value=mock_tokens):
+         patch('handlers.google_auth_handler.secrets.get_secret_value', return_value={'SecretString': json.dumps(mock_tokens)}):
         resp = google_auth_handler.handler(event, None)
         
     assert resp["statusCode"] == 200
@@ -85,7 +87,7 @@ def test_get_status_connected_from_cache():
     }
     
     with patch('handlers.google_auth_handler.get_google_config', return_value=mock_config), \
-         patch('handlers.google_auth_handler.get_stored_tokens', return_value=mock_tokens), \
+         patch('handlers.google_auth_handler.secrets.get_secret_value', return_value={'SecretString': json.dumps(mock_tokens)}), \
          patch('urllib.request.urlopen') as mock_urlopen:
         
         resp = google_auth_handler.handler(event, None)
@@ -96,8 +98,8 @@ def test_get_status_connected_from_cache():
     body = json.loads(resp["body"])
     assert body["status"] == "CONNECTED"
 
-def test_get_status_refreshes_when_expired():
-    """Refreshes and returns CONNECTED when cached access token is expired."""
+def test_get_status_unknown_when_expired():
+    """S2B.1: expiry is UNKNOWN and cannot trigger refresh or persistence."""
     event = create_event("Admin")
     mock_config = {"client_id": "test_id", "client_secret": "test_secret"}
     
@@ -116,15 +118,15 @@ def test_get_status_refreshes_when_expired():
     mock_response.__exit__ = MagicMock(return_value=False)
     
     with patch('handlers.google_auth_handler.get_google_config', return_value=mock_config), \
-         patch('handlers.google_auth_handler.get_stored_tokens', return_value=mock_tokens), \
+         patch('handlers.google_auth_handler.secrets.get_secret_value', return_value={'SecretString': json.dumps(mock_tokens)}), \
          patch('handlers.google_auth_handler.save_tokens', return_value=True) as mock_save, \
          patch('urllib.request.urlopen', return_value=mock_response) as mock_urlopen:
         
         resp = google_auth_handler.handler(event, None)
         
-    # urlopen should have been called to refresh
-    mock_urlopen.assert_called_once()
+    # Passive reads must not refresh
+    mock_urlopen.assert_not_called()
     assert resp["statusCode"] == 200
     body = json.loads(resp["body"])
-    assert body["status"] == "CONNECTED"
-    mock_save.assert_called_once()
+    assert body["status"] == "UNKNOWN"
+    mock_save.assert_not_called()

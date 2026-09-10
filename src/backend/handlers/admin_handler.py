@@ -428,6 +428,12 @@ def handler(event, context):
             if role not in ['owner', 'admin', 'staff', 'client', 'platform_admin']:
                 return error(403, "Forbidden", event)
 
+            from handlers.google_auth_handler import _require_http_company_id
+            try:
+                authenticated_company = _require_http_company_id(event)
+            except PermissionError:
+                return error(403, 'Tenant context could not be verified', event)
+
             has_expected_tenant = 'expectedTenantSlug' in query_params
             expected_tenant_slug = query_params.get('expectedTenantSlug')
             if has_expected_tenant:
@@ -440,12 +446,13 @@ def handler(event, context):
                     return error(403, "Tenant context could not be verified", event)
                 company_id = tenant['company_id']
             else:
-                # Compatibility host behavior is intentionally unchanged.  The
-                # route bridge never supplies or overrides this company ID.
-                from common.auth import get_current_company_id
-                company_id = get_current_company_id(event)
+                # The route bridge never supplies or overrides authenticated ownership.
+                company_id = authenticated_company
                 tenant = get_item(f"TENANT#{company_id}", "METADATA")
             
+            if company_id != authenticated_company or (tenant and tenant.get('company_id') != company_id):
+                return error(403, 'PROVIDER_ACCESS_DENIED', event)
+
             if tenant:
                 display_name = tenant.get('display_name')
                 subscription_tier = tenant.get('subscription_tier', 'starter')
@@ -473,18 +480,14 @@ def handler(event, context):
                     "is_blocked": True
                 }, event)
                     
-            # Safe calendar check
-            calendar_status = "NOT_CONNECTED"
-            from common.auth import DEFAULT_COMPANY_ID
-            if company_id == DEFAULT_COMPANY_ID:
-                try:
-                    from handlers.google_auth_handler import get_status as _get_status
-                    status_resp = _get_status(event)
-                    body = json.loads(status_resp.get('body', '{}'))
-                    calendar_status = body.get('status', 'NOT_CONNECTED')
-                except Exception as e:
-                    print(f"Warning: Failed to resolve calendar status: {e}")
-                    
+            # Provider status is passive; preserve bootstrap on availability failures.
+            from handlers.google_auth_handler import get_status as _get_status
+            status_resp = _get_status(event)
+            if status_resp.get('statusCode') == 403:
+                return status_resp
+            body = json.loads(status_resp.get('body', '{}'))
+            calendar_status = body.get('status', 'UNKNOWN')
+
             from common.calendar_metadata import get_tenant_calendar_config
             calendar_config = get_tenant_calendar_config(tenant, company_id, calendar_status)
                     
