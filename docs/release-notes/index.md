@@ -4,12 +4,15 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 
 ## 🌟 Featured / Recent
 
-> PTM0-S1/F01 is complete. PTM-0 overall is not complete: F02 remains
-> untouched/unresolved and PTM0-S2 has not started.
+> PTM0-S1/F01 is complete. S2A.3 and S2D.1 are deployed, not fully
+> production-accepted. S2 acceptance is PARTIAL / PRELIMINARY — P1 only;
+> P2–P5 are deferred, not failed or passed. F02 and PTM-0 remain incomplete.
 >
 > B1A current status: the representative real Web/API persisted-write slice is PASS;
 > full end-to-end B1A is not claimed. Older dated DOMAIN-1/B1A entries retain their
 > original approval boundaries and are superseded only by the later scoped results.
+
+- [**PTM0-S2 deployment and acceptance disposition**](ptm0-s2-production-deployment-acceptance.md) (2026-09-09) — **DEPLOYED — NOT FULLY PRODUCTION-ACCEPTED**. Exact canonical artifact independently approved on all 13 Lambdas; P1 read-only prerequisites independently approved; P2–P5 deferred for unavailable approved fixtures. No fixture creation authorized. S2B/S2C/S2D.2/S2E not started; F02/PTM-0 incomplete.
 
 - [**PTM0-S1 Production Deployment and Acceptance**](ptm0-s1-production-deployment-acceptance.md) (2026-09-03) — ✅ **PTM0-S1 DEPLOYED / PRODUCTION ACCEPTANCE PASS / COMPLETE** — F01 legacy/untagged admin-read isolation is deployed across the shared 13-Lambda package and accepted with bounded live evidence, offline adversarial coverage, and `118/118` deployed-identical focused tests. No production fixtures were required or created. F02 remains untouched/unresolved, PTM0-S2 is not started, and PTM-0 overall remains incomplete.
 - [**PTM0-S1 Legacy / Untagged Record Read Isolation**](ptm0-s1-legacy-record-read-isolation-local.md) (2026-09-02) — ✅ **HISTORICAL LOCAL IMPLEMENTATION / SUPERSEDED BY PRODUCTION CLOSEOUT** — Preserves the reviewed implementation, primary-only compatibility, cursor-confidentiality correction, and bounded traversal rationale that led to the completed production release.

@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-09-03 (PTM0-S1 deployed, production-accepted, and complete; PTM-0 remains incomplete)
+**Last Updated:** 2026-09-09 (S2A.3/S2D.1 deployed; S2 acceptance PARTIAL / PRELIMINARY — P1 only; F02/PTM-0 incomplete)
 
 ---
 
@@ -9,7 +9,7 @@
 | Component | Status |
 |-----------|--------|
 | Web app (React/Vite) | ✅ Latest recorded Web release: PTM-3D.1 neutral presentation, `assets/index-CdPio7XK.js`; includes the deployed DOMAIN-1 tenant route. Earlier Web v2 artifact `440cab2` is historical. No new deployment or live check in the PTM-0 audit. |
-| Backend (Python/Lambda) | ✅ PTM0-S1 deployed and production-accepted — all 13 functions use approved `CodeSha256 kmf9B9gD4pZ1wy1plBDVwSVtAIbNl7ybOdqxjVMemiI=`; the prior P1 fix and DOMAIN-1 expected-tenant route bridge remain included |
+| Backend (Python/Lambda) | ✅ S2A.3/S2D.1 DEPLOYED — NOT FULLY PRODUCTION-ACCEPTED; all 13 functions use independently approved `CodeSha256 CElAcSjErchfDbW2pL63iijo8J6qYAtK0QxxZ9pCGVQ=`. S2 acceptance is PARTIAL / PRELIMINARY — P1 only. Prior S1/P1/DOMAIN-1 behavior remains included; main was not deployed wholesale. |
 | API Gateway | ✅ Active — production `prod -> atxpw3`; `GET /admin/tenant-info` is Cognito-authorized, Lambda-proxy integrated, and authenticated end-to-end for `test_tenant_alpha` |
 | DynamoDB | ✅ Single table, shared-tenant model |
 | Google Calendar | ✅ One configured Google provider connection for `tog_and_dogs`; token storage/resolution is tenant-scoped (21H). `test_tenant_alpha` remains provider `none` / `not_configured`; independent providers for multiple tenants are not claimed. |
@@ -62,9 +62,17 @@
 | Blocker | Impact | Owner |
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
-| Remaining PTM-0 authority/boundary conflicts | Blocks broad customer-ready signoff, not a rollback directive. F01 is closed by completed PTM0-S1; F02 remains untouched/unresolved and F03–F08 remain separately scoped. Existing Tier-1 gate is unchanged. | Matthew / independent reviewer |
+| Remaining PTM-0 authority/boundary conflicts | Blocks broad customer-ready signoff, not a rollback directive. F01 is closed by completed PTM0-S1; F02 remains incomplete after S2A.3/S2D.1 deployment and P1-only acceptance; F03–F08 remain separately scoped. Existing Tier-1 gate is unchanged. | Matthew / independent reviewer |
 
 ## Current Work and Latest Closeouts
+
+- PTM0-S2A.3 + S2D.1 (**DEPLOYED — NOT FULLY PRODUCTION-ACCEPTED — 2026-09-09**)
+  - Deployment: `PTM0_S2_RC1_INDEPENDENT_PRODUCTION_DEPLOYMENT_APPROVED`; RC `b32b374e45cac09dc7006047954ff60c041b0bf0`, tree `e8c1fcbef2e8bc28c8fc690e23293321f2664ea4`, exact canonical ZIP `0849407128C4ADC85F0DB5B6A4BEB78A28E8F09EAA600B4AD10C7167DA421954` on all 13 Lambdas. Main remains `0f50443ebe5325ce8f2c926fe716841abfd14a73`.
+  - P1: `PTM0_S2_P1_INDEPENDENT_READ_ONLY_ACCEPTANCE_APPROVED`; Alpha metadata valid, provider/calendar binding absent, strict multi unchanged. S2 acceptance: **PARTIAL / PRELIMINARY — P1 only**.
+  - Fixture discovery: `PTM0_S2_P2_P5_FIXTURE_DISCOVERY_INDEPENDENTLY_APPROVED`. P2–P4 lack approved existing Alpha request/job fixtures; P5 lacks a documented controlled synthetic foreign fixture. **DEFERRED / UNEXECUTED, not failures and not functional passes**. No fixture creation without separate explicit Matthew approval; no Ryan/customer workflow used. Offline/package evidence remains valid.
+  - S2B/S2C/S2D.2/S2E **NOT STARTED**; F02/PTM-0 **INCOMPLETE**. Next recommendation is separately authorized S2B passive-status/tenant-authority planning, not implementation. See [authoritative S2 disposition](../release-notes/ptm0-s2-production-deployment-acceptance.md). No unrelated production, Stripe live, tenant creation or tester/distribution work authorized.
+
+The S1 closeout below preserves its historical deployment/acceptance evidence; its package and then-not-started S2 wording are superseded by the S2 checkpoint above.
 
 - PTM0-S1 legacy/untagged record read isolation (**DEPLOYED / PRODUCTION ACCEPTANCE PASS / COMPLETE — 2026-09-03**)
   - Authoritative disposition: `PTM0_S1_PRODUCTION_ACCEPTANCE_EVIDENCE_SUFFICIENT`. F01 is complete. The isolated RC `c31be0ab6f95ba77707f33980cadc0c998dda6e3` deployed across the shared 13-Lambda package with `0 added / 13 changed / 0 destroyed`, zero replacements, and deployed `CodeSha256 kmf9B9gD4pZ1wy1plBDVwSVtAIbNl7ybOdqxjVMemiI=`. Terraform state is serial `519` on unchanged lineage `7235fddd-c101-fe62-7669-7b7b3d858955`.
