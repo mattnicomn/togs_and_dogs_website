@@ -111,6 +111,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
   const [recoveryConfirmPassword, setRecoveryConfirmPassword] = useState('');
   const [recoverySuccess, setRecoverySuccess] = useState(false);
   const [googleStatus, setGoogleStatus] = useState(null);
+  const googleStatusRequest = useRef(0);
   const [tenantInfo, setTenantInfo] = useState(null);
   const [staffList, setStaffList] = useState([]);
   const [staffLoading, setStaffLoading] = useState(false);
@@ -623,6 +624,8 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
         return { label: 'Needs Reconnect', class: 'status-reconnect' };
       case 'CREDENTIALS_MISSING':
         return { label: 'Error', class: 'status-error' };
+      case 'UNKNOWN':
+        return { label: 'Status not current', class: 'status-unknown' };
       default:
         return { label: status || 'Checking...', class: 'status-disconnected' };
     }
@@ -633,11 +636,16 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
    * Data Fetching Engine
    */
   const fetchGoogleStatus = async () => {
+    const request = ++googleStatusRequest.current;
     try {
       const status = await getGoogleStatus();
-      setGoogleStatus(status.status);
-    } catch (err) {
-      console.error("Failed to fetch Google status", err);
+      if (request === googleStatusRequest.current) {
+        setGoogleStatus(status?.status || 'UNKNOWN');
+      }
+    } catch {
+      if (request === googleStatusRequest.current) {
+        setGoogleStatus('UNKNOWN');
+      }
     }
   };
 
@@ -4073,12 +4081,13 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
             <span>
               {googleStatus === 'VALIDATION_FAILED' && '⚠️'}
               {googleStatus === 'CREDENTIALS_MISSING' && '❌'}
-              {googleStatus === 'NOT_CONNECTED' && 'ℹ️'}
+              {(googleStatus === 'NOT_CONNECTED' || googleStatus === 'UNKNOWN') && 'ℹ️'}
             </span>
             <span>
               {googleStatus === 'VALIDATION_FAILED' && 'Google Calendar connection needs reconnect. Sitter schedule sync is degraded.'}
               {googleStatus === 'CREDENTIALS_MISSING' && 'Google Client ID/Secret config is missing in Secrets Manager. Please contact support.'}
               {googleStatus === 'NOT_CONNECTED' && 'Google Calendar is not connected. Connect calendar to enable automatic sitter schedule sync.'}
+              {googleStatus === 'UNKNOWN' && 'Google Calendar status is not current. Calendar readiness could not be confirmed; the connection may still be active.'}
             </span>
           </div>
           {googleStatus !== 'CREDENTIALS_MISSING' && capabilities.canManageGoogleCalendarIntegration && (
@@ -4285,13 +4294,13 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
                     <div className="detail-item">
                       <span className="detail-label">Connected Account</span>
                       <span className="detail-value">
-                        {googleStatus === 'CONNECTED' ? 'Business Account' : 'None'}
+                        {googleStatus === 'CONNECTED' ? 'Business Account' : googleStatus === 'UNKNOWN' ? 'Not confirmed' : 'None'}
                       </span>
                     </div>
                     <div className="detail-item">
                       <span className="detail-label">Last Checked</span>
                       <span className="detail-value">
-                        {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {googleStatus === 'UNKNOWN' ? 'Status not current' : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
                   </div>
@@ -4315,7 +4324,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
   status: googleStatus,
   provider: 'google-oauth2',
   scopes: ['calendar.events'],
-  last_check: new Date().toISOString()
+  last_check: googleStatus === 'UNKNOWN' ? null : new Date().toISOString()
 }, null, 2)}
                     </pre>
                   </details>
