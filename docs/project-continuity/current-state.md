@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-09-12 (PTM0-S2B + minimal S2C artifacts independently approved, undeployed; coordinated S2C→S2B deployment not yet authorized; S2 acceptance PARTIAL / PRELIMINARY — P1 only; F02/PTM-0 incomplete)
+**Last Updated:** 2026-09-12 (PTM0-S2B backend + minimal S2C frontend DEPLOYED and artifact-identity verified; production acceptance NOT STARTED / NOT AUTHORIZED; F02 closure still pending acceptance; PTM-0 incomplete)
 
 ---
 
@@ -62,9 +62,15 @@
 | Blocker | Impact | Owner |
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
-| Remaining PTM-0 authority/boundary conflicts | Blocks broad customer-ready signoff, not a rollback directive. F01 is closed by completed PTM0-S1; F02 remains incomplete — S2B/S2C address the Google-fallback / fail-open availability paths at the source/artifact level (independently approved) but are undeployed and not production-accepted; F03–F08 remain separately scoped. Existing Tier-1 gate is unchanged. | Matthew / independent reviewer |
+| Remaining PTM-0 authority/boundary conflicts | Blocks broad customer-ready signoff, not a rollback directive. F01 is closed by completed PTM0-S1; F02 source/artifact remediation is now DEPLOYED (S2B backend + minimal S2C frontend), but F02 closure still depends on the separately authorized production acceptance (NOT started); F03–F08 remain separately scoped. Existing Tier-1 gate is unchanged. | Matthew / independent reviewer |
 
 ## Current Work and Latest Closeouts
+
+- PTM0-S2B + minimal S2C coordinated production deployment (**DEPLOYED — ARTIFACT IDENTITY VERIFIED — PRODUCTION ACCEPTANCE NOT STARTED — 2026-09-12**)
+  - Disposition `PTM0_S2BC_COORDINATED_PRODUCTION_DEPLOYMENT_COMPLETE_ACCEPTANCE_NOT_STARTED`. Executed in mandatory order: frontend S2C first (S3 sync + verify), then backend S2B. Repo checkpoint `cc55e21850adbd8fa0735424e8fc748185904172` unchanged by the deployment.
+  - Frontend: `togs-and-dogs-prod-toganddogs-hosting` = exactly 11 approved objects (0 missing/unexpected/mismatch); retired `assets/index-CdPio7XK.js` removed; CloudFront `E35L00QPA2IRCY` invalidation `I73981UKKDWC4PGQI6KMA4Y83V` (`/*`) Completed; edge-verified index.html `7546B2CC…`, JS `assets/index-D3a5IJFf.js` `9184A290…`, CSS `assets/index-BroXJAxV.css` `69A7D7BC…`. Retired-JS path returns SPA index fallback (200 = index.html), not the old asset.
+  - Backend: all 13 Lambdas code-only updated from the exact retained S2B ZIP `38B02A3D…` (not rebuilt, no Terraform) to CodeSha256 `OLAqPQtc4vYwMSnRSZxV1mJTmVoOYiEsUl8aXBVVt9I=`, all Active/Successful, `Publish=False`; operator config unchanged; `TENANT_RESOLUTION_MODE=multi` unchanged (pre-existing, not enabled here). `platform-preview` and `cognito-email-sender` untouched. (Verification note: AWS-managed `RuntimeVersionConfig` re-resolved on code update — a benign non-operator field, investigated; operator config confirmed unchanged.)
+  - Rollback reference: S2 RC1 backend ZIP `0849…` / CodeSha256 `CElAcSjErchfDbW2pL63iijo8J6qYAtK0QxxZ9pCGVQ=`; prior web lineage `3025f2f`/`index-CdPio7XK.js`. No production acceptance, application/data, provider/OAuth/Calendar, Stripe, mobile, Terraform, IAM, API Gateway, Secrets Manager, DynamoDB, Cognito, or Route 53 change occurred. See [S2BC deployment checkpoint](../release-notes/ptm0-s2bc-coordinated-production-deployment.md).
 
 - PTM0-S2B + minimal S2C (**ARTIFACTS INDEPENDENTLY APPROVED — NOT YET AUTHORIZED FOR DEPLOYMENT — 2026-09-12**)
   - Disposition `PTM0_S2BC_ARTIFACTS_INDEPENDENTLY_APPROVED`. Backend frozen source `414312a1caf91b03dcce7bc093d3c0ae579c9888` (tree `86602e6084748f49f3439a7498722bc218d9d7c7`, parent S2 RC1 `b32b374e45cac09dc7006047954ff60c041b0bf0`); canonical ZIP `38B02A3D0B5CE2F6303129D1499C55D66253995A0E62212C525F1A5C1555B7D2`, 41 entries, exactly 5 changed runtime entries vs the deployed RC1 package. Frontend frozen source `709f7cf1e55bba4b3b176c10fc83861f9917559e` (tree `841f26625703da8efba45b962b183d91ebc3651f`, parent PTM-3D.1 web `3025f2f1e3991f990d0d4adde79b910e955fd6d1`); build manifest `2EF7F45902FF9DE2F865B3AF6EB217EFF42D9F25573B5E3F4887D181934CEBE6`, new JS `assets/index-D3a5IJFf.js`, CSS byte-identical to deployed baseline.
