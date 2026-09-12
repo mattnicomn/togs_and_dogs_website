@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-09-09 (S2A.3/S2D.1 deployed; S2 acceptance PARTIAL / PRELIMINARY — P1 only; F02/PTM-0 incomplete)
+**Last Updated:** 2026-09-12 (PTM0-S2B + minimal S2C artifacts independently approved, undeployed; coordinated S2C→S2B deployment not yet authorized; S2 acceptance PARTIAL / PRELIMINARY — P1 only; F02/PTM-0 incomplete)
 
 ---
 
@@ -62,9 +62,14 @@
 | Blocker | Impact | Owner |
 |---------|--------|-------|
 | EIN unavailable | Live Stripe payments blocked | Matthew (IRS) |
-| Remaining PTM-0 authority/boundary conflicts | Blocks broad customer-ready signoff, not a rollback directive. F01 is closed by completed PTM0-S1; F02 remains incomplete after S2A.3/S2D.1 deployment and P1-only acceptance; F03–F08 remain separately scoped. Existing Tier-1 gate is unchanged. | Matthew / independent reviewer |
+| Remaining PTM-0 authority/boundary conflicts | Blocks broad customer-ready signoff, not a rollback directive. F01 is closed by completed PTM0-S1; F02 remains incomplete — S2B/S2C address the Google-fallback / fail-open availability paths at the source/artifact level (independently approved) but are undeployed and not production-accepted; F03–F08 remain separately scoped. Existing Tier-1 gate is unchanged. | Matthew / independent reviewer |
 
 ## Current Work and Latest Closeouts
+
+- PTM0-S2B + minimal S2C (**ARTIFACTS INDEPENDENTLY APPROVED — NOT YET AUTHORIZED FOR DEPLOYMENT — 2026-09-12**)
+  - Disposition `PTM0_S2BC_ARTIFACTS_INDEPENDENTLY_APPROVED`. Backend frozen source `414312a1caf91b03dcce7bc093d3c0ae579c9888` (tree `86602e6084748f49f3439a7498722bc218d9d7c7`, parent S2 RC1 `b32b374e45cac09dc7006047954ff60c041b0bf0`); canonical ZIP `38B02A3D0B5CE2F6303129D1499C55D66253995A0E62212C525F1A5C1555B7D2`, 41 entries, exactly 5 changed runtime entries vs the deployed RC1 package. Frontend frozen source `709f7cf1e55bba4b3b176c10fc83861f9917559e` (tree `841f26625703da8efba45b962b183d91ebc3651f`, parent PTM-3D.1 web `3025f2f1e3991f990d0d4adde79b910e955fd6d1`); build manifest `2EF7F45902FF9DE2F865B3AF6EB217EFF42D9F25573B5E3F4887D181934CEBE6`, new JS `assets/index-D3a5IJFf.js`, CSS byte-identical to deployed baseline.
+  - Deployment contract: separate artifacts, production-ready only together, ordered **frontend S2C first → verify → backend S2B second → verify 13 Lambda CodeSha256 → acceptance separately authorized**. Backend must not deploy first (deployed web does not yet represent truthful `UNKNOWN`); S2C is backward-compatible with the current backend. Rollback boundaries stay separate; web must not roll back to a pre-`UNKNOWN` build while S2B is active; backend code rollback does not reverse consumed OAuth transactions or provider-state writes.
+  - Release branches remain **unpushed**; `main` unchanged; two untracked S2A.2d review docs untouched. Retained artifacts under `scratch/ptm0_s2bc_rc/`. Production deployment **NOT YET AUTHORIZED**; acceptance remains **PARTIAL / PRELIMINARY — P1 only**; P2–P5 deferred; S2D.2/S2E not started; F02/PTM-0 **INCOMPLETE**. See [S2BC pre-deployment checkpoint](../release-notes/ptm0-s2bc-pre-deployment-artifact-checkpoint.md).
 
 - PTM0-S2A.3 + S2D.1 (**DEPLOYED — NOT FULLY PRODUCTION-ACCEPTED — 2026-09-09**)
   - Deployment: `PTM0_S2_RC1_INDEPENDENT_PRODUCTION_DEPLOYMENT_APPROVED`; RC `b32b374e45cac09dc7006047954ff60c041b0bf0`, tree `e8c1fcbef2e8bc28c8fc690e23293321f2664ea4`, exact canonical ZIP `0849407128C4ADC85F0DB5B6A4BEB78A28E8F09EAA600B4AD10C7167DA421954` on all 13 Lambdas. Main remains `0f50443ebe5325ce8f2c926fe716841abfd14a73`.

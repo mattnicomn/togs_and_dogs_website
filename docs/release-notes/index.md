@@ -8,9 +8,15 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 > production-accepted. S2 acceptance is PARTIAL / PRELIMINARY — P1 only;
 > P2–P5 are deferred, not failed or passed. F02 and PTM-0 remain incomplete.
 >
+> PTM0-S2B backend and minimal S2C frontend artifacts are independently approved
+> but undeployed. Coordinated deployment (frontend S2C first, backend S2B second)
+> is NOT YET AUTHORIZED; acceptance stays P1-only and F02/PTM-0 remain incomplete.
+>
 > B1A current status: the representative real Web/API persisted-write slice is PASS;
 > full end-to-end B1A is not claimed. Older dated DOMAIN-1/B1A entries retain their
 > original approval boundaries and are superseded only by the later scoped results.
+
+- [**PTM0-S2B + minimal S2C pre-deployment artifact checkpoint**](ptm0-s2bc-pre-deployment-artifact-checkpoint.md) (2026-09-12) — ✅ **`PTM0_S2BC_ARTIFACTS_INDEPENDENTLY_APPROVED` — NOT YET AUTHORIZED FOR DEPLOYMENT**. Backend frozen source `414312a…` → canonical ZIP `38B02A3D…` (41 entries, exactly 5 changed runtime entries vs the deployed S2 RC1 package). Frontend frozen source `709f7cf…` → build manifest `2EF7F459…`, new JS `assets/index-D3a5IJFf.js`, CSS byte-identical to deployed baseline. Separate artifacts, production-ready only together; required order is frontend S2C first, then backend S2B, then separately authorized acceptance. Release branches unpushed; `main` unchanged; F02/PTM-0 incomplete.
 
 - [**PTM0-S2 deployment and acceptance disposition**](ptm0-s2-production-deployment-acceptance.md) (2026-09-09) — **DEPLOYED — NOT FULLY PRODUCTION-ACCEPTED**. Exact canonical artifact independently approved on all 13 Lambdas; P1 read-only prerequisites independently approved; P2–P5 deferred for unavailable approved fixtures. No fixture creation authorized. S2B/S2C/S2D.2/S2E not started; F02/PTM-0 incomplete.
 

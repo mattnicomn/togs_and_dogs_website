@@ -17,6 +17,7 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 |-------|----------|
 | Release notes index | `docs/release-notes/index.md` |
 | Individual release notes | `docs/release-notes/release-*.md` |
+| PTM0-S2B + minimal S2C pre-deployment artifact checkpoint (artifacts approved; deployment NOT YET AUTHORIZED; F02/PTM-0 incomplete) | `docs/release-notes/ptm0-s2bc-pre-deployment-artifact-checkpoint.md` |
 | PTM0-S2 deployment and partial acceptance (P1 only; P2–P5 deferred) | `docs/release-notes/ptm0-s2-production-deployment-acceptance.md` |
 | PTM0-S1 production deployment and acceptance (complete; PTM-0 incomplete) | `docs/release-notes/ptm0-s1-production-deployment-acceptance.md` |
 | PTM0-S1 local implementation and cursor-confidentiality history | `docs/release-notes/ptm0-s1-legacy-record-read-isolation-local.md` |
