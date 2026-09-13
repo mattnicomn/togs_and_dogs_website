@@ -119,9 +119,13 @@ Stripe live work; no mobile/TestFlight/App Store work.
 
 ## Deferred / gated cases (acceptance set NOT complete)
 
-- **AC-6, AC-7** (AUTHENTICATED_NON_MUTATING): status **NOT_DETERMINED / NOT YET
-  AUTHORIZED**. Authenticated-session availability was not investigated; no session
-  material was accessed.
+- **AC-6, AC-7** (AUTHENTICATED_NON_MUTATING): definitions are now **RATIFIED /
+  AUTHORITATIVE** (see "Authoritative AC-6 / AC-7 acceptance definitions" below).
+  Execution status remains **NOT_EXECUTED / NOT YET AUTHORIZED**;
+  authenticated-session availability was not investigated and no session material
+  was accessed. Readiness after ratification is
+  `AC6_AC7_READY_FOR_EXPLICIT_APPROVAL` — execution and authenticated-session
+  creation/use both remain Matthew-gated.
 - **AC-9, AC-10** (provider/OAuth-scoped): **separate Matthew authorization
   required** (OAuth initiate/callback token persistence; provider disconnect).
 - **AC-11 through AC-14** (prior P2–P5 synthetic fixture cases): still require
@@ -136,3 +140,148 @@ PTM-0 remain open pending the deferred/gated acceptance.
 Await separate explicit authorization for the next acceptance tier
 (authenticated AC-6/AC-7, then provider AC-9/AC-10, then fixture-dependent
 AC-11–AC-14). No further production action is authorized by this checkpoint.
+
+---
+
+## Authoritative AC-6 / AC-7 acceptance definitions (RATIFIED — 2026-09-13)
+
+These definitions resolve the prior `AC6_AC7_DOCUMENTATION_CONFLICT` and are the
+authoritative, repository-committed acceptance criteria for AC-6 and AC-7. They
+were established by the read-only preflight and are grounded in the deployed
+frozen S2B source (`src/backend/handlers/google_auth_handler.py::get_status` and
+`src/backend/handlers/admin_handler.py` `/admin/tenant-info` block).
+
+Ratifying these definitions does **NOT** execute them.
+
+Post-ratification readiness state: **`AC6_AC7_READY_FOR_EXPLICIT_APPROVAL`**.
+
+- **AC-6 = NOT EXECUTED**
+- **AC-7 = NOT EXECUTED**
+- **Authenticated production session = NOT AUTHORIZED / NOT EXECUTED**
+- Production acceptance execution remains **blocked until Matthew explicitly
+  approves it**. Do not mark either criterion PASS on the basis of this record.
+
+Both AC-6 and AC-7 are **non-mutating** acceptance criteria (READ-ONLY;
+CloudWatch logging is the only side effect and is not a business-data write).
+
+### AC-6 — Passive authenticated Google Calendar status
+
+Authenticated primary-tenant `GET /admin/auth/status`.
+
+Acceptance intent: verify the deployed route returns the truthful passive
+readiness taxonomy **without** provider token refresh and **without** credential
+persistence.
+
+Allowed result taxonomy:
+
+- `CONNECTED`
+- `NOT_CONNECTED`
+- `VALIDATION_FAILED`
+- `UNKNOWN`
+- `PROVIDER_UNAVAILABLE` (provider/secret-read failure, where applicable)
+
+Core invariants:
+
+- authenticated tenant context is authoritative
+- no default-tenant fallback
+- no token refresh
+- no credential persistence
+- no `initiate_auth`
+- no application / business-data write
+- expected path is authenticated HTTP / API Gateway → `google-auth` Lambda
+- evidence captures status classification only, never raw secret/token/provider payloads
+
+Target route/function: `GET /admin/auth/status` → `togs-and-dogs-prod-google-auth`
+→ `get_status` (docstring: "Passive cached readiness only: never refresh or
+persist credentials"), tenant-gated by `_require_http_company_id`.
+
+Tenant involved: primary `tog_and_dogs` (the authenticated session's own tenant).
+
+Expected authorization behavior: authenticated caller passes
+`_require_http_company_id`; missing/invalid/mismatched claim → HTTP 403
+`INVALID_TENANT_CONTEXT`.
+
+### AC-7 — Authenticated tenant-info passive composition
+
+Authenticated primary-tenant `GET /admin/tenant-info`.
+
+Acceptance intent: verify the route returns tenant metadata and a passively
+composed `calendar_status`, with authenticated ownership authoritative and no
+caller-controlled tenant override.
+
+Core invariants:
+
+- role authorization applies (owner/admin/staff/client/platform_admin)
+- `_require_http_company_id` / authenticated tenant identity remains authoritative
+- route/request `company_id` (e.g. `expectedTenantSlug`) must NOT override
+  authenticated ownership
+- DynamoDB tenant metadata access is read-only
+- entitlement access is read-only
+- `calendar_status` is derived from the passive `get_status`
+- no provider refresh
+- no credential persistence
+- no business-data write
+- do not expose raw tenant/customer/pet/staff data unnecessarily
+
+Target route/function: `GET /admin/tenant-info` → `togs-and-dogs-prod-admin`
+(role gate + `_require_http_company_id` → `company_id = authenticated_company` →
+`get_item(TENANT#…)` → `_get_entitlement_safely` → passive `get_status`).
+
+Tenant involved: primary `tog_and_dogs` (authenticated).
+
+Expected own-tenant behavior:
+
+- HTTP 200
+- sanitized tenant metadata
+- valid `calendar_status` classification (AC-6 taxonomy)
+
+Expected invalid/mismatched-tenant behavior:
+
+- appropriate authorization / tenant-context denial (HTTP 403; e.g.
+  `PROVIDER_ACCESS_DENIED` when `company_id != authenticated_company`)
+- no fallback to another tenant
+
+### Minimum eventual acceptance evidence
+
+For **AC-6**:
+
+- HTTP status
+- returned status classification only (one of the allowed taxonomy values)
+- deployed backend identity reference (`CodeSha256 OLAqPQtc4vYwMSnRSZxV1mJTmVoOYiEsUl8aXBVVt9I=`, `TENANT_RESOLUTION_MODE=multi`)
+- no refresh/save error markers (`PROVIDER_REFRESH_FAILED`, `PROVIDER_TOKEN_SAVE_FAILED` count = 0)
+- secret metadata `LastChangedDate` unchanged where used as non-mutation evidence
+  (baseline `2026-09-04`)
+
+For **AC-7**:
+
+- HTTP status
+- sanitized tenant metadata classification
+- `calendar_status`
+- ownership / tenant-context behavior (authoritative authenticated ownership;
+  denial on mismatch)
+- no refresh/save error markers
+- secret metadata `LastChangedDate` unchanged where applicable
+
+AC-8 post-read confirmation (all error markers count = 0; secret `LastChangedDate`
+unchanged) remains part of the eventual acceptance evidence.
+
+### Evidence prohibitions (never store or display)
+
+- JWTs
+- Cognito tokens
+- access tokens
+- refresh tokens
+- OAuth codes
+- secrets / Secrets Manager values
+- raw Cognito claims
+- raw provider payloads
+- private customer / pet / staff record bodies
+
+### Retained approval gates
+
+1. Authenticated production session creation/use — **Matthew-gated**.
+2. Authenticated AC-6 / AC-7 production reads + AC-8 re-confirmation — **Matthew-gated**.
+
+No AWS acceptance action, authentication, deployment, configuration change,
+tenant/business-data change, or Terraform operation is authorized by this
+documentation ratification.
