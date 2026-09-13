@@ -207,6 +207,7 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 | Topic | Location |
 |-------|----------|
 | SaaS maturity backlog | `docs/backlog/saas-maturity-and-multi-business-owner-readiness.md` |
+| PetCare Hero — brand, platform experience, and SaaS frontend program (PLANNED; canonical master tracker, PCH-A..PCH-R) | `docs/backlog/petcare-hero-brand-platform-experience.md` |
 | EIN blocker | `docs/backlog/stripe-live-activation-blocked-pending-ein.md` |
 
 ## Operations

@@ -112,6 +112,33 @@ Recently completed: former item 20, the entitlement observability Decimal serial
 
 ---
 
+## PetCare Hero — Brand, Platform Experience & SaaS Frontend Program (PLANNED)
+
+**Canonical master tracker:** `docs/backlog/petcare-hero-brand-platform-experience.md`
+
+**PetCare Hero** is the canonical working name for the multi-business pet-care SaaS
+platform operated by **USMISSIONHERO LLC**. **Togs & Dogs** remains an independent
+tenant/business brand and is **not** renamed. The program defines brand foundation,
+design system, public website, neutral platform shell, operator control-plane UI,
+tenant (Realm) owner UX, auth/resolution UX, metadata/secrets/observability/notification/
+integration UX, mobile experience, onboarding, commercial/billing UX, documentation,
+quality/acceptance, and commercial launch readiness (workstreams `PCH-A`..`PCH-R`).
+
+It uses internal architecture terminology (The Castle/Keep/Gatehouse/Realm/Vault/
+Registry/Watchtower/Herald/Marketplace/Crown) as **conceptual names only** — no
+runtime/API/DynamoDB/IAM/Terraform/Lambda/env identifiers are renamed.
+
+This program **cross-references** and depends on existing programs (PTM-0..PTM-13,
+DOMAIN-1..7, Phase 24A design system, Preview V1 onboarding, business-owner Getting
+Started, Stripe/EIN billing blockers) rather than duplicating them. It is
+**planning/documentation only**: no implementation, deployment, tenant creation,
+Stripe activation, or mobile-distribution change. Branding/frontend implementation is
+**not** the immediate next engineering task — the tenant-hardening/acceptance critical
+path (F02, PTM-0 remainder, S2 acceptance tiers) precedes it. All existing approval
+gates remain in force.
+
+---
+
 ## SaaS Control-Plane and Tenant-Domain Backlog
 
 **Authoritative design:** `docs/planning/tenant-access-client-onboarding-operational-workflow-alignment.md`
