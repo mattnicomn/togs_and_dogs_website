@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-09-12 (PTM0-S2B backend + minimal S2C frontend DEPLOYED and artifact-identity verified; production acceptance NOT STARTED / NOT AUTHORIZED; F02 closure still pending acceptance; PTM-0 incomplete)
+**Last Updated:** 2026-09-12 (PTM0-S2B/S2C DEPLOYED; production acceptance Phase A (read-only) PASS; authenticated AC-6/AC-7 + provider AC-9/AC-10 + fixture AC-11–AC-14 deferred/gated; F02 closure + PTM-0 still open)
 
 ---
 
@@ -65,6 +65,10 @@
 | Remaining PTM-0 authority/boundary conflicts | Blocks broad customer-ready signoff, not a rollback directive. F01 is closed by completed PTM0-S1; F02 source/artifact remediation is now DEPLOYED (S2B backend + minimal S2C frontend), but F02 closure still depends on the separately authorized production acceptance (NOT started); F03–F08 remain separately scoped. Existing Tier-1 gate is unchanged. | Matthew / independent reviewer |
 
 ## Current Work and Latest Closeouts
+
+- PTM0-S2B + minimal S2C production acceptance — Phase A read-only (**PASS — 2026-09-12**)
+  - Disposition `PTM0_S2BC_PRODUCTION_ACCEPTANCE_PHASE_A_READ_ONLY_PASS`, executed against `9dc2cc1df6b6106527ee4ee85a5ffc998c390cc3`. AC-1 (13 Lambdas Active/Successful/`OLAqPQtc4vYwMSnRSZxV1mJTmVoOYiEsUl8aXBVVt9I=`/TRM=multi, control-plane reads), AC-2 (unauth `/admin/auth/health` → 403 route-not-published; not authorizer-401; handler `SCHEDULED_HEALTH_ONLY` is defense-in-depth via local tests), AC-3 (unauth `/admin/auth/status` → 401), AC-4 (edge index.html `7546B2CC…`, JS `9184A290…`, CSS `69A7D7BC…` exact), AC-5 (backend 160 + frontend 9 passed; local/frozen/mocked; no prod requests), AC-8 (all markers count=0 in deploy + Phase A windows across 12 present log groups, `ses-feedback` uninvoked; primary Google user-token secret `LastChangedDate 2026-09-04` predates activity → no token write).
+  - Zero mutations, zero provider/OAuth, zero authenticated acceptance. Deferred/gated: AC-6/AC-7 (authenticated) NOT_DETERMINED / not authorized; AC-9/AC-10 (provider/OAuth) separate authorization; AC-11–AC-14 (P2–P5 synthetic fixtures) separate fixture-creation authorization. Full acceptance set NOT complete; F02/PTM-0 remain open. See [Phase A acceptance record](../release-notes/ptm0-s2bc-production-acceptance-phase-a.md).
 
 - PTM0-S2B + minimal S2C coordinated production deployment (**DEPLOYED — ARTIFACT IDENTITY VERIFIED — PRODUCTION ACCEPTANCE NOT STARTED — 2026-09-12**)
   - Disposition `PTM0_S2BC_COORDINATED_PRODUCTION_DEPLOYMENT_COMPLETE_ACCEPTANCE_NOT_STARTED`. Executed in mandatory order: frontend S2C first (S3 sync + verify), then backend S2B. Repo checkpoint `cc55e21850adbd8fa0735424e8fc748185904172` unchanged by the deployment.
