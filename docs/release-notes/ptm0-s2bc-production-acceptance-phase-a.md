@@ -124,8 +124,15 @@ Stripe live work; no mobile/TestFlight/App Store work.
   Execution is now **COMPLETE — PASS** (2026-09-13, browser-observed authenticated
   production acceptance). See "Authenticated acceptance execution results (AC-6 /
   AC-7 / AC-8)" below. Results: `AC6_PASS`, `AC7_PASS`, `AC8_NON_MUTATION_PASS`.
-- **AC-9, AC-10** (provider/OAuth-scoped): **separate Matthew authorization
-  required** (OAuth initiate/callback token persistence; provider disconnect).
+- **AC-9, AC-10** (provider/OAuth-scoped): definitions are now **RATIFIED /
+  AUTHORITATIVE** (see "Authoritative AC-9 / AC-10 acceptance definitions" below;
+  ratified 2026-09-13). Execution status remains **NOT_EXECUTED / NOT YET
+  AUTHORIZED**. Ratified readiness:
+  `AC9_READY_AC10_PROTECTED_REFUSAL_READY_FOR_EXPLICIT_APPROVAL` via **Sequence B**.
+  **AC-9 is intentionally mutating** (DynamoDB OAuth-state writes, external Google
+  consent + code exchange, provider-secret write) and both AC-9 execution and the
+  authenticated AC-10 request remain Matthew-gated. Google Calendar remains
+  `VALIDATION_FAILED` until AC-9 is explicitly authorized and succeeds.
 - **AC-11 through AC-14** (prior P2–P5 synthetic fixture cases): still require
   separate production fixture-creation authorization
   (`MATTHEW_APPROVAL_REQUIRED_FOR_PRODUCTION_FIXTURE_CREATION`).
@@ -400,3 +407,174 @@ sync is degraded and the existing Calendar credentials need reconnect. Reconnect
 is **write-capable / OAuth provider mutation / Matthew-approval-required** and was
 **not** performed. Acceptance passed precisely because the passive status route
 reported this condition truthfully.
+
+---
+
+## Authoritative AC-9 / AC-10 acceptance definitions (RATIFIED — 2026-09-13)
+
+These definitions resolve the AC-9/AC-10 documentation gap and are the
+authoritative, repository-committed acceptance criteria for the provider/OAuth
+acceptance tier. They were established by the read-only preflight and are grounded
+in the deployed frozen S2B source (`src/backend/handlers/google_auth_handler.py`:
+`initiate_auth`, `handle_callback`, `_load_oauth_transaction`,
+`_claim_oauth_transaction`, `_persist_oauth_tokens`, `disconnect_auth`,
+`_is_protected_primary_binding`).
+
+Ratifying these definitions does **NOT** execute them.
+
+Ratified readiness state:
+**`AC9_READY_AC10_PROTECTED_REFUSAL_READY_FOR_EXPLICIT_APPROVAL`**.
+
+- **AC-9 = NOT EXECUTED**
+- **AC-10 = NOT EXECUTED**
+- **Google Calendar = still `VALIDATION_FAILED`**
+- **Reconnect = NOT EXECUTED**
+- **Provider/OAuth acceptance tier = NOT COMPLETE**
+
+Do not mark anything PASS on the basis of this record.
+
+### AC-9 — primary-tenant Google Calendar OAuth reconnect (INTENTIONALLY MUTATING)
+
+**Purpose:** validate the primary-tenant Google Calendar OAuth reconnect flow:
+`GET /admin/auth/google` → server-held OAuth transaction creation → Google consent
+→ `GET /admin/auth/callback` → single-use transaction consume → token exchange →
+tenant-bound credential persistence → post-reconnect passive status = `CONNECTED`.
+
+**Verified behavior:**
+
+- authenticated owner/admin authorization (`initiate_auth` role gate)
+- primary tenant = `tog_and_dogs`; strict authoritative tenant ownership
+  (`_require_http_company_id`; no default-tenant fallback)
+- server-generated OAuth `state` (UUID), stored server-side as
+  `OAUTHSTATE#<state>/META` (schema v2, `status=PENDING`)
+- single-use state; state expiry (`expires_at = created_at + 600`, ≤ 600s window)
+- state ownership/binding validation (company_id, `provider_secret_arn`,
+  redirect/destination pair) before use
+- callback atomic consume (conditional `SET status=CONSUMED`; replay/expired →
+  `INVALID_OAUTH_STATE`)
+- Google authorization-code exchange (server-side)
+- tenant-bound provider-secret persistence to the resolved bound ARN only
+- revocation markers (`token_status`, `revoked_at`, `revoked_reason`) cleared on
+  successful reconnect; `updated_at` set
+- post-reconnect passive status becomes `CONNECTED`
+- no cross-tenant token persistence; no arbitrary caller-selected secret binding
+
+**Expected mutations (intentionally mutating; Matthew approval required):**
+
+- `DYNAMODB WRITE` — create OAuth transaction (initiate); consume OAuth
+  transaction (callback)
+- `EXTERNAL PROVIDER ACTION` — Google consent; OAuth code exchange
+- `SECRET WRITE` — persist refreshed provider credentials; clear
+  reconnect/revocation status markers
+
+This is **not** a business-data mutation, but it **is** a real
+provider/auth/configuration mutation.
+
+**Current production starting state (intended AC-9 starting condition):**
+
+- the existing Google credential secret exists
+  (`togs-and-dogs-prod/google/user-tokens`)
+- current passive status = `VALIDATION_FAILED`
+- Calendar integration needs reconnect
+- this degraded/revoked state is the intended natural starting condition for AC-9
+- no synthetic provider state needs to be created
+
+**Expected success:** OAuth initiation succeeds; Google consent completes; callback
+succeeds; OAuth state is consumed exactly once; credentials persist only to the
+tenant-owned bound secret; post-run `/admin/auth/status` = `CONNECTED`; Calendar
+operational state restored.
+
+**Expected failure/denial classes (source-grounded):**
+
+- unauthorized role → 403
+- ineligible/disabled tenant or wrong provider binding → 403 `OAUTH_ACCESS_DENIED`
+- malformed/expired/replayed OAuth state → 400 `INVALID_OAUTH_STATE`
+- OAuth code exchange failure → 502 `OAUTH_EXCHANGE_FAILED`
+- provider/config unavailable → 503 `OAUTH_UNAVAILABLE`
+- origin denied → 403 `OAUTH_ORIGIN_DENIED`
+- missing principal → 403 `OAUTH_PRINCIPAL_REQUIRED`
+
+(No status codes beyond those present in the deployed source are asserted.)
+
+**Rollback limitation:** a completed callback / token persistence is **not**
+meaningfully reversed by application code rollback. The consumed OAuth transaction
+and the refreshed provider credentials are external/persistent state. This is why
+AC-9 requires explicit Matthew authorization.
+
+### AC-10 — protected-primary disconnect refusal
+
+**Purpose:** validate protected-primary disconnect behavior via
+`DELETE /admin/auth/google`. For the primary Togs & Dogs provider binding, the
+expected result is a **protected refusal**, not an actual disconnect.
+
+**Expected primary-tenant behavior (the AC-10 acceptance condition here):**
+
+- authenticated owner/admin request; tenant = `tog_and_dogs`
+- provider binding = protected primary binding (`_is_protected_primary_binding`)
+- expected result: **HTTP 409**, classification **`PROVIDER_DISCONNECT_PROTECTED`**
+- no credential mutation; no provider API call; no provider-secret write; no
+  Calendar disconnect
+- production remains connected if AC-9 has already succeeded
+- effect classification: **READ-ONLY / guarded refusal** (no SECRET WRITE, no
+  PROVIDER MUTATION, no DYNAMODB write)
+
+**Non-primary behavior (source context only — NOT authorized here):** for a
+non-protected/non-primary tenant, `disconnect_auth` may mark provider credentials
+revoked and perform a `SECRET WRITE`. That behavior is **NOT authorized** for
+execution by this checkpoint. Do not create another tenant or synthetic provider
+binding to test it.
+
+### Ratified sequencing decision — Sequence B (minimum-mutation)
+
+1. AC-9 itself serves as the controlled production reconnect.
+2. Verify the integration transitions `VALIDATION_FAILED` → `CONNECTED`.
+3. Run AC-10 only as the protected-primary disconnect **refusal** check.
+4. Expected AC-10 = 409 `PROVIDER_DISCONNECT_PROTECTED`.
+5. No real disconnect occurs.
+6. Production should end in the `CONNECTED` state.
+
+Explicitly rejected (unnecessary extra provider writes): operationally
+reconnecting before AC-9; disconnecting then reconnecting again; any multi-write
+path. Sequence B is the minimum-mutation acceptance path.
+
+### Privacy / secret-handling (execution constraints)
+
+Execution must never display, paste, or persist into documentation: OAuth
+authorization code, Google access token, Google refresh token, Cognito token, JWT,
+raw claims, browser cookie/session material, secret value, or raw provider payload.
+Browser-observed acceptance is preferred; the authorization code and tokens are
+exchanged **server-side** in the callback and must be kept out of
+Kiro/ChatGPT-visible output.
+
+### Evidence requirements
+
+**AC-9 (minimum sanitized):** initiation success classification; callback success
+classification; successful browser redirect; post-reconnect Calendar state
+`CONNECTED`; provider-secret metadata `LastChangedDate` **changed** as expected
+(no value read); no unexpected provider/OAuth failure markers; OAuth transaction
+consumed exactly once; tenant ownership remained `tog_and_dogs`; no cross-tenant
+provider mutation. Do not record secret values.
+
+**AC-10 (minimum sanitized):** HTTP 409; `PROVIDER_DISCONNECT_PROTECTED`;
+provider-secret metadata **unchanged** after AC-10; no provider API call/mutation;
+Calendar remains `CONNECTED`. A repeated disconnect call is noted only if
+separately authorized; do not require a duplicate call unless necessary.
+
+### Approval gates (retained)
+
+1. AC-9 execution requires Matthew authorization for: the browser OAuth reconnect;
+   external Google consent; DynamoDB OAuth-state writes; and the provider-secret
+   write.
+2. AC-10 protected-primary check requires Matthew authorization for the
+   authenticated `DELETE` request, even though the expected behavior is
+   non-mutating.
+3. No true non-primary disconnect is authorized.
+4. No synthetic tenant/provider fixture is authorized.
+
+### F02 / PTM-0 impact (no premature closure)
+
+AC-9 + AC-10 PASS would complete the **provider/OAuth acceptance tier**. It would
+**not** by itself complete the full S2B/S2C acceptance set (AC-11–AC-14 P2–P5
+synthetic fixtures remain), and does **not** by itself close F02 or PTM-0 (F03–F08
+remain out of scope here). No Tier-1 / S2 / PTM-0 / multi-tenant program completion
+is implied by this ratification.
