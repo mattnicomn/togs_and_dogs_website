@@ -119,13 +119,11 @@ Stripe live work; no mobile/TestFlight/App Store work.
 
 ## Deferred / gated cases (acceptance set NOT complete)
 
-- **AC-6, AC-7** (AUTHENTICATED_NON_MUTATING): definitions are now **RATIFIED /
+- **AC-6, AC-7** (AUTHENTICATED_NON_MUTATING): definitions are **RATIFIED /
   AUTHORITATIVE** (see "Authoritative AC-6 / AC-7 acceptance definitions" below).
-  Execution status remains **NOT_EXECUTED / NOT YET AUTHORIZED**;
-  authenticated-session availability was not investigated and no session material
-  was accessed. Readiness after ratification is
-  `AC6_AC7_READY_FOR_EXPLICIT_APPROVAL` — execution and authenticated-session
-  creation/use both remain Matthew-gated.
+  Execution is now **COMPLETE — PASS** (2026-09-13, browser-observed authenticated
+  production acceptance). See "Authenticated acceptance execution results (AC-6 /
+  AC-7 / AC-8)" below. Results: `AC6_PASS`, `AC7_PASS`, `AC8_NON_MUTATION_PASS`.
 - **AC-9, AC-10** (provider/OAuth-scoped): **separate Matthew authorization
   required** (OAuth initiate/callback token persistence; provider disconnect).
 - **AC-11 through AC-14** (prior P2–P5 synthetic fixture cases): still require
@@ -285,3 +283,120 @@ unchanged) remains part of the eventual acceptance evidence.
 No AWS acceptance action, authentication, deployment, configuration change,
 tenant/business-data change, or Terraform operation is authorized by this
 documentation ratification.
+
+---
+
+## Authenticated acceptance execution results (AC-6 / AC-7 / AC-8) — 2026-09-13
+
+Disposition: **`AC6_PASS`**, **`AC7_PASS`**, **`AC8_NON_MUTATION_PASS`**.
+
+Executed against the accepted deployed identity (all 13 prod Lambdas
+`CodeSha256 = OLAqPQtc4vYwMSnRSZxV1mJTmVoOYiEsUl8aXBVVt9I=`, State=Active,
+LastUpdateStatus=Successful, `TENANT_RESOLUTION_MODE = multi`; AWS account
+`358604342897`). Repository baseline at evaluation:
+`HEAD == origin/main == 106798a99214d64bebe1791952c00b7b1e6502ed`.
+
+Execution method: **browser-observed acceptance**. Matthew performed a normal
+authenticated production login to the Togs & Dogs admin portal on the standard
+`/admin` route, which caused the existing SPA to issue the two authenticated GETs
+automatically (`web/src/api/client.js` `getGoogleStatus()` → `/admin/auth/status`;
+`getTenantInfo()` → `/admin/tenant-info`, invoked from the post-auth bootstrap in
+`AdminDashboard.jsx` and the `App.jsx` admin-route effect). No authentication
+material (JWT / Cognito token / cookie / claim / password / OAuth code) was
+requested, displayed, or persisted. No new credential or auth helper was created.
+
+### AC-6 — authenticated `GET /admin/auth/status` — **PASS**
+
+- Execution date: 2026-09-13.
+- The authenticated production admin dashboard loaded successfully.
+- `GET /admin/auth/status` produced the truthful passive classification
+  **`VALIDATION_FAILED`**.
+- Visible UI evidence: Google Calendar integration status **NEEDS RECONNECT**
+  (SPA `getGoogleStatusConfig('VALIDATION_FAILED')` → "Needs Reconnect");
+  technical classification `VALIDATION_FAILED`; connected account `None`; a
+  degraded-calendar banner was displayed ("Google Calendar connection needs
+  reconnect. Sitter schedule sync is degraded.").
+- `VALIDATION_FAILED` is an **allowed accepted taxonomy value**; `CONNECTED` was
+  **not required**. This is NOT an acceptance failure — it truthfully reports a
+  separate operational condition (the existing Calendar connection needs
+  reconnect; see operational follow-up below).
+- Non-mutation confirmed (AC-8): no token refresh, no credential persistence, no
+  `initiate_auth`. No OAuth / reconnect action was performed.
+- Authenticated primary-tenant context (Togs & Dogs) was authoritative; no
+  default-tenant fallback.
+
+### AC-7 — authenticated `GET /admin/tenant-info` — **PASS**
+
+- Execution date: 2026-09-13.
+- The authenticated production admin dashboard loaded in the expected
+  **Togs & Dogs** tenant context (Tog & Dogs Pet Sitting branding) on the normal
+  production `/admin` route.
+- Authenticated ownership remained authoritative (no `expectedTenantSlug`
+  override on the standard route; deployed handler forces
+  `company_id = authenticated_company`).
+- **No** alternate tenant, default fallback, or cross-tenant presentation was
+  observed.
+- The Google Calendar status composition reflected the passive `VALIDATION_FAILED`
+  state (`calendar_status` derived from the passive `get_status`).
+- **Explicit numeric HTTP status was NOT directly captured** (DevTools not used).
+  A numeric `200` is therefore **not claimed as directly observed**; the
+  authenticated endpoint-derived application state (correct tenant identity +
+  passive calendar-status composition, only producible by a successful,
+  correctly-scoped `/admin/tenant-info` response) is sufficient under the ratified
+  evidence definition, which lists HTTP status as "if safely observable."
+- Non-mutation confirmed (AC-8).
+
+### AC-8 — post-run non-mutation verification — **NON-MUTATION PASS**
+
+Read-only, metadata-only checks over the same 24h window (which includes the
+browser-session activity), compared against the clean pre-run baseline captured
+earlier this run:
+
+| Marker (log group) | Pre-run | Post-run |
+|---|---|---|
+| `PROVIDER_REFRESH_FAILED` (google-auth) | 0 | 0 |
+| `PROVIDER_TOKEN_SAVE_FAILED` (google-auth) | 0 | 0 |
+| `INVALID_TENANT_CONTEXT` (google-auth) | 0 | 0 |
+| `SCHEDULED_HEALTH_ONLY` (google-auth) | 0 | 0 |
+| `PROVIDER_ACCESS_DENIED` (google-auth) | 0 | 0 |
+| `ERROR` (google-auth) | 0 | 0 |
+| `Traceback` (google-auth) | 0 | 0 |
+| `CALENDAR_HEALTH_CHECK` (google-auth, benign scheduled) | 3 | 3 |
+| `PROVIDER_ACCESS_DENIED` (admin) | 0 | 0 |
+| `ERROR` (admin) | 0 | 0 |
+| `Traceback` (admin) | 0 | 0 |
+
+- Google user-token secret `togs-and-dogs-prod/google/user-tokens` metadata
+  `LastChangedDate` remained **`2026-09-04T08:13:11.653-04:00`** (unchanged
+  before and after). Metadata only; **no secret value was retrieved**.
+- No refresh/save marker increased; benign scheduled `CALENDAR_HEALTH_CHECK`
+  activity unchanged. No provider refresh or persistence occurred; no
+  application / business-data mutation occurred.
+- The `VALIDATION_FAILED` status was returned by passive classification of the
+  already-stored (revoked) token state — not by a new write.
+
+### Scope confirmation
+
+No production write, OAuth initiation, Calendar reconnect, deployment,
+configuration change, tenant creation/modification, `TENANT_RESOLUTION_MODE`
+change, Stripe action, Ryan tester change, mobile-distribution change, or
+production test-data creation occurred during this acceptance. Only read-only
+control-plane and metadata reads plus Matthew's normal authenticated browser
+session were involved.
+
+### Tier status
+
+This completes the **authenticated non-mutating acceptance tier (AC-6 / AC-7)**
+for PTM0-S2B + minimal S2C. It does **NOT** by itself complete the full S2B/S2C
+acceptance set: provider/OAuth AC-9/AC-10 and prior-P2–P5 synthetic-fixture
+AC-11–AC-14 remain deferred and separately gated. F02 closure and PTM-0 overall
+remain open. No claim of PTM-0 / F02 / S2 / multi-tenant program completion is
+made by this checkpoint.
+
+### Operational follow-up (NOT part of acceptance; NOT executed)
+
+Primary Google Calendar connection is in `VALIDATION_FAILED` — sitter schedule
+sync is degraded and the existing Calendar credentials need reconnect. Reconnect
+is **write-capable / OAuth provider mutation / Matthew-approval-required** and was
+**not** performed. Acceptance passed precisely because the passive status route
+reported this condition truthfully.

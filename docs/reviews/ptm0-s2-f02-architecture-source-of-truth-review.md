@@ -6,6 +6,22 @@ Disposition: **PTM0_S2_ARCHITECTURE_REVIEW_MULTI_COMPONENT_CHANGE_REQUIRED**
 
 Status: **LOCAL REVIEW RECORD / UNCOMMITTED / IMPLEMENTATION NOT STARTED**
 
+> **Supersession note (added 2026-09-13):** This document accurately described the
+> code state at the time of the 2026-09-03 review — including the finding that
+> `GET /admin/auth/status` "can exchange a refresh token and persist replacement
+> token state ... not inherently read-only" and that `get_status` (GA:335–404)
+> resolved via `get_company_id_safe` with catch-to-primary / None-to-primary and
+> could refresh/save on stale cache. Later PTM0-S2B / S2C work **superseded** that
+> behavior. The deployed current implementation uses **strict authenticated tenant
+> authority** (`_require_http_company_id`, no default-tenant fallback), and
+> `GET /admin/auth/status` is **passive / classify-only** — it does **not** refresh
+> or persist provider credentials during status reads. This is not a correction of
+> the original reviewer (the behavior changed after the review). Authoritative
+> current acceptance evidence is recorded in
+> `docs/release-notes/ptm0-s2bc-production-acceptance-phase-a.md`
+> (AC-6/AC-7/AC-8 PASS, 2026-09-13). The historical text below is preserved
+> unchanged.
+
 ## 1. Authority, checkpoint, and evidence limits
 
 Starting branch: `main`. Starting HEAD and local `origin/main`:

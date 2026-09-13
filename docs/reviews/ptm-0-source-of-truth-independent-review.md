@@ -6,6 +6,21 @@ Type: **REVIEW ONLY — no implementation, no production action, no tests run, n
 
 Final disposition: **PTM0_INDEPENDENT_REVIEW_CHANGES_REQUIRED**
 
+> **Supersession note (added 2026-09-13):** This document accurately described the
+> code state at the time of the 2026-09-02 review, including the then-current
+> `GET /admin/auth/status` / `get_status` behavior (tenant resolution that could
+> fall back and a status path that could refresh/persist provider credentials).
+> Later PTM0-S2B / S2C work **superseded** that behavior. The deployed current
+> implementation uses **strict authenticated tenant authority**
+> (`_require_http_company_id`, no default-tenant fallback), and
+> `GET /admin/auth/status` is **passive / classify-only** — it does **not** refresh
+> or persist provider credentials during status reads. This is not a correction of
+> the original reviewers (the behavior changed after the review). Authoritative
+> current acceptance evidence is recorded in
+> `docs/release-notes/ptm0-s2bc-production-acceptance-phase-a.md`
+> (AC-6/AC-7/AC-8 PASS, 2026-09-13). The historical text below is preserved
+> unchanged.
+
 ## 2026-09-03 status addendum
 
 This document preserves the independent review at its 2026-09-02 checkpoint.

@@ -9,6 +9,21 @@ planned, or deployed. This is not a standalone production-release approval.
 F02 remains UNRESOLVED; PTM-0 remains INCOMPLETE. S2B–S2E are NOT STARTED.
 S1/F01 remains complete. S2A.1 and S2A.2 remain complete/approved/closed.
 
+> **Supersession note (added 2026-09-13):** This document accurately described the
+> code state at the time of the 2026-09-04 review — including the GA `status`
+> (GA:342,351,395) characterization that `get_status` used `get_company_id_safe`
+> with its own read/save wrappers and that "passive GET refresh/write remain
+> S2C/later-context dependencies." Those later S2B / S2C dependencies have since
+> **landed**. The deployed current implementation uses **strict authenticated
+> tenant authority** (`_require_http_company_id`, no default-tenant fallback), and
+> `GET /admin/auth/status` is **passive / classify-only** — it does **not** refresh
+> or persist provider credentials during status reads. This is not a correction of
+> the original reviewer (the behavior changed after the review). Authoritative
+> current acceptance evidence is recorded in
+> `docs/release-notes/ptm0-s2bc-production-acceptance-phase-a.md`
+> (AC-6/AC-7/AC-8 PASS, 2026-09-13). The historical text below is preserved
+> unchanged.
+
 ## Checkpoint and scope
 
 Starting branch `main`, HEAD and local `origin/main`:
