@@ -345,3 +345,256 @@ def test_non_clienterror_exception_has_no_error_code(mock_get_item, mock_put, ca
     assert 'error_code=' not in out.out  # only ClientError carries error_code
     assert secret_message not in (out.out + out.err)
     mock_put.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# DynamoDB ValidationException classifier: maps the AWS Error.Message INTERNALLY
+# to ONE fixed allowlisted validation_category token, never logging the raw
+# message. All messages below are synthetic; none are real AWS responses.
+# ---------------------------------------------------------------------------
+_SCHEMA_MSG = ('The provided key element does not match the schema')
+_TYPE_MSG = ('One or more parameter values were invalid: '
+             'Invalid attribute value type')
+_EMPTY_MSG = ('One or more parameter values were invalid: '
+              'An AttributeValue may not contain an empty string')
+_UNRELATED_MSG = ('The security token included in the request is totally unrelated')
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_validation_classifier_key_schema_mismatch(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_SCHEMA_MSG), capsys)
+    assert result['statusCode'] == 503
+    assert ('AC9_OAUTH_UNAVAILABLE_UNEXPECTED_EXCEPTION exception_class=ClientError '
+            'error_code=ValidationException operation=DynamoDB.GetItem '
+            'validation_category=KEY_SCHEMA_MISMATCH') in out.out
+    assert _SCHEMA_MSG not in (out.out + out.err)
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_validation_classifier_key_type_mismatch(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_TYPE_MSG), capsys)
+    assert result['statusCode'] == 503
+    assert 'error_code=ValidationException operation=DynamoDB.GetItem validation_category=KEY_TYPE_MISMATCH' in out.out
+    assert _TYPE_MSG not in (out.out + out.err)
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_validation_classifier_empty_key_value(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_EMPTY_MSG), capsys)
+    assert result['statusCode'] == 503
+    assert 'error_code=ValidationException operation=DynamoDB.GetItem validation_category=EMPTY_KEY_VALUE' in out.out
+    assert _EMPTY_MSG not in (out.out + out.err)
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_validation_classifier_unrelated_maps_unknown(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_UNRELATED_MSG), capsys)
+    assert result['statusCode'] == 503
+    assert 'error_code=ValidationException operation=DynamoDB.GetItem validation_category=UNKNOWN_VALIDATION' in out.out
+    assert _UNRELATED_MSG not in (out.out + out.err)
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_validation_classifier_missing_message_maps_unknown(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    # ValidationException with NO Error.Message present.
+    exc = _ClientError({'Error': {'Code': 'ValidationException'},
+                        'ResponseMetadata': {'HTTPStatusCode': 400}}, 'GetItem')
+    result, out = _run_clienterror(mock_get_item, exc, capsys)
+    assert result['statusCode'] == 503
+    assert 'error_code=ValidationException operation=DynamoDB.GetItem validation_category=UNKNOWN_VALIDATION' in out.out
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_validation_classifier_malformed_response_does_not_throw(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    # Code sanitizes to ValidationException (classifier runs), but the Error
+    # container is malformed (Error.Message absent / wrong type). The classifier
+    # must NOT raise and must default to UNKNOWN_VALIDATION. Message is a non-str.
+    exc = _ClientError({'Error': {'Code': 'ValidationException', 'Message': 12345},
+                        'ResponseMetadata': {'HTTPStatusCode': 400}}, 'GetItem')
+    result, out = _run_clienterror(mock_get_item, exc, capsys)
+    assert result['statusCode'] == 503
+    assert ('error_code=ValidationException operation=DynamoDB.GetItem '
+            'validation_category=UNKNOWN_VALIDATION') in out.out
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_validation_classifier_non_dict_error_does_not_throw(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    # Guard the deeper malformed case: a ValidationException whose Code sanitizes
+    # correctly but whose response Error becomes a non-dict after construction.
+    # The error_code sanitizer will yield UNKNOWN (Error not a dict) so the
+    # classifier does not run; either way nothing throws and no category leaks.
+    exc = _ClientError({'Error': {'Code': 'ValidationException'},
+                        'ResponseMetadata': {'HTTPStatusCode': 400}}, 'GetItem')
+    exc.response = {'Error': 'this-is-not-a-dict'}
+    result, out = _run_clienterror(mock_get_item, exc, capsys)
+    assert result['statusCode'] == 503
+    assert 'operation=DynamoDB.GetItem' in out.out
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_validation_classifier_raw_message_never_emitted(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    # A schema-classified message that ALSO contains secret-like text: the token
+    # classifies correctly, but no substring of the message may reach the logs.
+    tainted = _SCHEMA_MSG + ' refresh_token=LEAK-XYZ access_token=LEAK-ABC client_secret=super-secret'
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=tainted), capsys)
+    combined = out.out + out.err
+    assert 'validation_category=KEY_SCHEMA_MISMATCH' in out.out
+    assert 'does not match the schema' not in combined
+    assert 'LEAK-XYZ' not in combined
+    assert 'LEAK-ABC' not in combined
+    assert 'super-secret' not in combined
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_validation_classifier_preserves_error_code_and_operation(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_EMPTY_MSG), capsys)
+    assert 'error_code=ValidationException' in out.out
+    assert 'operation=DynamoDB.GetItem' in out.out
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_non_validation_clienterror_has_no_validation_category(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    # Non-ValidationException ClientError must NOT gain a validation_category.
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ThrottlingException', message=_SCHEMA_MSG), capsys)
+    assert result['statusCode'] == 503
+    assert 'error_code=ThrottlingException operation=DynamoDB.GetItem' in out.out
+    assert 'validation_category=' not in out.out
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_non_clienterror_has_no_validation_category(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(mock_get_item, RuntimeError('boom'), capsys)
+    assert result['statusCode'] == 503
+    assert 'AC9_OAUTH_UNAVAILABLE_UNEXPECTED_EXCEPTION exception_class=RuntimeError' in out.out
+    assert 'validation_category=' not in out.out
+    assert 'error_code=' not in out.out
+    mock_put.assert_not_called()
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_validation_classifier_http_contract_unchanged(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_EMPTY_MSG), capsys)
+    assert result['statusCode'] == 503
+    body = json.loads(result['body'])
+    assert 'OAUTH_UNAVAILABLE' in json.dumps(body)
+
+
+# ---------------------------------------------------------------------------
+# Accuracy-fix regression: ambiguous ValidationException wording must fall back
+# to UNKNOWN_VALIDATION rather than a confident-but-wrong specific category.
+# ---------------------------------------------------------------------------
+# Generic DynamoDB lead-in with no specific key/type/empty phrase. Must NOT be
+# classified as INVALID_PARAMETER (bare 'parameter' signature was removed).
+_GENERIC_PARAM_MSG = ('One or more parameter values were invalid: something unspecified')
+# Incidental mention of "expression" that is not a definite expression-parameter
+# defect. EXPRESSION_ERROR was removed entirely, so this must map to UNKNOWN.
+_INCIDENTAL_EXPRESSION_MSG = ('The request could not be evaluated as an expression '
+                              'of the intended operation')
+# Precise, non-overlapping missing-key wording for INVALID_KEY_ATTRIBUTE.
+_MISSING_KEY_MSG = ('The request is missing the key SK in the item')
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_validation_classifier_generic_parameter_leadin_maps_unknown(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_GENERIC_PARAM_MSG), capsys)
+    assert result['statusCode'] == 503
+    assert ('error_code=ValidationException operation=DynamoDB.GetItem '
+            'validation_category=UNKNOWN_VALIDATION') in out.out
+    assert 'validation_category=INVALID_PARAMETER' not in out.out
+    assert _GENERIC_PARAM_MSG not in (out.out + out.err)
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_validation_classifier_incidental_expression_maps_unknown(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_INCIDENTAL_EXPRESSION_MSG), capsys)
+    assert result['statusCode'] == 503
+    assert ('error_code=ValidationException operation=DynamoDB.GetItem '
+            'validation_category=UNKNOWN_VALIDATION') in out.out
+    assert 'validation_category=EXPRESSION_ERROR' not in out.out
+    assert _INCIDENTAL_EXPRESSION_MSG not in (out.out + out.err)
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_validation_classifier_invalid_key_attribute_precise(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_MISSING_KEY_MSG), capsys)
+    assert result['statusCode'] == 503
+    assert ('error_code=ValidationException operation=DynamoDB.GetItem '
+            'validation_category=INVALID_KEY_ATTRIBUTE') in out.out
+    assert _MISSING_KEY_MSG not in (out.out + out.err)
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_validation_classifier_invalid_consistentread_maps_parameter(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    # The one retained precise INVALID_PARAMETER signature.
+    msg = 'Invalid ConsistentRead value supplied for this operation'
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=msg), capsys)
+    assert result['statusCode'] == 503
+    assert ('error_code=ValidationException operation=DynamoDB.GetItem '
+            'validation_category=INVALID_PARAMETER') in out.out
+    assert msg not in (out.out + out.err)
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_validation_classifier_schema_wording_not_invalid_key_attribute(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    # Disjointness check: schema wording maps to KEY_SCHEMA_MISMATCH, never to
+    # INVALID_KEY_ATTRIBUTE (overlapping 'key element does not match' removed).
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_SCHEMA_MSG), capsys)
+    assert 'validation_category=KEY_SCHEMA_MISMATCH' in out.out
+    assert 'validation_category=INVALID_KEY_ATTRIBUTE' not in out.out
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)

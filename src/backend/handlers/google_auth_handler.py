@@ -412,8 +412,77 @@ def initiate_auth(event):
             except Exception:
                 code = 'UNKNOWN'
             line += ' error_code=' + code + ' operation=DynamoDB.GetItem'
+            # For a DynamoDB.GetItem ValidationException, additionally classify the
+            # failure into ONE fixed, developer-defined enum by inspecting the AWS
+            # Error.Message INTERNALLY only. The raw message is never logged, never
+            # returned, and no substring of it is ever propagated. Any missing or
+            # malformed response data yields UNKNOWN_VALIDATION and never raises.
+            if code == 'ValidationException':
+                line += ' validation_category=' + _classify_dynamodb_validation(exc)
         print(line)
         return error(503, 'OAUTH_UNAVAILABLE', event)
+
+
+# Fixed, allowlisted DynamoDB ValidationException categories. The classifier may
+# ONLY ever emit one of these exact tokens; it never emits any substring of the
+# underlying AWS Error.Message. Order matters: the first matching, most specific
+# category wins, with UNKNOWN_VALIDATION as the safe default.
+_VALIDATION_CATEGORIES = (
+    # (fixed_enum, tuple_of_lowercase_message_signatures)
+    # Accuracy over specificity: every signature below must be a high-confidence
+    # phrase for its category. Ambiguous or generic wording (e.g. the DynamoDB
+    # "one or more parameter values were invalid:" lead-in, or a bare mention of
+    # "expression"/"parameter") is intentionally NOT matched, so such messages
+    # fall through to UNKNOWN_VALIDATION rather than a misleading category.
+    ('KEY_SCHEMA_MISMATCH', (
+        'does not match the schema',
+        'provided key element does not match',
+        'number of conditions on the keys is invalid',
+    )),
+    ('KEY_TYPE_MISMATCH', (
+        'invalid attribute value type',
+        'type mismatch',
+        'attributevalue type',
+    )),
+    ('EMPTY_KEY_VALUE', (
+        'may not contain an empty string',
+    )),
+    ('INVALID_KEY_ATTRIBUTE', (
+        'missing the key',
+        'supplied attributevalue is empty',
+    )),
+    ('INVALID_PARAMETER', (
+        'invalid consistentread',
+    )),
+)
+
+
+def _classify_dynamodb_validation(exc):
+    """Map a DynamoDB ValidationException to ONE fixed allowlisted category.
+
+    Reads exc.response['Error']['Message'] internally for substring matching only.
+    Never logs, returns, or otherwise propagates any part of that message. Returns
+    'UNKNOWN_VALIDATION' for any missing/malformed data and never raises.
+    """
+    try:
+        response = getattr(exc, 'response', None)
+        message = None
+        if isinstance(response, dict):
+            err = response.get('Error')
+            if isinstance(err, dict):
+                candidate = err.get('Message')
+                if isinstance(candidate, str):
+                    message = candidate
+        if not message:
+            return 'UNKNOWN_VALIDATION'
+        haystack = message.lower()
+        for category, signatures in _VALIDATION_CATEGORIES:
+            for signature in signatures:
+                if signature in haystack:
+                    return category
+        return 'UNKNOWN_VALIDATION'
+    except Exception:
+        return 'UNKNOWN_VALIDATION'
 
 
 def handle_callback(event):
