@@ -220,9 +220,12 @@ _OAUTH_STATE_PATTERN = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][
 
 
 class _OAuthFailure(Exception):
-    def __init__(self, status, category):
+    def __init__(self, status, category, diagnostic=None):
         self.status = status
         self.category = category
+        # Optional, non-sensitive branch discriminator used ONLY for diagnostic
+        # logging. It never affects the HTTP status/category returned to callers.
+        self.diagnostic = diagnostic
 
 
 def _oauth_text(value, limit):
@@ -245,7 +248,8 @@ def _require_oauth_binding(company_id, expected_arn=None):
         binding = _resolve_google_token_binding(company_id)
     except ProviderBindingError as exc:
         if str(exc) == 'PROVIDER_METADATA_INACCESSIBLE':
-            raise _OAuthFailure(503, 'OAUTH_UNAVAILABLE') from None
+            raise _OAuthFailure(503, 'OAUTH_UNAVAILABLE',
+                                diagnostic='PROVIDER_METADATA') from None
         raise _OAuthFailure(403, 'OAUTH_ACCESS_DENIED') from None
     if not binding or (expected_arn is not None and binding[1] != expected_arn):
         raise _OAuthFailure(403, 'OAUTH_ACCESS_DENIED')
@@ -362,7 +366,10 @@ def initiate_auth(event):
         _require_oauth_tenant_eligible(company_id)
         config = get_google_config()
         if not isinstance(config, dict) or not _oauth_text(config.get('client_id'), 2048):
-            raise _OAuthFailure(503, 'OAUTH_UNAVAILABLE')
+            _client_id_present = bool(isinstance(config, dict)
+                                      and _oauth_text(config.get('client_id'), 2048))
+            raise _OAuthFailure(503, 'OAUTH_UNAVAILABLE',
+                                diagnostic='GOOGLE_CONFIG client_id_present=' + str(_client_id_present).lower())
         state, now = str(uuid.uuid4()), int(time.time())
         table.put_item(Item={
             'PK': 'OAUTHSTATE#' + state, 'SK': 'META', 'schema_version': 'v2',
@@ -378,8 +385,18 @@ def initiate_auth(event):
     except PermissionError:
         return error(403, 'OAUTH_ACCESS_DENIED', event)
     except _OAuthFailure as exc:
+        # Diagnostic-only branch markers for a blocked OAUTH_UNAVAILABLE initiation.
+        # These logs never change the HTTP status/category returned to the caller
+        # and never include tokens, codes, claims, secrets, or event payloads.
+        if exc.status == 503 and exc.category == 'OAUTH_UNAVAILABLE':
+            if exc.diagnostic == 'PROVIDER_METADATA':
+                print('AC9_OAUTH_UNAVAILABLE_PROVIDER_METADATA')
+            elif isinstance(exc.diagnostic, str) and exc.diagnostic.startswith('GOOGLE_CONFIG'):
+                print('AC9_OAUTH_UNAVAILABLE_GOOGLE_CONFIG ' + exc.diagnostic.split(' ', 1)[1])
         return error(exc.status, exc.category, event)
-    except Exception:
+    except Exception as exc:
+        # Log only the marker and the exception class name (no message/payload).
+        print('AC9_OAUTH_UNAVAILABLE_UNEXPECTED_EXCEPTION exception_class=' + type(exc).__name__)
         return error(503, 'OAUTH_UNAVAILABLE', event)
 
 
