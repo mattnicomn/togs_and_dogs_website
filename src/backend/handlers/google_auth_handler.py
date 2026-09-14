@@ -396,7 +396,23 @@ def initiate_auth(event):
         return error(exc.status, exc.category, event)
     except Exception as exc:
         # Log only the marker and the exception class name (no message/payload).
-        print('AC9_OAUTH_UNAVAILABLE_UNEXPECTED_EXCEPTION exception_class=' + type(exc).__name__)
+        # For botocore ClientError, additionally capture the short, non-sensitive
+        # AWS Error.Code (never Error.Message, request IDs, or response metadata).
+        # The only unwrapped pre-OAUTHSTATE AWS call reaching this branch is the
+        # DynamoDB GetItem in _require_oauth_tenant_eligible, so the operation
+        # context is a fixed developer constant (not derived from the exception).
+        line = 'AC9_OAUTH_UNAVAILABLE_UNEXPECTED_EXCEPTION exception_class=' + type(exc).__name__
+        if type(exc).__name__ == 'ClientError':
+            code = 'UNKNOWN'
+            try:
+                raw = getattr(exc, 'response', None)
+                candidate = (raw.get('Error', {}) or {}).get('Code') if isinstance(raw, dict) else None
+                if isinstance(candidate, str) and re.fullmatch(r'[A-Za-z0-9]{1,64}', candidate):
+                    code = candidate
+            except Exception:
+                code = 'UNKNOWN'
+            line += ' error_code=' + code + ' operation=DynamoDB.GetItem'
+        print(line)
         return error(503, 'OAUTH_UNAVAILABLE', event)
 
 
