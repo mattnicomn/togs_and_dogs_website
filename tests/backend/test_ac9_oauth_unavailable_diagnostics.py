@@ -376,11 +376,16 @@ def test_validation_classifier_key_schema_mismatch(mock_get_item, mock_put, caps
 
 @patch('common.db.table.put_item')
 @patch('common.db.table.get_item')
-def test_validation_classifier_key_type_mismatch(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+def test_validation_classifier_generic_type_mismatch(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    # Precision fix: generic "Invalid attribute value type" wording is NOT
+    # key-proven and now maps to GENERIC_TYPE_MISMATCH, never the confident
+    # KEY_TYPE_MISMATCH. (Key-proven wording is covered by
+    # test_precision_key_type_mismatch_for_key.)
     result, out = _run_clienterror(
         mock_get_item, _clienterror('ValidationException', message=_TYPE_MSG), capsys)
     assert result['statusCode'] == 503
-    assert 'error_code=ValidationException operation=DynamoDB.GetItem validation_category=KEY_TYPE_MISMATCH' in out.out
+    assert 'error_code=ValidationException operation=DynamoDB.GetItem validation_category=GENERIC_TYPE_MISMATCH' in out.out
+    assert 'validation_category=KEY_TYPE_MISMATCH' not in out.out
     assert _TYPE_MSG not in (out.out + out.err)
     mock_put.assert_not_called()
     _assert_no_sensitive(out)
@@ -597,4 +602,151 @@ def test_validation_classifier_schema_wording_not_invalid_key_attribute(mock_get
     assert 'validation_category=KEY_SCHEMA_MISMATCH' in out.out
     assert 'validation_category=INVALID_KEY_ATTRIBUTE' not in out.out
     mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+# ---------------------------------------------------------------------------
+# Precision fix: KEY_TYPE_MISMATCH is now restricted to key-proven wording
+# ('type mismatch for key'); generic type-mismatch wording routes to the new
+# GENERIC_TYPE_MISMATCH token instead of a confident KEY_TYPE_MISMATCH.
+# All messages below are synthetic; none are real AWS responses.
+# ---------------------------------------------------------------------------
+_ALLOWED_VALIDATION_CATEGORIES = {
+    'KEY_SCHEMA_MISMATCH', 'KEY_TYPE_MISMATCH', 'GENERIC_TYPE_MISMATCH',
+    'EMPTY_KEY_VALUE', 'INVALID_KEY_ATTRIBUTE', 'INVALID_PARAMETER',
+    'UNKNOWN_VALIDATION',
+}
+# Key-proven type mismatch (unambiguously binds the mismatch to a key attribute).
+_KEY_TYPE_MSG = ('One or more parameter values were invalid: '
+                 'Type mismatch for key PK expected: S actual: N')
+# Bare/generic type mismatch with NO key binding.
+_GENERIC_TYPE_MSG = ('One or more parameter values were invalid: '
+                     'type mismatch in a non-key context')
+_INVALID_ATTR_VALUE_TYPE_MSG = ('One or more parameter values were invalid: '
+                                'Invalid attribute value type')
+_ATTRIBUTEVALUE_TYPE_MSG = ('The provided AttributeValue type is not supported here')
+
+
+def _category_from_out(out_text):
+    import re as _re
+    m = _re.search(r'validation_category=(\S+)', out_text)
+    return m.group(1) if m else None
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_precision_key_type_mismatch_for_key(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_KEY_TYPE_MSG), capsys)
+    assert result['statusCode'] == 503
+    assert ('error_code=ValidationException operation=DynamoDB.GetItem '
+            'validation_category=KEY_TYPE_MISMATCH') in out.out
+    assert _KEY_TYPE_MSG not in (out.out + out.err)
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_precision_bare_type_mismatch_is_generic(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_GENERIC_TYPE_MSG), capsys)
+    assert result['statusCode'] == 503
+    assert ('error_code=ValidationException operation=DynamoDB.GetItem '
+            'validation_category=GENERIC_TYPE_MISMATCH') in out.out
+    assert 'validation_category=KEY_TYPE_MISMATCH' not in out.out
+    assert _GENERIC_TYPE_MSG not in (out.out + out.err)
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_precision_invalid_attribute_value_type_is_generic(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_INVALID_ATTR_VALUE_TYPE_MSG), capsys)
+    assert 'validation_category=GENERIC_TYPE_MISMATCH' in out.out
+    assert 'validation_category=KEY_TYPE_MISMATCH' not in out.out
+    assert _INVALID_ATTR_VALUE_TYPE_MSG not in (out.out + out.err)
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_precision_attributevalue_type_is_generic(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_ATTRIBUTEVALUE_TYPE_MSG), capsys)
+    assert 'validation_category=GENERIC_TYPE_MISMATCH' in out.out
+    assert 'validation_category=KEY_TYPE_MISMATCH' not in out.out
+    assert _ATTRIBUTEVALUE_TYPE_MSG not in (out.out + out.err)
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_precision_schema_wording_unchanged(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_SCHEMA_MSG), capsys)
+    assert 'validation_category=KEY_SCHEMA_MISMATCH' in out.out
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_precision_unrelated_wording_is_unknown(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_UNRELATED_MSG), capsys)
+    assert 'validation_category=UNKNOWN_VALIDATION' in out.out
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_precision_empty_key_value_unchanged(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=_EMPTY_MSG), capsys)
+    assert 'validation_category=EMPTY_KEY_VALUE' in out.out
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_precision_invalid_consistentread_unchanged(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    msg = 'Invalid ConsistentRead value supplied for this operation'
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=msg), capsys)
+    assert 'validation_category=INVALID_PARAMETER' in out.out
+    assert msg not in (out.out + out.err)
+    mock_put.assert_not_called()
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_precision_emitted_category_always_allowlisted(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    for msg in (_KEY_TYPE_MSG, _GENERIC_TYPE_MSG, _INVALID_ATTR_VALUE_TYPE_MSG,
+                _ATTRIBUTEVALUE_TYPE_MSG, _SCHEMA_MSG, _UNRELATED_MSG, _EMPTY_MSG):
+        result, out = _run_clienterror(
+            mock_get_item, _clienterror('ValidationException', message=msg), capsys)
+        cat = _category_from_out(out.out)
+        assert cat in _ALLOWED_VALIDATION_CATEGORIES, f'non-allowlisted category emitted: {cat}'
+    mock_put.assert_not_called()
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_precision_key_type_message_secret_taint_not_emitted(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    tainted = _KEY_TYPE_MSG + ' refresh_token=LEAK-KT access_token=LEAK-KT2 client_secret=super-secret'
+    result, out = _run_clienterror(
+        mock_get_item, _clienterror('ValidationException', message=tainted), capsys)
+    combined = out.out + out.err
+    assert 'validation_category=KEY_TYPE_MISMATCH' in out.out
+    assert 'type mismatch for key' not in combined
+    assert 'LEAK-KT' not in combined
+    assert 'super-secret' not in combined
     _assert_no_sensitive(out)

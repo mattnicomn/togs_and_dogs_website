@@ -439,7 +439,15 @@ _VALIDATION_CATEGORIES = (
         'provided key element does not match',
         'number of conditions on the keys is invalid',
     )),
+    # High-confidence KEY_TYPE_MISMATCH only: the wording must explicitly bind the
+    # type mismatch to a KEY attribute. Bare/generic type-mismatch wording is NOT
+    # key-proven and is routed to GENERIC_TYPE_MISMATCH below. Ordering matters:
+    # this specific 'type mismatch for key' entry must precede the generic
+    # 'type mismatch' entry so a key-proven message is never downgraded.
     ('KEY_TYPE_MISMATCH', (
+        'type mismatch for key',
+    )),
+    ('GENERIC_TYPE_MISMATCH', (
         'invalid attribute value type',
         'type mismatch',
         'attributevalue type',
