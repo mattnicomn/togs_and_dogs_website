@@ -369,6 +369,73 @@ authorized to implement. Each phase is separately approval-gated.
   Brings E3B / E3B.1 (already in source) into a build. Reconcile `RequestCard`
   role gating. *Highest daily value, lowest new risk.*
 
+  **OPS-1 readiness audit (2026-09-30, read-only).** The OPS-1 Visit-execution
+  surface is **already implemented and tested in source** at `main`
+  `31cc2cbb8b40638a440f957407387f8a5993396d`:
+  - `mobile/src/screens/ScheduleScreen.tsx` — staff Today/Upcoming list that
+    projects a Request into per-occurrence visits (`projectOccurrences`) and
+    navigates to the exact occurrence.
+  - `mobile/src/screens/RequestDetailScreen.tsx` — visit detail + Start/Complete,
+    gated to the assigned staff worker, with occurrence-safe `resolveActionJobId`,
+    a mutation lock, and stale-response guards. In-progress is derived from the
+    JOB `started_at` (no new enum), per the OPS-0 contract.
+  - Backend already serves the authoritative occurrence array via
+    `GET /admin/requests/{id}` → `job_completion_summary.jobs[]`
+    (`_build_job_occurrence_summary`), staff-scoped; `POST /admin/job/start` and
+    `POST /admin/job/complete` enforce assigned-worker RBAC, idempotency, and
+    parent auto-rollup only when all child JOBs are `COMPLETED`. **No backend
+    change is required for OPS-1.**
+  - Multi-visit safety gate: **PASS** (each occurrence starts/completes
+    independently; wrong-JOB application is blocked by the resolver + backend
+    conditional writes; parent rolls up only when all children complete).
+  - Focused tests GREEN: `occurrences`, `ScheduleE3B1`, `RequestDetailE3B1`, plus a
+    new `RequestDetailVisitPermissions` test (403 permission handling). Full mobile
+    suite 152/152 and `tsc --noEmit` clean.
+  - **Remaining OPS-1 gate is build inclusion, not source.** Per continuity docs,
+    E3B/E3B.1 are not in the current internal builds (iOS Build 6 / Android
+    versionCode 4 predate commit `33e5764`). Shipping them is an EAS build +
+    distribution decision that is **approval-gated and out of scope** for this
+    read-only/local turn — `UNKNOWN / NEEDS VALIDATION` resolves to "present in
+    source, pending a build," not a code gap.
+  - `RequestCard` vs `RequestDetailScreen` client-side gating discrepancy is
+    **outside Visit execution** (`RequestCard` exposes approve/assign, not
+    Start/Complete); tracked for **OPS-2**, not expanded here. Backend RBAC remains
+    authoritative.
+
+  **OPS-1 DEFECT (LOCALLY FIXED — awaiting review).** As of 2026-09-30 the bounded
+  fix below is implemented locally in `handleStart` and validated by tests; it is not
+  deployed or in a build. The description is retained for review context.
+  **Authentication-error handling asymmetry on Start.**
+  The mobile API client (`mobile/src/api/client.ts`) centrally normalizes an HTTP
+  401 (and any `expired`/`unauthorized` message) to the single error
+  `"Your session expired. Please sign in again."`; a 403 is surfaced with the
+  backend's permission message verbatim. The screen then decides session recovery.
+  `handleMarkCompleted`, `handleApprove`, and `handleConfirmAssignment` all log out
+  on that normalized session message, but **`handleStart` has no logout branch** —
+  on any error it attempts a `getAdminRequest` reconciliation and otherwise sets an
+  inline `mutationError`. Result: for an equivalent **authentication (401)** failure,
+  completing a visit recovers the session (logout → re-auth) while starting a visit
+  shows an inline "session expired" message and leaves the user on a dead session.
+  Classification: category-A (authentication) inconsistency, **not** an authorization
+  (403) issue and **not** an intentional contract.
+  - 403 behavior is correct and consistent on both Start and Complete (permission
+    error shown, no logout) and is locked by the stable tests in
+    `mobile/__tests__/RequestDetailVisitPermissions.test.tsx`.
+  - The desired consistent 401 behavior for Start is captured as an
+    intentionally-skipped acceptance test (`it.skip`) in that same file; it must be
+    un-skipped only after the reviewed minimal source fix lands.
+  - **Fix applied (local, bounded):** in `handleStart`'s inner `catch` (after the
+    reconciliation `fetchOccurrence` attempt fails to confirm a started occurrence),
+    the original `error.message` is checked for `unauthorized`/`expired` and
+    `await logout()` is called in that case, otherwise the existing `setMutationError`
+    fallback is used. This reuses the existing `useAuth().logout` contract and the
+    identical message check already present three times in the same file. The
+    reconciliation logic is unchanged; no backend/API/Terraform change. Validated by
+    `mobile/__tests__/RequestDetailVisitPermissions.test.tsx` (Start-401 → logout;
+    Start-403 → inline, no logout; Complete-401 → logout; Complete-403 → inline).
+    Disposition: `PETCARE_HERO_OPS1_AUTH_ERROR_HANDLING_FIX_READY_FOR_REVIEW`
+    (local only; not committed, not built, not deployed).
+
 - **OPS-2 — Mobile Request Processing.**
   Status-driven guided actions. Transitions that already exist in the deployed
   backend (review/status transitions via `/admin/review`, assignment, decline,

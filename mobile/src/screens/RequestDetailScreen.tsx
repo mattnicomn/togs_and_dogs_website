@@ -85,7 +85,17 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
         }
       } catch {
         if (mountedRef.current && sequence === requestSequenceRef.current) {
-          setMutationError(error.message || 'Could not confirm Start. Check your connection and retry.');
+          // Reconciliation did not prove the visit started. Inspect the ORIGINAL
+          // Start error. A genuine authentication/session failure (HTTP 401 /
+          // expired / unauthorized, normalized by the API client) must trigger
+          // session recovery, consistent with handleMarkCompleted/handleApprove/
+          // handleConfirmAssignment. A 403/permission failure stays inline.
+          const msg = (error.message || '').toLowerCase();
+          if (msg.includes('unauthorized') || msg.includes('expired')) {
+            await logout();
+          } else {
+            setMutationError(error.message || 'Could not confirm Start. Check your connection and retry.');
+          }
         }
       }
     } finally {
