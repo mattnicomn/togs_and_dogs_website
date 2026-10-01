@@ -352,6 +352,17 @@ authorized to implement. Each phase is separately approval-gated.
   OPS-0 produces documentation/contract artifacts only. No code, no status renames,
   no new deployed statuses in this gate.
 
+  **OPS-0 contract (authored):** the full Workflow / State / Action Contract is in
+  `docs/planning/petcare-hero-workflow-state-action-contract.md`. It contains the
+  authoritative Request/Booking and Visit/JOB state tables, the action/role matrix
+  (RBAC traced from backend), the Request-vs-Visit ownership decisions, the
+  `IN_PROGRESS` recommendation (JOB-level, not `RequestStatus`), the
+  `NEEDS_CLIENT_INFO` recommendation (flag-on-`PENDING_REVIEW` preferred),
+  quote/confirmation and cancellation contracts, calendar and notification matrices,
+  the client-visible/internal privacy contract, multi-visit rules, terminal/archive
+  semantics, exact OPS-1/OPS-2 scope, and unresolved questions. Disposition:
+  `PETCARE_HERO_OPS0_WORKFLOW_CONTRACT_READY_FOR_REVIEW`.
+
 - **OPS-1 — Mobile Visit Operations MVP.**
   Today / Upcoming; visit detail (care/client/pet info); Start Visit; in-progress
   UX; Complete Visit; completion history; occurrence-safe multi-visit behavior.
