@@ -79,6 +79,8 @@ and later findings remain separately gated. No additional tenant was created.
 
 Recently completed: former item 20, the entitlement observability Decimal serialization defect, is **DEPLOYED / PRODUCTION ACCEPTANCE PASS / COMPLETE** as of 2026-09-02. It is no longer an active backlog risk.
 
+**Program consolidation (2026-09-30):** Items 14, 16, 17, 18, and 19 above are the operational-usability / mobile-workflow concerns now consolidated under the **PetCare Hero Operational Workflow & Mobile-First Experience** program (`PCH-OPS`). See `docs/planning/petcare-hero-operational-workflow-mobile-first.md`, which preserves the `PETCARE_HERO_OPERATIONAL_WORKFLOW_DISCOVERY_COMPLETE` discovery. Key finding: Ryan's "assignment works but request processing does not" complaint is primarily a **mobile UI workflow-coverage gap**. The existing backend and mobile API client already support substantial portions of the *current* request lifecycle (review/status transitions, assignment, Start, Complete), but the *desired future* workflow contains additional states/actions/UX that require OPS-0 design and later implementation — so backend coverage is not "complete." Recommended sequence begins with **OPS-0 (Workflow/State/Action Contract — first implementation gate)**, then OPS-1 (mobile Visit Operations MVP) and OPS-2 (mobile request-processing parity, reusing already-deployed transitions where they exist). These items remain PLANNED / approval-gated and are not re-specified here.
+
 ---
 
 ## Platform Tenant Management Control Plane Backlog (PTM)

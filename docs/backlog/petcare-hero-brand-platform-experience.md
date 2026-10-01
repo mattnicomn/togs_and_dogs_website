@@ -26,6 +26,7 @@ engineering program. The authoritative technical programs remain:
 - Tenant access / control-plane URL architecture — `docs/planning/tenant-access-client-onboarding-operational-workflow-alignment.md` (DOMAIN-1..7)
 - Tenant-aware mobile presentation — `docs/planning/tenant-aware-mobile-presentation-architecture.md`
 - Cross-platform design system — `docs/planning/phase-24a-cross-platform-design-system-and-mobile-workflow-alignment.md`
+- **Operational workflow & mobile-first experience (`PCH-OPS`)** — `docs/planning/petcare-hero-operational-workflow-mobile-first.md` (operational-usability companion; mobile-first execution surface; preserves the `PETCARE_HERO_OPERATIONAL_WORKFLOW_DISCOVERY_COMPLETE` discovery)
 
 PetCare Hero tasks **reference and depend on** those programs; they must not
 re-specify or fork them. Where a requirement is already tracked (PTM, DOMAIN,
