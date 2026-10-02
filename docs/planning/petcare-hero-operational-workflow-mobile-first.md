@@ -680,10 +680,13 @@ The following remain gated and are **not** authorized by this planning document:
 
 - **No product-code blockers to planning.** The backend supports the lifecycle the
   mobile UI lacks; OPS-1/OPS-2 can reuse deployed endpoints.
-- **Build-state caveat:** occurrence-safe Start/Complete is in source but, per
-  continuity docs, not in the current internal builds — treated as `UNKNOWN /
-  NEEDS VALIDATION` against a live build (asserted by continuity, not re-verified
-  here).
+- **Build-state caveat (updated 2026-10-01):** occurrence-safe Start/Complete is in
+  source and was absent from the prior distributed builds. A Matthew-only Android
+  preview build (EAS `9558ab2c-a159-45f1-bc58-0e3b0eed5385`, from `13e8178`) has
+  since been produced and passed Tier A read-only validation on an Android
+  emulator (see "OPS-1 Tier A validation record" below). The mutating Start/Complete
+  path itself is not yet exercised (Tier B deferred pending a safe fixture), and no
+  physical-device pass is claimed.
 - **Runtime caveats taken from continuity (not exercised here):** live entitlement
   enforcement status and Google/OAuth runtime status (primary Google
   `VALIDATION_FAILED`).
@@ -706,3 +709,89 @@ The following remain gated and are **not** authorized by this planning document:
 - Backend: `src/backend/handlers/{review,assignment,job,intake,cancellation}_handler.py`,
   `src/backend/common/{status,cascade,google_calendar,client_profile,pet_profile}.py`,
   `src/backend/common/notifications/`.
+
+---
+
+## OPS-1 Tier A validation record (Android preview build, Matthew-only)
+
+**Date:** 2026-10-01. **Disposition:** `PETCARE_HERO_ANDROID_MATTHEW_TIER_A_VALIDATION_COMPLETE`.
+Documentation-only record; no code, no test data, no Tier B, no production mutation.
+
+### OPS-1 source state (confirmed implemented in source at `13e8178`)
+- OPS-1 Visit-execution capability is implemented in source.
+- Schedule / Today / Upcoming occurrence projection exists (`ScheduleScreen.tsx`,
+  `utils/occurrences.ts` `projectOccurrences`).
+- Exact Visit/JOB occurrence navigation exists (Schedule → `RequestDetail` with the
+  exact `jobId`/`occurrence`).
+- Occurrence-safe Start/Complete exists (`RequestDetailScreen.tsx` +
+  `resolveActionJobId`).
+- Active / In-Progress presentation derives from JOB `started_at` (no new enum).
+- No `RequestStatus` `IN_PROGRESS` was introduced.
+- Parent Request completion rolls up only when all applicable child JOBs complete
+  (backend `/admin/job/complete` auto-rollup).
+- Start 401/session-recovery behavior was corrected and committed
+  (`13e8178 fix: align mobile visit auth error handling`).
+- 403 permission failures remain inline (shown in-screen) without logout.
+- No backend change was required for OPS-1.
+
+### Build validation
+- Android preview build ID: `9558ab2c-a159-45f1-bc58-0e3b0eed5385`.
+- Built from source SHA: `13e8178bd56e0fc69cac5ab7c97f226e8ae81c8d`.
+- Profile `preview`, internal distribution, standalone APK, v1.0.0 / versionCode 4.
+- Tier A executed by Matthew on an **Android emulator**.
+- No Google Play / TestFlight submission was involved.
+- Ryan testing remained **paused** throughout.
+
+### Tier A results — all nine items PASS
+1. APK launch — PASS (clean launch to Sign In; no crash/blank/glitch).
+2. Login — PASS (owner/admin; lands on Admin Dashboard; tab bar present).
+3. Schedule availability — PASS ("Dispatch Schedule" opens cleanly).
+4. Today empty state — PASS (no visits today; matches Today = 0).
+5. Upcoming empty state — PASS (none upcoming; future `PROFILE_CREATED` correctly excluded).
+6. Safe existing occurrence / detail resolution — PASS (single occurrence resolved
+   with no identity-safety warning).
+7. Client / pet / care field rendering — PASS (all fields render; correct
+   "Not provided" / "None provided" conditionals; email tappable; Maps/phone
+   suppressed when absent).
+8. Existing state presentation — PASS (Assigned badge; no false Started indicator;
+   Cancelled badge; Completed empty-state correct).
+9. Mobile calendar-linkage observation — PASS (no calendar marker on mobile detail;
+   expected — see calendar note below).
+
+**Exact defects observed: NONE.** No crash, missing/incorrect field, navigation
+defect, display defect, unexpected state, authentication problem, or
+occurrence-selection problem.
+
+Positive signal: role gating matched the OPS-1 contract — the `ASSIGNED` booking on
+the owner/admin surface showed **Change Staff** and correctly did **not** show
+Start/Complete (staff/assigned-worker actions).
+
+### Fixture observations (existing data only; no data created)
+- Assigned historical 1-Hour Drop-in: date 2026-08-22, status `ASSIGNED`, assigned
+  to Ryan York. Booking detail resolved without any occurrence-safety warning.
+- Future Overnight Care 2026-12-10 → 2026-12-11 remained `PROFILE_CREATED` and was
+  correctly excluded from the dispatch Schedule.
+- No completed-booking fixture existed.
+- No today/upcoming active-visit fixture existed.
+
+(Client contact values are intentionally omitted from this record.)
+
+### Tier B status — DEFERRED — SAFE FIXTURE / PRODUCTION-MUTATION GATE
+OPS-1 is **not** failed or blocked. Tier B would exercise Start Visit, In Progress,
+Complete Visit, multi-visit rollup, 403 assigned-worker behavior, and
+expired-session behavior **against the production API**. No approved existing safe
+fixture currently exists for that validation. Creating production test data is **not
+authorized**, and the historical August booking must **not** be repurposed/mutated
+merely for testing. Tier B therefore remains deferred until either:
+1. an appropriate existing safe fixture is identified and explicitly approved, or
+2. a future non-production mobile validation environment provides safe data.
+
+### Environment caveat
+Tier A was completed on an **Android emulator**. This establishes Android
+application behavior for the read-only workflow but does **not** claim a Matthew
+physical-device pass or a Ryan physical-device pass. Ryan testing remains paused.
+
+### Calendar note
+The mobile Booking Details screen does not display the web-side Google Calendar
+linkage marker. Classification: **informational web/mobile parity observation — NOT
+an OPS-1 defect.** No OAuth/reconnect or calendar change was initiated.
