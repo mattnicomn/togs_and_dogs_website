@@ -1080,6 +1080,22 @@ No safe non-payment slice qualifies as "backend-ready, mobile-UI-missing" withou
 backend work, so OPS-3 stops at the plan. No commit, no push, no deployment, no
 Stripe, no backend change.
 
+> **OPS-3A quote contract — CONTRACT APPROVED (Matthew, 2026-10-03).** The follow-on
+> commercial quote contract (canonical REQUEST/BOOKING ownership, QuoteStatus/
+> PaymentStatus enums, client-safe projection, client acceptance authority with
+> mandatory `expected_revision`/409 concurrency, revision/migration strategy,
+> proposed API, and implementation slices) is specified in
+> [petcare-hero-quote-contract.md](./petcare-hero-quote-contract.md). The
+> product-contract approval gate is **CLEARED**; the document is contract-approved and
+> **ready for bounded OPS-3A implementation planning/execution** under the project's
+> normal release discipline (reviewed RC, tests, plan/apply separation, per-release
+> Matthew approval). **Recommended next phase: OPS-3A.1** — backend quote contract +
+> client-safe read (backend-only, no Stripe, no new RequestStatus, no production
+> migration, Request/Visit separation preserved). OPS-3B (payment/Stripe) remains
+> separately gated. No runtime implementation accompanied this contract-approval
+> documentation turn. The mobile-first operational workflow above (OPS-0/1/2A/2B) is
+> unchanged.
+
 Starting repository state: branch `main`, HEAD == `origin/main` ==
 `c03ae39742048322763d9e79bb57141c60e9f379`, working tree clean before this task.
 
