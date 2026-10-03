@@ -1069,3 +1069,155 @@ notification (E/NEEDS_DESIGN).
 - `git diff --check`: **clean**.
 - No `IN_PROGRESS`, no `NEEDS_CLIENT_INFO`, no backend/Terraform/infra change;
   `jest.setup.js` unchanged.
+
+
+---
+
+## OPS-3 — Client Booking / Quote Experience (audit-first)
+
+Status: **PLAN_READY_FOR_REVIEW** — audit complete; **no implementation this task.**
+No safe non-payment slice qualifies as "backend-ready, mobile-UI-missing" without
+backend work, so OPS-3 stops at the plan. No commit, no push, no deployment, no
+Stripe, no backend change.
+
+Starting repository state: branch `main`, HEAD == `origin/main` ==
+`c03ae39742048322763d9e79bb57141c60e9f379`, working tree clean before this task.
+
+### Quote / payment data model (source-verified)
+- **PET metadata** (`PK=PET#{pet_id}`, `SK=CLIENT#{client_id}`) holds the quote:
+  `quote_amount` (Decimal), `deposit_required`, `deposit_paid`, `payment_status`,
+  `quote_sent_date`, `quote_accepted_date`, `quote_notes`, `internal_pricing_notes`.
+  Written via `pet_handler` `editable_fields` on `PUT /admin/pets/{petId}`
+  (owner/admin/staff — staff is stripped of `quote_amount`, `deposit_required`,
+  `internal_pricing_notes`, `meet_and_greet_notes`).
+- **REQ record** (`PK=REQ#{request_id}`, `SK=CLIENT#{client_id}`) holds the
+  payment/Stripe fields: `payment_status`, `stripe_checkout_session_id`,
+  `stripe_payment_url`, `stripe_payment_intent_id`, `stripe_customer_id`,
+  `payment_amount_cents`, `payment_requested_at/by`, `payment_email_sent_at`,
+  `payment_completed_at`. Written by the admin payment-session endpoint and the
+  Stripe webhook.
+- **Ambiguity (documented, not changed):** `payment_status` exists on **both** the
+  PET (`Not Quoted`/`Quote Sent`/`Payment Pending`/`Accepted`/`Deposit Paid`/
+  `Partially Paid`/`Paid in Full`/`Refunded`/`Waived`) and the REQ
+  (`unpaid`/`payment_link_sent`/`paid`), with different vocabularies. Quote
+  acceptance and payment are **conflated** in the PET `payment_status` field.
+- **Client visibility:** `GET /client/pets` → `sanitize_pet_for_client` returns only
+  non-commercial pet fields (no `quote_amount`/`payment_status`). `GET
+  /client/requests` → `sanitize_booking_for_role(item,'client')` redacts pricing
+  notes, and quote fields live on the PET, not the REQ, so they are absent anyway.
+  **Clients cannot read the quote amount today.**
+
+### Current approval gate (review_handler, exact)
+For `APPROVED`/`BOOKED`, the handler reads the PET metadata. M&G block is skipped
+when `current_status ∈ {QUOTED, QUOTE_SENT, MG_COMPLETED, QUOTE_NEEDED}`. Quote
+block: `quote_amount = float(pet_metadata.quote_amount or 0)`;
+`payment_status = pet_metadata.payment_status or 'Not Quoted'`; if
+`quote_amount > 0 AND payment_status ∉ {Accepted, Deposit Paid, Paid in Full}` → 400
+"Quote must be accepted and payment status updated...". So **"a quote exists"** =
+PET `quote_amount > 0`; **acceptance states** = {Accepted, Deposit Paid, Paid in
+Full}. **`APPROVED` means the tenant approved** (gated on the quote-accepted
+precondition); it does **not** represent customer self-service acceptance — today
+acceptance is recorded by an owner/admin editing the PET `payment_status`, not by
+the client. Acceptance and payment are not cleanly separated.
+
+### Owner/admin quote workflow (web — all IMPLEMENTED_END_TO_END)
+On `CareCard.jsx`: edit `quote_amount`, set `payment_status` (incl. "Accepted"),
+edit `quote_notes`/`deposit_paid` → `updatePet` (`PUT /admin/pets/{petId}`); send /
+revise quote via `reviewRequest` `QUOTED`/`QUOTE_SENT` + re-edit; generate payment
+link → `createPaymentSession` (Stripe); send payment email → `sendPaymentEmail`;
+approve after acceptance → `reviewRequest APPROVED` (gated).
+
+### Client quote experience (web + mobile)
+No client-facing quote visibility, acceptance, decline, change-request, or payment
+exists on **any** platform. Mobile `BookingsScreen`/`MyPetsScreen` contain no
+quote/price/payment UI. The client pet-update endpoint (`PUT /client/pets/{petId}`)
+enforces a strict field allowlist and **rejects** any quote/payment field, so there
+is **no backend path for a client to accept a quote** today.
+
+### Stripe boundary (sandbox-only; untouched)
+`common/stripe_client.create_checkout_session` calls the real Stripe API
+(`/v1/checkout/sessions`, mode `payment`) using `STRIPE_SECRET_KEY`; sandbox vs live
+is a function of the configured key/env (`STRIPE_ENV`/`STRIPE_ENVIRONMENT`, default
+`sandbox`). Admin payment-session → REQ `payment_status='payment_link_sent'`;
+webhook `checkout.session.completed` (payment_type=booking) → REQ
+`payment_status='paid'`. **Any payment-session work calls Stripe**, so a safe
+non-payment slice must avoid that path entirely. OPS-3 can only progress
+independently of Stripe for non-payment concerns.
+
+### Request vs Visit/JOB boundary
+Quote/payment state lives entirely on the REQ record (+ PET metadata) and never on
+JOB records. Child JOBs are created by the async Job-creation Lambda triggered by
+`review_handler` **only** on `new_status == 'APPROVED'` — i.e. at tenant approval
+(which is gated behind quote-acceptance when a quote exists), after acceptance /
+payment, before assignment. Boundary is clean; commercial state must not move into
+Visit/JOB.
+
+### Notification contract (actual sends)
+Real templates: `REQUEST_RECEIVED`, `CUSTOMER_APPROVED` (client approval
+confirmation, fired via `notify_event('CUSTOMER_APPROVED')` on APPROVED),
+`VISIT_SCHEDULED`, `STAFF_ASSIGNED`, `VISIT_CANCELLED`, `VISIT_TIME_CHANGED`,
+`WELCOME_INVITE_*`, `PAYMENT_LINK_EMAIL` (payment link, carries a Stripe sandbox
+banner). There is **no** quote-ready, quote-revision, quote-accepted, or distinct
+booking-confirmed template; `CUSTOMER_APPROVED` is the closest "confirmed" message.
+Consistent with the OPS-2 finding that UI copy can overstate actual backend
+notification behavior.
+
+### Capability matrix
+A IMPLEMENTED_END_TO_END · B BACKEND_API_READY_MOBILE_UI_MISSING · C PARTIAL ·
+D MISSING · E NEEDS_DESIGN.
+
+| Capability | Class | Notes |
+|---|---|---|
+| Owner enters quote | A | web `updatePet` |
+| Owner edits quote | A | web `updatePet` |
+| Owner sends quote | A | status `QUOTED`/`QUOTE_SENT` + edit |
+| Client sees quote | **D** | redacted on all client reads |
+| Client accepts quote | **E** | no backend path (client PUT allowlist blocks) |
+| Client declines quote | **E** | no mechanism |
+| Client requests quote change | **E** | no mechanism (same family as request-more-info) |
+| Payment / deposit setup | A | web, Stripe sandbox |
+| Payment status synchronization | A | Stripe webhook → REQ `payment_status` |
+| Tenant final approval | A | `reviewRequest APPROVED` (gated) |
+| Booking confirmation | C | `CUSTOMER_APPROVED` email; no distinct confirmed state |
+| JOB generation after confirmation | A | review_handler Lambda on APPROVED |
+| Mobile owner/admin quote display | D | `quote_amount` not on mobile REQ payload; only REQ-level `payment_status` badge is shown |
+
+### Why there is no safe OPS-3A implementation slice this task
+Every candidate requires backend work or Stripe, so none meets the implementation
+gate (bounded, existing-backend, non-payment, no redesign, no new state, no
+unresolved customer-facing semantics):
+- **Client quote visibility** — the quote is redacted from every client read; a
+  new/changed backend projection would be required. Not UI-only.
+- **Client quote acceptance** — no backend endpoint accepts it (client PUT
+  allowlist); needs a new backend write path and resolves the acceptance-vs-payment
+  conflation (customer-facing semantics). Not UI-only.
+- **Owner/admin mobile quote entry** — `quote_amount` is not on the mobile REQ
+  payload (it is PET metadata, not enriched into admin request reads), and mobile
+  has no admin pet-write client function; it would introduce commercial write
+  semantics that touch the approval-gate precondition. Not clearly bounded/safe.
+- **Payment / deposit / Stripe** — explicitly OPS-3B and Stripe-coupled; out of
+  scope.
+
+### Proposed OPS-3A (future — requires backend; NOT this task)
+Non-payment quote visibility + acceptance parity, requiring backend work:
+1. Expose a **read-only** quote projection to the client (quote amount, service,
+   dates, quote status) via a client-safe read — a deliberate, reviewed change to
+   `sanitize_*`/a new client read, since pricing is currently redacted.
+2. A **client quote-acceptance endpoint** with a strict allowlist that records
+   acceptance **without** conflating it with payment, writing a dedicated
+   acceptance field/status rather than overloading PET `payment_status`.
+3. Resolve the acceptance-vs-payment conflation as an explicit design decision
+   (no `NEEDS_CLIENT_INFO`-style speculative status; align with existing
+   `QUOTE_SENT`/acceptance semantics).
+Then a mobile/web client UI can display and accept. This is a design + backend
+effort, not a bounded mobile-only parity slice.
+
+### Deferred OPS-3B (future — payment/Stripe)
+Deposit/payment setup, payment-link generation, payment status sync, and any
+client payment UI. Requires Stripe (sandbox→live is a separate approval) and is
+explicitly out of scope here.
+
+### This task
+Audit and plan only. No files changed other than this planning document. No
+backend/Terraform/mobile source change, no tests added, no Stripe interaction, no
+production mutation.
