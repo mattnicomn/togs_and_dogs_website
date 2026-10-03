@@ -36,6 +36,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   const [showCompleteConfirmModal, setShowCompleteConfirmModal] = useState(false);
   const [showDeclineConfirmModal, setShowDeclineConfirmModal] = useState(false);
   const [declineReason, setDeclineReason] = useState('');
+  const [showVerifyMgConfirmModal, setShowVerifyMgConfirmModal] = useState(false);
   const [showStaffPicker, setShowStaffPicker] = useState(false);
   const [showAssignConfirmModal, setShowAssignConfirmModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<{ emailOrDisplayName: string; displayName: string } | null>(null);
@@ -146,6 +147,32 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
       } else {
         // 403 (insufficient role) and backend validation (400) stay inline; no logout.
         setMutationError(msg || 'An error occurred while declining the request.');
+      }
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleVerifyMeetGreet = async () => {
+    setMutationError(null);
+    setIsMutating(true);
+    try {
+      // Reuses the existing /admin/review VERIFY_MEET_GREET pseudo-status. The
+      // backend marks the client (and pet) meet_and_greet_completed and, when a
+      // request_id is supplied, transitions the request to MG_COMPLETED. No new
+      // status, no backend change, no notification/calendar side effect.
+      await reviewRequest(request.request_id, request.client_id, 'VERIFY_MEET_GREET');
+      setShowVerifyMgConfirmModal(false);
+      // The response does not echo the new request status; reflect the backend's
+      // MG_COMPLETED transition locally so the action hides and state updates.
+      setRequest({ ...request, status: 'MG_COMPLETED' });
+    } catch (error: any) {
+      const msg = error.message || '';
+      if (msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('expired')) {
+        await logout();
+      } else {
+        // 403 (insufficient role) and backend validation (400) stay inline; no logout.
+        setMutationError(msg || 'An error occurred while verifying the Meet & Greet.');
       }
     } finally {
       setIsMutating(false);
@@ -360,6 +387,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   };
 
   const isPending = request.status === 'PENDING_REVIEW';
+  const isMeetGreetPending = request.status === 'MEET_GREET_REQUIRED' || request.status === 'MG_SCHEDULED';
   const isApproved = request.status === 'APPROVED';
   const childStatus = occurrence?.status || request.status;
   const isAssigned = childStatus === 'ASSIGNED';
@@ -372,7 +400,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   // `role !== 'staff'`: the runtime role domain also includes 'client', 'unknown',
   // and null (during bootstrap), for which a negative gate would fail open.
   const canManage = role === 'owner' || role === 'admin';
-  const showFooter = (canManage && (isPending || isApproved || isAssigned)) || (role === 'staff' && isAssigned);
+  const showFooter = (canManage && (isPending || isMeetGreetPending || isApproved || isAssigned)) || (role === 'staff' && isAssigned);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -712,6 +740,20 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
               </TouchableOpacity>
             )}
 
+            {isMeetGreetPending && canManage && (
+              <TouchableOpacity
+                style={styles.verifyMgBtn}
+                onPress={() => setShowVerifyMgConfirmModal(true)}
+                disabled={isMutating}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Verify Meet & Greet"
+                accessibilityState={{ disabled: isMutating, busy: isMutating }}
+              >
+                <Text style={styles.verifyMgBtnText}>Verify Meet & Greet</Text>
+              </TouchableOpacity>
+            )}
+
             {isApproved && canManage && (
               <TouchableOpacity
                 style={styles.assignBtn}
@@ -770,6 +812,15 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
         message={`This will mark ${request.pet_name}'s request as DECLINED.${declineReason.trim() ? `\n\nReason: ${declineReason.trim()}` : ''}\n\nThe business record is retained in history. Are you sure you want to decline?`}
         onConfirm={handleDecline}
         onCancel={() => setShowDeclineConfirmModal(false)}
+        isLoading={isMutating}
+      />
+
+      <ConfirmationModal
+        visible={showVerifyMgConfirmModal}
+        title="Verify Meet & Greet?"
+        message={`This marks the Meet & Greet for ${request.pet_name} as completed and advances the request to Meet & Greet Completed. Confirm the Meet & Greet has taken place.`}
+        onConfirm={handleVerifyMeetGreet}
+        onCancel={() => setShowVerifyMgConfirmModal(false)}
         isLoading={isMutating}
       />
 
@@ -979,6 +1030,20 @@ const styles = StyleSheet.create({
   },
   declineBtnText: {
     color: COLORS.danger,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  verifyMgBtn: {
+    backgroundColor: 'transparent',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    marginTop: 10,
+  },
+  verifyMgBtnText: {
+    color: COLORS.primary,
     fontSize: 16,
     fontWeight: '700',
   },

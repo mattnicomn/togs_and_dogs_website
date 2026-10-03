@@ -941,3 +941,131 @@ Reconciling the web copy — or implementing an actual decline notification that
 would make the reason client-visible — is a separate **NEEDS_DESIGN / backlog**
 item, outside OPS-2A. No notification behavior was built in this slice. If decline
 notification is ever implemented, the mobile "internal" framing must be revisited.
+
+
+---
+
+## OPS-2B — Remaining Mobile Request-Processing Parity (audit + bounded M&G slice)
+
+Status: **IMPLEMENTATION_READY_FOR_REVIEW** — one bounded slice (mobile Meet &
+Greet verification) implemented and fully verified locally; **not committed, not
+pushed, not deployed.** No backend change, no new RequestStatus, no
+`NEEDS_CLIENT_INFO`, no notification/calendar behavior, no production mutation.
+
+Starting repository state: branch `main`, HEAD == `origin/main` ==
+`6ea80db3db088773e790dda020da0273625dd957`, working tree clean before this task.
+
+OPS-0 preserved: Request/Booking and Visit/JOB remain separate; no `IN_PROGRESS`;
+`NEEDS_CLIENT_INFO` remains a design decision only; backend RBAC authoritative.
+
+### Capability matrix (remaining capabilities)
+A IMPLEMENTED_END_TO_END · B BACKEND_API_READY_MOBILE_UI_MISSING · C PARTIAL ·
+D MISSING · E NEEDS_DESIGN.
+
+| Capability | Backend | Mobile (before this slice) | Class |
+|---|---|---|---|
+| M&G requirement display | status + pet/client flags | status shown via StatusBadge (MEET_GREET_REQUIRED/MG_SCHEDULED/MG_COMPLETED labels) | A (via status) |
+| M&G verification action | `/admin/review` VERIFY_MEET_GREET | **missing** | **B → A (this slice)** |
+| M&G completed display | status MG_COMPLETED | shown via StatusBadge | A |
+| Admin cancellation decision | `PUT /admin/cancel/decision` (owner/admin) | no mobile client fn / UI | B (deferred — see below) |
+| Direct cancellation | `/admin/review` CANCELLED (owner/admin) | no mobile UI | B (deferred) |
+| Client cancellation request handling | `POST /client/cancel` (client) | no mobile UI | D (out of OPS-2B admin scope) |
+| Request more information | none | none | **E (NEEDS_DESIGN)** |
+| Quote entry | no mobile write path | missing | E (deferred) |
+| Quote editing | no mobile write path | missing | E (deferred) |
+| Client quote acceptance | separate client flow | missing | E (OPS-3) |
+| Decline notification | not sent today | n/a | E (NEEDS_DESIGN — see OPS-2A parity note) |
+
+### Exact M&G contract (re-verified current source)
+- `reviewRequest(requestId, clientId, 'VERIFY_MEET_GREET')` → `POST /admin/review`
+  with `{request_id, client_id, status:'VERIFY_MEET_GREET'}`. The mobile client's
+  existing `reviewRequest` already supports this (status is a free parameter) — **no
+  new API client function** needed.
+- Backend (`review_handler.py`): top role gate allows owner/admin/staff;
+  VERIFY_MEET_GREET is **not** in the sensitive list, so the backend also permits
+  staff. The branch runs **before** `is_valid_transition` (bypasses the state
+  machine). It sets `CLIENT#METADATA.meet_and_greet_completed=true` (and PET if a
+  `pet_id` is present) and, when `request_id` is supplied, transitions the request
+  to `MG_COMPLETED` with an audit note. **No notification, no calendar side
+  effect.** The response returns `{message, client_id, meet_and_greet_completed}`
+  and does **not** echo the new request status.
+- Idempotency: not guarded (bypasses transition validation); repeat calls re-set
+  the already-true flags and append another `MG_COMPLETED` audit note. The mobile
+  UI avoids repeats by hiding the action once the status is no longer
+  MEET_GREET_REQUIRED / MG_SCHEDULED.
+- Mobile data note: admin request reads return the raw REQ item (no pet/client M&G
+  enrichment), so the only reliable M&G signal on mobile is the request **status**.
+
+### Exact cancellation contract (re-verified; deferred this slice)
+Three distinct actions — not interchangeable:
+1. **Customer cancellation request** — `POST /client/cancel` (client role): sets
+   `CANCELLATION_REQUESTED` + reason; no calendar/notification side effects.
+2. **Admin cancellation decision** — `PUT /admin/cancel/decision` (**owner/admin
+   only**): `APPROVE → CANCELLED` or `DENY → CANCELLATION_DENIED`. On APPROVE it
+   cascades to JOB, **deletes Google Calendar events** (parent + child jobs), sends
+   a **worker SMS via SNS**, and fires a **customer `VISIT_CANCELLED` notification**.
+3. **Direct administrative cancellation** — `/admin/review` `CANCELLED` sensitive
+   transition (owner/admin), which also deletes calendar + notifies.
+Mobile `generatedContracts.ts` already defines `admin.cancelDecision` and
+`client.requestCancellation` paths and the CANCELLATION_* status labels, but the
+mobile API client has **no** cancellation function and there is no mobile UI.
+**Deferred** because the admin decision has high, customer/worker-visible blast
+radius (calendar deletion + SMS + VISIT_CANCELLED) and depends on a pre-existing
+client-initiated `CANCELLATION_REQUESTED` state — not the smallest safe first slice.
+
+### Request-more-information finding
+No existing backend endpoint writes an internal/admin note or a client-visible
+message on a request, and no flag or action provides "request more information".
+`internal_notes`/`admin_notes` appear only in the `sanitize_booking_for_role`
+redaction list (no writer). A safe mechanism cannot exist without either a new
+RequestStatus (`NEEDS_CLIENT_INFO`, explicitly disallowed by OPS-0) or a new
+backend write path plus client-visible delivery. Classification: **E — NEEDS_DESIGN**.
+No new status introduced.
+
+### Web/mobile parity findings
+- Preserved the OPS-2A decline-notification parity note (web labels the decline
+  reason "Custom Message to Customer" / "Decline & Notify" but the backend sends no
+  DECLINED notification and redacts the reason from clients/staff). Unchanged this
+  task; remains a separate NEEDS_DESIGN/backlog item. No notification work done.
+- M&G: web verifies via `reviewRequest(..., 'VERIFY_MEET_GREET')` (owner/admin,
+  labels "Mark M&G Complete"). Mobile now mirrors this with "Verify Meet & Greet",
+  owner/admin-only.
+
+### Selected OPS-2B slice — mobile Meet & Greet verification (why it is safe)
+- Reuses the existing `/admin/review` VERIFY_MEET_GREET contract via the existing
+  `reviewRequest` client — **no backend change, no new API client function, no new
+  status**.
+- **No external side effects** (no calendar, no notification, no SMS) — unlike the
+  cancellation decision.
+- **Owner/admin-only** on mobile via the explicit fail-closed allowlist
+  (`role === 'owner' || role === 'admin'`), even though the backend also permits
+  staff — the UI intentionally does not broaden permissions (OPS-0).
+- Visibility gated on the request **status** (MEET_GREET_REQUIRED / MG_SCHEDULED);
+  the action hides once MG_COMPLETED (prevents duplicate verification), and is
+  reachable on mobile via the "All Active" filter → RequestDetail.
+- Confirmation modal before the call; 401/session → logout; 403/400 → inline error,
+  no logout. On success the screen reflects `MG_COMPLETED` locally.
+
+### Deferred capabilities (not implemented this slice)
+Admin/direct cancellation (B, blast radius), client cancellation request (D),
+request-more-information (E/NEEDS_DESIGN), quote entry/editing (E), client quote
+acceptance (E/OPS-3), customer payment / Stripe (out of scope), decline
+notification (E/NEEDS_DESIGN).
+
+### Files changed (working tree only — not committed)
+- `mobile/src/screens/RequestDetailScreen.tsx` — M&G verify state, handler,
+  footer action, confirmation modal, `isMeetGreetPending` gate, outlined-info
+  styles. (M&G state itself already displays via the existing StatusBadge.)
+- `mobile/__tests__/RequestDetailVerifyMeetGreet.test.tsx` (new — visibility/RBAC
+  incl. staff/client/unknown/null fail-closed + state suppression + happy-path call).
+- `mobile/__tests__/RequestDetailVerifyMeetGreet403.test.tsx` (new).
+- `mobile/__tests__/RequestDetailVerifyMeetGreet401.test.tsx` (new).
+
+### Verification (local, this task)
+- Focused Verify-M&G: **3 suites / 13 tests PASS**.
+- Full mobile Jest suite: **25 suites / 187 tests PASS** (no regression; prior
+  baseline 22/174).
+- `tsc --noEmit`: **clean**.
+- `git diff --check`: **clean**.
+- No `IN_PROGRESS`, no `NEEDS_CLIENT_INFO`, no backend/Terraform/infra change;
+  `jest.setup.js` unchanged.
