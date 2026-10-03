@@ -34,6 +34,8 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showCompleteConfirmModal, setShowCompleteConfirmModal] = useState(false);
+  const [showDeclineConfirmModal, setShowDeclineConfirmModal] = useState(false);
+  const [declineReason, setDeclineReason] = useState('');
   const [showStaffPicker, setShowStaffPicker] = useState(false);
   const [showAssignConfirmModal, setShowAssignConfirmModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<{ emailOrDisplayName: string; displayName: string } | null>(null);
@@ -121,6 +123,29 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
         await logout();
       } else {
         setMutationError(msg || 'An error occurred during approval.');
+      }
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleDecline = async () => {
+    setMutationError(null);
+    setIsMutating(true);
+    try {
+      // Reuses the existing /admin/review transition; DECLINED is a backend
+      // owner/admin-only sensitive transition. Reason is optional context.
+      await reviewRequest(request.request_id, request.client_id, 'DECLINED', declineReason.trim());
+      setShowDeclineConfirmModal(false);
+      setDeclineReason('');
+      setRequest({ ...request, status: 'DECLINED' });
+    } catch (error: any) {
+      const msg = error.message || '';
+      if (msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('expired')) {
+        await logout();
+      } else {
+        // 403 (insufficient role) and backend validation (400) stay inline; no logout.
+        setMutationError(msg || 'An error occurred while declining the request.');
       }
     } finally {
       setIsMutating(false);
@@ -342,7 +367,12 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   const hasExactJob = Boolean(actionResolution.jobId);
   const isStarted = Boolean(occurrence?.started_at);
   const canComplete = isStarted || Boolean(occurrence?.legacy);
-  const showFooter = (role !== 'staff' && (isPending || isApproved || isAssigned)) || (role === 'staff' && isAssigned);
+  // Backend RBAC is authoritative: Approve/Decline/Assign are owner/admin-only
+  // sensitive transitions. Use an explicit owner/admin allowlist rather than
+  // `role !== 'staff'`: the runtime role domain also includes 'client', 'unknown',
+  // and null (during bootstrap), for which a negative gate would fail open.
+  const canManage = role === 'owner' || role === 'admin';
+  const showFooter = (canManage && (isPending || isApproved || isAssigned)) || (role === 'staff' && isAssigned);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -622,6 +652,25 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
               <Text style={styles.charCounter}>{visitNotes.length}/500 characters</Text>
             </View>
           )}
+
+          {/* Optional Decline Reason Input for Owner/Admin (only when status is PENDING_REVIEW) */}
+          {isPending && canManage && (
+            <View style={styles.card}>
+              <Text style={styles.sectionHeader}>Decline Reason (optional)</Text>
+              <TextInput
+                style={styles.notesInput}
+                placeholder="Why is this request being declined? (internal reason)"
+                placeholderTextColor={COLORS.textMuted}
+                multiline={true}
+                numberOfLines={3}
+                maxLength={500}
+                value={declineReason}
+                onChangeText={setDeclineReason}
+                accessibilityLabel="Decline reason (optional)"
+              />
+              <Text style={styles.charCounter}>{declineReason.length}/500 characters</Text>
+            </View>
+          )}
         </ScrollView>
 
         {/* Sticky Action Footer */}
@@ -638,7 +687,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
               </View>
             )}
 
-            {isPending && role !== 'staff' && (
+            {isPending && canManage && (
               <TouchableOpacity
                 style={styles.approveBtn}
                 onPress={() => setShowConfirmModal(true)}
@@ -649,7 +698,21 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
               </TouchableOpacity>
             )}
 
-            {isApproved && role !== 'staff' && (
+            {isPending && canManage && (
+              <TouchableOpacity
+                style={styles.declineBtn}
+                onPress={() => setShowDeclineConfirmModal(true)}
+                disabled={isMutating}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Decline Booking"
+                accessibilityState={{ disabled: isMutating, busy: isMutating }}
+              >
+                <Text style={styles.declineBtnText}>Decline Booking</Text>
+              </TouchableOpacity>
+            )}
+
+            {isApproved && canManage && (
               <TouchableOpacity
                 style={styles.assignBtn}
                 onPress={handleAssignPress}
@@ -660,7 +723,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
               </TouchableOpacity>
             )}
 
-            {isAssigned && role !== 'staff' && (
+            {isAssigned && canManage && (
               <TouchableOpacity
                 style={styles.changeBtn}
                 onPress={handleAssignPress}
@@ -698,6 +761,15 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
         message={`This will update ${request.pet_name}'s status to APPROVED. This triggers production calendar syncs and notification emails. Are you sure you want to proceed?`}
         onConfirm={handleApprove}
         onCancel={() => setShowConfirmModal(false)}
+        isLoading={isMutating}
+      />
+
+      <ConfirmationModal
+        visible={showDeclineConfirmModal}
+        title="Decline Pet Booking?"
+        message={`This will mark ${request.pet_name}'s request as DECLINED.${declineReason.trim() ? `\n\nReason: ${declineReason.trim()}` : ''}\n\nThe business record is retained in history. Are you sure you want to decline?`}
+        onConfirm={handleDecline}
+        onCancel={() => setShowDeclineConfirmModal(false)}
         isLoading={isMutating}
       />
 
@@ -893,6 +965,20 @@ const styles = StyleSheet.create({
   },
   approveBtnText: {
     color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  declineBtn: {
+    backgroundColor: 'transparent',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+    marginTop: 10,
+  },
+  declineBtnText: {
+    color: COLORS.danger,
     fontSize: 16,
     fontWeight: '700',
   },

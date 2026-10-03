@@ -795,3 +795,149 @@ physical-device pass or a Ryan physical-device pass. Ryan testing remains paused
 The mobile Booking Details screen does not display the web-side Google Calendar
 linkage marker. Classification: **informational web/mobile parity observation — NOT
 an OPS-1 defect.** No OAuth/reconnect or calendar change was initiated.
+
+
+---
+
+## OPS-2 — Mobile Request Processing (audit + bounded OPS-2A implementation)
+
+Status: **FINAL_CONTRACT_REVIEW_READY** — source implemented, RBAC allowlist
+hardened, decline-reason visibility confirmed internal-only, fully verified
+locally; **not committed, not pushed, not deployed.** No backend change, no new
+RequestStatus, no `NEEDS_CLIENT_INFO` status, no production mutation.
+
+Starting repository state: branch `main`, HEAD == `origin/main` ==
+`971f20e5d0966a5d37a763485ea079db1cb27b95`, working tree clean before this task.
+
+OPS-0 contract preserved: Request/Booking and Visit/JOB remain separate state
+machines; no `IN_PROGRESS` RequestStatus; deployed statuses unchanged;
+`NEEDS_CLIENT_INFO` remains a design decision, not an implemented status; backend
+RBAC remains authoritative.
+
+### Capability matrix (mobile admin request processing vs backend contract)
+Categories: A IMPLEMENTED_END_TO_END · B BACKEND_API_READY_MOBILE_UI_MISSING ·
+C PARTIAL · D MISSING · E NEEDS_DESIGN.
+
+| Capability | Backend | Mobile (before OPS-2A) | Class |
+|---|---|---|---|
+| Approve booking (`/admin/review` → APPROVED) | owner/admin sensitive transition | RequestDetail + RequestCard | A |
+| Decline booking (`/admin/review` → DECLINED) | owner/admin sensitive transition | **missing** | **B → A (this slice)** |
+| Assign staff (`/admin/assign`) | owner/admin only | RequestDetail + RequestCard | A |
+| Verify Meet & Greet (`VERIFY_MEET_GREET`) | supported | missing | B (deferred) |
+| Full quote entry | no mobile client write path | missing | E (deferred) |
+| Client quote acceptance | separate client flow | missing | E (OPS-3) |
+| Request more info | no approved status | missing | E (deferred) |
+| Admin cancellation decision (`/admin/cancel/decision`) | owner/admin only | no mobile client fn | B/E (deferred) |
+| RequestCard role gating | RBAC authoritative | **not role-gated** | **C → A (this slice)** |
+
+### Gating result (RequestDetail vs RequestCard, before this slice)
+`RequestDetailScreen` already gated owner/admin actions on `role !== 'staff'`.
+`RequestCard` did **not** role-gate its Approve / Assign / Change actions. This was
+a latent robustness gap rather than an exploitable one: `AppNavigator` only exposes
+the request list that renders `RequestCard` to owner/admin (staff see Schedule
+only), so staff cannot currently reach it. The backend would reject the action
+regardless. OPS-2A closes the client-side gap so the UI matches the backend
+contract defensively.
+
+**Final-QA correction (RBAC allowlist):** the initial OPS-2A slice used
+`role !== 'staff'` for the manager gate on both surfaces. A final RBAC trace showed
+the runtime role domain at these surfaces is `owner | staff | client | unknown |
+null` (`AuthContext.role` is typed `string | null`; `getEffectiveRole` yields
+`owner | staff | client | unknown`; `role` is `null` during bootstrap). For
+`null`, `client`, and `unknown`, `role !== 'staff'` evaluates **true** — a
+fail-open result. The negative gate was equivalent to owner/admin only because of a
+separate `AppNavigator` fallback (client/unknown/null route to `ClientNavigator`,
+which renders neither surface), not because of the gate itself. Relying on that is
+fragile. Both surfaces now use an explicit fail-closed allowlist:
+`const canManage = role === 'owner' || role === 'admin'`, applied consistently to
+Approve, Decline, Assign, Change Staff, and the decline-reason input. Positive
+staff-only gates (visit notes, Start/Complete Visit) are unchanged. Backend RBAC is
+unchanged and remains authoritative.
+
+### OPS-2A scope (implemented this slice — safe parity via existing contracts)
+1. **Mobile Decline** on `RequestDetailScreen`, reusing the existing
+   `reviewRequest(requestId, clientId, 'DECLINED', reason)` client call. Decline is
+   exposed only for owner/admin (`canManage`) on a `PENDING_REVIEW` request,
+   mirroring the backend's owner/admin-only sensitive transition. Optional internal
+   decline reason (max 500 chars) is passed as the review reason. Error handling
+   matches the other review handlers: 401/session-expiry → logout; 403/permission
+   and 400 validation → inline error, no logout. Styled as an outlined danger button
+   (secondary to the filled Approve action).
+2. **RequestCard client-side role gating**:
+   `const canManage = role === 'owner' || role === 'admin'` now gates the Approve /
+   Assign / Change action blocks, matching `RequestDetailScreen` (fail-closed
+   allowlist — see Final-QA correction above).
+
+### OPS-2B / deferred (needs design or backend work — NOT in this slice)
+- Verify Meet & Greet mobile action (adds new action/status handling).
+- Full quote entry (no mobile client write path — NEEDS_DESIGN).
+- Client quote acceptance (OPS-3).
+- Admin cancellation decision (needs a new mobile API client fn; sensitive).
+- Request-more-info (no approved status; NEEDS_DESIGN; `NEEDS_CLIENT_INFO` stays a
+  design decision only).
+- Decline/rejection email template (backend not present).
+
+### Files changed (working tree only — not committed)
+- `mobile/src/screens/RequestDetailScreen.tsx` — Decline state, handler, reason
+  input, action button, confirmation modal, outlined-danger styles.
+- `mobile/src/components/RequestCard.tsx` — `role` from `useAuth`, fail-closed
+  `canManage` allowlist gate on the three action blocks.
+- `mobile/__tests__/RequestCardRoleGating.test.tsx` (new — owner/admin see;
+  staff/client/unknown/null fail-closed).
+- `mobile/__tests__/RequestDetailDecline.test.tsx` (new — visibility/RBAC incl.
+  client/unknown/null fail-closed + happy-path decline call).
+- `mobile/__tests__/RequestDetailDeclineEmptyReason.test.tsx` (new).
+- `mobile/__tests__/RequestDetailDecline403.test.tsx` (new).
+- `mobile/__tests__/RequestDetailDecline401.test.tsx` (new).
+
+### Verification (local, final contract QA)
+- Full mobile Jest suite: **22 suites / 174 tests PASS** (includes the 5 OPS-2A
+  suites, 22 tests, 7 of them new fail-closed role cases; no regression).
+- `tsc --noEmit`: **clean** (zero errors).
+- `git diff --check`: **clean** (only a benign LF→CRLF advisory on this doc).
+- Confirmed no `IN_PROGRESS` and no `NEEDS_CLIENT_INFO` introduced in the changed
+  source; no backend, Terraform, or infra change; `jest.setup.js` unchanged from
+  HEAD.
+
+### Test-harness note (jest-expo + React 19)
+Under the jest-expo preset with React 19, a `setState` performed in the awaited
+continuation of an async handler (e.g. after `await reviewRequest(...)`) is not
+flushed to the rendered tree, and a single async-mutating render of
+`RequestDetailScreen` leaves the shared renderer in a state that breaks the next
+render in the same test file. The awaited continuation itself still executes, so
+mock side effects (e.g. `logout` called / not called) remain observable. To work
+within this constraint the Decline error-path and empty-reason tests each live in
+their own file (one async-mutating render per file is the only reliable isolation
+boundary), and the 403 case asserts the behavioral contract via side effects
+(decline attempted, no logout) rather than the inline error text. No change was
+made to `jest.setup.js` or the preset.
+
+
+### Decline-reason visibility / privacy contract (final QA)
+Traced the backend handling of the decline `reason` end to end
+(`reviewRequest(..., 'DECLINED', reason)` → `POST /admin/review`):
+
+- **Persisted:** yes — only inside the request record's `audit_log` array, as
+  `audit_note.reason` (`src/backend/handlers/review_handler.py`). The separate
+  structured `log_action` audit entry does **not** carry the reason.
+- **Client-facing API:** `GET /client/requests` (`admin_handler.py`) runs every
+  item through `sanitize_booking_for_role(item, 'client')`
+  (`src/backend/common/auth.py`), which lists `audit_log` among `sensitive_fields`
+  and nulls it for **both client and staff** reads. Owner/admin receive the full
+  record. The reason is therefore **not** exposed to clients (or staff).
+- **Email/notification:** the `DECLINED` branch of `handle_notifications` is a
+  `pass` placeholder for both workflows; `get_rejection_email_body` is imported but
+  **never invoked**. No decline email/notification is sent and the reason is never
+  transmitted to the customer.
+- **Classification:** the decline reason is **operator/internal-only** in current
+  behavior. The mobile label "Why is this request being declined? (internal
+  reason)" is therefore **accurate**; no mobile copy change was required.
+
+**Web/mobile parity note (documented, not actioned):** the web
+`AdminDashboard` labels the same field "Custom Message to Customer (Optional)" with
+a "Decline & Notify" button, implying the reason is delivered to the customer. That
+label **overstates** current backend behavior (no decline notification is sent).
+Reconciling the web copy — or implementing an actual decline notification that
+would make the reason client-visible — is a separate **NEEDS_DESIGN / backlog**
+item, outside OPS-2A. No notification behavior was built in this slice. If decline
+notification is ever implemented, the mobile "internal" framing must be revisited.

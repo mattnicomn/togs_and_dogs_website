@@ -35,7 +35,13 @@ export const RequestCard: React.FC<RequestCardProps> = ({
   defaultExpanded = false,
   isDetailView = false,
 }) => {
-  const { logout } = useAuth();
+  const { logout, role } = useAuth();
+  // Backend RBAC is authoritative: approve and staff assignment are owner/admin-only
+  // (sensitive /admin/review transitions and owner/admin-only /admin/assign). Use an
+  // explicit owner/admin allowlist rather than `role !== 'staff'`: the runtime role
+  // domain also includes 'client', 'unknown', and null (during bootstrap), for which
+  // a negative gate would fail open. Allowlist fails closed for any non-manager role.
+  const canManage = role === 'owner' || role === 'admin';
   const navigation = useNavigation<any>();
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -225,7 +231,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
               </View>
             )}
 
-            {isPending && (
+            {isPending && canManage && (
               <TouchableOpacity
                 style={styles.approveBtn}
                 onPress={() => setShowConfirmModal(true)}
@@ -239,7 +245,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
               </TouchableOpacity>
             )}
 
-            {isApproved && (
+            {isApproved && canManage && (
               <TouchableOpacity
                 style={styles.assignBtn}
                 onPress={handleAssignPress}
@@ -253,7 +259,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
               </TouchableOpacity>
             )}
 
-            {isAssigned && (
+            {isAssigned && canManage && (
               <TouchableOpacity
                 style={styles.changeBtn}
                 onPress={handleAssignPress}
