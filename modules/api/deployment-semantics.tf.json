@@ -100,6 +100,14 @@
           "parent_key": "admin_pets",
           "path_part": "{petId}"
         },
+        "admin_quote": {
+          "parent_key": "admin_request_id",
+          "path_part": "quote"
+        },
+        "admin_quote_send": {
+          "parent_key": "admin_quote",
+          "path_part": "send"
+        },
         "admin_pets": {
           "parent_key": "admin",
           "path_part": "pets"
@@ -175,6 +183,14 @@
         "client_pets": {
           "parent_key": "client",
           "path_part": "pets"
+        },
+        "client_quote_id": {
+          "parent_key": "client_quotes",
+          "path_part": "{requestId}"
+        },
+        "client_quotes": {
+          "parent_key": "client",
+          "path_part": "quotes"
         },
         "client_requests": {
           "parent_key": "client",
@@ -286,6 +302,12 @@
           "authorization": "COGNITO_USER_POOLS",
           "authorizer_key": "cognito"
         },
+        "get_client_quote": {
+          "resource_key": "client_quote_id",
+          "http_method": "GET",
+          "authorization": "COGNITO_USER_POOLS",
+          "authorizer_key": "cognito"
+        },
         "get_client_requests": {
           "resource_key": "client_requests",
           "http_method": "GET",
@@ -341,6 +363,12 @@
         },
         "patch_admin_client_id": {
           "resource_key": "admin_client_id",
+          "http_method": "PATCH",
+          "authorization": "COGNITO_USER_POOLS",
+          "authorizer_key": "cognito"
+        },
+        "patch_admin_quote": {
+          "resource_key": "admin_quote",
           "http_method": "PATCH",
           "authorization": "COGNITO_USER_POOLS",
           "authorizer_key": "cognito"
@@ -419,6 +447,12 @@
         },
         "post_admin_payment_session": {
           "resource_key": "admin_payment_session",
+          "http_method": "POST",
+          "authorization": "COGNITO_USER_POOLS",
+          "authorizer_key": "cognito"
+        },
+        "post_admin_quote_send": {
+          "resource_key": "admin_quote_send",
           "http_method": "POST",
           "authorization": "COGNITO_USER_POOLS",
           "authorizer_key": "cognito"
@@ -614,6 +648,12 @@
           "integration_http_method": "POST",
           "target_reference": "pet_handler_invoke_arn"
         },
+        "get_client_quote_lambda": {
+          "method_key": "get_client_quote",
+          "type": "AWS_PROXY",
+          "integration_http_method": "POST",
+          "target_reference": "admin_handler_invoke_arn"
+        },
         "get_client_requests_lambda": {
           "method_key": "get_client_requests",
           "type": "AWS_PROXY",
@@ -676,6 +716,12 @@
         },
         "patch_admin_client_id_lambda": {
           "method_key": "patch_admin_client_id",
+          "type": "AWS_PROXY",
+          "integration_http_method": "POST",
+          "target_reference": "admin_handler_invoke_arn"
+        },
+        "patch_admin_quote_lambda": {
+          "method_key": "patch_admin_quote",
           "type": "AWS_PROXY",
           "integration_http_method": "POST",
           "target_reference": "admin_handler_invoke_arn"
@@ -748,6 +794,12 @@
         },
         "post_admin_payment_session_lambda": {
           "method_key": "post_admin_payment_session",
+          "type": "AWS_PROXY",
+          "integration_http_method": "POST",
+          "target_reference": "admin_handler_invoke_arn"
+        },
+        "post_admin_quote_send_lambda": {
+          "method_key": "post_admin_quote_send",
           "type": "AWS_PROXY",
           "integration_http_method": "POST",
           "target_reference": "admin_handler_invoke_arn"
@@ -898,6 +950,8 @@
           "admin_payment_session",
           "admin_pet_id",
           "admin_pets",
+          "admin_quote",
+          "admin_quote_send",
           "admin_request_id",
           "admin_requests",
           "admin_review",
@@ -915,6 +969,8 @@
           "client_devices",
           "client_pet_id",
           "client_pets",
+          "client_quote_id",
+          "client_quotes",
           "client_requests",
           "platform",
           "platform_audit",

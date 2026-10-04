@@ -1271,6 +1271,8 @@ locals {
     "admin_clients_onboard" : aws_api_gateway_resource.admin_clients_onboard.id,
     "admin_clients_link" : aws_api_gateway_resource.admin_clients_link.id,
     "client_requests" : aws_api_gateway_resource.client_requests.id,
+    "client_quotes" : aws_api_gateway_resource.client_quotes.id,
+    "client_quote_id" : aws_api_gateway_resource.client_quote_id.id,
     "client_pets" : aws_api_gateway_resource.client_pets.id,
     "client_pet_id" : aws_api_gateway_resource.client_pet_id.id,
     "client_devices" : aws_api_gateway_resource.client_devices.id,
@@ -1282,6 +1284,8 @@ locals {
     "admin_request_id" : aws_api_gateway_resource.admin_request_id.id,
     "admin_payment_session" : aws_api_gateway_resource.admin_payment_session.id,
     "admin_send_payment_email" : aws_api_gateway_resource.admin_send_payment_email.id,
+    "admin_quote" : aws_api_gateway_resource.admin_quote.id,
+    "admin_quote_send" : aws_api_gateway_resource.admin_quote_send.id,
     "platform" : aws_api_gateway_resource.platform.id,
     "platform_tenants" : aws_api_gateway_resource.platform_tenants.id,
     "platform_tenants_id" : aws_api_gateway_resource.platform_tenants_id.id,
@@ -1452,6 +1456,7 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.get_admin_request_lambda,
     aws_api_gateway_integration.get_admin_staff_lambda,
     aws_api_gateway_integration.get_client_pets_lambda,
+    aws_api_gateway_integration.get_client_quote_lambda,
     aws_api_gateway_integration.get_client_requests_lambda,
     aws_api_gateway_integration.get_pet_lambda,
     aws_api_gateway_integration.get_platform_audit_lambda,
@@ -1463,6 +1468,7 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.google_status_lambda,
     aws_api_gateway_integration.intake_lambda,
     aws_api_gateway_integration.patch_admin_client_id_lambda,
+    aws_api_gateway_integration.patch_admin_quote_lambda,
     aws_api_gateway_integration.patch_admin_staff_id_lambda,
     aws_api_gateway_integration.patch_platform_tenants_id_lambda,
     aws_api_gateway_integration.post_admin_client_disable_lambda,
@@ -1475,6 +1481,7 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.post_admin_job_complete_lambda,
     aws_api_gateway_integration.post_admin_job_start_lambda,
     aws_api_gateway_integration.post_admin_payment_session_lambda,
+    aws_api_gateway_integration.post_admin_quote_send_lambda,
     aws_api_gateway_integration.post_admin_requests_lambda,
     aws_api_gateway_integration.post_admin_send_payment_email_lambda,
     aws_api_gateway_integration.post_admin_staff_lambda,
@@ -1643,6 +1650,89 @@ resource "aws_api_gateway_integration" "post_admin_send_payment_email_lambda" {
   rest_api_id = aws_api_gateway_rest_api.main.id
   resource_id = aws_api_gateway_resource.admin_send_payment_email.id
   http_method = aws_api_gateway_method.post_admin_send_payment_email.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+# --- OPS-3A.1C: Admin Quote Draft/Update + Send ---
+# PATCH /admin/requests/{requestId}/quote (owner/admin draft/update)
+resource "aws_api_gateway_resource" "admin_quote" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_request_id.id
+  path_part   = "quote"
+}
+
+resource "aws_api_gateway_method" "patch_admin_quote" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_quote.id
+  http_method   = "PATCH"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "patch_admin_quote_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_quote.id
+  http_method = aws_api_gateway_method.patch_admin_quote.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+# POST /admin/requests/{requestId}/quote/send (owner/admin send; DRAFT -> SENT)
+resource "aws_api_gateway_resource" "admin_quote_send" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_quote.id
+  path_part   = "send"
+}
+
+resource "aws_api_gateway_method" "post_admin_quote_send" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_quote_send.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_admin_quote_send_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_quote_send.id
+  http_method = aws_api_gateway_method.post_admin_quote_send.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+# --- OPS-3A.1C: Client-safe Quote Read ---
+# GET /client/quotes/{requestId}
+resource "aws_api_gateway_resource" "client_quotes" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.client.id
+  path_part   = "quotes"
+}
+
+resource "aws_api_gateway_resource" "client_quote_id" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.client_quotes.id
+  path_part   = "{requestId}"
+}
+
+resource "aws_api_gateway_method" "get_client_quote" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.client_quote_id.id
+  http_method   = "GET"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "get_client_quote_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.client_quote_id.id
+  http_method = aws_api_gateway_method.get_client_quote.http_method
 
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
