@@ -554,7 +554,58 @@ def handler(event, context):
                     "requests": items,
                     "lastKey": None # Pagination omitted for client context locally
                 }, event)
-                
+
+            if http_method == 'GET' and path.startswith('/client/quotes/'):
+                # OPS-3A.1B: Client-safe read of a single quote for a request the
+                # authenticated client owns. Non-disclosing: any ownership/tenant
+                # mismatch returns 404 (never reveals existence of another client's
+                # request). Returns the hard-allowlisted projection unchanged.
+                if role != 'client':
+                    return error(403, "Forbidden", event)
+
+                # Parse requestId from path param or trailing path segment.
+                request_id = path_params.get('requestId') or path_params.get('request_id')
+                if not request_id:
+                    parts = [p for p in path.split('/') if p]
+                    # /client/quotes/{requestId} -> parts: client, quotes, requestId
+                    if len(parts) >= 3 and parts[0] == 'client' and parts[1] == 'quotes':
+                        request_id = parts[2]
+                if not request_id:
+                    return not_found("Quote not found", event)
+
+                # Ownership: the quote belongs to the resolved client. Load by the
+                # resolved client_id (not caller-supplied) so cross-client reads miss.
+                request_item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
+                if not request_item:
+                    # Non-disclosing: do not reveal whether the request exists for
+                    # another client.
+                    return not_found("Quote not found", event)
+
+                # Tenant ownership (defense-in-depth); mismatch is also non-disclosing.
+                from common.auth import validate_tenant_ownership as _vto
+                try:
+                    _vto(request_item, event)
+                except PermissionError:
+                    _c = get_claims(event)
+                    print(f"SECURITY: Cross-tenant client quote read blocked for REQ#{request_id}")
+                    return not_found("Quote not found", event)
+
+                # Legacy dual-read: load the legacy PET only to resolve pricing when
+                # the REQUEST has no canonical quote_status. Canonical always wins.
+                legacy_pet_item = None
+                if 'quote_status' not in request_item or request_item.get('quote_status') is None:
+                    legacy_pet_id = request_item.get('pet_id')
+                    if legacy_pet_id:
+                        try:
+                            legacy_pet_item = get_item(f"PET#{legacy_pet_id}", f"CLIENT#{client_id}")
+                        except Exception as pet_err:
+                            print(f"WARNING: legacy PET dual-read failed for PET#{legacy_pet_id}: {pet_err}")
+                            legacy_pet_item = None
+
+                from common.quote_contract import build_client_quote_projection
+                projection = build_client_quote_projection(request_item, legacy_pet_item)
+                return success(projection, event)
+
         # --- END CLIENT PORTAL BOUNDARIES ---
         
         if http_method == 'GET' and path == '/admin/export-data':
@@ -2707,6 +2758,280 @@ def handler(event, context):
                 "message": "Payment email sent successfully",
                 "recipient_email": client_email,
                 "payment_status": request_item.get('payment_status')
+            }, event)
+
+        elif http_method == 'PATCH' and '/admin/requests/' in path and path.endswith('/quote'):
+            # OPS-3A.1B: Owner/admin draft/update of the canonical commercial quote.
+            # Reuses the requestId-only lookup pattern (see /send-payment-email) so no
+            # client_id is required in the body. quote_status stays authoritative; the
+            # RequestStatus quote-summary is a DERIVED mirror only (never APPROVED).
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin']:
+                return error(403, "Forbidden", event)
+
+            # 1. Parse request_id from path (path param or split fallback).
+            request_id = path_params.get('request_id') or path_params.get('requestId')
+            if not request_id:
+                parts = [p for p in path.split('/') if p]
+                if len(parts) >= 4 and parts[0] == 'admin' and parts[1] == 'requests' and parts[3] == 'quote':
+                    request_id = parts[2]
+            if not request_id:
+                return bad_request("Missing request_id in path", event)
+
+            # 2. Parse the incoming quote fields.
+            try:
+                body = json.loads(event.get('body', '{}')) if event.get('body') else {}
+            except Exception:
+                return bad_request("Invalid JSON body", event)
+            if not isinstance(body, dict):
+                return bad_request("Invalid JSON body", event)
+
+            # 3. Resolve the REQUEST by requestId (requestId-only lookup; client_id
+            #    optional and resolved from the record if not provided).
+            client_id = query_params.get('clientId') or query_params.get('client_id') or body.get('client_id')
+            request_item = None
+            if client_id:
+                request_item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
+            if not request_item:
+                from boto3.dynamodb.conditions import Key
+                try:
+                    _resp = table.query(
+                        KeyConditionExpression=Key('PK').eq(f"REQ#{request_id}") & Key('SK').begins_with("CLIENT#")
+                    )
+                    _items = _resp.get('Items', [])
+                    if _items:
+                        request_item = _items[0]
+                        client_id = request_item.get('client_id')
+                except Exception as db_err:
+                    print(f"DATABASE ERROR: Failed to query request {request_id}: {db_err}")
+                    return error(500, "Database query failed", event)
+
+            if not request_item:
+                return not_found(f"Request {request_id} not found", event)
+            if not client_id:
+                client_id = request_item.get('client_id')
+
+            # 4. Tenant ownership (post-read).
+            from common.auth import validate_tenant_ownership as _vto
+            try:
+                _vto(request_item, event)
+            except PermissionError:
+                _c = get_claims(event)
+                print(f"SECURITY: Cross-tenant quote update attempt by {_c.get('email')} for REQ#{request_id}")
+                return error(403, "Forbidden", event)
+
+            # 5. Build the incoming field-set (only recognized quote fields).
+            from common.quote_contract import (
+                apply_quote_update, QuoteStatus, QuoteContractError,
+                to_cents as _to_cents,
+            )
+            incoming = {}
+            if 'quote_amount_cents' in body:
+                incoming['quote_amount_cents'] = body.get('quote_amount_cents')
+            if 'currency' in body:
+                incoming['currency'] = body.get('currency')
+            if 'deposit_amount_cents' in body:
+                incoming['deposit_amount_cents'] = body.get('deposit_amount_cents')
+            if 'payment_requirement' in body:
+                incoming['payment_requirement'] = body.get('payment_requirement')
+            if 'quote_notes_client' in body:
+                incoming['quote_notes_client'] = body.get('quote_notes_client')
+            if 'quote_notes_internal' in body:
+                incoming['quote_notes_internal'] = body.get('quote_notes_internal')
+            if 'internal_pricing_notes' in body:
+                incoming['internal_pricing_notes'] = body.get('internal_pricing_notes')
+
+            if not incoming:
+                return bad_request("No quote fields provided to update", event)
+
+            now_iso = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+            try:
+                updated_fields = apply_quote_update(request_item, incoming, now_iso)
+            except QuoteContractError as qce:
+                return bad_request(f"Quote update rejected: {str(qce)}", event)
+
+            # 6. Derive the RequestStatus quote-summary mirror (DERIVED ONLY; never
+            #    APPROVED). quote_status remains authoritative.
+            derived_status = None
+            new_quote_status = updated_fields.get('quote_status')
+            if new_quote_status == QuoteStatus.DRAFT:
+                derived_status = 'QUOTE_NEEDED'
+
+            # 7. Persist via a single UpdateExpression (SET only the returned fields +
+            #    optional derived RequestStatus + audit append). Never writes APPROVED.
+            set_parts = []
+            expr_names = {}
+            expr_values = {}
+            idx = 0
+            for field, value in updated_fields.items():
+                placeholder_name = f"#f{idx}"
+                placeholder_value = f":v{idx}"
+                expr_names[placeholder_name] = field
+                expr_values[placeholder_value] = value
+                set_parts.append(f"{placeholder_name} = {placeholder_value}")
+                idx += 1
+            if derived_status is not None:
+                expr_names['#reqstatus'] = 'status'
+                expr_values[':reqstatus'] = derived_status
+                set_parts.append("#reqstatus = :reqstatus")
+
+            # Audit append (list_append with if_not_exists seed).
+            audit_entry = {
+                'action': 'QUOTE_UPDATED',
+                'at': now_iso,
+                'quote_status': new_quote_status or request_item.get('quote_status'),
+                'quote_revision': updated_fields.get('quote_revision', request_item.get('quote_revision')),
+                'actor': (get_claims(event).get('email') or get_claims(event).get('username') or 'admin-api'),
+            }
+            expr_values[':audit_entry'] = [audit_entry]
+            expr_values[':empty_list'] = []
+            update_expr = (
+                "SET " + ", ".join(set_parts)
+                + ", audit_log = list_append(if_not_exists(audit_log, :empty_list), :audit_entry)"
+            )
+
+            try:
+                table.update_item(
+                    Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                    UpdateExpression=update_expr,
+                    ExpressionAttributeNames=expr_names,
+                    ExpressionAttributeValues=expr_values,
+                )
+            except Exception as db_err:
+                print(f"DATABASE ERROR: Failed to update quote for request {request_id}: {db_err}")
+                return error(500, "Database update failed", event)
+
+            # 8. Return the merged persisted quote view.
+            merged = dict(request_item)
+            merged.update(updated_fields)
+            if derived_status is not None:
+                merged['status'] = derived_status
+            return success({
+                "message": "Quote updated",
+                "request_id": request_id,
+                "quote_status": merged.get('quote_status'),
+                "quote_revision": merged.get('quote_revision'),
+                "quote_amount_cents": _to_cents(merged.get('quote_amount_cents')),
+                "currency": merged.get('currency') or 'USD',
+                "status": merged.get('status'),
+            }, event)
+
+        elif http_method == 'POST' and '/admin/requests/' in path and path.endswith('/quote/send'):
+            # OPS-3A.1B: Owner/admin transition DRAFT -> SENT with an atomic
+            # optimistic-concurrency guard on (quote_status, quote_revision). A
+            # concurrent change maps to HTTP 409. Resending an already-SENT quote at
+            # the same revision is idempotent. Never auto-approves the booking.
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin']:
+                return error(403, "Forbidden", event)
+
+            request_id = path_params.get('request_id') or path_params.get('requestId')
+            if not request_id:
+                parts = [p for p in path.split('/') if p]
+                # /admin/requests/{id}/quote/send -> parts: admin, requests, id, quote, send
+                if len(parts) >= 5 and parts[0] == 'admin' and parts[1] == 'requests' and parts[3] == 'quote' and parts[4] == 'send':
+                    request_id = parts[2]
+            if not request_id:
+                return bad_request("Missing request_id in path", event)
+
+            try:
+                body = json.loads(event.get('body', '{}')) if event.get('body') else {}
+            except Exception:
+                return bad_request("Invalid JSON body", event)
+            if not isinstance(body, dict):
+                body = {}
+
+            client_id = query_params.get('clientId') or query_params.get('client_id') or body.get('client_id')
+            request_item = None
+            if client_id:
+                request_item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
+            if not request_item:
+                from boto3.dynamodb.conditions import Key
+                try:
+                    _resp = table.query(
+                        KeyConditionExpression=Key('PK').eq(f"REQ#{request_id}") & Key('SK').begins_with("CLIENT#")
+                    )
+                    _items = _resp.get('Items', [])
+                    if _items:
+                        request_item = _items[0]
+                        client_id = request_item.get('client_id')
+                except Exception as db_err:
+                    print(f"DATABASE ERROR: Failed to query request {request_id}: {db_err}")
+                    return error(500, "Database query failed", event)
+
+            if not request_item:
+                return not_found(f"Request {request_id} not found", event)
+            if not client_id:
+                client_id = request_item.get('client_id')
+
+            from common.auth import validate_tenant_ownership as _vto
+            try:
+                _vto(request_item, event)
+            except PermissionError:
+                _c = get_claims(event)
+                print(f"SECURITY: Cross-tenant quote send attempt by {_c.get('email')} for REQ#{request_id}")
+                return error(403, "Forbidden", event)
+
+            from common.quote_contract import (
+                apply_quote_send, QuoteStatus, QuoteContractError, to_cents as _to_cents,
+            )
+            now_iso = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+            try:
+                send_fields = apply_quote_send(request_item, now_iso)
+            except QuoteContractError as qce:
+                return bad_request(f"Quote send rejected: {str(qce)}", event)
+
+            # Expected current state for the atomic guard. apply_quote_send already
+            # requires the current status to be DRAFT or SENT (idempotent resend).
+            expected_status = request_item.get('quote_status') or QuoteStatus.DRAFT
+            expected_revision = int(request_item.get('quote_revision') or 1)
+
+            # Persist with ConditionExpression protecting quote_status AND
+            # quote_revision. Mirror RequestStatus to QUOTE_SENT (DERIVED only).
+            audit_entry = {
+                'action': 'QUOTE_SENT',
+                'at': now_iso,
+                'quote_revision': send_fields.get('quote_revision'),
+                'actor': (get_claims(event).get('email') or get_claims(event).get('username') or 'admin-api'),
+            }
+            from boto3.dynamodb.conditions import Attr
+            try:
+                table.update_item(
+                    Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                    UpdateExpression=(
+                        "SET quote_status = :qs, quote_sent_at = :qsa, "
+                        "quote_revision = :qr, updated_at = :now, "
+                        "#reqstatus = :reqstatus, "
+                        "audit_log = list_append(if_not_exists(audit_log, :empty_list), :audit_entry)"
+                    ),
+                    ConditionExpression=(
+                        Attr('quote_revision').eq(expected_revision)
+                        & (Attr('quote_status').eq(expected_status) | Attr('quote_status').not_exists())
+                    ),
+                    ExpressionAttributeNames={'#reqstatus': 'status'},
+                    ExpressionAttributeValues={
+                        ':qs': send_fields['quote_status'],
+                        ':qsa': send_fields['quote_sent_at'],
+                        ':qr': send_fields['quote_revision'],
+                        ':now': send_fields['updated_at'],
+                        ':reqstatus': 'QUOTE_SENT',
+                        ':audit_entry': [audit_entry],
+                        ':empty_list': [],
+                    },
+                )
+            except table.meta.client.exceptions.ConditionalCheckFailedException:
+                return error(409, "Conflict: the quote changed since it was loaded; reload and retry", event)
+            except Exception as db_err:
+                print(f"DATABASE ERROR: Failed to send quote for request {request_id}: {db_err}")
+                return error(500, "Database update failed", event)
+
+            return success({
+                "message": "Quote sent",
+                "request_id": request_id,
+                "quote_status": send_fields['quote_status'],
+                "quote_revision": send_fields['quote_revision'],
+                "quote_amount_cents": _to_cents(request_item.get('quote_amount_cents')),
+                "status": 'QUOTE_SENT',
             }, event)
 
         elif http_method == 'POST' and '/admin/job/start' in path:
