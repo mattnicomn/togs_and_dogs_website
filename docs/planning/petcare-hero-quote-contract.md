@@ -597,3 +597,161 @@ Relative to the first draft, the contract adds/renames: `quote_amount_cents` and
 FULL, replacing the implicit `deposit_required` boolean); and `payment_waived_by`/
 `payment_waived_at` (owner/admin override for the gate). All remain **proposed** and
 gated behind product-contract approval.
+
+---
+
+# OPS-3A.2 — Client Accept / Decline — APPROVED BY MATTHEW (2026-10-05)
+
+Status: **CONTRACT FINALIZED / APPROVED — documentation only; runtime not yet
+implemented.** These decisions are authoritative and remove OPS-3A.2 from "open"
+status. They supersede any softer or exploratory wording in sections 3, 10, 12, and
+R5 above where there is a conflict (e.g. ownership-failure disposition and
+notification scope). Implementation proceeds under normal release discipline
+(reviewed RC, tests, plan/apply separation, per-release Matthew approval); no code,
+Terraform, AWS, or deployment change accompanies this approval.
+
+Checkpoint at approval: `main == origin/main == d591d60f8cdf51631f66d2e6624db8145eacedef`.
+
+## A2-1. Quote revision semantics (NO ambiguity)
+
+Accept and Decline are **lifecycle decisions about the current quote revision**;
+they are **not** a new commercial offer and therefore **do NOT create a new quote
+revision**:
+
+- **Accept does NOT increment `quote_revision`.**
+- **Decline does NOT increment `quote_revision`.**
+- The accept/decline action is **bound to the current authoritative revision**.
+- Accept records `quote_accepted_revision = current quote_revision`.
+- Decline records equivalent revision-binding metadata (`quote_declined_revision =
+  current quote_revision`) plus `quote_declined_at`.
+- The client action is recorded in `quote_history`/`audit_log` as a lifecycle event
+  (not a SUPERSEDED revision snapshot).
+- A **later staff change to client-visible commercial terms** (amount, currency,
+  `payment_requirement`, `deposit_amount_cents`, `quote_notes_client`) **does** create
+  a NEW quote revision — that is what "commercial client-visible changes create
+  revisions" means: a change to the OFFER itself.
+
+Clarification of the pre-existing rule: "commercial client-visible changes create
+revisions" refers to changes to the OFFER (amount / currency / payment requirement /
+other client-visible commercial terms). A client's Accept/Decline **response** is not
+a new offer and therefore does not create a revision. `SUPERSEDED` remains
+**history-only** and is never the current `quote_status`.
+
+## A2-2. Accept endpoint
+
+- Route: `POST /client/quotes/{requestId}/accept`.
+- Required body: `expected_revision` (integer). **No caller-supplied `client_id`.**
+- Client identity/ownership resolved **server-side** from the authenticated Cognito
+  identity (`resolve_client_identity`); tenant authority server-side
+  (`validate_tenant_ownership`).
+- Eligible current status: **`SENT`**. Successful transition: **`SENT → ACCEPTED`**.
+- Accept MUST NOT: set the booking/request to `APPROVED`; modify `payment_status`;
+  create payment; or alter `payment_requirement`.
+- Lifecycle metadata set: `quote_accepted_at`, an accepted-by identity reference
+  appropriate to the existing model (client email/sub actor in audit), and
+  `quote_accepted_revision = current quote_revision`.
+- RequestStatus compatibility/workflow fields are updated only if the already-approved
+  contract explicitly requires a derived mirror; `quote_status` remains authoritative.
+  Per R1, client acceptance does not change the request's workflow status (the request
+  remains `QUOTE_SENT` until the tenant moves it to `APPROVED`).
+
+## A2-3. Decline endpoint
+
+- Route: `POST /client/quotes/{requestId}/decline`.
+- Required body: `expected_revision` (integer). Optional body: `decline_reason`.
+- `decline_reason` MVP behavior: optional; leading/trailing whitespace trimmed;
+  whitespace-only treated as absent; **maximum 500 characters** (over-length →
+  validation error); stored as **client-visible / client-originated** audit metadata
+  (`quote_declined_reason_client`); **no separate internal-only semantics**.
+- Eligible current status: **`SENT`**. Successful transition: **`SENT → DECLINED`**.
+- Declining a quote MUST NOT automatically set the overall request/booking lifecycle
+  to `DECLINED`. A later staff commercial revision may supersede the declined quote
+  and be sent as a new revision.
+
+## A2-4. Concurrency (atomic optimistic lock)
+
+- Both mutations require integer `expected_revision`. Missing/invalid → validation
+  error (HTTP 400) using existing API conventions (not 409).
+- The mutation MUST be atomic (single conditional `update_item`); no read-then-write
+  race is permitted.
+- The condition MUST protect BOTH `quote_revision == expected_revision` AND
+  `quote_status == SENT`, using the established DynamoDB conditional-update pattern
+  already used by `POST /admin/requests/{id}/quote/send`
+  (`ConditionExpression Attr('quote_revision').eq(expected_revision) &
+  Attr('quote_status').eq('SENT')`).
+- Conditional failure (stale revision or changed lifecycle state) maps to **HTTP 409**
+  with safe authoritative current-state metadata (`quote_status`, `quote_revision`)
+  per existing response conventions.
+- Ownership/tenant mismatch is **non-disclosing** (returns 404, matching the deployed
+  `GET /client/quotes/{requestId}` handler) rather than 403; this supersedes the R5
+  "→ 403" wording.
+
+## A2-5. Retry / idempotency (STRICT, MVP)
+
+Strict deterministic conflict semantics; **first valid action wins**:
+
+- first Accept succeeds; repeated Accept at same `expected_revision` → **409**;
+- first Decline succeeds; repeated Decline → **409**;
+- Accept after Decline → **409**; Decline after Accept → **409**;
+- competing simultaneous Accept/Decline → one succeeds, the loser → **409**.
+
+Do NOT introduce softened 200 retry behavior in MVP. Do NOT introduce a separate
+idempotency-key system in OPS-3A.2 unless later approved.
+
+## A2-6. Booking readiness
+
+- Accepting a quote does NOT imply booking approval.
+- Preserve the existing predicate (`evaluate_booking_approval_predicate`):
+  `NOT_REQUIRED` satisfies the quote condition; accepted + `NONE` → payment satisfied;
+  accepted + `DEPOSIT` → `PARTIALLY_PAID` or `PAID`; accepted + `FULL` → `PAID`; an
+  authorized waiver satisfies payment; `PARTIALLY_PAID` never satisfies `FULL`.
+- The Accept success response SHOULD include a **read-only computed `booking_ready`**
+  derived from that predicate, and MAY expose the safe client-facing fields needed to
+  explain readiness (e.g. `payment_requirement`, `payment_status`) if already permitted
+  by the quote/client projection.
+- `booking_ready` is computed information only. Do NOT persist `APPROVED` merely
+  because `booking_ready` is true; the booking transition remains a separately
+  authorized workflow action.
+
+## A2-7. Payment interaction
+
+Accept/Decline do not create payment, do not change `payment_status`, do not change
+`payment_requirement`, do not invoke Stripe, and require no Stripe configuration
+change. OPS-3B remains the payment-collection workstream; Stripe remains sandbox-only.
+
+## A2-8. Notifications
+
+Notifications (`QUOTE_ACCEPTED` / `QUOTE_DECLINED`) are **DEFERRED** from the core
+Accept/Decline implementation. Core backend correctness must not be blocked on
+Postmark template creation. Notifications become a later, independently reviewed slice
+after the core mutation/API behavior is complete. (This supersedes the section-12
+listing that bundled notifications into OPS-3A.2.)
+
+## A2-9. Client UI direction
+
+Future client UI consumption is **MOBILE-FIRST** (no UI this turn). The future mobile
+client should support: quote details, quote revision, payment requirement, Accept,
+Decline, optional decline reason, 409 stale-state refresh/reconciliation, and
+read-only booking-readiness / next-step messaging. Web may consume the same APIs later.
+UI is OPS-3A.3.
+
+## A2-10. API Gateway direction
+
+Reuse the existing `/client/quotes/{requestId}` resource (`client_quote_id`) as the
+**parent**; add child resources `/client/quotes/{requestId}/accept` and
+`/client/quotes/{requestId}/decline`. Both: `POST`, Cognito-authorized, `AWS_PROXY` to
+the existing admin Lambda (unless an implementation audit proves a material reason
+otherwise), OPTIONS/CORS via the established `cors_resources` `for_each` module
+pattern. No new Lambda required. No Terraform implementation this turn.
+
+## OPS-3A.2 implementation gate
+
+The OPS-3A.2 product-contract decisions above are **APPROVED (2026-10-05)**.
+Implementation may proceed under normal gates in the recommended slice order:
+**OPS-3A.2A** (backend contract `apply_quote_accept`/`apply_quote_decline` + client
+handlers + tests, no deploy) → **OPS-3A.2B** (API Gateway routes; Gate-A plan then
+gated apply) → **OPS-3A.2C** (mobile-first client UI, then web) → **OPS-3A.2D**
+(deferred `QUOTE_ACCEPTED`/`QUOTE_DECLINED` notifications). No implementation,
+Terraform, AWS, or deployment occurs under this approval; each slice is a separate
+reviewed change with its own tests and (for backend/infra) a separately approved
+deployment. OPS-3B (payment/Stripe) remains separate and Stripe-gated.
