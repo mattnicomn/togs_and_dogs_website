@@ -204,18 +204,6 @@
           "parent_key": "platform",
           "path_part": "audit"
         },
-        "platform_onboarding": {
-          "parent_key": "platform",
-          "path_part": "onboarding"
-        },
-        "platform_onboarding_preview": {
-          "parent_key": "platform_onboarding",
-          "path_part": "preview"
-        },
-        "platform_onboarding_validate": {
-          "parent_key": "platform_onboarding",
-          "path_part": "validate"
-        },
         "platform_tenants": {
           "parent_key": "platform",
           "path_part": "tenants"
@@ -531,18 +519,6 @@
         },
         "post_pet": {
           "resource_key": "admin_pets",
-          "http_method": "POST",
-          "authorization": "COGNITO_USER_POOLS",
-          "authorizer_key": "cognito"
-        },
-        "post_platform_onboarding_preview": {
-          "resource_key": "platform_onboarding_preview",
-          "http_method": "POST",
-          "authorization": "COGNITO_USER_POOLS",
-          "authorizer_key": "cognito"
-        },
-        "post_platform_onboarding_validate": {
-          "resource_key": "platform_onboarding_validate",
           "http_method": "POST",
           "authorization": "COGNITO_USER_POOLS",
           "authorizer_key": "cognito"
@@ -876,18 +852,6 @@
           "integration_http_method": "POST",
           "target_reference": "pet_handler_invoke_arn"
         },
-        "post_platform_onboarding_preview_lambda": {
-          "method_key": "post_platform_onboarding_preview",
-          "type": "AWS_PROXY",
-          "integration_http_method": "POST",
-          "target_reference": "platform_preview_handler_invoke_arn"
-        },
-        "post_platform_onboarding_validate_lambda": {
-          "method_key": "post_platform_onboarding_validate",
-          "type": "AWS_PROXY",
-          "integration_http_method": "POST",
-          "target_reference": "platform_preview_handler_invoke_arn"
-        },
         "postmark_webhook_lambda": {
           "method_key": "post_webhooks_postmark",
           "type": "AWS_PROXY",
@@ -974,9 +938,6 @@
           "client_requests",
           "platform",
           "platform_audit",
-          "platform_onboarding",
-          "platform_onboarding_preview",
-          "platform_onboarding_validate",
           "platform_tenants",
           "platform_tenants_id",
           "requests"

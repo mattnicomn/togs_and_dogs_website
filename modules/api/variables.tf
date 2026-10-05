@@ -77,7 +77,5 @@ variable "platform_handler_invoke_arn" {
   type        = string
 }
 
-variable "platform_preview_handler_invoke_arn" {
-  description = "Invocation ARN for the read-only Platform onboarding preview handler"
-  type        = string
-}
+# platform_preview_handler_invoke_arn removed by OPS-3A.1D hygiene (platform
+# onboarding routes are deferred; see infra/deferred/platform-preview/).

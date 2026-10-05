@@ -3,10 +3,16 @@
 # ------------------------------------------------------------------------------
 
 module "auth" {
-  source                          = "../../modules/auth"
-  name_prefix                     = local.name_prefix
-  custom_email_sender_lambda_arn  = aws_lambda_function.cognito_email_sender.arn
-  custom_email_sender_kms_key_arn = aws_kms_key.cognito_email_sender.arn
+  source      = "../../modules/auth"
+  name_prefix = local.name_prefix
+  # OPS-3A.1D hygiene: the Cognito Custom Email Sender (Postmark) feature is
+  # implemented but intentionally NOT deployed. Its Terraform lives under
+  # infra/deferred/cognito-email-sender/ and is not part of the active prod root.
+  # These inputs stay null so modules/auth keeps the currently-deployed generic
+  # Cognito email behavior (the module's dynamic lambda_config emits nothing when
+  # both are null). Activation is a separate, Matthew-approved release.
+  custom_email_sender_lambda_arn  = null
+  custom_email_sender_kms_key_arn = null
   tags                            = local.common_tags
 }
 
@@ -535,8 +541,12 @@ module "api" {
   stripe_webhook_handler_invoke_arn   = aws_lambda_function.stripe_webhook.invoke_arn
   device_handler_invoke_arn           = aws_lambda_function.device.invoke_arn
   platform_handler_invoke_arn         = aws_lambda_function.platform.invoke_arn
-  platform_preview_handler_invoke_arn = aws_lambda_function.platform_preview.invoke_arn
-  tags                                = local.common_tags
+  # OPS-3A.1D hygiene: platform-preview / tenant-onboarding is implemented but
+  # intentionally NOT deployed. Its Terraform lives under
+  # infra/deferred/platform-preview/ and the onboarding routes were removed from
+  # modules/api. Re-add platform_preview_handler_invoke_arn on a separate approved
+  # activation release.
+  tags = local.common_tags
 }
 
 # ------------------------------------------------------------------------------

@@ -67,59 +67,14 @@ resource "aws_api_gateway_resource" "platform_audit" {
   path_part   = "audit"
 }
 
-# Preview-only tenant onboarding routes. Both POST methods require the existing
-# Cognito authorizer and integrate only with the dedicated read-only Lambda.
-resource "aws_api_gateway_resource" "platform_onboarding" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.platform.id
-  path_part   = "onboarding"
-}
-
-resource "aws_api_gateway_resource" "platform_onboarding_validate" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.platform_onboarding.id
-  path_part   = "validate"
-}
-
-resource "aws_api_gateway_resource" "platform_onboarding_preview" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.platform_onboarding.id
-  path_part   = "preview"
-}
-
-resource "aws_api_gateway_method" "post_platform_onboarding_validate" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.platform_onboarding_validate.id
-  http_method   = "POST"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
-}
-
-resource "aws_api_gateway_integration" "post_platform_onboarding_validate_lambda" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.platform_onboarding_validate.id
-  http_method             = aws_api_gateway_method.post_platform_onboarding_validate.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = var.platform_preview_handler_invoke_arn
-}
-
-resource "aws_api_gateway_method" "post_platform_onboarding_preview" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.platform_onboarding_preview.id
-  http_method   = "POST"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
-}
-
-resource "aws_api_gateway_integration" "post_platform_onboarding_preview_lambda" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.platform_onboarding_preview.id
-  http_method             = aws_api_gateway_method.post_platform_onboarding_preview.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = var.platform_preview_handler_invoke_arn
-}
+# OPS-3A.1D hygiene: the preview-only tenant-onboarding routes
+# (/platform/onboarding, /validate, /preview) were removed from the active API
+# module because the platform-preview feature is implemented but intentionally
+# NOT deployed. The dedicated Lambda/IAM live under
+# infra/deferred/platform-preview/. Reactivation restores these resources,
+# methods, integrations, the CORS keys, the deployment depends_on entries, the
+# platform_preview_handler_invoke_arn variable/local, and the matching
+# deployment-semantics.tf.json entries together, on a separate approved release.
 
 # GET /platform/tenants
 resource "aws_api_gateway_method" "get_platform_tenants" {
@@ -1289,10 +1244,7 @@ locals {
     "platform" : aws_api_gateway_resource.platform.id,
     "platform_tenants" : aws_api_gateway_resource.platform_tenants.id,
     "platform_tenants_id" : aws_api_gateway_resource.platform_tenants_id.id,
-    "platform_audit" : aws_api_gateway_resource.platform_audit.id,
-    "platform_onboarding" : aws_api_gateway_resource.platform_onboarding.id,
-    "platform_onboarding_validate" : aws_api_gateway_resource.platform_onboarding_validate.id,
-    "platform_onboarding_preview" : aws_api_gateway_resource.platform_onboarding_preview.id
+    "platform_audit" : aws_api_gateway_resource.platform_audit.id
   }
 
 
@@ -1404,7 +1356,6 @@ locals {
     intake_handler_invoke_arn           = var.intake_handler_invoke_arn
     pet_handler_invoke_arn              = var.pet_handler_invoke_arn
     platform_handler_invoke_arn         = var.platform_handler_invoke_arn
-    platform_preview_handler_invoke_arn = var.platform_preview_handler_invoke_arn
     postmark_webhook_handler_invoke_arn = var.postmark_webhook_handler_invoke_arn
     review_handler_invoke_arn           = var.review_handler_invoke_arn
     stripe_webhook_handler_invoke_arn   = var.stripe_webhook_handler_invoke_arn
@@ -1494,8 +1445,6 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.post_client_devices_lambda,
     aws_api_gateway_integration.post_client_requests_lambda,
     aws_api_gateway_integration.post_pet_lambda,
-    aws_api_gateway_integration.post_platform_onboarding_preview_lambda,
-    aws_api_gateway_integration.post_platform_onboarding_validate_lambda,
     aws_api_gateway_integration.postmark_webhook_lambda,
     aws_api_gateway_integration.put_admin_cancel_lambda,
     aws_api_gateway_integration.put_client_pet_lambda,
