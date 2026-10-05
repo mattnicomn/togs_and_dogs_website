@@ -5,7 +5,7 @@ apply of the exact reviewed saved Terraform plan executed successfully against t
 production account (`358604342897`). All post-apply read-only verification passed.
 No RC merge/push, no OPS-3A.2/3A.3, and no deferred-feature deployment occurred.
 
-Deployment date: 2026-09-30.
+Deployment date: 2026-10-05.
 
 References:
 - Gate A plan review (tfvars-corrected): the reviewed saved plan
