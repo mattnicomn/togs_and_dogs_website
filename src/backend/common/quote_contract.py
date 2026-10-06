@@ -538,6 +538,113 @@ def apply_quote_send(current_req, now_iso):
 
 
 # ---------------------------------------------------------------------------
+# Client Accept / Decline (OPS-3A.2 — approved 2026-10-05)
+# ---------------------------------------------------------------------------
+
+#: Maximum length of a client-supplied decline reason (approved A2-3).
+MAX_DECLINE_REASON_LEN = 500
+
+
+def normalize_decline_reason(raw):
+    """Normalize an optional client-supplied decline reason (approved A2-3).
+
+    Rules: trim leading/trailing whitespace; a value that is None or becomes empty
+    after trimming is treated as ABSENT and returns ``None``; a value longer than
+    ``MAX_DECLINE_REASON_LEN`` characters (after trimming) raises
+    ``QuoteContractError`` (caller maps to HTTP 400). Non-string input is rejected.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        raise QuoteContractError("decline_reason must be a string")
+    trimmed = raw.strip()
+    if trimmed == "":
+        return None
+    if len(trimmed) > MAX_DECLINE_REASON_LEN:
+        raise QuoteContractError(
+            f"decline_reason exceeds {MAX_DECLINE_REASON_LEN} characters"
+        )
+    return trimmed
+
+
+def apply_quote_accept(current_req, expected_revision, now_iso):
+    """Compute the field-set for a client ACCEPT of the current SENT quote.
+
+    Pure function (no DynamoDB I/O). Returns a NEW dict of fields the caller persists
+    with an atomic conditional write guarding (quote_revision, quote_status==SENT).
+    Never mutates ``current_req``; never approves the booking; never touches payment.
+
+    Approved semantics (A2-1 / A2-2):
+      - Eligible ONLY from current ``quote_status == SENT``.
+      - Transition SENT -> ACCEPTED.
+      - ``quote_revision`` is NOT incremented (acceptance is a lifecycle event on the
+        current revision, not a new commercial offer).
+      - Binds acceptance to the current revision: ``quote_accepted_revision ==
+        quote_revision``.
+      - ``expected_revision`` must equal the current ``quote_revision`` (caller also
+        enforces this atomically; this is the pure-layer guard).
+
+    Raises ``QuoteContractError`` on an ineligible status or a revision mismatch
+    (caller maps a status error to 409 and the atomic conditional write is the
+    authoritative race guard).
+    """
+    cur = dict(current_req or {})
+    cur_status = cur.get("quote_status")
+    if cur_status != QuoteStatus.SENT:
+        raise QuoteContractError(
+            f"cannot accept a quote in status {cur_status!r}; must be SENT"
+        )
+    cur_revision = int(cur.get("quote_revision") or 1)
+    if int(expected_revision) != cur_revision:
+        raise QuoteContractError(
+            "expected_revision does not match the current quote_revision"
+        )
+    return {
+        "quote_status": QuoteStatus.ACCEPTED,
+        "quote_accepted_at": now_iso,
+        "quote_accepted_revision": cur_revision,
+        "quote_revision": cur_revision,  # unchanged; written for explicitness
+        "updated_at": now_iso,
+    }
+
+
+def apply_quote_decline(current_req, expected_revision, now_iso, decline_reason=None):
+    """Compute the field-set for a client DECLINE of the current SENT quote.
+
+    Pure function (no DynamoDB I/O). Mirrors ``apply_quote_accept``: eligible only
+    from SENT, transitions SENT -> DECLINED, does NOT increment ``quote_revision``,
+    binds the decline to the current revision (``quote_declined_revision``), records
+    ``quote_declined_at``, and never touches payment or the request/booking lifecycle.
+
+    ``decline_reason`` is normalized via ``normalize_decline_reason`` (trim; blank ->
+    absent; >MAX_DECLINE_REASON_LEN -> QuoteContractError). When present it is stored
+    as the client-visible ``quote_declined_reason_client``.
+    """
+    cur = dict(current_req or {})
+    cur_status = cur.get("quote_status")
+    if cur_status != QuoteStatus.SENT:
+        raise QuoteContractError(
+            f"cannot decline a quote in status {cur_status!r}; must be SENT"
+        )
+    cur_revision = int(cur.get("quote_revision") or 1)
+    if int(expected_revision) != cur_revision:
+        raise QuoteContractError(
+            "expected_revision does not match the current quote_revision"
+        )
+    reason = normalize_decline_reason(decline_reason)
+    fields = {
+        "quote_status": QuoteStatus.DECLINED,
+        "quote_declined_at": now_iso,
+        "quote_declined_revision": cur_revision,
+        "quote_revision": cur_revision,  # unchanged
+        "updated_at": now_iso,
+    }
+    if reason is not None:
+        fields["quote_declined_reason_client"] = reason
+    return fields
+
+
+# ---------------------------------------------------------------------------
 # Booking-confirmation predicate (approved R4) — read gate foundation
 # ---------------------------------------------------------------------------
 

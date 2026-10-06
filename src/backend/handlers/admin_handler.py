@@ -606,6 +606,179 @@ def handler(event, context):
                 projection = build_client_quote_projection(request_item, legacy_pet_item)
                 return success(projection, event)
 
+            if http_method == 'POST' and path.startswith('/client/quotes/') and (
+                path.endswith('/accept') or path.endswith('/decline')
+            ):
+                # OPS-3A.2A: Client Accept/Decline of the current SENT quote for a
+                # request the authenticated client owns. Non-disclosing on ownership/
+                # tenant mismatch (404). Atomic optimistic-concurrency guard on
+                # (quote_revision == expected_revision) AND (quote_status == SENT);
+                # a stale/competing change maps to HTTP 409. Never auto-approves the
+                # booking, never mutates payment, never trusts a caller client_id.
+                if role != 'client':
+                    return error(403, "Forbidden", event)
+
+                is_accept = path.endswith('/accept')
+                action = 'accept' if is_accept else 'decline'
+
+                # Parse requestId from the trailing path (…/client/quotes/{id}/{action}).
+                request_id = path_params.get('requestId') or path_params.get('request_id')
+                if not request_id:
+                    parts = [p for p in path.split('/') if p]
+                    # /client/quotes/{requestId}/{accept|decline}
+                    if len(parts) >= 4 and parts[0] == 'client' and parts[1] == 'quotes' and parts[3] == action:
+                        request_id = parts[2]
+                if not request_id:
+                    return not_found("Quote not found", event)
+
+                # Parse + validate the body (hard allowlist: expected_revision,
+                # plus decline_reason for decline).
+                try:
+                    body = json.loads(event.get('body', '{}')) if event.get('body') else {}
+                except Exception:
+                    return bad_request("Invalid JSON body", event)
+                if not isinstance(body, dict):
+                    return bad_request("Invalid JSON body", event)
+
+                raw_rev = body.get('expected_revision')
+                # Require an integer (reject bool, float, numeric string, None).
+                if isinstance(raw_rev, bool) or not isinstance(raw_rev, int):
+                    return bad_request("expected_revision is required and must be an integer", event)
+                expected_revision = raw_rev
+
+                # Ownership: load by the SERVER-RESOLVED client_id (never caller input)
+                # so a cross-client requestId simply misses -> non-disclosing 404.
+                request_item = get_item(f"REQ#{request_id}", f"CLIENT#{client_id}")
+                if not request_item:
+                    return not_found("Quote not found", event)
+
+                from common.auth import validate_tenant_ownership as _vto
+                try:
+                    _vto(request_item, event)
+                except PermissionError:
+                    print(f"SECURITY: Cross-tenant client quote {action} blocked for REQ#{request_id}")
+                    return not_found("Quote not found", event)
+
+                from common.quote_contract import (
+                    apply_quote_accept, apply_quote_decline, QuoteStatus,
+                    QuoteContractError, evaluate_booking_approval_predicate,
+                    to_cents as _to_cents,
+                )
+                now_iso = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+                try:
+                    if is_accept:
+                        new_fields = apply_quote_accept(request_item, expected_revision, now_iso)
+                    else:
+                        new_fields = apply_quote_decline(
+                            request_item, expected_revision, now_iso,
+                            decline_reason=body.get('decline_reason'),
+                        )
+                except QuoteContractError as qce:
+                    # A decline_reason length/type problem is a 400; an ineligible
+                    # status or a revision mismatch is a lifecycle conflict (409).
+                    msg = str(qce)
+                    if 'decline_reason' in msg:
+                        return bad_request(f"Quote {action} rejected: {msg}", event)
+                    return error(409, f"Conflict: {msg}", event)
+
+                # Atomic optimistic lock: guard BOTH revision and SENT state. The
+                # pure layer already validated, but the write is the authoritative
+                # race guard against concurrent admin revise / duplicate client action.
+                expected_status = QuoteStatus.SENT
+                audit_entry = {
+                    'action': 'QUOTE_ACCEPTED' if is_accept else 'QUOTE_DECLINED',
+                    'at': now_iso,
+                    'quote_revision': expected_revision,
+                    'actor': (get_claims(event).get('email')
+                              or get_claims(event).get('sub') or 'client-api'),
+                }
+
+                set_clauses = [
+                    "quote_status = :qs",
+                    "quote_revision = :qr",
+                    "updated_at = :now",
+                ]
+                expr_vals = {
+                    ':qs': new_fields['quote_status'],
+                    ':qr': new_fields['quote_revision'],
+                    ':now': new_fields['updated_at'],
+                    ':exprev': expected_revision,
+                    ':sent': expected_status,
+                    ':audit_entry': [audit_entry],
+                    ':empty_list': [],
+                }
+                if is_accept:
+                    set_clauses.append("quote_accepted_at = :qaa")
+                    set_clauses.append("quote_accepted_revision = :qarv")
+                    expr_vals[':qaa'] = new_fields['quote_accepted_at']
+                    expr_vals[':qarv'] = new_fields['quote_accepted_revision']
+                else:
+                    set_clauses.append("quote_declined_at = :qda")
+                    set_clauses.append("quote_declined_revision = :qdrv")
+                    expr_vals[':qda'] = new_fields['quote_declined_at']
+                    expr_vals[':qdrv'] = new_fields['quote_declined_revision']
+                    if 'quote_declined_reason_client' in new_fields:
+                        set_clauses.append("quote_declined_reason_client = :qdr")
+                        expr_vals[':qdr'] = new_fields['quote_declined_reason_client']
+
+                update_expr = (
+                    "SET " + ", ".join(set_clauses)
+                    + ", audit_log = list_append(if_not_exists(audit_log, :empty_list), :audit_entry)"
+                )
+
+                from boto3.dynamodb.conditions import Attr
+                try:
+                    table.update_item(
+                        Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                        UpdateExpression=update_expr,
+                        ConditionExpression=(
+                            Attr('quote_revision').eq(expected_revision)
+                            & Attr('quote_status').eq(expected_status)
+                        ),
+                        ExpressionAttributeValues=expr_vals,
+                    )
+                except table.meta.client.exceptions.ConditionalCheckFailedException:
+                    return error(
+                        409,
+                        "Conflict: the quote changed since it was loaded; reload and retry",
+                        event,
+                    )
+                except Exception as db_err:
+                    print(f"DATABASE ERROR: Failed to {action} quote for request {request_id}: {db_err}")
+                    return error(500, "Database update failed", event)
+
+                # Build the response from the merged post-write view.
+                merged = dict(request_item)
+                merged.update(new_fields)
+                resp_body = {
+                    "message": f"Quote {'accepted' if is_accept else 'declined'}",
+                    "request_id": request_id,
+                    "quote_status": merged.get('quote_status'),
+                    "quote_revision": merged.get('quote_revision'),
+                }
+                if is_accept:
+                    resp_body["quote_accepted_revision"] = merged.get('quote_accepted_revision')
+                    resp_body["quote_accepted_at"] = merged.get('quote_accepted_at')
+                    # Read-only booking readiness (A2-6); never persists APPROVED.
+                    payment_requirement = merged.get('payment_requirement')
+                    payment_status = merged.get('payment_status')
+                    ready, reason = evaluate_booking_approval_predicate(
+                        merged.get('quote_status'),
+                        payment_requirement,
+                        payment_status,
+                        quote_amount_cents=_to_cents(merged.get('quote_amount_cents')),
+                        payment_waived=bool(merged.get('payment_waived_by')),
+                    )
+                    resp_body["booking_ready"] = ready
+                    resp_body["booking_ready_reason"] = reason
+                    resp_body["payment_requirement"] = payment_requirement
+                    resp_body["payment_status"] = payment_status
+                else:
+                    resp_body["quote_declined_at"] = merged.get('quote_declined_at')
+                    if 'quote_declined_reason_client' in new_fields:
+                        resp_body["quote_declined_reason_client"] = new_fields['quote_declined_reason_client']
+                return success(resp_body, event)
+
         # --- END CLIENT PORTAL BOUNDARIES ---
         
         if http_method == 'GET' and path == '/admin/export-data':
