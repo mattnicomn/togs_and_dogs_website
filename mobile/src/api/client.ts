@@ -2,6 +2,26 @@ import { CONFIG } from './config';
 import { getIdToken, isTokenExpired } from '../auth/storage';
 import { refreshSession } from '../auth/cognito';
 import { API_PATHS, buildPath } from '../contracts/generatedContracts';
+import type {
+  ClientQuote,
+  ClientQuoteAcceptResponse,
+  ClientQuoteDeclineResponse,
+} from '../types';
+
+/**
+ * OPS-3A.3A: Error carrying the HTTP status so callers can branch on it
+ * (e.g. 409 conflict reconciliation in OPS-3A.3C) without parsing message text.
+ * Preserves the existing message behavior; exposes only the numeric status, no
+ * raw response/body/session/auth data.
+ */
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
 
 const request = async (path: string, method = 'GET', data: any = null, isProtected = false) => {
   const options: RequestInit = {
@@ -43,19 +63,21 @@ const request = async (path: string, method = 'GET', data: any = null, isProtect
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     const errorMessage = errorData.error || errorData.message || `Request failed with status ${response.status}`;
-    // 401 = token expired or invalid → surface as session expiry so auth layer can log out
+    // 401 = token expired or invalid → surface as session expiry so auth layer can log out.
+    // Message text is preserved exactly so existing session-recovery checks continue to match.
     if (
       response.status === 401 ||
       errorMessage.toLowerCase().includes('expired') ||
       errorMessage.toLowerCase().includes('unauthorized')
     ) {
-      throw new Error('Your session expired. Please sign in again.');
+      throw new ApiError('Your session expired. Please sign in again.', response.status || 401);
     }
     // 403 = valid token but insufficient role → surface as a plain permission error (do NOT trigger logout)
     if (response.status === 403) {
-      throw new Error(errorMessage || 'You do not have permission to perform this action.');
+      throw new ApiError(errorMessage || 'You do not have permission to perform this action.', 403);
     }
-    throw new Error(errorMessage);
+    // All other non-OK responses preserve the HTTP status (e.g. 409 conflict) for callers.
+    throw new ApiError(errorMessage, response.status);
   }
   
   return response.json();
@@ -120,3 +142,47 @@ export const updateClientPet = (petId: string, data: any) =>
 
 // Phase 24A-6: Client care request submission
 export const submitClientRequest = (data: any) => request(API_PATHS.client.submitRequest, 'POST', data, true);
+
+// OPS-3A.3A: Client quote read + Accept/Decline mutations.
+// Consumes the already-live OPS-3A.2 client quote API. No UI logic, no retries,
+// no optimistic behavior, and no offline queuing — mutations are server-confirmed.
+
+// GET /client/quotes/{requestId} — client-safe quote projection.
+export const getClientQuote = (requestId: string): Promise<ClientQuote> =>
+  request(buildPath(API_PATHS.client.getQuote, { requestId }), 'GET', null, true);
+
+// POST /client/quotes/{requestId}/accept — accept the current SENT quote.
+// Body is strictly the server contract shape: { expected_revision }.
+export const acceptClientQuote = (
+  requestId: string,
+  expectedRevision: number
+): Promise<ClientQuoteAcceptResponse> =>
+  request(
+    buildPath(API_PATHS.client.acceptQuote, { requestId }),
+    'POST',
+    { expected_revision: expectedRevision },
+    true
+  );
+
+// POST /client/quotes/{requestId}/decline — decline the current SENT quote.
+// Body: { expected_revision, decline_reason? }. The reason is trimmed at this
+// boundary and omitted entirely when blank; the helper never fabricates a value.
+export const declineClientQuote = (
+  requestId: string,
+  expectedRevision: number,
+  declineReason?: string
+): Promise<ClientQuoteDeclineResponse> => {
+  const trimmed = typeof declineReason === 'string' ? declineReason.trim() : '';
+  const body: { expected_revision: number; decline_reason?: string } = {
+    expected_revision: expectedRevision,
+  };
+  if (trimmed) {
+    body.decline_reason = trimmed;
+  }
+  return request(
+    buildPath(API_PATHS.client.declineQuote, { requestId }),
+    'POST',
+    body,
+    true
+  );
+};

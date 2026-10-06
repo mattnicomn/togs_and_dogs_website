@@ -9,7 +9,10 @@ export const API_PATHS = {
     "submitRequest": "/client/requests",
     "getPets": "/client/pets",
     "updatePet": "/client/pets/{petId}",
-    "requestCancellation": "/client/cancel"
+    "requestCancellation": "/client/cancel",
+    "getQuote": "/client/quotes/{requestId}",
+    "acceptQuote": "/client/quotes/{requestId}/accept",
+    "declineQuote": "/client/quotes/{requestId}/decline"
   },
   "admin": {
     "getRequests": "/admin/requests",
