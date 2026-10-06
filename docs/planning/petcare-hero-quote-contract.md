@@ -185,6 +185,27 @@ Explicitly EXCLUDED from the client projection: `quote_notes_internal`,
 `quote_history`, staff-only notes, `stripe_*` identifiers / secrets, and any
 tenant-internal metadata.
 
+**Client-read visibility rule (status gate — authoritative; OPS-3A.3A.1 / .2).** The
+field allowlist above governs *which fields* a client may receive; this rule governs
+*whether a quote is client-readable at all*, based on the **effective resolved
+commercial `quote_status`**. "Effective resolved" means the status produced by the
+canonical + legacy dual-read resolver (`resolve_quote_from_record`), so the rule
+applies identically to canonical records and to legacy dual-read records whose status
+is derived from legacy PET pricing:
+- `DRAFT` is **not** client-readable — it is the owner/admin preparing a price that
+  has not been delivered. `GET /client/quotes/{requestId}` returns the non-disclosing
+  `404 Quote not found` for an effective-DRAFT quote (identical to an ownership/tenant
+  miss, so it never reveals that an unsent quote exists). This includes a legacy
+  record whose derived status is DRAFT.
+- `SUPERSEDED` is history-only and must never be a current status; it is likewise
+  **not** client-readable and returns the same non-disclosing `404`. (A raw canonical
+  SUPERSEDED is short-circuited before resolution because the resolver rejects it as a
+  current status; the legacy resolver never derives SUPERSEDED.)
+- Client visibility **begins at `SENT`**. Effective `SENT`, `ACCEPTED`, `DECLINED`,
+  and `NOT_REQUIRED` return the client-safe projection.
+This gate is enforced on the server read path and does not depend on any client UI
+hiding DRAFT; the API itself never serves undelivered pricing/notes.
+
 Delivery decision: a **dedicated** `GET /client/quotes/{requestId}` endpoint that
 returns the projection above, rather than embedding in `GET /client/requests`.
 Rationale: pricing is currently redacted from `GET /client/requests` by

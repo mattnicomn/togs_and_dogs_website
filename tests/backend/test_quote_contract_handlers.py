@@ -583,3 +583,236 @@ class TestClientQuoteRead:
         body = json.loads(resp['body'])
         assert body['quote_status'] == 'NOT_REQUIRED'
         assert body['payment_required'] is False
+
+
+# ===========================================================================
+# OPS-3A.3A.1 — Client-read DRAFT/SUPERSEDED visibility guard
+# ===========================================================================
+
+class TestClientQuoteReadVisibilityGuard:
+    """A quote is client-readable only once delivered. DRAFT and SUPERSEDED must
+    return the non-disclosing 404; NOT_REQUIRED/SENT/ACCEPTED/DECLINED return 200.
+
+    The accept/decline SENT-only state gating is unaffected by this read guard;
+    the final two tests assert that non-regression at the handler layer.
+    """
+
+    def _invoke(self, event, table):
+        orig = ah.table
+        try:
+            ah.table = table
+            return admin_handler(event, None)
+        finally:
+            ah.table = orig
+
+    def _read(self, patched_auth, monkeypatch, req):
+        patched_auth['role'].return_value = 'client'
+        patched_auth['resolve'].return_value = 'client-001'
+        table = FakeTable()
+        monkeypatch.setattr(ah, 'get_item', MagicMock(return_value=req))
+        event = make_event(
+            'GET', '/client/quotes/req-001', path_params={'requestId': 'req-001'}, role='client',
+        )
+        return self._invoke(event, table)
+
+    # --- DRAFT / SUPERSEDED are NOT client-readable (non-disclosing 404) ---
+
+    def test_draft_quote_is_404_non_disclosing(self, patched_auth, monkeypatch):
+        req = make_request_record(
+            quote_status='DRAFT', quote_amount_cents=5000, quote_revision=1,
+            quote_notes_client='work in progress',
+        )
+        resp = self._read(patched_auth, monkeypatch, req)
+        assert resp['statusCode'] == 404
+        body = json.loads(resp['body'])
+        # Non-disclosing: no pricing/notes leak in the 404 body.
+        assert 'quote_amount_cents' not in body
+        assert 'quote_notes_client' not in body
+
+    def test_superseded_quote_is_404_non_disclosing(self, patched_auth, monkeypatch):
+        # SUPERSEDED should never be a current status, but the guard is defensive.
+        req = make_request_record(
+            quote_status='SUPERSEDED', quote_amount_cents=5000, quote_revision=2,
+            quote_notes_client='old revision',
+        )
+        resp = self._read(patched_auth, monkeypatch, req)
+        assert resp['statusCode'] == 404
+        body = json.loads(resp['body'])
+        assert 'quote_amount_cents' not in body
+        assert 'quote_notes_client' not in body
+
+    # --- Delivered / terminal / not-required statuses remain readable (200) ---
+
+    def test_sent_quote_is_200(self, patched_auth, monkeypatch):
+        req = make_request_record(
+            quote_status='SENT', quote_amount_cents=5000, quote_revision=1,
+            payment_requirement='FULL', payment_status='UNPAID',
+            quote_notes_client='Standard walk',
+        )
+        resp = self._read(patched_auth, monkeypatch, req)
+        assert resp['statusCode'] == 200
+        body = json.loads(resp['body'])
+        assert body['quote_status'] == 'SENT'
+        assert body['quote_amount_cents'] == 5000
+
+    def test_accepted_quote_is_200(self, patched_auth, monkeypatch):
+        req = make_request_record(
+            quote_status='ACCEPTED', quote_amount_cents=5000, quote_revision=1,
+            quote_accepted_revision=1, quote_accepted_at='2026-10-05T00:00:00Z',
+            payment_requirement='FULL', payment_status='UNPAID',
+        )
+        resp = self._read(patched_auth, monkeypatch, req)
+        assert resp['statusCode'] == 200
+        body = json.loads(resp['body'])
+        assert body['quote_status'] == 'ACCEPTED'
+
+    def test_declined_quote_is_200(self, patched_auth, monkeypatch):
+        req = make_request_record(
+            quote_status='DECLINED', quote_amount_cents=5000, quote_revision=1,
+            payment_requirement='FULL', payment_status='UNPAID',
+        )
+        resp = self._read(patched_auth, monkeypatch, req)
+        assert resp['statusCode'] == 200
+        body = json.loads(resp['body'])
+        assert body['quote_status'] == 'DECLINED'
+
+    def test_not_required_quote_is_200(self, patched_auth, monkeypatch):
+        req = make_request_record(
+            quote_status='NOT_REQUIRED', quote_amount_cents=0, quote_revision=1,
+            payment_requirement='NONE',
+        )
+        resp = self._read(patched_auth, monkeypatch, req)
+        assert resp['statusCode'] == 200
+        body = json.loads(resp['body'])
+        assert body['quote_status'] == 'NOT_REQUIRED'
+
+    # --- Non-owning client stays non-disclosing regardless of the status guard ---
+
+    def test_non_owning_client_still_404(self, patched_auth, monkeypatch):
+        patched_auth['role'].return_value = 'client'
+        patched_auth['resolve'].return_value = 'client-002'
+        table = FakeTable()
+        # Resolved client_id keys a different SK -> ownership miss (None) before the
+        # status guard is ever reached.
+        monkeypatch.setattr(ah, 'get_item', MagicMock(return_value=None))
+        event = make_event(
+            'GET', '/client/quotes/req-001', path_params={'requestId': 'req-001'},
+            role='client', email='other@example.com',
+        )
+        resp = self._invoke(event, table)
+        assert resp['statusCode'] == 404
+
+    # --- Accept/Decline SENT-only gating is NOT affected by the read guard ---
+
+    def test_accept_on_draft_still_409_not_404(self, patched_auth, monkeypatch):
+        """The read guard does not change mutation gating: accept on a non-SENT
+        quote is still a 409 lifecycle conflict (not the read 404)."""
+        patched_auth['role'].return_value = 'client'
+        patched_auth['resolve'].return_value = 'client-001'
+        req = make_request_record(quote_status='DRAFT', quote_amount_cents=5000, quote_revision=1)
+        table = FakeTable()
+        monkeypatch.setattr(ah, 'get_item', MagicMock(return_value=req))
+        event = make_event(
+            'POST', '/client/quotes/req-001/accept',
+            body={'expected_revision': 1}, path_params={'requestId': 'req-001'},
+            role='client',
+        )
+        resp = self._invoke(event, table)
+        assert resp['statusCode'] == 409
+
+    def test_decline_on_draft_still_409_not_404(self, patched_auth, monkeypatch):
+        patched_auth['role'].return_value = 'client'
+        patched_auth['resolve'].return_value = 'client-001'
+        req = make_request_record(quote_status='DRAFT', quote_amount_cents=5000, quote_revision=1)
+        table = FakeTable()
+        monkeypatch.setattr(ah, 'get_item', MagicMock(return_value=req))
+        event = make_event(
+            'POST', '/client/quotes/req-001/decline',
+            body={'expected_revision': 1}, path_params={'requestId': 'req-001'},
+            role='client',
+        )
+        resp = self._invoke(event, table)
+        assert resp['statusCode'] == 409
+
+
+# ===========================================================================
+# OPS-3A.3A.2 — Legacy dual-read derived status client visibility
+# ===========================================================================
+
+class TestLegacyQuoteReadVisibilityGuard:
+    """The client-read visibility gate applies to the EFFECTIVE resolved status,
+    so legacy dual-read records (no canonical quote_status) are gated by their
+    derived status: derived DRAFT is hidden (404); derived SENT/ACCEPTED/
+    NOT_REQUIRED remain client-readable (200).
+
+    Legacy derivation rules (resolve_quote_from_record):
+      amount==0 -> NOT_REQUIRED; legacy-accepted payment -> ACCEPTED;
+      request status in {QUOTE_NEEDED,QUOTE_SENT,QUOTED} or any payment_status
+      -> SENT; otherwise -> DRAFT. The legacy branch never derives SUPERSEDED.
+    """
+
+    def _invoke(self, event, table):
+        orig = ah.table
+        try:
+            ah.table = table
+            return admin_handler(event, None)
+        finally:
+            ah.table = orig
+
+    def _read_legacy(self, patched_auth, monkeypatch, req, legacy_pet):
+        patched_auth['role'].return_value = 'client'
+        patched_auth['resolve'].return_value = 'client-001'
+        get_item_mock = MagicMock(side_effect=[req, legacy_pet])
+        monkeypatch.setattr(ah, 'get_item', get_item_mock)
+        table = FakeTable()
+        event = make_event(
+            'GET', '/client/quotes/req-001', path_params={'requestId': 'req-001'}, role='client',
+        )
+        return self._invoke(event, table)
+
+    def test_legacy_derived_draft_is_404_non_disclosing(self, patched_auth, monkeypatch):
+        """Primary blocker regression: a legacy record that derives DRAFT (positive
+        amount, not accepted, no payment_status, non-quote-summary request status)
+        must be hidden with a non-disclosing 404 — no pricing leak."""
+        req = make_request_record(pet_id='pet-9', status='PENDING_REVIEW')
+        req.pop('quote_status', None)
+        legacy_pet = {'PK': 'PET#pet-9', 'SK': 'CLIENT#client-001', 'quote_amount': '75.00'}
+        resp = self._read_legacy(patched_auth, monkeypatch, req, legacy_pet)
+        assert resp['statusCode'] == 404
+        body = json.loads(resp['body'])
+        assert 'quote_amount_cents' not in body
+        assert 'quote_status' not in body
+
+    def test_legacy_derived_sent_is_200(self, patched_auth, monkeypatch):
+        """A legacy record whose request status is QUOTE_SENT derives SENT -> visible."""
+        req = make_request_record(pet_id='pet-9')
+        req.pop('quote_status', None)
+        req['status'] = 'QUOTE_SENT'
+        legacy_pet = {'PK': 'PET#pet-9', 'SK': 'CLIENT#client-001',
+                      'quote_amount': '42.50', 'payment_status': 'Quote Sent'}
+        resp = self._read_legacy(patched_auth, monkeypatch, req, legacy_pet)
+        assert resp['statusCode'] == 200
+        body = json.loads(resp['body'])
+        assert body['quote_status'] == 'SENT'
+        assert body['quote_amount_cents'] == 4250
+
+    def test_legacy_derived_accepted_is_200(self, patched_auth, monkeypatch):
+        """A legacy PET payment_status of 'Paid in Full' derives ACCEPTED -> visible."""
+        req = make_request_record(pet_id='pet-9', status='QUOTE_SENT')
+        req.pop('quote_status', None)
+        legacy_pet = {'PK': 'PET#pet-9', 'SK': 'CLIENT#client-001',
+                      'quote_amount': '60.00', 'payment_status': 'Paid in Full'}
+        resp = self._read_legacy(patched_auth, monkeypatch, req, legacy_pet)
+        assert resp['statusCode'] == 200
+        body = json.loads(resp['body'])
+        assert body['quote_status'] == 'ACCEPTED'
+
+    def test_legacy_derived_not_required_is_200(self, patched_auth, monkeypatch):
+        """A legacy record with no/zero amount derives NOT_REQUIRED -> visible."""
+        req = make_request_record(pet_id='pet-9', status='PENDING_REVIEW')
+        req.pop('quote_status', None)
+        legacy_pet = {'PK': 'PET#pet-9', 'SK': 'CLIENT#client-001', 'quote_amount': '0'}
+        resp = self._read_legacy(patched_auth, monkeypatch, req, legacy_pet)
+        assert resp['statusCode'] == 200
+        body = json.loads(resp['body'])
+        assert body['quote_status'] == 'NOT_REQUIRED'

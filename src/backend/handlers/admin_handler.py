@@ -602,7 +602,35 @@ def handler(event, context):
                             print(f"WARNING: legacy PET dual-read failed for PET#{legacy_pet_id}: {pet_err}")
                             legacy_pet_item = None
 
-                from common.quote_contract import build_client_quote_projection
+                # OPS-3A.3A.1 / .2: Client-read visibility gate. A quote is
+                # client-visible only once intentionally delivered. DRAFT (owner/admin
+                # still preparing the price) and SUPERSEDED (history-only; never a valid
+                # current status) must NOT be exposed to the client — treat them as
+                # "no client-visible quote" using the same non-disclosing 404 as an
+                # ownership/tenant miss. NOT_REQUIRED/SENT/ACCEPTED/DECLINED are visible.
+                #
+                # The visibility rule applies to the EFFECTIVE resolved commercial
+                # status, so it covers BOTH canonical records and legacy dual-read
+                # records whose status is derived by resolve_quote_from_record.
+                #
+                # Ordering note (OPS-3A.3A.2): a raw-canonical SUPERSEDED is checked
+                # first because resolve_quote_from_record validates the canonical
+                # current status and RAISES on SUPERSEDED (history-only). The legacy
+                # resolver never derives SUPERSEDED, so after the canonical short-circuit
+                # it is safe to resolve once and gate on an effective DRAFT (which is the
+                # only way a legacy record reaches a hidden status).
+                from common.quote_contract import (
+                    build_client_quote_projection,
+                    resolve_commercial_quote_status,
+                    QuoteStatus,
+                )
+                if request_item.get('quote_status') == QuoteStatus.SUPERSEDED:
+                    return not_found("Quote not found", event)
+
+                effective_status = resolve_commercial_quote_status(request_item, legacy_pet_item)
+                if effective_status == QuoteStatus.DRAFT:
+                    return not_found("Quote not found", event)
+
                 projection = build_client_quote_projection(request_item, legacy_pet_item)
                 return success(projection, event)
 
