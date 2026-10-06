@@ -6,26 +6,40 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { getClientQuote } from '../api/client';
+import {
+  getClientQuote,
+  acceptClientQuote,
+  declineClientQuote,
+} from '../api/client';
 import { useAuth } from '../auth/useAuth';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 import { COLORS } from '../theme/colors';
-import { ClientQuote } from '../types';
+import { ClientQuote, ClientQuoteAcceptResponse } from '../types';
 import { getServiceTypeLabel } from '../utils/serviceLabels';
 
 /**
- * OPS-3A.3B: Client-only request/booking detail shell with a READ-ONLY quote
- * section. Durable home for future request/visit/payment sections, but this slice
- * implements only client-safe booking context + read-only quote presentation.
+ * OPS-3A.3B/.3C: Client-only request/booking detail shell.
  *
- * No Accept/Decline, no decline reason, no confirmation modal, no mutation calls,
- * no payment collection — those are OPS-3A.3C and later. Visibility of DRAFT /
- * SUPERSEDED is owned by the server (OPS-3A.3A.1/.2); this screen never fabricates
- * booking_ready (not part of the GET projection) and never filters DRAFT as a
- * client-side substitute for the server rule.
+ * .3B added the read-only quote presentation; .3C adds Accept/Decline mutation UX
+ * with 409 and ambiguous-network reconciliation.
+ *
+ * Invariants:
+ *  - Accept/Decline are shown ONLY for quote_status === 'SENT'.
+ *  - No optimistic commercial state: success is rendered only after the server
+ *    confirms (via mutation response + an authoritative GET refetch).
+ *  - expected_revision is always the current authoritative quote_revision.
+ *  - 409 and ambiguous network failures never auto-retry; they refetch the
+ *    authoritative quote and reconcile.
+ *  - booking_ready is used ONLY as returned by the accept response; it is never
+ *    inferred locally and never persisted into the GET-derived ClientQuote.
+ *  - Visibility of DRAFT/SUPERSEDED is owned by the server (OPS-3A.3A.1/.2).
  */
+
+const MAX_DECLINE_REASON = 500;
 
 const formatCurrency = (cents: number | null | undefined, currency: string | null | undefined): string => {
   const amount = ((cents ?? 0) / 100);
@@ -33,7 +47,6 @@ const formatCurrency = (cents: number | null | undefined, currency: string | nul
   try {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: code }).format(amount);
   } catch {
-    // Fallback if the runtime/Intl lacks the currency: fixed 2-decimal + code.
     return `${amount.toFixed(2)} ${code}`;
   }
 };
@@ -67,6 +80,13 @@ const PAYMENT_STATUS_LABEL: Record<string, string> = {
   REFUNDED: 'Refunded',
 };
 
+type PendingAction = 'accept' | 'decline' | null;
+
+const isSessionError = (status: number | undefined, msg: string): boolean =>
+  status === 401 ||
+  msg.toLowerCase().includes('expired') ||
+  msg.toLowerCase().includes('unauthorized');
+
 export const ClientRequestDetailScreen = ({ route }: any) => {
   const requestId: string = route.params?.requestId;
   const { logout } = useAuth();
@@ -76,8 +96,25 @@ export const ClientRequestDetailScreen = ({ route }: any) => {
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
 
+  // Mutation state
+  const [pending, setPending] = useState<PendingAction>(null);
+  const [showAcceptConfirm, setShowAcceptConfirm] = useState(false);
+  const [showDeclineConfirm, setShowDeclineConfirm] = useState(false);
+  const [declineReason, setDeclineReason] = useState('');
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  // booking_ready is transient action-response state (NOT part of ClientQuote).
+  const [bookingReady, setBookingReady] = useState<boolean | null>(null);
+  const [bookingReadyReason, setBookingReadyReason] = useState<string | null>(null);
+
   const mountedRef = useRef(true);
   const sequenceRef = useRef(0);
+  // Guards against a double-submit between the press and the state flip.
+  const mutationLockRef = useRef(false);
+
+  const applyQuote = (data: ClientQuote | null) => {
+    if (!mountedRef.current) return;
+    setQuote(data);
+  };
 
   const fetchQuote = useCallback(async () => {
     if (!requestId) {
@@ -97,17 +134,10 @@ export const ClientRequestDetailScreen = ({ route }: any) => {
       if (!mountedRef.current || sequence !== sequenceRef.current) return;
       const msg = e?.message || '';
       const status = e?.status;
-      // Session expiry: defer to the existing auth-layer logout convention.
-      if (
-        status === 401 ||
-        msg.toLowerCase().includes('expired') ||
-        msg.toLowerCase().includes('unauthorized')
-      ) {
+      if (isSessionError(status, msg)) {
         await logout();
         return;
       }
-      // No client-visible quote for this request (ownership miss, or server-side
-      // DRAFT/SUPERSEDED visibility gate) -> non-disclosing "no quote available".
       if (status === 404) {
         setUnavailable(true);
         setQuote(null);
@@ -128,6 +158,151 @@ export const ClientRequestDetailScreen = ({ route }: any) => {
       };
     }, [fetchQuote])
   );
+
+  /**
+   * Authoritative refetch used after a mutation, a 409, or an ambiguous network
+   * failure. Returns the fetched quote (or null if unavailable) so callers can
+   * reconcile against the attempted action. Never throws for 404 (-> unavailable).
+   */
+  const refetchAuthoritative = async (): Promise<ClientQuote | null> => {
+    try {
+      const data = await getClientQuote(requestId);
+      if (!mountedRef.current) return null;
+      setUnavailable(false);
+      setQuote(data);
+      return data;
+    } catch (e: any) {
+      if (!mountedRef.current) return null;
+      const msg = e?.message || '';
+      const status = e?.status;
+      if (isSessionError(status, msg)) {
+        await logout();
+        return null;
+      }
+      if (status === 404) {
+        // Quote no longer client-visible: clear commercial state, show unavailable.
+        setQuote(null);
+        setUnavailable(true);
+        return null;
+      }
+      // Preserve a safe error state; do NOT auto-retry the original mutation.
+      setError(msg || 'Could not refresh this booking. Please try again.');
+      return null;
+    }
+  };
+
+  const beginMutation = (action: PendingAction) => {
+    if (mutationLockRef.current) return false;
+    mutationLockRef.current = true;
+    setPending(action);
+    setActionMessage(null);
+    return true;
+  };
+
+  const endMutation = () => {
+    mutationLockRef.current = false;
+    if (mountedRef.current) setPending(null);
+  };
+
+  // ---- Accept ----
+  const handleAcceptConfirm = async () => {
+    if (!quote) return;
+    if (!beginMutation('accept')) return;
+    const expectedRevision = quote.quote_revision;
+    try {
+      const resp: ClientQuoteAcceptResponse = await acceptClientQuote(requestId, expectedRevision);
+      if (!mountedRef.current) return;
+      setShowAcceptConfirm(false);
+      // Consume server-returned action fields (authoritative), including booking_ready.
+      setBookingReady(typeof resp.booking_ready === 'boolean' ? resp.booking_ready : null);
+      setBookingReadyReason(resp.booking_ready_reason ?? null);
+      // Synchronize the full GET-shaped projection before rendering final state.
+      await refetchAuthoritative();
+      if (mountedRef.current) setActionMessage('Quote accepted');
+    } catch (e: any) {
+      await handleMutationError(e, 'accept');
+    } finally {
+      endMutation();
+    }
+  };
+
+  // ---- Decline ----
+  const handleDeclineConfirm = async () => {
+    if (!quote) return;
+    const trimmed = declineReason.trim();
+    if (trimmed.length > MAX_DECLINE_REASON) return; // guarded by input, defensive
+    if (!beginMutation('decline')) return;
+    const expectedRevision = quote.quote_revision;
+    try {
+      await declineClientQuote(requestId, expectedRevision, trimmed || undefined);
+      if (!mountedRef.current) return;
+      setShowDeclineConfirm(false);
+      setDeclineReason(''); // do not echo the reason after success
+      await refetchAuthoritative();
+      if (mountedRef.current) setActionMessage('Quote declined');
+    } catch (e: any) {
+      await handleMutationError(e, 'decline');
+    } finally {
+      endMutation();
+    }
+  };
+
+  /**
+   * Unified mutation-error handling for Accept/Decline.
+   * - 401 -> logout (existing convention)
+   * - 403 -> generic permission message (not treated as 409)
+   * - 409 -> no auto-retry; refetch authoritative and explain the quote changed
+   * - ambiguous network/other -> no success assumption; refetch and reconcile,
+   *   leaving a deliberate retry possible when still SENT.
+   */
+  const handleMutationError = async (e: any, action: 'accept' | 'decline') => {
+    if (!mountedRef.current) return;
+    const msg = e?.message || '';
+    const status = e?.status;
+
+    if (isSessionError(status, msg)) {
+      await logout();
+      return;
+    }
+    if (status === 403) {
+      setShowAcceptConfirm(false);
+      setShowDeclineConfirm(false);
+      setActionMessage(msg || 'You do not have permission to perform this action.');
+      return;
+    }
+    if (status === 409) {
+      setShowAcceptConfirm(false);
+      setShowDeclineConfirm(false);
+      await refetchAuthoritative();
+      if (mountedRef.current) {
+        setActionMessage('This quote changed or was already acted on. The latest quote has been loaded.');
+      }
+      return;
+    }
+
+    // Ambiguous network / timeout / unknown: do NOT assume success or failure.
+    setShowAcceptConfirm(false);
+    setShowDeclineConfirm(false);
+    const latest = await refetchAuthoritative();
+    if (!mountedRef.current) return;
+    const latestStatus = (latest?.quote_status || '').toUpperCase();
+    if (action === 'accept' && latestStatus === 'ACCEPTED') {
+      setActionMessage('Quote accepted');
+    } else if (action === 'decline' && latestStatus === 'DECLINED') {
+      setActionMessage('Quote declined');
+    } else if (latestStatus === 'SENT') {
+      setActionMessage("We couldn't confirm your action. Please check the quote and try again.");
+    } else if (latest) {
+      setActionMessage('This quote changed or was already acted on. The latest quote has been loaded.');
+    }
+    // If latest is null (unavailable/error), refetchAuthoritative already set the state.
+  };
+
+  const openDecline = () => {
+    setDeclineReason('');
+    setActionMessage(null);
+    setShowDeclineConfirm(true);
+  };
 
   // ---- Loading ----
   if (isLoading) {
@@ -167,82 +342,18 @@ export const ClientRequestDetailScreen = ({ route }: any) => {
           There is no quote to review for this booking right now. We'll update this
           page when your provider sends one.
         </Text>
+        {actionMessage ? <Text style={styles.actionMessage}>{actionMessage}</Text> : null}
       </SafeAreaView>
     );
   }
 
   const status = (quote.quote_status || '').toUpperCase();
+  const isSent = status === 'SENT';
   const amount = formatCurrency(quote.quote_amount_cents, quote.currency);
   const hasDeposit = (quote.deposit_amount_cents ?? 0) > 0;
   const sentOn = formatTimestamp(quote.quote_sent_at);
   const acceptedOn = formatTimestamp(quote.quote_accepted_at);
-
-  const renderQuoteSection = () => {
-    switch (status) {
-      case 'SENT':
-        return (
-          <View style={styles.card}>
-            <Text style={styles.sectionHeader} accessibilityRole="header">Your Quote</Text>
-            <View style={styles.statusLine}>
-              <Text style={styles.statusPill} accessibilityLabel="Quote status: ready for review">
-                Quote ready for review
-              </Text>
-            </View>
-            {renderPricing()}
-            {renderNotes()}
-            {sentOn ? <Text style={styles.mutedSmall}>Sent {sentOn}</Text> : null}
-          </View>
-        );
-      case 'ACCEPTED':
-        return (
-          <View style={styles.card}>
-            <Text style={styles.sectionHeader} accessibilityRole="header">Your Quote</Text>
-            <View style={styles.statusLine}>
-              <Text style={[styles.statusPill, styles.statusPillSuccess]} accessibilityLabel="Quote status: accepted">
-                Quote accepted
-              </Text>
-            </View>
-            {acceptedOn ? <Text style={styles.mutedSmall}>Accepted {acceptedOn}</Text> : null}
-            {renderPricing()}
-            {renderNotes()}
-            <Text style={styles.mutedSmall}>
-              Your provider will follow up on next steps. Payment details, if any, are shown above.
-            </Text>
-          </View>
-        );
-      case 'DECLINED':
-        return (
-          <View style={styles.card}>
-            <Text style={styles.sectionHeader} accessibilityRole="header">Your Quote</Text>
-            <View style={styles.statusLine}>
-              <Text style={[styles.statusPill, styles.statusPillDanger]} accessibilityLabel="Quote status: declined">
-                Quote declined
-              </Text>
-            </View>
-            <Text style={styles.mutedText}>
-              This quote was declined. Your provider may revise it and send a new quote.
-            </Text>
-          </View>
-        );
-      case 'NOT_REQUIRED':
-        return (
-          <View style={styles.card}>
-            <Text style={styles.sectionHeader} accessibilityRole="header">Your Quote</Text>
-            <Text style={styles.mutedText}>No quote action is required for this booking.</Text>
-          </View>
-        );
-      default:
-        // DRAFT / SUPERSEDED should not reach the client (server returns 404 ->
-        // handled as "unavailable" above). Any other/unknown status is shown
-        // conservatively as no action required, never as draft pricing.
-        return (
-          <View style={styles.card}>
-            <Text style={styles.sectionHeader} accessibilityRole="header">Your Quote</Text>
-            <Text style={styles.mutedText}>No quote action is required for this booking.</Text>
-          </View>
-        );
-    }
-  };
+  const mutating = pending !== null;
 
   const renderPricing = () => (
     <>
@@ -283,6 +394,76 @@ export const ClientRequestDetailScreen = ({ route }: any) => {
       </View>
     ) : null;
 
+  const renderQuoteSection = () => {
+    switch (status) {
+      case 'SENT':
+        return (
+          <View style={styles.card}>
+            <Text style={styles.sectionHeader} accessibilityRole="header">Your Quote</Text>
+            <View style={styles.statusLine}>
+              <Text style={styles.statusPill} accessibilityLabel="Quote status: ready for review">
+                Quote ready for review
+              </Text>
+            </View>
+            {renderPricing()}
+            {renderNotes()}
+            {sentOn ? <Text style={styles.mutedSmall}>Sent {sentOn}</Text> : null}
+          </View>
+        );
+      case 'ACCEPTED':
+        return (
+          <View style={styles.card}>
+            <Text style={styles.sectionHeader} accessibilityRole="header">Your Quote</Text>
+            <View style={styles.statusLine}>
+              <Text style={[styles.statusPill, styles.statusPillSuccess]} accessibilityLabel="Quote status: accepted">
+                Quote accepted
+              </Text>
+            </View>
+            {acceptedOn ? <Text style={styles.mutedSmall}>Accepted {acceptedOn}</Text> : null}
+            {renderPricing()}
+            {renderNotes()}
+            {bookingReady === true ? (
+              <Text style={styles.mutedSmall}>
+                {bookingReadyReason || 'Your booking is ready. Your provider will follow up on next steps.'}
+              </Text>
+            ) : (
+              <Text style={styles.mutedSmall}>
+                Your provider will follow up on next steps. Payment details, if any, are shown above.
+              </Text>
+            )}
+          </View>
+        );
+      case 'DECLINED':
+        return (
+          <View style={styles.card}>
+            <Text style={styles.sectionHeader} accessibilityRole="header">Your Quote</Text>
+            <View style={styles.statusLine}>
+              <Text style={[styles.statusPill, styles.statusPillDanger]} accessibilityLabel="Quote status: declined">
+                Quote declined
+              </Text>
+            </View>
+            <Text style={styles.mutedText}>
+              This quote was declined. Your provider may revise it and send a new quote.
+            </Text>
+          </View>
+        );
+      case 'NOT_REQUIRED':
+        return (
+          <View style={styles.card}>
+            <Text style={styles.sectionHeader} accessibilityRole="header">Your Quote</Text>
+            <Text style={styles.mutedText}>No quote action is required for this booking.</Text>
+          </View>
+        );
+      default:
+        return (
+          <View style={styles.card}>
+            <Text style={styles.sectionHeader} accessibilityRole="header">Your Quote</Text>
+            <Text style={styles.mutedText}>No quote action is required for this booking.</Text>
+          </View>
+        );
+    }
+  };
+
   const dates =
     quote.selected_dates && quote.selected_dates.length
       ? quote.selected_dates.map(formatDate).join(', ')
@@ -314,7 +495,99 @@ export const ClientRequestDetailScreen = ({ route }: any) => {
 
         {/* Read-only quote section */}
         {renderQuoteSection()}
+
+        {/* Action-level message (reconciliation / permission / result) */}
+        {actionMessage ? (
+          <Text style={styles.actionMessage} accessibilityLiveRegion="polite">{actionMessage}</Text>
+        ) : null}
+
+        {/* Accept / Decline — SENT only */}
+        {isSent ? (
+          <View style={styles.card}>
+            {showDeclineConfirm ? (
+              <View>
+                <Text style={styles.sectionHeader} accessibilityRole="header">Decline this quote?</Text>
+                <Text style={styles.rowLabel}>Reason (optional)</Text>
+                <TextInput
+                  style={styles.reasonInput}
+                  placeholder="Let your provider know why (optional)"
+                  placeholderTextColor={COLORS.textMuted}
+                  multiline
+                  numberOfLines={3}
+                  maxLength={MAX_DECLINE_REASON}
+                  value={declineReason}
+                  onChangeText={setDeclineReason}
+                  editable={!mutating}
+                  accessibilityLabel="Decline reason (optional)"
+                />
+                <Text style={styles.charCount}>{declineReason.length}/{MAX_DECLINE_REASON} characters</Text>
+                <View style={styles.actionRow}>
+                  <TouchableOpacity
+                    style={[styles.btn, styles.btnCancel]}
+                    onPress={() => { if (!mutating) setShowDeclineConfirm(false); }}
+                    disabled={mutating}
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel declining this quote"
+                  >
+                    <Text style={styles.btnCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.btn, styles.btnDecline]}
+                    onPress={handleDeclineConfirm}
+                    disabled={mutating}
+                    accessibilityRole="button"
+                    accessibilityLabel="Confirm declining this quote"
+                    accessibilityState={{ disabled: mutating, busy: pending === 'decline' }}
+                  >
+                    {pending === 'decline' ? (
+                      <ActivityIndicator color={COLORS.white} size="small" />
+                    ) : (
+                      <Text style={styles.btnDeclineText}>Confirm decline</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.actionRow}>
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnDeclineOutline]}
+                  onPress={openDecline}
+                  disabled={mutating}
+                  accessibilityRole="button"
+                  accessibilityLabel="Decline quote"
+                  accessibilityState={{ disabled: mutating }}
+                >
+                  <Text style={styles.btnDeclineOutlineText}>Decline</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnAccept]}
+                  onPress={() => { setActionMessage(null); setShowAcceptConfirm(true); }}
+                  disabled={mutating}
+                  accessibilityRole="button"
+                  accessibilityLabel="Accept quote"
+                  accessibilityState={{ disabled: mutating, busy: pending === 'accept' }}
+                >
+                  {pending === 'accept' ? (
+                    <ActivityIndicator color={COLORS.white} size="small" />
+                  ) : (
+                    <Text style={styles.btnAcceptText}>Accept</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        ) : null}
       </ScrollView>
+
+      {/* Accept confirmation */}
+      <ConfirmationModal
+        visible={showAcceptConfirm}
+        title="Accept this quote?"
+        message={`You're accepting a quote of ${amount}. Your provider will follow up on next steps.`}
+        onConfirm={handleAcceptConfirm}
+        onCancel={() => { if (!mutating) setShowAcceptConfirm(false); }}
+        isLoading={pending === 'accept'}
+      />
     </SafeAreaView>
   );
 };
@@ -426,6 +699,13 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginTop: 8,
   },
+  actionMessage: {
+    fontSize: 14,
+    color: COLORS.text,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 14,
+  },
   errorIcon: {
     fontSize: 48,
     marginBottom: 12,
@@ -459,5 +739,72 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 14,
     fontWeight: '700',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 8,
+  },
+  btn: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    minWidth: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnAccept: {
+    backgroundColor: COLORS.success,
+  },
+  btnAcceptText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  btnDecline: {
+    backgroundColor: COLORS.danger,
+  },
+  btnDeclineText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  btnDeclineOutline: {
+    backgroundColor: COLORS.cardBg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  btnDeclineOutlineText: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  btnCancel: {
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  btnCancelText: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  reasonInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    color: COLORS.text,
+    minHeight: 72,
+    textAlignVertical: 'top',
+    marginTop: 4,
+  },
+  charCount: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 4,
+    textAlign: 'right',
   },
 });

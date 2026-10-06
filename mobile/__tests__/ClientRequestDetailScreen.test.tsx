@@ -1,9 +1,10 @@
 /**
- * OPS-3A.3B: ClientRequestDetailScreen read-only quote presentation tests.
+ * OPS-3A.3B: ClientRequestDetailScreen read-only / display tests.
  *
- * Read-only slice: proves loading/fetch, client-safe context + quote rendering per
- * visible status, unavailable/error handling, and the ABSENCE of any Accept/Decline
- * or admin/internal fields. No mutation tests (those are OPS-3A.3C).
+ * Covers loading/fetch, client-safe context + quote rendering per visible status,
+ * unavailable/error handling, and admin/internal non-exposure. The Accept/Decline
+ * mutation UX (OPS-3A.3C) lives in ClientRequestDetailScreen.mutations.test.tsx so
+ * its chained-async flow runs in an isolated module with a clean act lifecycle.
  */
 import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react-native';
@@ -23,7 +24,7 @@ jest.mock('../src/api/client', () => ({
   getClientQuote: (...args: any[]) => mockGetClientQuote(...args),
 }));
 
-// useFocusEffect -> run as a mount effect so fetch fires in tests.
+// useFocusEffect fires once on mount and honors the returned cleanup.
 jest.mock('@react-navigation/native', () => ({
   useFocusEffect: (cb: () => void | (() => void)) => {
     const React = require('react');
@@ -61,10 +62,11 @@ const baseQuote = (overrides: Record<string, any> = {}) => ({
 });
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  mockGetClientQuote.mockReset();
+  mockLogout.mockReset();
 });
 
-describe('ClientRequestDetailScreen', () => {
+describe('ClientRequestDetailScreen (read-only display)', () => {
   it('shows a loading state while the fetch is pending', async () => {
     let resolve: (v: any) => void = () => {};
     mockGetClientQuote.mockReturnValue(new Promise((r) => { resolve = r; }));
@@ -126,16 +128,6 @@ describe('ClientRequestDetailScreen', () => {
     expect(screen.getByText('$15.00')).toBeTruthy();
   });
 
-  it('does NOT render Accept or Decline controls (read-only slice)', async () => {
-    mockGetClientQuote.mockResolvedValue(baseQuote());
-    await render(<ClientRequestDetailScreen route={route()} />);
-    await waitFor(() => expect(screen.getByText('Your Quote')).toBeTruthy());
-    expect(screen.queryByText(/^Accept$/i)).toBeNull();
-    expect(screen.queryByText(/^Decline$/i)).toBeNull();
-    expect(screen.queryByLabelText(/accept quote/i)).toBeNull();
-    expect(screen.queryByLabelText(/decline quote/i)).toBeNull();
-  });
-
   it('does NOT render internal/admin fields', async () => {
     mockGetClientQuote.mockResolvedValue(baseQuote());
     await render(<ClientRequestDetailScreen route={route()} />);
@@ -150,25 +142,22 @@ describe('ClientRequestDetailScreen', () => {
   // Defense-in-depth: the server (OPS-3A.3A.1/.2) hides DRAFT/SUPERSEDED behind a
   // non-disclosing 404, so these statuses should never reach the client. If one
   // ever did (or an unknown/future status appeared), the screen must fall back to a
-  // non-commercial no-action view and never render pricing/notes. These statuses are
-  // injected directly to simulate that impossible/server-hidden state — this is NOT
-  // client-side DRAFT filtering, just a guarantee the UI leaks nothing if it slips
-  // through. (quote_status is typed as string, so no cast is needed.)
+  // non-commercial no-action view and never render pricing/notes/controls. These
+  // statuses are injected directly to simulate that impossible/server-hidden state —
+  // NOT client-side DRAFT filtering. (quote_status is typed as string, no cast.)
   it('does NOT render commercial details for a DRAFT status (defense-in-depth)', async () => {
     mockGetClientQuote.mockResolvedValue(
       baseQuote({ quote_status: 'DRAFT', quote_amount_cents: 5000, deposit_amount_cents: 1500, quote_notes_client: 'draft notes' })
     );
     await render(<ClientRequestDetailScreen route={route()} />);
     await waitFor(() => expect(screen.getByText('No quote action is required for this booking.')).toBeTruthy());
-    // No commercial terms leak.
     expect(screen.queryByText('$50.00')).toBeNull();
     expect(screen.queryByText('Deposit')).toBeNull();
     expect(screen.queryByText('Full payment required')).toBeNull();
     expect(screen.queryByText('Unpaid')).toBeNull();
     expect(screen.queryByText('draft notes')).toBeNull();
-    // No mutation controls.
-    expect(screen.queryByText(/^Accept$/i)).toBeNull();
-    expect(screen.queryByText(/^Decline$/i)).toBeNull();
+    expect(screen.queryByLabelText('Accept quote')).toBeNull();
+    expect(screen.queryByLabelText('Decline quote')).toBeNull();
   });
 
   it('does NOT render commercial details for an unknown/future status (defense-in-depth)', async () => {
@@ -180,8 +169,8 @@ describe('ClientRequestDetailScreen', () => {
     expect(screen.queryByText('$99.00')).toBeNull();
     expect(screen.queryByText('Deposit')).toBeNull();
     expect(screen.queryByText('secret')).toBeNull();
-    expect(screen.queryByText(/^Accept$/i)).toBeNull();
-    expect(screen.queryByText(/^Decline$/i)).toBeNull();
+    expect(screen.queryByLabelText('Accept quote')).toBeNull();
+    expect(screen.queryByLabelText('Decline quote')).toBeNull();
   });
 
   it('shows a retryable error on a non-auth/non-404 failure', async () => {
