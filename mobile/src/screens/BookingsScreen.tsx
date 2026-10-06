@@ -114,7 +114,13 @@ export const BookingsScreen = () => {
       : 'Date TBD';
 
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.7}
+        onPress={() => navigation.navigate('ClientRequestDetail', { requestId: item.request_id })}
+        accessibilityRole="button"
+        accessibilityLabel={`View booking details for ${item.pet_name}, status ${statusLabel}`}
+      >
         <View style={styles.cardHeader}>
           <Text style={styles.petName}>🐾 {item.pet_name}</Text>
           <View style={[styles.statusBadge, { backgroundColor: statusColor + '22', borderColor: statusColor }]}>
@@ -136,7 +142,7 @@ export const BookingsScreen = () => {
             <Text style={styles.detailValue}>👤 {item.worker_name || item.assigned_sitter}</Text>
           </View>
         ) : null}
-      </View>
+      </TouchableOpacity>
     );
   };
 

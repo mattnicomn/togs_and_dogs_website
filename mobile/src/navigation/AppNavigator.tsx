@@ -10,9 +10,10 @@ import { RequestListScreen } from '../screens/RequestListScreen';
 import { ScheduleScreen } from '../screens/ScheduleScreen';
 import { BookingsScreen } from '../screens/BookingsScreen';
 import { RequestDetailScreen } from '../screens/RequestDetailScreen';
+import { ClientRequestDetailScreen } from '../screens/ClientRequestDetailScreen';
 import { IntakeScreen } from '../screens/IntakeScreen';
 import { COLORS } from '../theme/colors';
-import { AdminTabParamList } from './types';
+import { AdminTabParamList, ClientStackParamList } from './types';
 
 const AdminTab = createBottomTabNavigator<AdminTabParamList>();
 const Tab = createBottomTabNavigator();
@@ -188,7 +189,7 @@ const StaffNavigator = () => (
   </StaffStack.Navigator>
 );
 
-const ClientStack = createNativeStackNavigator();
+const ClientStack = createNativeStackNavigator<ClientStackParamList>();
 const ClientNavigator = () => (
   <ClientStack.Navigator screenOptions={{ headerShown: false }}>
     <ClientStack.Screen name="ClientTabs" component={ClientTabs} />
@@ -196,6 +197,17 @@ const ClientNavigator = () => (
       name="IntakeScreen"
       component={IntakeScreen}
       options={{ headerShown: false }}
+    />
+    <ClientStack.Screen
+      name="ClientRequestDetail"
+      component={ClientRequestDetailScreen}
+      options={{
+        headerShown: true,
+        title: 'Booking Details',
+        headerStyle: { backgroundColor: COLORS.cardBg },
+        headerTintColor: COLORS.text,
+        headerTitleStyle: { fontWeight: '800', fontSize: 16 },
+      }}
     />
   </ClientStack.Navigator>
 );

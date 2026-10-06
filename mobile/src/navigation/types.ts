@@ -18,3 +18,14 @@ export type AdminTabParamList = {
   Requests: { initialFilter?: RequestListFilter } | undefined;
   Schedule: undefined;
 };
+
+/**
+ * OPS-3A.3B: Client stack routes. The client detail screen is a durable shell
+ * reached from the Bookings tab; it receives ONLY a requestId and fetches its
+ * own authoritative data (never trusts a navigation-passed quote/request object).
+ */
+export type ClientStackParamList = {
+  ClientTabs: undefined;
+  IntakeScreen: undefined;
+  ClientRequestDetail: { requestId: string };
+};

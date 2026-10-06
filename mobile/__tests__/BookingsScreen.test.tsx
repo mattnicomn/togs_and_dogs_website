@@ -25,6 +25,20 @@ jest.mock('../src/api/client', () => ({
   getClientRequests: (...args: any[]) => mockGetClientRequests(...args),
 }));
 
+// Mock navigation (OPS-3A.3B: card tap navigates to ClientRequestDetail)
+const mockNavigate = jest.fn();
+jest.mock('@react-navigation/native', () => ({
+  useNavigation: () => ({ navigate: mockNavigate }),
+  useFocusEffect: (cb: () => void | (() => void)) => {
+    const React = require('react');
+    React.useEffect(() => {
+      const cleanup = cb();
+      return typeof cleanup === 'function' ? cleanup : undefined;
+    }, []);
+  },
+}));
+
+import { fireEvent } from '@testing-library/react-native';
 import { BookingsScreen } from '../src/screens/BookingsScreen';
 
 beforeEach(() => {
@@ -72,5 +86,22 @@ describe('BookingsScreen', () => {
     mockGetClientRequests.mockResolvedValue([]);
     await render(<BookingsScreen />);
     expect(screen.getByText('My Appointments')).toBeTruthy();
+  });
+
+  it('navigates to ClientRequestDetail with the requestId when a card is tapped', async () => {
+    mockGetClientRequests.mockResolvedValue([
+      {
+        request_id: 'req-42',
+        pet_name: 'Buddy',
+        service_type: 'WALK_20MIN',
+        status: 'QUOTE_SENT',
+        selected_dates: ['2026-10-10'],
+        created_at: '2026-10-01',
+      },
+    ]);
+    await render(<BookingsScreen />);
+    const card = await screen.findByLabelText(/View booking details for Buddy/);
+    fireEvent.press(card);
+    expect(mockNavigate).toHaveBeenCalledWith('ClientRequestDetail', { requestId: 'req-42' });
   });
 });
