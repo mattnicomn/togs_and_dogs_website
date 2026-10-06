@@ -1228,6 +1228,8 @@ locals {
     "client_requests" : aws_api_gateway_resource.client_requests.id,
     "client_quotes" : aws_api_gateway_resource.client_quotes.id,
     "client_quote_id" : aws_api_gateway_resource.client_quote_id.id,
+    "client_quote_accept" : aws_api_gateway_resource.client_quote_accept.id,
+    "client_quote_decline" : aws_api_gateway_resource.client_quote_decline.id,
     "client_pets" : aws_api_gateway_resource.client_pets.id,
     "client_pet_id" : aws_api_gateway_resource.client_pet_id.id,
     "client_devices" : aws_api_gateway_resource.client_devices.id,
@@ -1443,6 +1445,8 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.post_admin_staff_temp_pw_lambda,
     aws_api_gateway_integration.post_client_cancel_lambda,
     aws_api_gateway_integration.post_client_devices_lambda,
+    aws_api_gateway_integration.post_client_quote_accept_lambda,
+    aws_api_gateway_integration.post_client_quote_decline_lambda,
     aws_api_gateway_integration.post_client_requests_lambda,
     aws_api_gateway_integration.post_pet_lambda,
     aws_api_gateway_integration.postmark_webhook_lambda,
@@ -1682,6 +1686,57 @@ resource "aws_api_gateway_integration" "get_client_quote_lambda" {
   rest_api_id = aws_api_gateway_rest_api.main.id
   resource_id = aws_api_gateway_resource.client_quote_id.id
   http_method = aws_api_gateway_method.get_client_quote.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+# --- OPS-3A.2B: Client Quote Accept / Decline ---
+# POST /client/quotes/{requestId}/accept (client self-service accept of a SENT quote)
+resource "aws_api_gateway_resource" "client_quote_accept" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.client_quote_id.id
+  path_part   = "accept"
+}
+
+resource "aws_api_gateway_method" "post_client_quote_accept" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.client_quote_accept.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_client_quote_accept_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.client_quote_accept.id
+  http_method = aws_api_gateway_method.post_client_quote_accept.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+# POST /client/quotes/{requestId}/decline (client self-service decline of a SENT quote)
+resource "aws_api_gateway_resource" "client_quote_decline" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.client_quote_id.id
+  path_part   = "decline"
+}
+
+resource "aws_api_gateway_method" "post_client_quote_decline" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.client_quote_decline.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_client_quote_decline_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.client_quote_decline.id
+  http_method = aws_api_gateway_method.post_client_quote_decline.http_method
 
   integration_http_method = "POST"
   type                    = "AWS_PROXY"

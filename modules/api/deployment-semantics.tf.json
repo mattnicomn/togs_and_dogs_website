@@ -184,6 +184,14 @@
           "parent_key": "client",
           "path_part": "pets"
         },
+        "client_quote_accept": {
+          "parent_key": "client_quote_id",
+          "path_part": "accept"
+        },
+        "client_quote_decline": {
+          "parent_key": "client_quote_id",
+          "path_part": "decline"
+        },
         "client_quote_id": {
           "parent_key": "client_quotes",
           "path_part": "{requestId}"
@@ -293,6 +301,18 @@
         "get_client_quote": {
           "resource_key": "client_quote_id",
           "http_method": "GET",
+          "authorization": "COGNITO_USER_POOLS",
+          "authorizer_key": "cognito"
+        },
+        "post_client_quote_accept": {
+          "resource_key": "client_quote_accept",
+          "http_method": "POST",
+          "authorization": "COGNITO_USER_POOLS",
+          "authorizer_key": "cognito"
+        },
+        "post_client_quote_decline": {
+          "resource_key": "client_quote_decline",
+          "http_method": "POST",
           "authorization": "COGNITO_USER_POOLS",
           "authorizer_key": "cognito"
         },
@@ -630,6 +650,18 @@
           "integration_http_method": "POST",
           "target_reference": "admin_handler_invoke_arn"
         },
+        "post_client_quote_accept_lambda": {
+          "method_key": "post_client_quote_accept",
+          "type": "AWS_PROXY",
+          "integration_http_method": "POST",
+          "target_reference": "admin_handler_invoke_arn"
+        },
+        "post_client_quote_decline_lambda": {
+          "method_key": "post_client_quote_decline",
+          "type": "AWS_PROXY",
+          "integration_http_method": "POST",
+          "target_reference": "admin_handler_invoke_arn"
+        },
         "get_client_requests_lambda": {
           "method_key": "get_client_requests",
           "type": "AWS_PROXY",
@@ -933,6 +965,8 @@
           "client_devices",
           "client_pet_id",
           "client_pets",
+          "client_quote_accept",
+          "client_quote_decline",
           "client_quote_id",
           "client_quotes",
           "client_requests",
