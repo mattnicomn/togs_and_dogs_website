@@ -79,6 +79,22 @@ and later findings remain separately gated. No additional tenant was created.
 
 Recently completed: former item 20, the entitlement observability Decimal serialization defect, is **DEPLOYED / PRODUCTION ACCEPTANCE PASS / COMPLETE** as of 2026-09-02. It is no longer an active backlog risk.
 
+**Workflow & payment architecture audit (2026-10-07):** Live production-backed M3
+testing surfaced four tracked workstreams, documented in
+`docs/planning/petcare-hero-workflow-payment-architecture.md`:
+(1) **Existing pet selection** — canonical `pet_ids` association; mobile selects by
+name today and sends `pet_names` as a legacy string (the shape that crashed M3);
+(2) **Unified quote workflow** — the deployed canonical quote endpoints have **no
+owner/admin send UX** (web `api/client.js` has no quote calls; `CareCard` only drives
+the legacy PET "Pricing & Quote" + "Pricing & Payment (Stripe Sandbox)" link), which
+is why no canonical `SENT` quote exists to test — this **blocks M4**;
+(3) **Tenant customer payment architecture** — separate USMISSIONHERO SaaS billing
+(Plane A) from tenant customer payments (Plane B); pending Matthew decision, do not
+default to Stripe Connect, sandbox-only;
+(4) **Status vocabulary cleanup** — `STATUS_VOCABULARY_MISMATCH_FOUND=YES` (card
+`QUOTE_NEEDED` vs detail "no quote action required"); `quote_status` is authoritative.
+Recommended order: W2 → W4 → W1 → W3. `M4_PRODUCTION_MUTATION_TEST_AUTHORIZED=PAUSED_FOR_WORKFLOW_RECONCILIATION`.
+
 **Program consolidation (2026-09-30):** Items 14, 16, 17, 18, and 19 above are the operational-usability / mobile-workflow concerns now consolidated under the **PetCare Hero Operational Workflow & Mobile-First Experience** program (`PCH-OPS`). See `docs/planning/petcare-hero-operational-workflow-mobile-first.md`, which preserves the `PETCARE_HERO_OPERATIONAL_WORKFLOW_DISCOVERY_COMPLETE` discovery. Key finding: Ryan's "assignment works but request processing does not" complaint is primarily a **mobile UI workflow-coverage gap**. The existing backend and mobile API client already support substantial portions of the *current* request lifecycle (review/status transitions, assignment, Start, Complete), but the *desired future* workflow contains additional states/actions/UX that require OPS-0 design and later implementation — so backend coverage is not "complete." Recommended sequence begins with **OPS-0 (Workflow/State/Action Contract — first implementation gate)**, then OPS-1 (mobile Visit Operations MVP) and OPS-2 (mobile request-processing parity, reusing already-deployed transitions where they exist). These items remain PLANNED / approval-gated and are not re-specified here.
 
 ---
