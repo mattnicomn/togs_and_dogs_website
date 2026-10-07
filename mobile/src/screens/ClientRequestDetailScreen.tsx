@@ -44,6 +44,31 @@ import { createReadGeneration } from '../utils/readGeneration';
 
 const MAX_DECLINE_REASON = 500;
 
+/**
+ * OPS-3A.4 M3 crash fix: coerce a possibly-non-array field to a string array.
+ *
+ * ROOT CAUSE (device logcat + sourcemap of the exact crash offset): a real
+ * production REQUEST record can carry `pet_names` / `selected_dates` in a legacy
+ * shape that is NOT a JS array (e.g. a single string, or absent). The client-safe
+ * projection (build_client_quote_projection) passes these through verbatim, so
+ * the screen then called `.join(', ')` / `.map(...)` on a non-array and Hermes
+ * threw a render-phase "TypeError: undefined is not a function", crashing the
+ * Booking Details card. Jest fixtures always used arrays, so the unit tests
+ * passed while the device crashed. This normalizes the value defensively
+ * (array -> filtered strings; non-empty string -> single-element array; anything
+ * else -> []), without changing the backend contract or quote semantics.
+ */
+const toStringArray = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter((v) => v != null).map((v) => String(v));
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? [trimmed] : [];
+  }
+  return [];
+};
+
 const formatCurrency = (cents: number | null | undefined, currency: string | null | undefined): string => {
   const amount = ((cents ?? 0) / 100);
   const code = currency || 'USD';
@@ -481,9 +506,11 @@ export const ClientRequestDetailScreen = ({ route }: any) => {
     }
   };
 
+  const petNames = toStringArray(quote.pet_names);
+  const selectedDates = toStringArray(quote.selected_dates);
   const dates =
-    quote.selected_dates && quote.selected_dates.length
-      ? quote.selected_dates.map(formatDate).join(', ')
+    selectedDates.length
+      ? selectedDates.map(formatDate).join(', ')
       : quote.start_date
       ? `${formatDate(quote.start_date)}${quote.end_date && quote.end_date !== quote.start_date ? ` – ${formatDate(quote.end_date)}` : ''}`
       : 'Date to be confirmed';
@@ -506,10 +533,10 @@ export const ClientRequestDetailScreen = ({ route }: any) => {
             <Text style={styles.rowLabel}>Service</Text>
             <Text style={styles.rowValue}>{getServiceTypeLabel(quote.service_type)}</Text>
           </View>
-          {quote.pet_names && quote.pet_names.length ? (
+          {petNames.length ? (
             <View style={styles.row}>
               <Text style={styles.rowLabel}>Pets</Text>
-              <Text style={styles.rowValue}>{quote.pet_names.join(', ')}</Text>
+              <Text style={styles.rowValue}>{petNames.join(', ')}</Text>
             </View>
           ) : null}
           <View style={styles.row}>
