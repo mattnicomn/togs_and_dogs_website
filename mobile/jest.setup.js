@@ -5,6 +5,14 @@
  * No global console suppression — tests must not produce avoidable warnings.
  */
 
+// OPS-3A.4A: The app config resolver (src/api/config.ts) now fails closed when
+// EXPO_PUBLIC_APP_ENV is not explicitly set. Tests transitively import that
+// module via the API/auth layers and historically asserted the production
+// identifiers, so declare the production environment explicitly for the test
+// runtime. Config-selection edge cases (missing/invalid env, dev fail-closed)
+// are covered directly against the pure resolveConfig() in config.test.ts.
+process.env.EXPO_PUBLIC_APP_ENV = 'production';
+
 // Mock expo-secure-store
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn().mockResolvedValue(null),
