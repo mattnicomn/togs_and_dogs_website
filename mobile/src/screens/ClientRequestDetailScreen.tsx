@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -20,6 +22,7 @@ import { ConfirmationModal } from '../components/ConfirmationModal';
 import { COLORS } from '../theme/colors';
 import { ClientQuote, ClientQuoteAcceptResponse } from '../types';
 import { getServiceTypeLabel } from '../utils/serviceLabels';
+import { createReadGeneration } from '../utils/readGeneration';
 
 /**
  * OPS-3A.3B/.3C: Client-only request/booking detail shell.
@@ -107,13 +110,53 @@ export const ClientRequestDetailScreen = ({ route }: any) => {
   const [bookingReadyReason, setBookingReadyReason] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
-  const sequenceRef = useRef(0);
+  // OPS-3A.3D.1/.2: single stale-response generation for ALL authoritative quote reads
+  // (initial/focus/retry fetch AND mutation/409/ambiguous reconciliation). Every read
+  // begins a generation and captures its token; a read may only write quote/unavailable/
+  // error/loading state while its token is still the current one. This guarantees the
+  // newest authoritative read that STARTED owns the committed result, so a slow read
+  // can never overwrite a newer one (either direction), across refocus and requestId
+  // change alike. The counter logic is the pure createReadGeneration() primitive
+  // (unit-tested in readGeneration.test.ts); isCurrentRead composes it with mountedRef.
+  const readGenRef = useRef(createReadGeneration());
   // Guards against a double-submit between the press and the state flip.
   const mutationLockRef = useRef(false);
 
-  const applyQuote = (data: ClientQuote | null) => {
-    if (!mountedRef.current) return;
-    setQuote(data);
+  const beginAuthoritativeRead = (): number => readGenRef.current.begin();
+  const isCurrentRead = (token: number): boolean =>
+    mountedRef.current && readGenRef.current.isCurrent(token);
+
+  /**
+   * Shared authoritative read. Writes quote/unavailable/error only if `token` is still
+   * the latest read. Returns the fetched quote when THIS read committed (current +
+   * success), or null otherwise (stale, 404, error, session-expiry, or unmounted) so
+   * reconciliation callers never act on a superseded read.
+   */
+  const performQuoteRead = async (token: number): Promise<ClientQuote | null> => {
+    try {
+      const data = await getClientQuote(requestId);
+      if (!isCurrentRead(token)) return null;
+      setUnavailable(false);
+      setError(null);
+      setQuote(data);
+      return data;
+    } catch (e: any) {
+      if (!isCurrentRead(token)) return null;
+      const msg = e?.message || '';
+      const status = e?.status;
+      if (isSessionError(status, msg)) {
+        await logout();
+        return null;
+      }
+      if (status === 404) {
+        // Quote no longer client-visible: clear commercial state, show unavailable.
+        setUnavailable(true);
+        setQuote(null);
+        return null;
+      }
+      setError(msg || 'Could not load this booking. Please try again.');
+      return null;
+    }
   };
 
   const fetchQuote = useCallback(async () => {
@@ -122,31 +165,22 @@ export const ClientRequestDetailScreen = ({ route }: any) => {
       setUnavailable(true);
       return;
     }
-    const sequence = ++sequenceRef.current;
+    const token = beginAuthoritativeRead();
     setIsLoading(true);
     setError(null);
     setUnavailable(false);
-    try {
-      const data = await getClientQuote(requestId);
-      if (!mountedRef.current || sequence !== sequenceRef.current) return;
-      setQuote(data);
-    } catch (e: any) {
-      if (!mountedRef.current || sequence !== sequenceRef.current) return;
-      const msg = e?.message || '';
-      const status = e?.status;
-      if (isSessionError(status, msg)) {
-        await logout();
-        return;
-      }
-      if (status === 404) {
-        setUnavailable(true);
-        setQuote(null);
-        return;
-      }
-      setError(msg || 'Could not load this booking. Please try again.');
-    } finally {
-      if (mountedRef.current && sequence === sequenceRef.current) setIsLoading(false);
-    }
+    // A focus/initial/retry refresh is a fresh authoritative view: clear transient
+    // in-session mutation artifacts so a prior Accept/Decline's action message or
+    // booking_ready cannot persist onto a changed server state or a different
+    // requestId. (Mutation success paths set their message AFTER reconciliation, so
+    // this never erases a just-completed action's result.)
+    setActionMessage(null);
+    setBookingReady(null);
+    setBookingReadyReason(null);
+    await performQuoteRead(token);
+    // Only the latest read may clear loading, so a stale read's completion cannot
+    // dismiss a newer active read's spinner.
+    if (isCurrentRead(token)) setIsLoading(false);
   }, [requestId]);
 
   useFocusEffect(
@@ -161,39 +195,22 @@ export const ClientRequestDetailScreen = ({ route }: any) => {
 
   /**
    * Authoritative refetch used after a mutation, a 409, or an ambiguous network
-   * failure. Returns the fetched quote (or null if unavailable) so callers can
-   * reconcile against the attempted action. Never throws for 404 (-> unavailable).
+   * failure. Starts a NEW read generation (invalidating any older in-flight focus
+   * GET) and only commits if it remains the latest read. Returns the fetched quote,
+   * or null when stale/404/error/session-expiry.
    */
   const refetchAuthoritative = async (): Promise<ClientQuote | null> => {
-    try {
-      const data = await getClientQuote(requestId);
-      if (!mountedRef.current) return null;
-      setUnavailable(false);
-      setQuote(data);
-      return data;
-    } catch (e: any) {
-      if (!mountedRef.current) return null;
-      const msg = e?.message || '';
-      const status = e?.status;
-      if (isSessionError(status, msg)) {
-        await logout();
-        return null;
-      }
-      if (status === 404) {
-        // Quote no longer client-visible: clear commercial state, show unavailable.
-        setQuote(null);
-        setUnavailable(true);
-        return null;
-      }
-      // Preserve a safe error state; do NOT auto-retry the original mutation.
-      setError(msg || 'Could not refresh this booking. Please try again.');
-      return null;
-    }
+    const token = beginAuthoritativeRead();
+    return performQuoteRead(token);
   };
 
   const beginMutation = (action: PendingAction) => {
     if (mutationLockRef.current) return false;
     mutationLockRef.current = true;
+    // Invalidate any older in-flight authoritative GET immediately: a focus GET that
+    // began before this mutation must never commit after the mutation starts, even
+    // before the reconciliation GET runs.
+    beginAuthoritativeRead();
     setPending(action);
     setActionMessage(null);
     return true;
@@ -473,7 +490,15 @@ export const ClientRequestDetailScreen = ({ route }: any) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Booking context (client-safe) */}
         <View style={styles.card}>
           <Text style={styles.sectionHeader} accessibilityRole="header">Booking Details</Text>
@@ -578,6 +603,7 @@ export const ClientRequestDetailScreen = ({ route }: any) => {
           </View>
         ) : null}
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Accept confirmation */}
       <ConfirmationModal
@@ -596,6 +622,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  flex: {
+    flex: 1,
   },
   scrollContent: {
     padding: 20,
