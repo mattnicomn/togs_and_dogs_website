@@ -82,6 +82,26 @@ export const assignWorker = (jobId, reqId, clientId, workerId, workerName) =>
     worker_name: workerName
   }, true);
 
+// W2A: Owner/admin canonical REQUEST-based quote bridge (OPS-3A).
+// These call the already-deployed canonical endpoints:
+//   PATCH /admin/requests/{requestId}/quote     (draft/update)
+//   POST  /admin/requests/{requestId}/quote/send (DRAFT -> SENT)
+// No Stripe/payment coupling and no booking-status mutation — quote_status is the
+// authoritative commercial lifecycle (see docs/planning/petcare-hero-quote-contract.md).
+
+// Draft/update the canonical quote. `payload` carries only the deployed recognized
+// fields: quote_amount_cents, currency, deposit_amount_cents, payment_requirement
+// (NONE|DEPOSIT|FULL), quote_notes_client, quote_notes_internal, internal_pricing_notes.
+// requestId-only lookup is server-resolved; no client_id is required in the body.
+export const updateAdminRequestQuote = (requestId, payload) =>
+  request(buildPath(API_PATHS.admin.updateQuote, { requestId }), 'PATCH', payload, true);
+
+// Transition the canonical quote DRAFT -> SENT. The send endpoint takes no
+// client-supplied revision; the server reads the current revision and guards it
+// atomically (409 on a concurrent change). No request body is sent.
+export const sendAdminRequestQuote = (requestId) =>
+  request(buildPath(API_PATHS.admin.sendQuote, { requestId }), 'POST', null, true);
+
 export const getGoogleStatus = () => request('/admin/auth/status', 'GET', null, true);
 
 export const initiateGoogleAuth = () => request('/admin/auth/google', 'GET', null, true);

@@ -30,7 +30,9 @@ export const API_PATHS = {
     "getClients": "/admin/clients",
     "cancelDecision": "/admin/cancel/decision",
     "exportData": "/admin/export-data",
-    "tenantInfo": "/admin/tenant-info"
+    "tenantInfo": "/admin/tenant-info",
+    "updateQuote": "/admin/requests/{requestId}/quote",
+    "sendQuote": "/admin/requests/{requestId}/quote/send"
   },
   "public": {
     "submitRequest": "/requests",
