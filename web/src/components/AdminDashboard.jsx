@@ -5666,6 +5666,23 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
               }
             }
           }}
+          onQuoteUpdated={async (updatedOriginItem) => {
+            // W2B: authoritative reconciliation after a canonical quote PATCH.
+            // Re-fetch dashboard data, then re-select the request so the CareCard
+            // (and AdminQuoteEditor) re-render from the refreshed REQUEST record.
+            // The PATCH has already succeeded by the time this runs; we log AND
+            // rethrow a refresh failure so the editor can surface a non-destructive
+            // "saved but not refreshed" warning (never a save-failed message).
+            if (updatedOriginItem) {
+              try {
+                await fetchAllData();
+                await handleSelectPet(updatedOriginItem);
+              } catch(e) {
+                console.error("Failed to refresh quote details:", e);
+                throw e;
+              }
+            }
+          }}
           onAssign={async (originItem, workerId) => {
             // Release 4E: Inline staff assignment from CareCard
             await handleAssignAction(originItem, workerId);

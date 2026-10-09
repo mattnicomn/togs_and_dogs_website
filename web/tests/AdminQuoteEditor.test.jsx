@@ -1,0 +1,506 @@
+/**
+ * W2B — AdminQuoteEditor focused tests.
+ *
+ * Verifies the canonical owner/admin quote editor: rendering of canonical state,
+ * create/edit payloads via the W2A `updateAdminRequestQuote` client, the
+ * deterministic string-based money parser, payment-requirement UX, commercial-vs-
+ * internal detection, SENT/ACCEPTED confirmation, DECLINED/NOT_REQUIRED display-only
+ * behavior, authoritative-refresh callback, error handling, and the W2C boundary
+ * (never calls sendAdminRequestQuote, never touches Stripe/payment or legacy PET).
+ */
+import React from 'react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Mock the API client module. updateAdminRequestQuote is the only call the editor
+// should make; sendAdminRequestQuote is mocked so we can assert it is NEVER called.
+const updateAdminRequestQuote = vi.fn();
+const sendAdminRequestQuote = vi.fn();
+const createPaymentSession = vi.fn();
+const sendPaymentEmail = vi.fn();
+
+vi.mock('../src/api/client', () => ({
+  updateAdminRequestQuote: (...args) => updateAdminRequestQuote(...args),
+  sendAdminRequestQuote: (...args) => sendAdminRequestQuote(...args),
+  createPaymentSession: (...args) => createPaymentSession(...args),
+  sendPaymentEmail: (...args) => sendPaymentEmail(...args),
+}));
+
+import AdminQuoteEditor, { parseDollarsToCents, centsToDollars } from '../src/components/AdminQuoteEditor';
+
+const makeRequest = (overrides = {}) => ({
+  request_id: 'req-123',
+  client_id: 'client-1',
+  ...overrides,
+});
+
+const renderEditor = (requestOverrides = {}, props = {}) => {
+  const onQuoteUpdated = props.onQuoteUpdated || vi.fn().mockResolvedValue(undefined);
+  const userRole = props.userRole || 'owner';
+  render(
+    <AdminQuoteEditor
+      request={makeRequest(requestOverrides)}
+      userRole={userRole}
+      onQuoteUpdated={onQuoteUpdated}
+    />
+  );
+  return { onQuoteUpdated };
+};
+
+const typeInto = (labelText, value) => {
+  const el = screen.getByLabelText(labelText);
+  fireEvent.change(el, { target: { value } });
+  return el;
+};
+
+beforeEach(() => {
+  updateAdminRequestQuote.mockReset().mockResolvedValue({ message: 'Quote updated' });
+  sendAdminRequestQuote.mockReset();
+  createPaymentSession.mockReset();
+  sendPaymentEmail.mockReset();
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
+
+// ---------------------------------------------------------------------------
+// Money parser (pure)
+// ---------------------------------------------------------------------------
+describe('parseDollarsToCents (deterministic string parser)', () => {
+  it.each([
+    ['150', 15000],
+    ['150.00', 15000],
+    ['10.01', 1001],
+    ['10.10', 1010],
+    ['0.10', 10],
+    ['0.29', 29],
+    ['9999.99', 999999],
+    ['0', 0],
+    ['  42.5  ', 4250],
+  ])('parses %s -> %i cents', (input, expected) => {
+    const res = parseDollarsToCents(input);
+    expect(res.ok).toBe(true);
+    expect(res.cents).toBe(expected);
+  });
+
+  it.each(['10.005', '1.2.3', '10.999', '-5', '', '   ', 'abc', '1,000', '$10'])(
+    'rejects malformed input %p without silent reinterpretation',
+    (input) => {
+      const res = parseDollarsToCents(input);
+      expect(res.ok).toBe(false);
+      expect(res.error).toBeTruthy();
+    }
+  );
+
+  it('does not use float rounding (10.005 is rejected, not rounded to 1001/1000)', () => {
+    expect(parseDollarsToCents('10.005').ok).toBe(false);
+  });
+
+  // Safe-integer guard (pre-commit hardening). Shape-valid but out-of-range digit
+  // strings must be rejected, never silently submitted as an imprecise integer.
+  it('accepts the highest realistic pet-care amounts', () => {
+    expect(parseDollarsToCents('9999.99')).toEqual({ ok: true, cents: 999999 });
+    expect(parseDollarsToCents('100000.00')).toEqual({ ok: true, cents: 10000000 });
+  });
+
+  it('accepts a value whose cents equal exactly Number.MAX_SAFE_INTEGER', () => {
+    const res = parseDollarsToCents('90071992547409.91'); // 9007199254740991 = MAX_SAFE
+    expect(res.ok).toBe(true);
+    expect(res.cents).toBe(Number.MAX_SAFE_INTEGER);
+    expect(Number.isSafeInteger(res.cents)).toBe(true);
+  });
+
+  it('rejects a very large whole-number string that would exceed safe-integer range', () => {
+    const res = parseDollarsToCents('999999999999999'); // *100 is not a safe integer
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/too large/i);
+  });
+
+  it('rejects a very large decimal string one cent past the safe-integer boundary', () => {
+    const res = parseDollarsToCents('90071992547410.00'); // 9007199254741000 > MAX_SAFE
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/too large/i);
+  });
+
+  it('never returns an unsafe integer when ok is true', () => {
+    for (const input of ['0', '9999.99', '90071992547409.91', '123456.78']) {
+      const res = parseDollarsToCents(input);
+      if (res.ok) expect(Number.isSafeInteger(res.cents)).toBe(true);
+    }
+  });
+});
+
+describe('centsToDollars (display only)', () => {
+  it.each([
+    [15000, '150.00'],
+    [1001, '10.01'],
+    [10, '0.10'],
+    [0, '0.00'],
+    [null, '0.00'],
+  ])('formats %p -> %s', (cents, expected) => {
+    expect(centsToDollars(cents)).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+describe('rendering canonical state', () => {
+  it('renders status, revision, amount (cents->dollars), payment requirement, deposit and notes', () => {
+    renderEditor({
+      quote_status: 'DRAFT',
+      quote_revision: 2,
+      quote_amount_cents: 15000,
+      currency: 'USD',
+      deposit_amount_cents: 5000,
+      payment_requirement: 'DEPOSIT',
+      quote_notes_client: 'Standard walk',
+      quote_notes_internal: 'internal note',
+      internal_pricing_notes: 'pricing note',
+    });
+
+    expect(screen.getByTestId('aqe-status')).toHaveTextContent('DRAFT');
+    expect(screen.getByTestId('aqe-revision')).toHaveTextContent('2');
+    expect(screen.getByLabelText('Quote amount in dollars')).toHaveValue('150.00');
+    expect(screen.getByLabelText('Payment requirement')).toHaveValue('DEPOSIT');
+    expect(screen.getByLabelText('Deposit amount in dollars')).toHaveValue('50.00');
+    expect(screen.getByLabelText('Client-facing note')).toHaveValue('Standard walk');
+    expect(screen.getByLabelText('Internal note')).toHaveValue('internal note');
+    expect(screen.getByLabelText('Internal pricing note')).toHaveValue('pricing note');
+  });
+
+  it('shows "No quote yet" when the request has no canonical quote_status', () => {
+    renderEditor({});
+    expect(screen.getByTestId('aqe-status')).toHaveTextContent('No quote yet');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Create (no canonical quote)
+// ---------------------------------------------------------------------------
+describe('create (no canonical quote)', () => {
+  it('first save requires an amount (blocks statusless create)', async () => {
+    renderEditor({});
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    await waitFor(() => expect(screen.getByTestId('aqe-field-error')).toBeInTheDocument());
+    expect(updateAdminRequestQuote).not.toHaveBeenCalled();
+  });
+
+  it('sends a correct canonical PATCH payload when an amount is provided', async () => {
+    const { onQuoteUpdated } = renderEditor({});
+    typeInto('Quote amount in dollars', '150.00');
+    typeInto('Client-facing note', 'Welcome');
+    fireEvent.click(screen.getByTestId('aqe-save'));
+
+    await waitFor(() => expect(updateAdminRequestQuote).toHaveBeenCalledTimes(1));
+    const [reqId, payload] = updateAdminRequestQuote.mock.calls[0];
+    expect(reqId).toBe('req-123');
+    expect(payload.quote_amount_cents).toBe(15000);
+    expect(payload.currency).toBe('USD');
+    expect(payload.payment_requirement).toBe('NONE');
+    expect(payload.deposit_amount_cents).toBe(0);
+    expect(payload.quote_notes_client).toBe('Welcome');
+    // No legacy / fabricated fields.
+    expect(payload).not.toHaveProperty('quote_amount');
+    expect(payload).not.toHaveProperty('payment_status');
+    expect(payload).not.toHaveProperty('expected_revision');
+    await waitFor(() => expect(onQuoteUpdated).toHaveBeenCalledWith('req-123'));
+  });
+
+  it('button reads "Save Draft" with no canonical quote', () => {
+    renderEditor({});
+    expect(screen.getByTestId('aqe-save')).toHaveTextContent('Save Draft');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DRAFT
+// ---------------------------------------------------------------------------
+describe('DRAFT', () => {
+  it('is editable and sends an updated payload with Save Draft', async () => {
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 10000, currency: 'USD' });
+    expect(screen.getByTestId('aqe-save')).toHaveTextContent('Save Draft');
+    typeInto('Quote amount in dollars', '125.50');
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    await waitFor(() => expect(updateAdminRequestQuote).toHaveBeenCalledTimes(1));
+    expect(updateAdminRequestQuote.mock.calls[0][1].quote_amount_cents).toBe(12550);
+    // No confirmation dialog for DRAFT.
+    expect(screen.queryByTestId('aqe-confirm')).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SENT
+// ---------------------------------------------------------------------------
+describe('SENT', () => {
+  const sent = { quote_status: 'SENT', quote_revision: 1, quote_amount_cents: 10000, currency: 'USD', quote_notes_internal: '' };
+
+  it('internal-only edit saves without confirmation and uses "Save Notes"', async () => {
+    renderEditor(sent);
+    typeInto('Internal note', 'ping the client later');
+    expect(screen.getByTestId('aqe-save')).toHaveTextContent('Save Notes');
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    await waitFor(() => expect(updateAdminRequestQuote).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId('aqe-confirm')).not.toBeInTheDocument();
+  });
+
+  it('commercial edit requires confirmation and does not PATCH until confirmed', async () => {
+    renderEditor(sent);
+    typeInto('Quote amount in dollars', '175.00');
+    expect(screen.getByTestId('aqe-save')).toHaveTextContent('Save Revised Draft');
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    // Confirmation shown, no PATCH yet.
+    expect(screen.getByTestId('aqe-confirm')).toBeInTheDocument();
+    expect(updateAdminRequestQuote).not.toHaveBeenCalled();
+    // Copy explains new revision / return to draft / re-send.
+    const copy = screen.getByTestId('aqe-confirm-copy').textContent.toLowerCase();
+    expect(copy).toContain('new revision');
+    expect(copy).toContain('draft');
+    expect(copy).toContain('re-sent');
+    fireEvent.click(screen.getByTestId('aqe-confirm-save'));
+    await waitFor(() => expect(updateAdminRequestQuote).toHaveBeenCalledTimes(1));
+    expect(updateAdminRequestQuote.mock.calls[0][1].quote_amount_cents).toBe(17500);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ACCEPTED
+// ---------------------------------------------------------------------------
+describe('ACCEPTED', () => {
+  const accepted = {
+    quote_status: 'ACCEPTED', quote_revision: 1, quote_amount_cents: 10000, currency: 'USD',
+    quote_accepted_at: '2026-09-01T00:00:00Z', quote_notes_internal: '',
+  };
+
+  it('internal-only edit preserves acceptance and does not confirm', async () => {
+    renderEditor(accepted);
+    typeInto('Internal pricing note', 'margin ok');
+    expect(screen.getByTestId('aqe-save')).toHaveTextContent('Save Notes');
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    await waitFor(() => expect(updateAdminRequestQuote).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId('aqe-confirm')).not.toBeInTheDocument();
+  });
+
+  it('commercial edit requires confirmation whose copy mentions invalidating acceptance', async () => {
+    renderEditor(accepted);
+    typeInto('Quote amount in dollars', '200.00');
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    expect(screen.getByTestId('aqe-confirm')).toBeInTheDocument();
+    const copy = screen.getByTestId('aqe-confirm-copy').textContent.toLowerCase();
+    expect(copy).toContain('invalidate');
+    expect(copy).toContain('acceptance');
+    expect(updateAdminRequestQuote).not.toHaveBeenCalled();
+  });
+
+  it('cancelling the confirmation prevents the PATCH', async () => {
+    renderEditor(accepted);
+    typeInto('Quote amount in dollars', '200.00');
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    fireEvent.click(screen.getByTestId('aqe-confirm-cancel'));
+    expect(screen.queryByTestId('aqe-confirm')).not.toBeInTheDocument();
+    expect(updateAdminRequestQuote).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DECLINED / NOT_REQUIRED / SUPERSEDED (display-only)
+// ---------------------------------------------------------------------------
+describe('display-only states', () => {
+  it('DECLINED shows display-only content and no editable amount input / no save', () => {
+    renderEditor({ quote_status: 'DECLINED', quote_revision: 1, quote_amount_cents: 10000, quote_declined_at: '2026-09-02T00:00:00Z' });
+    expect(screen.getByTestId('aqe-display-only')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Quote amount in dollars')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('aqe-save')).not.toBeInTheDocument();
+    // Does not imply it can be revived.
+    expect(screen.getByTestId('aqe-display-only').textContent.toLowerCase()).toContain('not available');
+  });
+
+  it('NOT_REQUIRED shows display-only content and no create/edit action', () => {
+    renderEditor({ quote_status: 'NOT_REQUIRED', quote_revision: 1, quote_amount_cents: 0 });
+    expect(screen.getByTestId('aqe-display-only')).toBeInTheDocument();
+    expect(screen.queryByTestId('aqe-save')).not.toBeInTheDocument();
+  });
+
+  it('SUPERSEDED is treated as display-only history', () => {
+    renderEditor({ quote_status: 'SUPERSEDED', quote_revision: 1 });
+    expect(screen.getByTestId('aqe-display-only')).toBeInTheDocument();
+    expect(screen.queryByTestId('aqe-save')).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Payment requirement UX
+// ---------------------------------------------------------------------------
+describe('payment requirement UX', () => {
+  it('NONE hides the deposit input and sends deposit_amount_cents: 0', async () => {
+    renderEditor({ quote_status: 'DRAFT', quote_amount_cents: 10000, payment_requirement: 'NONE' });
+    expect(screen.queryByLabelText('Deposit amount in dollars')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    await waitFor(() => expect(updateAdminRequestQuote).toHaveBeenCalledTimes(1));
+    expect(updateAdminRequestQuote.mock.calls[0][1].deposit_amount_cents).toBe(0);
+  });
+
+  it('DEPOSIT shows the deposit input and requires a positive deposit', async () => {
+    renderEditor({ quote_status: 'DRAFT', quote_amount_cents: 10000, payment_requirement: 'NONE' });
+    fireEvent.change(screen.getByLabelText('Payment requirement'), { target: { value: 'DEPOSIT' } });
+    const dep = screen.getByLabelText('Deposit amount in dollars');
+    expect(dep).toBeInTheDocument();
+    // zero deposit rejected
+    fireEvent.change(dep, { target: { value: '0' } });
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    await waitFor(() => expect(screen.getByTestId('aqe-field-error')).toBeInTheDocument());
+    expect(updateAdminRequestQuote).not.toHaveBeenCalled();
+  });
+
+  it('DEPOSIT rejects a deposit greater than the quote total (UI guard)', async () => {
+    renderEditor({ quote_status: 'DRAFT', quote_amount_cents: 10000, payment_requirement: 'DEPOSIT', deposit_amount_cents: 2000 });
+    typeInto('Deposit amount in dollars', '250.00'); // > 100.00 total
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    await waitFor(() => expect(screen.getByTestId('aqe-field-error')).toBeInTheDocument());
+    expect(updateAdminRequestQuote).not.toHaveBeenCalled();
+  });
+
+  it('DEPOSIT allows a deposit equal to the quote total', async () => {
+    renderEditor({ quote_status: 'DRAFT', quote_amount_cents: 10000, payment_requirement: 'DEPOSIT', deposit_amount_cents: 2000 });
+    typeInto('Deposit amount in dollars', '100.00');
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    await waitFor(() => expect(updateAdminRequestQuote).toHaveBeenCalledTimes(1));
+    expect(updateAdminRequestQuote.mock.calls[0][1].deposit_amount_cents).toBe(10000);
+  });
+
+  it('FULL hides the deposit input and sends deposit_amount_cents: 0', async () => {
+    renderEditor({ quote_status: 'DRAFT', quote_amount_cents: 10000, payment_requirement: 'FULL', deposit_amount_cents: 3000 });
+    expect(screen.queryByLabelText('Deposit amount in dollars')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    await waitFor(() => expect(updateAdminRequestQuote).toHaveBeenCalledTimes(1));
+    expect(updateAdminRequestQuote.mock.calls[0][1].deposit_amount_cents).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Save + reconciliation
+// ---------------------------------------------------------------------------
+describe('save and reconciliation', () => {
+  it('invokes onQuoteUpdated(requestId) on success for the authoritative refresh', async () => {
+    const onQuoteUpdated = vi.fn().mockResolvedValue(undefined);
+    renderEditor({ quote_status: 'DRAFT', quote_amount_cents: 10000 }, { onQuoteUpdated });
+    typeInto('Quote amount in dollars', '120.00');
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    await waitFor(() => expect(onQuoteUpdated).toHaveBeenCalledWith('req-123'));
+  });
+
+  it('does not call onQuoteUpdated when the PATCH fails', async () => {
+    const onQuoteUpdated = vi.fn().mockResolvedValue(undefined);
+    updateAdminRequestQuote.mockRejectedValueOnce(new Error('Request failed with status 500'));
+    renderEditor({ quote_status: 'DRAFT', quote_amount_cents: 10000 }, { onQuoteUpdated });
+    typeInto('Quote amount in dollars', '120.00');
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    await waitFor(() => expect(screen.getByTestId('aqe-save-error')).toBeInTheDocument());
+    expect(onQuoteUpdated).not.toHaveBeenCalled();
+  });
+
+  it('never submits an over-range (unsafe-integer) amount to the API', async () => {
+    renderEditor({ quote_status: 'DRAFT', quote_amount_cents: 10000 });
+    typeInto('Quote amount in dollars', '999999999999999'); // *100 is not safe
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    await waitFor(() => expect(screen.getByTestId('aqe-field-error')).toBeInTheDocument());
+    expect(screen.getByTestId('aqe-field-error').textContent).toMatch(/too large/i);
+    expect(updateAdminRequestQuote).not.toHaveBeenCalled();
+  });
+
+  // Pre-commit hardening: PATCH succeeds but the authoritative refresh fails.
+  it('shows a non-destructive "saved but not refreshed" warning when PATCH succeeds but refresh rejects', async () => {
+    const onQuoteUpdated = vi.fn().mockRejectedValueOnce(new Error('Network error during reload'));
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 10000 }, { onQuoteUpdated });
+    typeInto('Quote amount in dollars', '120.00');
+    fireEvent.click(screen.getByTestId('aqe-save'));
+
+    // PATCH ran exactly once and the refresh was attempted.
+    await waitFor(() => expect(updateAdminRequestQuote).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onQuoteUpdated).toHaveBeenCalledTimes(1));
+
+    // Warning (not a save-failure) is surfaced.
+    await waitFor(() => expect(screen.getByTestId('aqe-save-warning')).toBeInTheDocument());
+    const warn = screen.getByTestId('aqe-save-warning').textContent;
+    expect(warn).toMatch(/saved/i);
+    expect(warn).toMatch(/could not be refreshed|reopen/i);
+    // Must NOT claim the save failed.
+    expect(screen.queryByTestId('aqe-save-error')).not.toBeInTheDocument();
+    expect(warn).not.toMatch(/couldn.t save/i);
+
+    // No second PATCH, no Send call.
+    expect(updateAdminRequestQuote).toHaveBeenCalledTimes(1);
+    expect(sendAdminRequestQuote).not.toHaveBeenCalled();
+
+    // Entered values are not destructively cleared, and the displayed status/revision
+    // are the ORIGINAL record values (no fabricated post-save state).
+    expect(screen.getByLabelText('Quote amount in dollars')).toHaveValue('120.00');
+    expect(screen.getByTestId('aqe-status')).toHaveTextContent('DRAFT');
+    expect(screen.getByTestId('aqe-revision')).toHaveTextContent('1');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Errors
+// ---------------------------------------------------------------------------
+describe('error handling', () => {
+  const base = { quote_status: 'DRAFT', quote_amount_cents: 10000 };
+
+  it.each([
+    ['Request failed with status 400 — Quote update rejected: bad', /rejected|400/i],
+    ['Forbidden', /permission/i],
+    ['Request failed with status 404 not found', /could not be found/i],
+    ['NetworkError when attempting to fetch', /couldn.t save the quote/i],
+  ])('maps server error %s to a friendly message', async (message, matcher) => {
+    updateAdminRequestQuote.mockRejectedValueOnce(new Error(message));
+    renderEditor(base);
+    typeInto('Quote amount in dollars', '120.00');
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    await waitFor(() => expect(screen.getByTestId('aqe-save-error')).toBeInTheDocument());
+    expect(screen.getByTestId('aqe-save-error').textContent).toMatch(matcher);
+  });
+
+  it('preserves entered form values on error (does not clear inputs)', async () => {
+    updateAdminRequestQuote.mockRejectedValueOnce(new Error('Request failed with status 500'));
+    renderEditor(base);
+    typeInto('Quote amount in dollars', '133.33');
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    await waitFor(() => expect(screen.getByTestId('aqe-save-error')).toBeInTheDocument());
+    expect(screen.getByLabelText('Quote amount in dollars')).toHaveValue('133.33');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Boundaries
+// ---------------------------------------------------------------------------
+describe('W2C / Stripe / legacy boundaries', () => {
+  it('never calls sendAdminRequestQuote and never calls Stripe/payment APIs', async () => {
+    renderEditor({ quote_status: 'DRAFT', quote_amount_cents: 10000 });
+    typeInto('Quote amount in dollars', '120.00');
+    fireEvent.click(screen.getByTestId('aqe-save'));
+    await waitFor(() => expect(updateAdminRequestQuote).toHaveBeenCalledTimes(1));
+    expect(sendAdminRequestQuote).not.toHaveBeenCalled();
+    expect(createPaymentSession).not.toHaveBeenCalled();
+    expect(sendPaymentEmail).not.toHaveBeenCalled();
+  });
+
+  it('renders no Send Quote control', () => {
+    renderEditor({ quote_status: 'DRAFT', quote_amount_cents: 10000 });
+    expect(screen.queryByText(/send quote/i)).not.toBeInTheDocument();
+  });
+
+  it('renders nothing editable for staff', () => {
+    const { container } = render(
+      <AdminQuoteEditor request={makeRequest({ quote_status: 'DRAFT', quote_amount_cents: 10000 })} userRole="staff" onQuoteUpdated={vi.fn()} />
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('renders nothing editable for client', () => {
+    const { container } = render(
+      <AdminQuoteEditor request={makeRequest({ quote_status: 'DRAFT', quote_amount_cents: 10000 })} userRole="client" onQuoteUpdated={vi.fn()} />
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+});

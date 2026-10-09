@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import '../Portal.css';
 import { createPaymentSession, sendPaymentEmail } from '../api/client';
 import { getKnownServiceTypeLabel } from '../utils/serviceLabels';
+import AdminQuoteEditor from './AdminQuoteEditor';
 
-const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList = [], onAssign, onAddPet, onPaymentSessionCreated }) => {
+const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList = [], onAssign, onAddPet, onPaymentSessionCreated, onQuoteUpdated }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState((pet._originItem?.status || '').toUpperCase());
@@ -776,8 +777,24 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                 </div>
               </div>
             </section>
+
+            {/* W2B: Canonical owner/admin quote editor (REQUEST-based). Primary quote
+                surface. Edits the canonical quote via PATCH /admin/requests/{id}/quote.
+                No Send Quote action (W2C owns DRAFT -> SENT). */}
+            {['owner', 'admin'].includes(userRole) && pet._originItem && (
+              <AdminQuoteEditor
+                request={pet._originItem}
+                userRole={userRole}
+                onQuoteUpdated={async () => {
+                  if (onQuoteUpdated && pet._originItem) {
+                    await onQuoteUpdated(pet._originItem);
+                  }
+                }}
+              />
+            )}
+
             <section className="card-section" style={{ marginTop: '24px' }}>
-              <h3>Pricing & Quote</h3>
+              <h3>Legacy pet-record pricing (temporary — being replaced)</h3>
               <div className="content-box">
                 <div className="grid-2">
                   <div className="price-display">

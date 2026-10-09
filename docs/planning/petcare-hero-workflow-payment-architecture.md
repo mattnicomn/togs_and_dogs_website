@@ -186,6 +186,48 @@ Requirements:
 - Admin/mobile/web consistency on canonical quote state.
 - **Unblocks M4** (produces a safe canonical `SENT` quote to Decline-test).
 
+#### Known backend-contract limitations (discovered during W2B source audit)
+
+These are **contract limitations found through source audit** of the deployed
+`PATCH /admin/requests/{requestId}/quote` handler and `apply_quote_update` (OPS-3A.1B),
+not production incidents. They bound the W2B supported-state editor and are tracked for
+later, separately approved backend work. They do **not** change the approved quote
+contract: canonical `quote_status` remains authoritative; `SUPERSEDED` remains
+history-only; a commercial edit of a `SENT`/`ACCEPTED` quote already creates a new
+revision and returns the quote to `DRAFT` (clearing acceptance for `ACCEPTED`). W2B
+makes **no** backend change, and W2C (Send Quote / `DRAFT → SENT`) does not address
+these gaps either; GAP-1/GAP-2 remediation is out of scope for W2B/W2C unless
+separately approved.
+
+**GAP-1 — DECLINED cannot be revived to DRAFT.** The deployed PATCH accepts a
+commercial update while `quote_status == DECLINED` (it does not reject it), but it does
+**not** increment `quote_revision`, does **not** transition `quote_status` back to
+`DRAFT`, and does **not** start a new revivable quote lifecycle — the record remains
+`DECLINED`. W2B behavior: DECLINED is **display-only** for commercial quote editing;
+there is **no frontend workaround**. Future remediation: a separate approved backend
+contract change is required if the product must support re-quoting after a client
+decline.
+
+**GAP-2 — NOT_REQUIRED cannot be promoted to DRAFT.** The deployed PATCH accepts
+canonical quote fields while `quote_status == NOT_REQUIRED`, but does **not** transition
+it to `DRAFT` — the record remains `NOT_REQUIRED`. W2B behavior: NOT_REQUIRED is
+**display-only**; there is **no frontend workaround**. Future remediation: a separate
+approved backend change is required if an owner must convert a `NOT_REQUIRED` request
+into a quoted request.
+
+**GAP-3 — initial statusless half-create is possible.** For a request with no
+`quote_status`, the deployed quote-update contract establishes `DRAFT` only when the
+first PATCH includes `quote_amount_cents` **or** `quote_notes_client`. A first PATCH
+containing only fields such as `currency`, `deposit_amount_cents`, `payment_requirement`,
+or internal-only notes can leave `quote_status` absent. W2B mitigation: the first
+canonical quote save **requires a valid quote amount**, so W2B never generates this
+half-created state. Future remediation: backend hardening may normalize any valid
+initial commercial quote update into `DRAFT`.
+
+These gaps do **not** block the primary W2B supported-state editor (create/edit `DRAFT`,
+commercial-revise `SENT`/`ACCEPTED`, internal-note edits). No production test record
+should be created to reproduce or document them.
+
 ### Workstream 3 — Tenant Customer Payment Architecture
 Requirements:
 - Keep **Plane A (USMISSIONHERO SaaS billing)** and **Plane B (tenant customer

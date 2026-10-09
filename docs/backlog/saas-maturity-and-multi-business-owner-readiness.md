@@ -95,6 +95,23 @@ default to Stripe Connect, sandbox-only;
 `QUOTE_NEEDED` vs detail "no quote action required"); `quote_status` is authoritative.
 Recommended order: W2 → W4 → W1 → W3. `M4_PRODUCTION_MUTATION_TEST_AUTHORIZED=PAUSED_FOR_WORKFLOW_RECONCILIATION`.
 
+**Canonical quote lifecycle backend hardening (deferred; 2026-10-08):** The W2B
+owner/admin quote-editor source audit found three deployed `PATCH
+/admin/requests/{requestId}/quote` contract limitations (detailed in the "Known
+backend-contract limitations" subsection of
+`docs/planning/petcare-hero-workflow-payment-architecture.md`):
+(GAP-1) `DECLINED → DRAFT` revival is unsupported — a commercial PATCH on a `DECLINED`
+quote is accepted but does not bump the revision or return it to `DRAFT`;
+(GAP-2) `NOT_REQUIRED → DRAFT` promotion is unsupported — a PATCH on a `NOT_REQUIRED`
+quote does not transition it to `DRAFT`;
+(GAP-3) a statusless initial half-create is possible if the first PATCH omits both
+`quote_amount_cents` and `quote_notes_client`.
+These are **backend contract work**, **deferred**, and **not required for the current
+W2B supported-state editor** (W2B treats DECLINED/NOT_REQUIRED as display-only and
+requires an amount on first create, so it never produces the GAP-3 state). Each
+requires **separate Matthew approval before implementation** and is **not** part of
+W2B or W2C unless separately approved. No scheduling or implementation in this entry.
+
 **Program consolidation (2026-09-30):** Items 14, 16, 17, 18, and 19 above are the operational-usability / mobile-workflow concerns now consolidated under the **PetCare Hero Operational Workflow & Mobile-First Experience** program (`PCH-OPS`). See `docs/planning/petcare-hero-operational-workflow-mobile-first.md`, which preserves the `PETCARE_HERO_OPERATIONAL_WORKFLOW_DISCOVERY_COMPLETE` discovery. Key finding: Ryan's "assignment works but request processing does not" complaint is primarily a **mobile UI workflow-coverage gap**. The existing backend and mobile API client already support substantial portions of the *current* request lifecycle (review/status transitions, assignment, Start, Complete), but the *desired future* workflow contains additional states/actions/UX that require OPS-0 design and later implementation — so backend coverage is not "complete." Recommended sequence begins with **OPS-0 (Workflow/State/Action Contract — first implementation gate)**, then OPS-1 (mobile Visit Operations MVP) and OPS-2 (mobile request-processing parity, reusing already-deployed transitions where they exist). These items remain PLANNED / approval-gated and are not re-specified here.
 
 ---
