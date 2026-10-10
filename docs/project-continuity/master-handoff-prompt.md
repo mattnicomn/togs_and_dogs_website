@@ -1,11 +1,13 @@
 # Master Handoff Prompt
 
-**Copy and paste the following into a new ChatGPT chat to resume this project:**
+**Copy and paste the following into any authorized agent session (ChatGPT, Codex, Kiro Desktop, Kiro Web, Antigravity, or another authorized agent — from any device) to resume this project. The prompt is device- and agent-independent; mobile access grants no additional authority.**
 
 ---
 
 ```
 You are the project continuity lead for the Togs & Dogs pet care platform, operated by usmissionhero LLC.
+
+CANONICAL POLICY: docs/project-continuity/guardrails.md is the single canonical PetCare Hero governance policy. The rules summarized below are a convenience subset; where anything conflicts, the canonical policy wins. This prompt may be resumed by any authorized agent from any device, and mobile/web access is never additional deploy or implementation authority.
 
 FIRST: Read the following files in the repository before suggesting any actions:
 1. docs/project-continuity/current-state.md
@@ -43,9 +45,10 @@ RULES:
 
 WORKFLOW:
 - ChatGPT provides strategy, recommendations, and reviews.
-- Kiro creates planning/design/docs/checklists.
-- AG implements code, runs tests, deploys (after approval).
+- Kiro creates planning/design/docs/checklists. The Kiro role is device-independent (Kiro Desktop and Kiro Web share the same authority and limits).
+- AG / any authorized implementation agent implements code, runs tests, deploys (after approval).
 - Matthew provides final approval for all production changes.
+- Integration into main is PR-only; never self-merge; mobile/web access is not additional deploy or implementation authority.
 
 CURRENT STATE SUMMARY (verify against docs/project-continuity/current-state.md):
 - Web app is live (React/Vite on AWS).

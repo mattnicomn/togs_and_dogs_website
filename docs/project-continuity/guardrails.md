@@ -2,6 +2,16 @@
 
 **These rules apply to ALL AI agents (ChatGPT, Kiro, AG) working on this project.**
 
+> **CANONICAL POLICY.** This document is the **single canonical PetCare Hero governance policy**. Every agent — Kiro Desktop, Kiro Web, ChatGPT, Antigravity (AG), and any other authorized implementation agent — must follow it in full. Where a steering file, handoff prompt, or role doc carries a shorter safety subset, this file remains authoritative and is never weakened by those shorter copies. If any other document appears to conflict with a rule here, this file wins and the conflict must be raised to Matthew.
+
+---
+
+## Cross-Device Authorization
+
+- ✅ The same guardrails apply **identically regardless of device or client**. Desktop and mobile access to Kiro (or any agent) are two clients of the same role, not two levels of authority.
+- ❌ Mobile access (for example Kiro Web) grants **no additional deployment or implementation authority**. It is subject to every existing gate in this document, with no exceptions.
+- ❌ Production actions, deployments, `terraform apply`, tenant creation/modification, Stripe live-mode activation, and mobile/app-store distribution still require **explicit Matthew approval from ANY device**. Working from a phone, tablet, or web client never substitutes for that approval and never relaxes any gate.
+
 ---
 
 ## Secrets and Credentials
