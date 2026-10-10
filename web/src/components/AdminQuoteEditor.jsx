@@ -1,20 +1,26 @@
 import { useMemo, useState } from 'react';
-import { updateAdminRequestQuote } from '../api/client';
+import { updateAdminRequestQuote, sendAdminRequestQuote } from '../api/client';
 
 /**
- * W2B — Canonical owner/admin quote editor (OPS-3A).
+ * W2B/W2C — Canonical owner/admin quote editor (OPS-3A).
  *
- * Edits the canonical REQUEST-based quote via the already-deployed
- * `PATCH /admin/requests/{requestId}/quote` endpoint (wired in W2A as
- * `updateAdminRequestQuote`). This component NEVER sends a quote (DRAFT -> SENT is
- * W2C), never calls Stripe/payment, never mutates legacy PET quote fields, and
- * never auto-approves a booking.
+ * W2B: edits the canonical REQUEST-based quote via the deployed
+ * `PATCH /admin/requests/{requestId}/quote` endpoint (`updateAdminRequestQuote`).
+ * W2C: transitions a persisted DRAFT to SENT via `POST .../quote/send`
+ * (`sendAdminRequestQuote`). The editor never calls Stripe/payment, never mutates
+ * legacy PET quote fields, never auto-approves a booking, and never performs client
+ * Accept/Decline.
  *
- * Read/reconciliation strategy (approved A_PLUS_C): initial state is derived from
- * the canonical REQUEST record (`request`, i.e. CareCard's `pet._originItem`); after
- * a successful PATCH the parent performs an authoritative refresh via
- * `onQuoteUpdated(requestId)` and this component re-renders from the refreshed
- * record. The partial PATCH response is intentionally NOT used as the editor truth.
+ * W2C scope note: only `DRAFT -> SENT` is exposed. The deployed send endpoint also
+ * technically accepts a current `SENT` quote (refreshing `quote_sent_at`), but its
+ * client-delivery/notification semantics are unproven, so NO "Resend" control is
+ * exposed here; a current SENT quote renders read-only sent state with no send action.
+ *
+ * Read/reconciliation strategy (approved A_PLUS_C): initial state is derived from the
+ * canonical REQUEST record (`request`, i.e. CareCard's `pet._originItem`); after a
+ * successful PATCH or send the parent performs an authoritative refresh via
+ * `onQuoteUpdated(requestId)` and this component re-renders from the refreshed record.
+ * The partial PATCH/send response is intentionally NOT used as the editor truth.
  */
 
 // Canonical commercial fields (a change to any of these on a SENT/ACCEPTED quote
@@ -112,12 +118,19 @@ export default function AdminQuoteEditor({ request, userRole, onQuoteUpdated }) 
   const [saveWarning, setSaveWarning] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState(null); // { payload, isCommercial }
+  // W2C send state (kept separate from save state for unambiguous messaging).
+  const [sendError, setSendError] = useState('');
+  const [sendWarning, setSendWarning] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [pendingSendConfirm, setPendingSendConfirm] = useState(false);
 
   const setField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     setFieldError('');
     setSaveError('');
     setSaveWarning('');
+    setSendError('');
+    setSendWarning('');
   };
 
   // Owner/admin gating: render nothing editable for other roles. The backend remains
@@ -266,6 +279,128 @@ export default function AdminQuoteEditor({ request, userRole, onQuoteUpdated }) 
   };
 
   const cancelConfirm = () => setPendingConfirm(null);
+
+  // --- W2C: Send Quote (DRAFT -> SENT) -----------------------------------------
+  // Dirty detection: compare the live form against the canonical record using the
+  // SAME effective-default normalization used elsewhere, so a legacy/absent record
+  // field never appears dirty merely because it differs from a form default.
+  // Amount/deposit are compared by parsed integer cents (so "150" vs "150.00" is not
+  // dirty); other fields by their effective-normalized string value.
+  const isDirty = (() => {
+    // Amount: effective persisted cents vs parsed form cents.
+    const persistedAmountCents = request?.quote_amount_cents != null
+      ? Number(request.quote_amount_cents) : 0;
+    const amountRaw = String(form.quote_amount ?? '').trim();
+    const parsedAmount = amountRaw === '' ? { ok: true, cents: 0 } : parseDollarsToCents(amountRaw);
+    const formAmountCents = parsedAmount.ok ? parsedAmount.cents : NaN;
+    if (Number.isNaN(formAmountCents) || formAmountCents !== persistedAmountCents) return true;
+
+    // Currency: effective 'USD'.
+    if ((form.currency || 'USD').trim().toUpperCase() !== (request?.currency || 'USD')) return true;
+
+    // Payment requirement: effective 'NONE'.
+    if ((form.payment_requirement || 'NONE') !== (request?.payment_requirement || 'NONE')) return true;
+
+    // Deposit: effective persisted cents vs parsed form cents.
+    const persistedDepositCents = request?.deposit_amount_cents != null
+      ? Number(request.deposit_amount_cents) : 0;
+    const depRaw = String(form.deposit_amount ?? '').trim();
+    const parsedDep = depRaw === '' ? { ok: true, cents: 0 } : parseDollarsToCents(depRaw);
+    const formDepositCents = parsedDep.ok ? parsedDep.cents : NaN;
+    if (Number.isNaN(formDepositCents) || formDepositCents !== persistedDepositCents) return true;
+
+    // Notes: effective empty string.
+    if ((form.quote_notes_client || '') !== (request?.quote_notes_client || '')) return true;
+    if ((form.quote_notes_internal || '') !== (request?.quote_notes_internal || '')) return true;
+    if ((form.internal_pricing_notes || '') !== (request?.internal_pricing_notes || '')) return true;
+
+    return false;
+  })();
+
+  // Persisted canonical amount (cents) is the authority for send eligibility — the
+  // backend sends persisted state, not unsaved form values.
+  const persistedAmountCents = request?.quote_amount_cents != null
+    ? Number(request.quote_amount_cents) : 0;
+  const persistedAmountPositive = Number.isSafeInteger(persistedAmountCents) && persistedAmountCents > 0;
+
+  // Send is exposed ONLY for a persisted DRAFT (W2C scope). No Resend on SENT.
+  const canSendState = status === 'DRAFT';
+  const sendBlockedReason = (() => {
+    if (!canSendState) return null;
+    if (isDirty) return 'Save your changes before sending.';
+    if (!persistedAmountPositive) return 'Set a quote amount greater than $0 and save before sending.';
+    return null;
+  })();
+  const canSend = EDITABLE_ROLES.includes(userRole) && canSendState && !isDirty && persistedAmountPositive;
+
+  const performSend = async () => {
+    setIsSending(true);
+    setSendError('');
+    setSendWarning('');
+    // Phase 1: the send POST. A failure here means the quote was NOT sent.
+    try {
+      await sendAdminRequestQuote(requestId);
+    } catch (err) {
+      const msg = String(err?.message || '');
+      if (/409|conflict|changed since/i.test(msg)) {
+        setSendError(
+          'This quote changed before it could be sent. Refresh the request and review '
+          + 'the latest draft before sending.'
+        );
+        // Authoritatively refresh so the owner sees the current draft; do NOT retry
+        // the POST and do NOT resend a stale revision.
+        try {
+          if (onQuoteUpdated) await onQuoteUpdated(requestId);
+        } catch (refreshErr) {
+          console.error('Send conflict refresh failed:', refreshErr);
+          setSendWarning('The latest quote state could not be refreshed. Reopen this request.');
+        }
+        setIsSending(false);
+        return;
+      }
+      if (/403|forbidden/i.test(msg)) {
+        setSendError("You don't have permission to send this quote.");
+      } else if (/404|not found/i.test(msg)) {
+        setSendError('This request could not be found.');
+      } else if (/\b400\b|rejected|invalid/i.test(msg)) {
+        setSendError(msg || 'The quote could not be sent.');
+      } else {
+        setSendError("Couldn't send the quote. Please try again.");
+      }
+      setIsSending(false);
+      return;
+    }
+
+    // Phase 2: authoritative reconciliation. The send already SUCCEEDED, so a refresh
+    // failure must NOT be reported as a send failure. No fabricated SENT status.
+    try {
+      if (onQuoteUpdated) {
+        await onQuoteUpdated(requestId);
+      }
+    } catch (refreshErr) {
+      console.error('Quote sent, but authoritative refresh failed:', refreshErr);
+      setSendWarning(
+        'Quote was sent, but the latest quote state could not be refreshed. '
+        + 'Reopen this request to see the current status.'
+      );
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleSendClick = () => {
+    setSendError('');
+    setSendWarning('');
+    if (!canSend) return;
+    setPendingSendConfirm(true);
+  };
+
+  const confirmAndSend = () => {
+    setPendingSendConfirm(false);
+    performSend();
+  };
+
+  const cancelSendConfirm = () => setPendingSendConfirm(false);
 
   // Save button label by state and pending-change kind.
   const pendingBuilt = null; // computed lazily in label logic to avoid double-build
@@ -444,8 +579,14 @@ export default function AdminQuoteEditor({ request, userRole, onQuoteUpdated }) 
         {saveWarning && (
           <p data-testid="aqe-save-warning" role="status" style={{ color: 'var(--warning, #b45309)', fontSize: '0.85rem', marginTop: '12px' }}>{saveWarning}</p>
         )}
+        {sendError && (
+          <p data-testid="aqe-send-error" role="alert" style={{ color: 'var(--danger, #dc2626)', fontSize: '0.85rem', marginTop: '12px' }}>{sendError}</p>
+        )}
+        {sendWarning && (
+          <p data-testid="aqe-send-warning" role="status" style={{ color: 'var(--warning, #b45309)', fontSize: '0.85rem', marginTop: '12px' }}>{sendWarning}</p>
+        )}
 
-        <div style={{ marginTop: '16px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ marginTop: '16px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             type="button"
             className="btn-small primary"
@@ -455,6 +596,21 @@ export default function AdminQuoteEditor({ request, userRole, onQuoteUpdated }) 
           >
             {isSaving ? 'Saving\u2026' : saveLabel}
           </button>
+          {/* W2C: Send Quote (DRAFT -> SENT only). No Resend control on SENT. */}
+          {canSendState && (
+            <button
+              type="button"
+              className="btn-small primary-outline"
+              data-testid="aqe-send"
+              disabled={!canSend || isSending}
+              onClick={handleSendClick}
+            >
+              {isSending ? 'Sending\u2026' : 'Send Quote'}
+            </button>
+          )}
+          {canSendState && sendBlockedReason && (
+            <span data-testid="aqe-send-blocked" style={{ fontSize: '0.8rem', color: 'var(--text-muted, #6c757d)' }}>{sendBlockedReason}</span>
+          )}
         </div>
       </div>
 
@@ -466,6 +622,28 @@ export default function AdminQuoteEditor({ request, userRole, onQuoteUpdated }) 
               Confirm & Save Revised Draft
             </button>
             <button type="button" className="btn-small primary-outline" data-testid="aqe-confirm-cancel" disabled={isSaving} onClick={cancelConfirm}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {pendingSendConfirm && (
+        <div className="aqe-send-confirm" role="dialog" aria-modal="true" data-testid="aqe-send-confirm" style={{ marginTop: '16px', padding: '16px', border: '1px solid var(--border)', borderRadius: '8px', background: 'rgba(37,99,235,0.08)' }}>
+          <p data-testid="aqe-send-confirm-copy" style={{ fontSize: '0.9rem', marginBottom: '8px' }}>Send this quote to the client?</p>
+          {/* Summary uses PERSISTED canonical request values, not unsaved form state. */}
+          <div data-testid="aqe-send-summary" style={{ fontSize: '0.85rem', marginBottom: '12px' }}>
+            <p><strong>Total:</strong> {centsToDollars(request?.quote_amount_cents)} {request?.currency || 'USD'}</p>
+            <p><strong>Payment requirement:</strong> {request?.payment_requirement || 'NONE'}</p>
+            {(request?.payment_requirement === 'DEPOSIT') && (
+              <p><strong>Deposit:</strong> {centsToDollars(request?.deposit_amount_cents)} {request?.currency || 'USD'}</p>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button type="button" className="btn-small primary" data-testid="aqe-send-confirm-ok" disabled={isSending} onClick={confirmAndSend}>
+              Send Quote
+            </button>
+            <button type="button" className="btn-small primary-outline" data-testid="aqe-send-confirm-cancel" disabled={isSending} onClick={cancelSendConfirm}>
               Cancel
             </button>
           </div>

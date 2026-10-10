@@ -55,7 +55,7 @@ const typeInto = (labelText, value) => {
 
 beforeEach(() => {
   updateAdminRequestQuote.mockReset().mockResolvedValue({ message: 'Quote updated' });
-  sendAdminRequestQuote.mockReset();
+  sendAdminRequestQuote.mockReset().mockResolvedValue({ message: 'Quote sent', quote_status: 'SENT' });
   createPaymentSession.mockReset();
   sendPaymentEmail.mockReset();
 });
@@ -485,9 +485,10 @@ describe('W2C / Stripe / legacy boundaries', () => {
     expect(sendPaymentEmail).not.toHaveBeenCalled();
   });
 
-  it('renders no Send Quote control', () => {
-    renderEditor({ quote_status: 'DRAFT', quote_amount_cents: 10000 });
-    expect(screen.queryByText(/send quote/i)).not.toBeInTheDocument();
+  it('renders no Resend control on a SENT quote (W2C exposes DRAFT->SENT only)', () => {
+    renderEditor({ quote_status: 'SENT', quote_amount_cents: 10000, quote_revision: 1 });
+    expect(screen.queryByText(/resend/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('aqe-send')).not.toBeInTheDocument();
   });
 
   it('renders nothing editable for staff', () => {
@@ -502,5 +503,267 @@ describe('W2C / Stripe / legacy boundaries', () => {
       <AdminQuoteEditor request={makeRequest({ quote_status: 'DRAFT', quote_amount_cents: 10000 })} userRole="client" onQuoteUpdated={vi.fn()} />
     );
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W2C — Send Quote (DRAFT -> SENT)
+// ---------------------------------------------------------------------------
+describe('W2C — Send Quote visibility', () => {
+  it('shows an enabled Send Quote on a clean persisted DRAFT with amount > 0', () => {
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 10000, currency: 'USD' });
+    const btn = screen.getByTestId('aqe-send');
+    expect(btn).toBeInTheDocument();
+    expect(btn).not.toBeDisabled();
+  });
+
+  it('shows no Send on a no-status request', () => {
+    renderEditor({});
+    expect(screen.queryByTestId('aqe-send')).not.toBeInTheDocument();
+  });
+
+  it.each(['SENT', 'ACCEPTED', 'DECLINED', 'NOT_REQUIRED', 'SUPERSEDED'])(
+    'shows no Send control for %s',
+    (quote_status) => {
+      renderEditor({ quote_status, quote_revision: 1, quote_amount_cents: 10000 });
+      expect(screen.queryByTestId('aqe-send')).not.toBeInTheDocument();
+    }
+  );
+});
+
+describe('W2C — dirty-state protection', () => {
+  const draft = { quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 10000, currency: 'USD' };
+
+  it('Send is enabled on an unchanged canonical DRAFT', () => {
+    renderEditor(draft);
+    expect(screen.getByTestId('aqe-send')).not.toBeDisabled();
+    expect(screen.queryByTestId('aqe-send-blocked')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['Quote amount in dollars', '175.00'],
+    ['Currency', 'EUR'],
+    ['Client-facing note', 'hello'],
+    ['Internal note', 'note'],
+    ['Internal pricing note', 'cost'],
+  ])('disables Send when %s is edited but unsaved', (label, value) => {
+    renderEditor(draft);
+    typeInto(label, value);
+    expect(screen.getByTestId('aqe-send')).toBeDisabled();
+    expect(screen.getByTestId('aqe-send-blocked')).toHaveTextContent(/save your changes/i);
+  });
+
+  it('disables Send when payment requirement is edited but unsaved', () => {
+    renderEditor(draft);
+    fireEvent.change(screen.getByLabelText('Payment requirement'), { target: { value: 'DEPOSIT' } });
+    expect(screen.getByTestId('aqe-send')).toBeDisabled();
+  });
+
+  it('disables Send when deposit is edited but unsaved', () => {
+    renderEditor({ ...draft, payment_requirement: 'DEPOSIT', deposit_amount_cents: 2000 });
+    typeInto('Deposit amount in dollars', '30.00');
+    expect(screen.getByTestId('aqe-send')).toBeDisabled();
+  });
+
+  // Effective-default normalization: a legacy/absent record field must NOT appear dirty.
+  it('is NOT dirty when currency is absent on the record and form shows effective USD', () => {
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 10000 }); // no currency
+    expect(screen.getByLabelText('Currency')).toHaveValue('USD');
+    expect(screen.getByTestId('aqe-send')).not.toBeDisabled();
+  });
+
+  it('is NOT dirty when payment_requirement is absent and form shows effective NONE', () => {
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 10000 }); // no payment_requirement
+    expect(screen.getByLabelText('Payment requirement')).toHaveValue('NONE');
+    expect(screen.getByTestId('aqe-send')).not.toBeDisabled();
+  });
+
+  it('is NOT dirty when deposit/notes are absent and form shows effective empty', () => {
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 10000 });
+    // No deposit field is shown (NONE), notes empty — nothing edited.
+    expect(screen.getByTestId('aqe-send')).not.toBeDisabled();
+  });
+
+  it('is NOT dirty when the persisted amount formats to a different-but-equal string', () => {
+    // Record 15000 cents -> form "150.00"; equal by cents, so not dirty.
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 15000, currency: 'USD' });
+    expect(screen.getByLabelText('Quote amount in dollars')).toHaveValue('150.00');
+    expect(screen.getByTestId('aqe-send')).not.toBeDisabled();
+  });
+});
+
+describe('W2C — persisted amount precondition', () => {
+  it('disables Send when the persisted amount is missing', () => {
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1 }); // no amount
+    expect(screen.getByTestId('aqe-send')).toBeDisabled();
+    expect(screen.getByTestId('aqe-send-blocked')).toHaveTextContent(/greater than \$0/i);
+  });
+
+  it('disables Send when the persisted amount is 0', () => {
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 0 });
+    expect(screen.getByTestId('aqe-send')).toBeDisabled();
+    expect(screen.getByTestId('aqe-send-blocked')).toHaveTextContent(/greater than \$0/i);
+  });
+
+  it('enables Send for a positive persisted amount with no unsaved edits', () => {
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 5000, currency: 'USD' });
+    expect(screen.getByTestId('aqe-send')).not.toBeDisabled();
+  });
+});
+
+describe('W2C — malformed form input blocks Send', () => {
+  // Proves the W2C guard (not just the pure parser): an unparseable unsaved money
+  // field makes the editor dirty (parse -> NaN -> dirty), so Send stays disabled and
+  // no POST is issued. The user must fix/save first.
+  it('keeps Send disabled when the amount field holds a malformed value (10.999)', () => {
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 15000, currency: 'USD' });
+    typeInto('Quote amount in dollars', '10.999'); // >2 decimals -> parser rejects
+    const btn = screen.getByTestId('aqe-send');
+    expect(btn).toBeInTheDocument();
+    expect(btn).toBeDisabled();
+    expect(screen.getByTestId('aqe-send-blocked')).toHaveTextContent(/save your changes/i);
+    fireEvent.click(btn);
+    expect(screen.queryByTestId('aqe-send-confirm')).not.toBeInTheDocument();
+    expect(sendAdminRequestQuote).not.toHaveBeenCalled();
+  });
+
+  it('keeps Send disabled when the amount exceeds the safe-integer range (90071992547410.00)', () => {
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 15000, currency: 'USD' });
+    typeInto('Quote amount in dollars', '90071992547410.00'); // cents > MAX_SAFE_INTEGER
+    const btn = screen.getByTestId('aqe-send');
+    expect(btn).toBeDisabled();
+    fireEvent.click(btn);
+    expect(sendAdminRequestQuote).not.toHaveBeenCalled();
+  });
+
+  it('keeps Send disabled when the deposit field holds a malformed value (shared parser path)', () => {
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 20000, currency: 'USD', payment_requirement: 'DEPOSIT', deposit_amount_cents: 5000 });
+    typeInto('Deposit amount in dollars', '1.2.3'); // malformed -> parser rejects
+    const btn = screen.getByTestId('aqe-send');
+    expect(btn).toBeDisabled();
+    fireEvent.click(btn);
+    expect(sendAdminRequestQuote).not.toHaveBeenCalled();
+  });
+});
+
+describe('W2C — confirmation', () => {
+  it('shows a confirmation using persisted values and does not POST until confirmed', () => {
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 12500, currency: 'USD', payment_requirement: 'FULL' });
+    fireEvent.click(screen.getByTestId('aqe-send'));
+    expect(screen.getByTestId('aqe-send-confirm')).toBeInTheDocument();
+    const summary = screen.getByTestId('aqe-send-summary').textContent;
+    expect(summary).toContain('125.00');
+    expect(summary).toContain('FULL');
+    expect(sendAdminRequestQuote).not.toHaveBeenCalled();
+  });
+
+  it('includes the persisted deposit in the summary when requirement is DEPOSIT', () => {
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 20000, currency: 'USD', payment_requirement: 'DEPOSIT', deposit_amount_cents: 5000 });
+    fireEvent.click(screen.getByTestId('aqe-send'));
+    const summary = screen.getByTestId('aqe-send-summary').textContent;
+    expect(summary).toMatch(/deposit/i);
+    expect(summary).toContain('50.00');
+  });
+
+  it('cancel closes the confirmation and performs no POST', () => {
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 10000 });
+    fireEvent.click(screen.getByTestId('aqe-send'));
+    fireEvent.click(screen.getByTestId('aqe-send-confirm-cancel'));
+    expect(screen.queryByTestId('aqe-send-confirm')).not.toBeInTheDocument();
+    expect(sendAdminRequestQuote).not.toHaveBeenCalled();
+  });
+
+  it('confirm invokes sendAdminRequestQuote exactly once with requestId and no body', async () => {
+    const { onQuoteUpdated } = renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 10000 });
+    fireEvent.click(screen.getByTestId('aqe-send'));
+    fireEvent.click(screen.getByTestId('aqe-send-confirm-ok'));
+    await waitFor(() => expect(sendAdminRequestQuote).toHaveBeenCalledTimes(1));
+    expect(sendAdminRequestQuote).toHaveBeenCalledWith('req-123');
+    // No body / expected_revision at the component call site (single string arg).
+    expect(sendAdminRequestQuote.mock.calls[0]).toHaveLength(1);
+    await waitFor(() => expect(onQuoteUpdated).toHaveBeenCalledWith('req-123'));
+  });
+});
+
+describe('W2C — send success / reconciliation', () => {
+  it('calls onQuoteUpdated and does not fabricate a local SENT status', async () => {
+    const onQuoteUpdated = vi.fn().mockResolvedValue(undefined);
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 10000 }, { onQuoteUpdated });
+    fireEvent.click(screen.getByTestId('aqe-send'));
+    fireEvent.click(screen.getByTestId('aqe-send-confirm-ok'));
+    await waitFor(() => expect(onQuoteUpdated).toHaveBeenCalledWith('req-123'));
+    // Status display still reflects the (unchanged) record prop — no local fabrication.
+    expect(screen.getByTestId('aqe-status')).toHaveTextContent('DRAFT');
+  });
+});
+
+describe('W2C — send failures', () => {
+  const draft = { quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 10000 };
+
+  it.each([
+    ['Request failed with status 400 — Quote send rejected: bad', /rejected|could not be sent/i],
+    ['Forbidden', /permission/i],
+    ['Request failed with status 404 not found', /could not be found/i],
+    ['NetworkError when attempting to fetch', /couldn.t send the quote/i],
+  ])('maps POST error %s to a friendly send error', async (message, matcher) => {
+    sendAdminRequestQuote.mockRejectedValueOnce(new Error(message));
+    renderEditor(draft);
+    fireEvent.click(screen.getByTestId('aqe-send'));
+    fireEvent.click(screen.getByTestId('aqe-send-confirm-ok'));
+    await waitFor(() => expect(screen.getByTestId('aqe-send-error')).toBeInTheDocument());
+    expect(screen.getByTestId('aqe-send-error').textContent).toMatch(matcher);
+  });
+
+  it('409 shows the conflict message, refreshes authoritatively, and does not retry', async () => {
+    const onQuoteUpdated = vi.fn().mockResolvedValue(undefined);
+    sendAdminRequestQuote.mockRejectedValueOnce(new Error('Conflict: the quote changed since it was loaded; reload and retry'));
+    renderEditor(draft, { onQuoteUpdated });
+    fireEvent.click(screen.getByTestId('aqe-send'));
+    fireEvent.click(screen.getByTestId('aqe-send-confirm-ok'));
+    await waitFor(() => expect(screen.getByTestId('aqe-send-error')).toBeInTheDocument());
+    expect(screen.getByTestId('aqe-send-error').textContent).toMatch(/changed before it could be sent/i);
+    // Exactly one POST (no auto-retry), and an authoritative refresh attempt.
+    expect(sendAdminRequestQuote).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onQuoteUpdated).toHaveBeenCalledWith('req-123'));
+  });
+
+  it('send success + refresh failure shows a non-destructive warning, not a send-failure', async () => {
+    const onQuoteUpdated = vi.fn().mockRejectedValueOnce(new Error('Network error during reload'));
+    renderEditor(draft, { onQuoteUpdated });
+    fireEvent.click(screen.getByTestId('aqe-send'));
+    fireEvent.click(screen.getByTestId('aqe-send-confirm-ok'));
+    await waitFor(() => expect(sendAdminRequestQuote).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByTestId('aqe-send-warning')).toBeInTheDocument());
+    const warn = screen.getByTestId('aqe-send-warning').textContent;
+    expect(warn).toMatch(/was sent/i);
+    expect(warn).toMatch(/could not be refreshed|reopen/i);
+    expect(screen.queryByTestId('aqe-send-error')).not.toBeInTheDocument();
+    expect(warn).not.toMatch(/couldn.t send/i);
+    // No second POST, no fabricated SENT status.
+    expect(sendAdminRequestQuote).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('aqe-status')).toHaveTextContent('DRAFT');
+  });
+});
+
+describe('W2C — boundaries', () => {
+  it('never calls Stripe/payment APIs or sendPaymentEmail when sending', async () => {
+    renderEditor({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 10000 });
+    fireEvent.click(screen.getByTestId('aqe-send'));
+    fireEvent.click(screen.getByTestId('aqe-send-confirm-ok'));
+    await waitFor(() => expect(sendAdminRequestQuote).toHaveBeenCalledTimes(1));
+    expect(createPaymentSession).not.toHaveBeenCalled();
+    expect(sendPaymentEmail).not.toHaveBeenCalled();
+  });
+
+  it('does not expose Send for staff/client even on a valid DRAFT', () => {
+    const { container } = render(
+      <AdminQuoteEditor request={makeRequest({ quote_status: 'DRAFT', quote_revision: 1, quote_amount_cents: 10000 })} userRole="staff" onQuoteUpdated={vi.fn()} />
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('exposes no "resend"/"notify again" wording anywhere in the editor', () => {
+    renderEditor({ quote_status: 'SENT', quote_revision: 1, quote_amount_cents: 10000 });
+    expect(screen.queryByText(/resend|notify .*again|send again/i)).not.toBeInTheDocument();
   });
 });
