@@ -37,10 +37,17 @@ Before recommending or making any changes, every Kiro session must:
 
 ## Normal Operating Model (AG Available)
 
-- Kiro: planning, organization, investigation, continuity, technical review, and validation.
+- `docs/project-continuity/guardrails.md` is the **canonical/full governance policy**. This steering file carries the always-on critical subset below (Absolute Prohibitions, Email Provider Guardrail) and never weakens the canonical policy.
+- Kiro: planning, organization, investigation, continuity, technical review, and validation. The **Kiro role is device-independent** — Kiro Desktop and Kiro Web are two clients of the same role, with the same authority and the same limits.
+- ChatGPT: strategy, decision support, guardrail enforcement, and reviews.
 - Prepare bounded implementation instructions for AG.
-- AG: approved execution, implementation, testing, packaging, Terraform planning, and deployment preparation.
+- AG and any other **authorized implementation agent** (generalizing AG/Antigravity): approved execution, implementation, testing, packaging, Terraform planning, and deployment preparation.
 - Matthew: final approval for all production changes.
+
+### Cross-Device Authorization
+
+- Mobile access (for example Kiro Web) is **never additional deploy or implementation authority**. It is subject to every gate in `docs/project-continuity/guardrails.md`.
+- Production, deploy, `terraform apply`, tenant, Stripe live-mode, and mobile-distribution actions require explicit Matthew approval from **any** device.
 
 ## Temporary Execution Fallback (AG Unavailable)
 
