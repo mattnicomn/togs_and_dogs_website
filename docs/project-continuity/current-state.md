@@ -1,6 +1,41 @@
 # Current Project State
 
-**Last Updated:** 2026-10-11 — Cross-device governance synchronization closeout (`PETCARE_HERO_GOVERNANCE_PR1_MERGED_AND_SYNCED`). See the checkpoint section immediately below; prior release history is preserved under **Release Checkpoint History**.
+**Last Updated:** 2026-10-11 — GitHub Gate C2 branch-ruleset enforcement + Gate C3a documentation closeout (`PETCARE_HERO_GATE_C2_MAIN_RULESET_ENFORCED`). See the GitHub Enforcement section immediately below; the prior cross-device governance sync closeout follows it; earlier release history is preserved under **Release Checkpoint History**.
+
+---
+
+## 2026-10-11 — GitHub Enforcement Gate C2 (main branch ruleset) + Gate C3a (documentation closeout)
+
+**Disposition:** `PETCARE_HERO_GATE_C2_MAIN_RULESET_ENFORCED`
+
+### Gate C2 — technical enforcement applied
+- Created exactly one repository-level branch ruleset on `mattnicomn/togs_and_dogs_website`:
+  - **Ruleset ID:** `24878098` · **Name:** `protect-main-mvp` · **Target:** `refs/heads/main` only · **Enforcement:** `active`.
+  - **Rules:** require a pull request before merging (`required_approving_review_count: 0`), block force pushes (`non_fast_forward`), block branch deletion (`deletion`).
+  - **Bypass actors:** none (`[]`); `current_user_can_bypass: "never"`.
+- Effect: direct pushes, force pushes, and deletion of `main` are now rejected server-side for everyone, including the owner. Changes to `main` must arrive via a PR; with 0 required approvals the owner can still merge their own compliant PR (GitHub never permits self-approval, so ≥1 approval would lock out a single-collaborator repo — deferred until an independent reviewer exists).
+- **Rollback (documented, not executed):** a repo admin can disable or delete the ruleset via Repo → Settings → Rules → Rulesets → `protect-main-mvp`, or via API (`PUT …/rulesets/24878098 {"enforcement":"disabled"}` / `DELETE …/rulesets/24878098`). Ruleset administration is independent of the empty bypass list — no administrative lockout exists.
+- **Checkpoint at execution:** `main == origin/main == 73b9f760797906a58e4b4a625eb18ef587e6f133`.
+
+### Verified repository security posture (read-only, 2026-10-11)
+- `secret_scanning = enabled` and `secret_scanning_push_protection = enabled` — **already technically enforced** (the earlier roadmap claim that these were disabled was stale and is corrected in `enforcement-roadmap.md`).
+- Repository remains **personal-account-owned** (`mattnicomn`) and **public**; default branch `main`. No visibility, transfer, collaborator, or Actions change was made.
+
+### Technical enforcement vs. documented-only
+- **Technically enforced now:** `main` branch ruleset (`protect-main-mvp`), secret scanning, push protection.
+- **Still documented-only (convention):** independent review (≥1 approval), CODEOWNERS, CI-on-PR, OIDC/protected deployment environments. These remain approval-gated future work per `enforcement-roadmap.md`.
+
+### Organization-migration caveat
+- `protect-main-mvp` is a repository-level ruleset. Per ADR 0004 §8 this repo is a future org-migration target, and GitHub repository transfers do **not** carry repository-level rulesets. After any org migration the ruleset must be **revalidated and recreated** (or replaced with an organization-level ruleset) under the new owner.
+
+### Gate C3a — documentation closeout (this entry)
+- Documentation-only; updated `enforcement-roadmap.md`, `current-state.md`, and `release-notes/index.md` to record Gate C2 and correct the stale secret-scanning / push-protection status. No GitHub settings or ruleset change. Delivered via an isolated feature branch and draft PR for Matthew's review (not merged).
+
+### Gates and follow-ups preserved (unchanged by C2/C3a)
+- `M4_PRODUCTION_MUTATION_TEST_AUTHORIZED=PAUSED_FOR_WORKFLOW_RECONCILIATION`; `M4_FRESH_EXECUTION_APPROVAL_REQUIRED=YES`; M4-B/M4-C `UNVERIFIED / NOT PERFORMED`.
+- `RYAN_TESTING_AUTHORIZED=NO`; `MOBILE_PUBLIC_DISTRIBUTION_AUTHORIZED=NO`; Stripe sandbox-only; `PRODUCTION_TEST_DATA_CREATION_AUTHORIZED=NO`.
+- Two owner-gated security follow-ups remain Matthew-gated and NOT done: Stripe **TEST**-credential rotation (sandbox-only) and repo public→private visibility review.
+- No production / Terraform / AWS / Stripe / tenant / mobile change occurred in C2 or C3a.
 
 ---
 
