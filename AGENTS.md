@@ -16,7 +16,7 @@ Thin pointer for any agent (ChatGPT, Codex, Kiro Desktop, Kiro Web, Antigravity/
 - No production deployment, `terraform apply`, or AWS resource change without explicit Matthew approval.
 - Mobile/web access (for example Kiro Web) is **not** additional deploy or implementation authority.
 - Use targeted `git add <file>` only; never `git add .`.
-- Integration into `main` is PR-only; never push directly to `main` and never self-merge.
+- Integration into `main` is PR-only; never push directly to `main`. Unauthorized agent self-merge is prohibited; an **owner-authorized delegated merge** is permitted only after Matthew relays an explicit MERGE AUTHORIZATION block and the agent completes the pre-merge verification checklist — see the **PR/MR Integration** section in [`docs/project-continuity/guardrails.md`](docs/project-continuity/guardrails.md). Merge authorization is integration-only and never authorizes deployment.
 
 ## Note
 

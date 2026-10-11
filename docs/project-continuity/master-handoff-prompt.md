@@ -48,7 +48,7 @@ WORKFLOW:
 - Kiro creates planning/design/docs/checklists. The Kiro role is device-independent (Kiro Desktop and Kiro Web share the same authority and limits).
 - AG / any authorized implementation agent implements code, runs tests, deploys (after approval).
 - Matthew provides final approval for all production changes.
-- Integration into main is PR-only; never self-merge; mobile/web access is not additional deploy or implementation authority.
+- Integration into main is PR-only. Unauthorized agent self-merge is prohibited; an owner-authorized delegated merge is permitted only after Matthew relays an explicit MERGE AUTHORIZATION (repository, PR/MR number, immutable head SHA, target branch, merge method, integration-only restrictions) into the session and the agent passes the full pre-merge verification checklist in the guardrails PR/MR Integration section. Merge authorization is integration-only and never authorizes deployment/terraform/stripe/tenant/production-test/ryan-test/mobile-distribution. Mobile/web access is not additional deploy or implementation authority.
 
 CURRENT STATE SUMMARY (verify against docs/project-continuity/current-state.md):
 - Web app is live (React/Vite on AWS).
