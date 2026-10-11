@@ -237,16 +237,23 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 | System architecture overview | `ARCHITECTURE.md` |
 | Data model | `docs/datamodel.md` |
 
+## Agent Entry Point
+
+| File | Purpose |
+|------|---------|
+| `AGENTS.md` (repo root) | Thin pointer directing any agent (ChatGPT, Codex, Kiro Desktop/Web, Antigravity, etc.) to the authoritative policy docs and top invariants. The existing `mobile/AGENTS.md` stays as-is (Expo docs). |
+
 ## Project Continuity (This Folder)
 
 | File | Purpose |
 |------|---------|
 | `README.md` | Start here |
 | `current-state.md` | What's deployed/blocked now |
-| `guardrails.md` | Safety rules |
-| `agent-operating-model.md` | How agents collaborate |
+| `guardrails.md` | **Canonical PetCare Hero governance policy** (single source of truth for all agents/devices) |
+| `agent-operating-model.md` | How agents collaborate (roles + cross-device authorization) |
+| `enforcement-roadmap.md` | Which controls must be enforced via GitHub rulesets, CI/CD, and AWS IAM (references ADR 0004 in the separate foundation repo); tracks outstanding owner-gated security follow-ups |
 | `decision-log.md` | Key decisions |
 | `release-timeline.md` | Major milestones |
 | `lessons-learned.md` | Patterns and anti-patterns |
-| `master-handoff-prompt.md` | New-session prompt |
+| `master-handoff-prompt.md` | New-session prompt (device/agent-independent) |
 | `continuity-maintenance-checklist.md` | How to keep these docs accurate |
