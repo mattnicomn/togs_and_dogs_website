@@ -283,16 +283,38 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   const petInfo = _normalizePets();
   const allPets = petInfo.pets;
   const [activePetIndex, setActivePetIndex] = useState(0);
+  // Tracks the add-pet selection signature already applied, so a new pet is
+  // auto-selected exactly once per add-pet event (see below).
+  const [appliedNewPetSelection, setAppliedNewPetSelection] = useState(null);
   const activePet = allPets[activePetIndex] || pet;
   const hasMultiplePets = allPets.length > 1;
   const canEditActivePet = petInfo.hasTrueRecords && !!activePet.pet_id && !activePet._fetchFailed;
 
-  // Release 5B Hotfix 2: Auto-select newly added pet when _newPetIndex is set
-  useEffect(() => {
-    if (pet._newPetIndex !== undefined && pet._newPetIndex >= 0 && pet._newPetIndex < allPets.length) {
-      setActivePetIndex(pet._newPetIndex);
+  // Release 5B Hotfix 2: Auto-select the newly added pet when the parent's
+  // add-pet workflow supplies pet._newPetIndex.
+  //
+  // The selection is applied during render using React's documented
+  // "adjust state while rendering when a value changes" pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
+  // instead of inside an effect (react-hooks/set-state-in-effect). The applied
+  // add-pet signature is stored in state and compared each render, so:
+  //   - a given add-pet event auto-selects exactly once;
+  //   - unrelated re-renders (same signature) do not override a user's later
+  //     manual pet-tab choice;
+  //   - the signature includes the request identity, so reusing this CareCard
+  //     instance for a different request (even one whose _newPetIndex happens to
+  //     match) is treated as its own event rather than a replay of the prior one.
+  const newPetIndex = pet._newPetIndex;
+  const requestIdentity = pet._originItem?.PK ?? pet._originItem?.request_id ?? pet.request_id ?? null;
+  const isValidNewPetIndex =
+    Number.isInteger(newPetIndex) && newPetIndex >= 0 && newPetIndex < allPets.length;
+  const newPetSelectionSignature = isValidNewPetIndex ? `${requestIdentity}::${newPetIndex}` : null;
+  if (newPetSelectionSignature !== null && newPetSelectionSignature !== appliedNewPetSelection) {
+    setAppliedNewPetSelection(newPetSelectionSignature);
+    if (activePetIndex !== newPetIndex) {
+      setActivePetIndex(newPetIndex);
     }
-  }, [pet._newPetIndex, allPets.length]);
+  }
 
   // Release 5A Hotfix 2: Reinitialize formData when active pet changes.
   // Only runs when NOT in edit mode (edit mode blocks tab switching).
