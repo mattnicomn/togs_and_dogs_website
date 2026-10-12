@@ -26,7 +26,8 @@ vi.mock('../src/api/client', () => ({
   sendPaymentEmail: (...args) => sendPaymentEmail(...args),
 }));
 
-import AdminQuoteEditor, { parseDollarsToCents, centsToDollars } from '../src/components/AdminQuoteEditor';
+import AdminQuoteEditor from '../src/components/AdminQuoteEditor';
+import { parseDollarsToCents, centsToDollars } from '../src/utils/quoteMoney';
 
 const makeRequest = (overrides = {}) => ({
   request_id: 'req-123',
