@@ -1158,10 +1158,16 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
     }
   }, [allRequests]);
 
-  // Clear stale selections when switching filters
-  React.useEffect(() => {
+  // Clear stale selections when switching filters. Uses React's "adjust state
+  // while rendering when a value changes" pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect) instead of a
+  // synchronous setState inside an effect (react-hooks/set-state-in-effect).
+  // Behavior is identical: when statusFilter changes, the selection resets.
+  const [selectionFilterKey, setSelectionFilterKey] = useState(statusFilter);
+  if (statusFilter !== selectionFilterKey) {
+    setSelectionFilterKey(statusFilter);
     setSelectedIds([]);
-  }, [statusFilter]);
+  }
 
 
   const getGuidedActions = (item) => {
