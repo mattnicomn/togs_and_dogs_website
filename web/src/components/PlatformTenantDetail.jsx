@@ -56,6 +56,20 @@ const PlatformTenantDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // React-recommended "adjust state during render when a prop changes" pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect). When the route
+  // companyId changes in place (without a remount), reset to the loading state
+  // synchronously during render so the spinner shows while the new tenant loads.
+  // This preserves the original spinner-on-companyId-change behavior without
+  // calling setState in an effect body.
+  const [loadedCompanyId, setLoadedCompanyId] = useState(companyId);
+  if (companyId !== loadedCompanyId) {
+    setLoadedCompanyId(companyId);
+    setTenant(null);
+    setError(null);
+    setLoading(true);
+  }
+
   // Edit Modal State
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [modalStep, setModalStep] = useState('edit'); // 'edit' or 'review'
@@ -71,31 +85,50 @@ const PlatformTenantDetail = () => {
   const [modalError, setModalError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  const fetchTenantDetail = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getPlatformTenant(companyId);
-      setTenant(data);
-      
-      // Initialize form fields
-      setFormFields({
-        display_name: data.profile?.display_name || '',
-        subscription_tier: data.subscription?.tier || 'starter',
-        subscription_status: data.subscription?.status || 'active',
-        admin_override_until: data.profile?.admin_override_until ? data.profile.admin_override_until.substring(0, 16) : '',
-        notes: data.profile?.notes || '',
-      });
-    } catch (err) {
-      console.error('Failed to load tenant details:', err);
-      setError(err.message || 'Failed to fetch tenant metadata.');
-    } finally {
-      setLoading(false);
-    }
+  // Applies a successfully-fetched tenant record to component state.
+  const applyTenant = (data) => {
+    setTenant(data);
+    // Initialize form fields
+    setFormFields({
+      display_name: data.profile?.display_name || '',
+      subscription_tier: data.subscription?.tier || 'starter',
+      subscription_status: data.subscription?.status || 'active',
+      admin_override_until: data.profile?.admin_override_until ? data.profile.admin_override_until.substring(0, 16) : '',
+      notes: data.profile?.notes || '',
+    });
   };
 
+  // Manual retry / post-save refresh path: runs from a user event handler, so
+  // setting loading synchronously here is fine (not an effect body). Returns the
+  // promise so callers (e.g. the save handler) can await the refresh.
+  const fetchTenantDetail = () => {
+    setLoading(true);
+    setError(null);
+    return getPlatformTenant(companyId)
+      .then(data => applyTenant(data))
+      .catch(err => {
+        console.error('Failed to load tenant details:', err);
+        setError(err.message || 'Failed to fetch tenant metadata.');
+      })
+      .finally(() => setLoading(false));
+  };
+
+  // Initial load (and reload when companyId changes). The effect uses promise
+  // continuations only — no synchronous setState in the effect body
+  // (react-hooks/set-state-in-effect). A `cancelled` guard prevents a stale
+  // response for a previous companyId from overwriting the current tenant after
+  // navigation or unmount.
   useEffect(() => {
-    fetchTenantDetail();
+    let cancelled = false;
+    getPlatformTenant(companyId)
+      .then(data => { if (!cancelled) applyTenant(data); })
+      .catch(err => {
+        if (cancelled) return;
+        console.error('Failed to load tenant details:', err);
+        setError(err.message || 'Failed to fetch tenant metadata.');
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [companyId]);
 
   if (loading) {

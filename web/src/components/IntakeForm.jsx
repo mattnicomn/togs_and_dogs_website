@@ -83,7 +83,7 @@ const IntakeForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Release 2: Staff options for preferred sitter dropdown
   const [staffOptions, setStaffOptions] = useState([]);
-  const [, setStaffOptionsLoading] = useState(false);
+  const [, setStaffOptionsLoading] = useState(true);
   const selectedService = SERVICE_TYPES.services[formData.service_type];
   const canonicalWindowModel = getCanonicalWindowModel(formData.service_type);
   const usesCheckInSchedule = selectedService?.windowSelectionMode === 'match_visits_per_day';
@@ -105,7 +105,9 @@ const IntakeForm = () => {
     
     // Release 2: Load staff options for preferred sitter dropdown.
     // Uses a sanitized public endpoint that only returns display names.
-    setStaffOptionsLoading(true);
+    // The loading flag is updated inside the promise continuations only, so the
+    // effect never calls setState synchronously in its body
+    // (react-hooks/set-state-in-effect). `staffOptionsLoading` initializes true.
     getStaffOptions()
       .then(data => {
         setStaffOptions(data.staff_options || []);
