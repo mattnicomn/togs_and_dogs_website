@@ -1,8 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import '../Portal.css';
 import { createPaymentSession, sendPaymentEmail } from '../api/client';
 import { getKnownServiceTypeLabel } from '../utils/serviceLabels';
 import AdminQuoteEditor from './AdminQuoteEditor';
+
+// Release 12V: Payment-email cooldown window (2 minutes).
+const PAYMENT_EMAIL_COOLDOWN_MS = 120000;
+
+// Pure helper: whole seconds remaining in the cooldown window for a given
+// last-sent ISO timestamp, evaluated against the supplied "now". Returns 0 when
+// there is no timestamp or the window has elapsed. Deriving this from the
+// authoritative timestamp keeps the countdown a function of real elapsed time
+// rather than requiring a synchronous setState inside an effect.
+const computeCooldownSeconds = (lastSentAt, now = Date.now()) => {
+  if (!lastSentAt) return 0;
+  const remainingMs = PAYMENT_EMAIL_COOLDOWN_MS - (now - new Date(lastSentAt).getTime());
+  return remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0;
+};
 
 const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList = [], onAssign, onAddPet, onPaymentSessionCreated, onQuoteUpdated }) => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -41,7 +55,16 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailSendSuccess, setEmailSendSuccess] = useState(false);
   const [emailSendError, setEmailSendError] = useState('');
-  const [secondsRemaining, setSecondsRemaining] = useState(0);
+  // Initialize the cooldown directly from the authoritative last-sent timestamp
+  // so the first render already reflects the correct remaining time (no
+  // synchronous setState in an effect needed to seed it).
+  const [secondsRemaining, setSecondsRemaining] = useState(
+    () => computeCooldownSeconds(pet._originItem?.payment_email_sent_at)
+  );
+  // Tracks which last-sent timestamp the countdown state currently reflects, so
+  // a changed timestamp (new send, switched request, cleared) can resync during
+  // render instead of via an effect.
+  const lastSyncedSentAtRef = useRef(pet._originItem?.payment_email_sent_at);
 
   // Release 12R: Initialize and reset payment states when pet prop changes
   // Note: activePet is derived later from _normalizePets(); use pet prop directly here
@@ -64,22 +87,26 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   // Release 12V: Countdown timer for rate limiting/disabled state (recently sent within 2 minutes)
   const lastSentAt = pet._originItem?.payment_email_sent_at;
   const clientEmail = pet._originItem?.client_email || pet.client_email || '';
+
+  // When the authoritative last-sent timestamp changes (new send, switched
+  // request, or cleared), resync the countdown during render — React's
+  // "adjust state while rendering when a value changes" pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect) — instead of calling
+  // setSecondsRemaining inside an effect (react-hooks/set-state-in-effect).
+  if (lastSyncedSentAtRef.current !== lastSentAt) {
+    lastSyncedSentAtRef.current = lastSentAt;
+    setSecondsRemaining(computeCooldownSeconds(lastSentAt));
+  }
+
+  // Tick the countdown down once per second while a cooldown is active. The
+  // interval's setState runs asynchronously (on each timer fire), not
+  // synchronously within the effect body, and remaining time is recomputed from
+  // the authoritative timestamp each tick. Cleanup clears the interval.
   useEffect(() => {
-    if (!lastSentAt) {
-      setSecondsRemaining(0);
-      return;
-    }
-    const updateCountdown = () => {
-      const diffMs = Date.now() - new Date(lastSentAt).getTime();
-      const remainingMs = 120000 - diffMs;
-      if (remainingMs > 0) {
-        setSecondsRemaining(Math.ceil(remainingMs / 1000));
-      } else {
-        setSecondsRemaining(0);
-      }
-    };
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
+    if (!lastSentAt) return undefined;
+    const interval = setInterval(() => {
+      setSecondsRemaining(computeCooldownSeconds(lastSentAt));
+    }, 1000);
     return () => clearInterval(interval);
   }, [lastSentAt]);
 
