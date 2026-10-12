@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import '../Portal.css';
 import { createPaymentSession, sendPaymentEmail } from '../api/client';
 import { getKnownServiceTypeLabel } from '../utils/serviceLabels';
@@ -16,6 +16,21 @@ const computeCooldownSeconds = (lastSentAt, now = Date.now()) => {
   if (!lastSentAt) return 0;
   const remainingMs = PAYMENT_EMAIL_COOLDOWN_MS - (now - new Date(lastSentAt).getTime());
   return remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0;
+};
+
+// Release 12R: Pure helper for the initial/reset "Amount to Charge" value.
+// Prefers the request's stored payment_amount_cents, then the pet quote_amount,
+// otherwise empty. Shared by the lazy state initializer and the reset-on-new-
+// pet-reference adjustment so both paths behave identically.
+const computeInitialPaymentAmount = (pet) => {
+  const originItem = pet?._originItem || {};
+  if (originItem.payment_amount_cents) {
+    return (originItem.payment_amount_cents / 100).toFixed(2);
+  }
+  if (pet?.quote_amount) {
+    return parseFloat(pet.quote_amount).toFixed(2);
+  }
+  return '';
 };
 
 const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList = [], onAssign, onAddPet, onPaymentSessionCreated, onQuoteUpdated }) => {
@@ -43,8 +58,10 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   // Release 4E: Staff assignment state
   const [isAssigning, setIsAssigning] = useState(false);
 
-  // Release 12R: Stripe payment session states
-  const [paymentAmount, setPaymentAmount] = useState('');
+  // Release 12R: Stripe payment session states.
+  // Seeded from the request so the first render already shows the correct
+  // amount; subsequently reset on each new `pet` reference (see below).
+  const [paymentAmount, setPaymentAmount] = useState(() => computeInitialPaymentAmount(pet));
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [showConfirmPaymentGen, setShowConfirmPaymentGen] = useState(false);
@@ -61,40 +78,47 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   const [secondsRemaining, setSecondsRemaining] = useState(
     () => computeCooldownSeconds(pet._originItem?.payment_email_sent_at)
   );
-  // Tracks which last-sent timestamp the countdown state currently reflects, so
-  // a changed timestamp (new send, switched request, cleared) can resync during
-  // render instead of via an effect.
-  const lastSyncedSentAtRef = useRef(pet._originItem?.payment_email_sent_at);
-
-  // Release 12R: Initialize and reset payment states when pet prop changes
-  // Note: activePet is derived later from _normalizePets(); use pet prop directly here
-  useEffect(() => {
-    const originItem = pet._originItem || {};
-    const initialAmount = originItem.payment_amount_cents 
-      ? (originItem.payment_amount_cents / 100).toFixed(2) 
-      : (pet.quote_amount ? parseFloat(pet.quote_amount).toFixed(2) : '');
-    setPaymentAmount(initialAmount);
-    setPaymentError('');
-    setShowConfirmPaymentGen(false);
-    setCopySuccess(false);
-
-    // Release 12V: Reset email send states on pet prop change
-    setShowConfirmEmailModal(false);
-    setEmailSendSuccess(false);
-    setEmailSendError('');
-  }, [pet]);
 
   // Release 12V: Countdown timer for rate limiting/disabled state (recently sent within 2 minutes)
   const lastSentAt = pet._originItem?.payment_email_sent_at;
   const clientEmail = pet._originItem?.client_email || pet.client_email || '';
 
-  // When the authoritative last-sent timestamp changes (new send, switched
-  // request, or cleared), resync the countdown during render — React's
+  // Request identity used to key both the payment/email reset and the cooldown
+  // resync, so switching requests (or any new pet reference) is handled as a
+  // distinct event even when two requests share the same payment_email_sent_at.
+  const requestIdentity = pet._originItem?.PK ?? pet._originItem?.request_id ?? pet.request_id ?? null;
+
+  // Release 12R: Reset transient payment/email state whenever a new `pet`
+  // reference arrives (approved behavior: reset on every new reference,
+  // including same-request refreshes; a user's typed amount is preserved while
+  // the reference is unchanged). Applied during render via React's documented
   // "adjust state while rendering when a value changes" pattern
-  // (https://react.dev/learn/you-might-not-need-an-effect) — instead of calling
-  // setSecondsRemaining inside an effect (react-hooks/set-state-in-effect).
-  if (lastSyncedSentAtRef.current !== lastSentAt) {
-    lastSyncedSentAtRef.current = lastSentAt;
+  // (https://react.dev/learn/you-might-not-need-an-effect) instead of inside an
+  // effect (react-hooks/set-state-in-effect). The previously-synced reference is
+  // held in state (no refs read/written during render).
+  const [syncedPetReference, setSyncedPetReference] = useState(pet);
+  if (syncedPetReference !== pet) {
+    setSyncedPetReference(pet);
+    setPaymentAmount(computeInitialPaymentAmount(pet));
+    setPaymentError('');
+    setShowConfirmPaymentGen(false);
+    setCopySuccess(false);
+    setShowConfirmEmailModal(false);
+    setEmailSendSuccess(false);
+    setEmailSendError('');
+  }
+
+  // Resync the countdown when the authoritative cooldown source changes. The
+  // signature combines the request identity with payment_email_sent_at so that
+  // switching to a different request always re-derives the cooldown — even when
+  // the two requests carry an identical timestamp — preventing an optimistic
+  // cooldown from one request leaking into another. Applied during render (the
+  // "adjust state while rendering" pattern) using a state-held signature rather
+  // than a ref.
+  const cooldownSignature = `${requestIdentity}::${lastSentAt ?? ''}`;
+  const [syncedCooldownSignature, setSyncedCooldownSignature] = useState(cooldownSignature);
+  if (syncedCooldownSignature !== cooldownSignature) {
+    setSyncedCooldownSignature(cooldownSignature);
     setSecondsRemaining(computeCooldownSeconds(lastSentAt));
   }
 
@@ -304,8 +328,8 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   //   - the signature includes the request identity, so reusing this CareCard
   //     instance for a different request (even one whose _newPetIndex happens to
   //     match) is treated as its own event rather than a replay of the prior one.
+  // requestIdentity is derived once near the top of the component.
   const newPetIndex = pet._newPetIndex;
-  const requestIdentity = pet._originItem?.PK ?? pet._originItem?.request_id ?? pet.request_id ?? null;
   const isValidNewPetIndex =
     Number.isInteger(newPetIndex) && newPetIndex >= 0 && newPetIndex < allPets.length;
   const newPetSelectionSignature = isValidNewPetIndex ? `${requestIdentity}::${newPetIndex}` : null;
