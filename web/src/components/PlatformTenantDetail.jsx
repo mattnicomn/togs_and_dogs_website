@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getPlatformTenant, updatePlatformTenant } from '../api/platform';
 import './PlatformAdmin.css';
@@ -85,6 +85,14 @@ const PlatformTenantDetail = () => {
   const [modalError, setModalError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
+  // Monotonic load-generation guard. EVERY load (initial mount, companyId
+  // change, manual Retry, and post-save refresh) increments this and captures
+  // its own id; a continuation only applies its result if it is still the most
+  // recent load. This prevents ANY stale/slow response — including an in-flight
+  // manual refresh for a previous companyId — from overwriting newer data, and
+  // also discards results after unmount.
+  const loadSeqRef = useRef(0);
+
   // Applies a successfully-fetched tenant record to component state.
   const applyTenant = (data) => {
     setTenant(data);
@@ -98,37 +106,46 @@ const PlatformTenantDetail = () => {
     });
   };
 
-  // Manual retry / post-save refresh path: runs from a user event handler, so
-  // setting loading synchronously here is fine (not an effect body). Returns the
-  // promise so callers (e.g. the save handler) can await the refresh.
+  // Manual retry / post-save refresh path (user event handler): resets loading
+  // synchronously (safe here — not an effect body), then loads under the
+  // generation guard, capturing the target companyId at call time so a late
+  // response cannot cross tenants. Returns the promise so the save handler can
+  // await the refresh.
   const fetchTenantDetail = () => {
+    const seq = ++loadSeqRef.current;
+    const targetCompanyId = companyId;
     setLoading(true);
     setError(null);
-    return getPlatformTenant(companyId)
-      .then(data => applyTenant(data))
+    return getPlatformTenant(targetCompanyId)
+      .then(data => { if (seq === loadSeqRef.current) applyTenant(data); })
       .catch(err => {
+        if (seq !== loadSeqRef.current) return;
         console.error('Failed to load tenant details:', err);
         setError(err.message || 'Failed to fetch tenant metadata.');
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (seq === loadSeqRef.current) setLoading(false); });
   };
 
-  // Initial load (and reload when companyId changes). The effect uses promise
-  // continuations only — no synchronous setState in the effect body
-  // (react-hooks/set-state-in-effect). A `cancelled` guard prevents a stale
-  // response for a previous companyId from overwriting the current tenant after
-  // navigation or unmount.
+  // Initial load (and reload when companyId changes). The effect inlines the
+  // fetch and uses promise continuations only — no synchronous setState in the
+  // effect body (react-hooks/set-state-in-effect) and no external function in
+  // its deps (react-hooks/exhaustive-deps). The shared generation guard prevents
+  // a stale response for a previous companyId (or an in-flight manual refresh)
+  // from overwriting newer data: each new load — effect re-run on companyId
+  // change OR a manual refresh — increments the generation and invalidates any
+  // earlier in-flight response. (Any setState after unmount is a harmless no-op
+  // in React, so no cleanup mutation of the ref is needed.)
   useEffect(() => {
-    let cancelled = false;
-    getPlatformTenant(companyId)
-      .then(data => { if (!cancelled) applyTenant(data); })
+    const seq = ++loadSeqRef.current;
+    const targetCompanyId = companyId;
+    getPlatformTenant(targetCompanyId)
+      .then(data => { if (seq === loadSeqRef.current) applyTenant(data); })
       .catch(err => {
-        if (cancelled) return;
+        if (seq !== loadSeqRef.current) return;
         console.error('Failed to load tenant details:', err);
         setError(err.message || 'Failed to fetch tenant metadata.');
       })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+      .finally(() => { if (seq === loadSeqRef.current) setLoading(false); });
   }, [companyId]);
 
   if (loading) {

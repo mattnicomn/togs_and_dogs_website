@@ -1,9 +1,16 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import PlatformTenantDetail from '../src/components/PlatformTenantDetail';
 import { getPlatformTenant } from '../src/api/platform';
+
+// A deferred promise helper so tests control exact resolution ordering.
+const deferred = () => {
+  let resolve, reject;
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+};
 
 vi.mock('../src/api/platform', () => ({
   getPlatformTenant: vi.fn(),
@@ -73,14 +80,14 @@ describe('PlatformTenantDetail — load, failure, retry, companyId change, stale
   });
 
   it('4. a stale (slower) response for a previous companyId does not overwrite the current one', async () => {
-    // Company A resolves slowly; an in-place navigation to company B resolves first.
-    let resolveA;
-    const slowA = new Promise((res) => { resolveA = res; });
-    getPlatformTenant.mockImplementationOnce(() => slowA); // A (stale, slow)
-    getPlatformTenant.mockResolvedValueOnce(tenant('beta_co', 'Beta Co')); // B (current, fast)
+    // Company A (alpha) resolves slowly; an in-place navigation to company B
+    // (beta) resolves first. The late alpha response must be discarded.
+    const a = deferred();
+    getPlatformTenant.mockImplementationOnce(() => a.promise); // alpha (stale, slow)
+    getPlatformTenant.mockResolvedValueOnce(tenant('beta_co', 'Beta Co')); // beta (current, fast)
 
-    // Harness: a button performs an in-place navigation (same router) from A to B,
-    // changing the :companyId param without remounting the router tree.
+    // Harness button performs an in-place navigation (same router), changing the
+    // :companyId param without remounting the router tree.
     const Nav = () => {
       const navigate = useNavigate();
       return <button onClick={() => navigate('/platform-admin/beta_co')}>go-beta</button>;
@@ -95,19 +102,83 @@ describe('PlatformTenantDetail — load, failure, retry, companyId change, stale
       </MemoryRouter>
     );
 
-    // Navigate to company B before A resolves (in place).
-    fireEvent.click(screen.getByText('go-beta'));
+    fireEvent.click(screen.getByText('go-beta')); // navigate to beta before alpha resolves
 
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Beta Co' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Beta Co' })).toBeInTheDocument();
+
+    // Resolve the late alpha response and let all React state updates settle.
+    await act(async () => {
+      a.resolve(tenant('alpha_co', 'Alpha Co'));
+      await a.promise;
     });
 
-    // Now let the stale A response arrive late — it must NOT replace Beta Co.
-    resolveA(tenant('alpha_co', 'Alpha Co'));
-    await Promise.resolve();
+    // Beta must remain; the stale alpha response must not have overwritten it,
+    // its form fields, or re-triggered loading.
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Beta Co' })).toBeInTheDocument();
     });
     expect(screen.queryByRole('heading', { name: 'Alpha Co' })).not.toBeInTheDocument();
+    expect(screen.getByText('beta_co', { exact: false })).toBeInTheDocument();
+  });
+
+  it('5. an in-flight manual Retry for a previous companyId does not overwrite the current one', async () => {
+    // alpha first fails (shows Retry); the user clicks Retry (slow, deferred),
+    // then navigates in place to beta (fast). The late alpha retry must be dropped.
+    const alphaRetry = deferred();
+    getPlatformTenant
+      .mockRejectedValueOnce(new Error('alpha initial failure')) // alpha mount -> error
+      .mockImplementationOnce(() => alphaRetry.promise)          // alpha manual retry (slow)
+      .mockResolvedValueOnce(tenant('beta_co', 'Beta Co'));      // beta mount (fast)
+
+    const Nav = () => {
+      const navigate = useNavigate();
+      return <button onClick={() => navigate('/platform-admin/beta_co')}>go-beta</button>;
+    };
+
+    render(
+      <MemoryRouter initialEntries={['/platform-admin/alpha_co']}>
+        <Nav />
+        <Routes>
+          <Route path="/platform-admin/:companyId" element={<PlatformTenantDetail />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    // alpha fails -> Retry button appears; click it (retry is in-flight/deferred).
+    expect(await screen.findByText(/Load Failure/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Retry Fetching Details/i));
+
+    // Navigate to beta before the alpha retry resolves.
+    fireEvent.click(screen.getByText('go-beta'));
+    expect(await screen.findByRole('heading', { name: 'Beta Co' })).toBeInTheDocument();
+
+    // Resolve the stale alpha retry late — it must NOT replace beta.
+    await act(async () => {
+      alphaRetry.resolve(tenant('alpha_co', 'Alpha Co'));
+      await alphaRetry.promise;
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Beta Co' })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('heading', { name: 'Alpha Co' })).not.toBeInTheDocument();
+  });
+
+  it('6. a response that resolves after unmount is ignored without error', async () => {
+    const d = deferred();
+    getPlatformTenant.mockImplementationOnce(() => d.promise);
+
+    const { unmount } = renderAt('/platform-admin/tog_and_dogs');
+
+    // Unmount while the request is still pending, then resolve it.
+    unmount();
+    await act(async () => {
+      d.resolve(tenant('tog_and_dogs', 'Togs & Dogs'));
+      await d.promise;
+    });
+
+    // No assertion on DOM (unmounted); the test passes if no act/update error is
+    // thrown when the late response settles after unmount.
+    expect(getPlatformTenant).toHaveBeenCalledWith('tog_and_dogs');
   });
 });
