@@ -340,18 +340,40 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
     }
   }
 
-  // Release 5A Hotfix 2: Reinitialize formData when active pet changes.
-  // Only runs when NOT in edit mode (edit mode blocks tab switching).
-  useEffect(() => {
-    if (!isEditing) {
-      setFormData({
-        health: {},
-        document_links: {},
-        scheduled_duration: 60,
-        ...activePet
-      });
-    }
-  }, [activePetIndex]);
+  // Release 5A Hotfix 2: Reinitialize formData when the active pet changes.
+  //
+  // Applied during render using React's documented "adjust state while rendering
+  // when a value changes" pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect) instead of inside an
+  // effect (react-hooks/set-state-in-effect, and its stale exhaustive-deps on
+  // activePet/isEditing). The trigger is a composite identity signature of the
+  // active pet — request identity + selected index + the pet's own identity
+  // (pet_id, else name, else legacy _index) — so that:
+  //   - switching pet tabs reloads the newly selected pet's fields;
+  //   - switching to a different request even at the SAME index reloads, so the
+  //     previous request's editable values can never leak in (no stale cross-
+  //     request form data);
+  //   - a same-identity refresh (same pet, new object reference) does NOT reload,
+  //     so unsaved edits and user-entered values survive;
+  //   - the !isEditing guard is preserved, so an identity change is never allowed
+  //     to clobber in-progress edits (pet-tab switching is already blocked while
+  //     editing). The applied signature only advances when a reload is actually
+  //     performed, so a change that arrives mid-edit is applied once editing ends.
+  const activePetIdentity =
+    activePet.pet_id ?? activePet.name ?? activePet._index ?? activePetIndex;
+  const formDataPetSignature = `${requestIdentity}::${activePetIndex}::${activePetIdentity}`;
+  // Initialized to null so the first render reloads formData from activePet,
+  // matching the original effect that also ran on mount.
+  const [syncedFormDataSignature, setSyncedFormDataSignature] = useState(null);
+  if (formDataPetSignature !== syncedFormDataSignature && !isEditing) {
+    setSyncedFormDataSignature(formDataPetSignature);
+    setFormData({
+      health: {},
+      document_links: {},
+      scheduled_duration: 60,
+      ...activePet
+    });
+  }
 
   // Release 4B: Improved name fallback logic
   // Prioritizes actual pet names over the client name (common in legacy records)
