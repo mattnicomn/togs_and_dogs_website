@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { getPlatformTenant, updatePlatformTenant } from '../api/platform';
 import './PlatformAdmin.css';
 
@@ -51,7 +51,6 @@ const tierPriority = { starter: 1, professional: 2, premium: 3, enterprise: 4 };
 
 const PlatformTenantDetail = () => {
   const { companyId } = useParams();
-  const navigate = useNavigate();
 
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -139,7 +138,7 @@ const PlatformTenantDetail = () => {
         hour: '2-digit',
         minute: '2-digit'
       });
-    } catch (e) {
+    } catch {
       return dateStr;
     }
   };
@@ -154,7 +153,7 @@ const PlatformTenantDetail = () => {
     if (!override) return false;
     try {
       return new Date() < new Date(override);
-    } catch (e) {
+    } catch {
       return false;
     }
   };

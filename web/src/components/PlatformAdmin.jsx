@@ -38,7 +38,7 @@ const PlatformAdmin = () => {
         month: 'short',
         day: 'numeric'
       });
-    } catch (e) {
+    } catch {
       return dateStr;
     }
   };

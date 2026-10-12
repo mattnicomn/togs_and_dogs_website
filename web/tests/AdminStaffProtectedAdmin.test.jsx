@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { vi, describe, it, expect } from 'vitest';
 
 describe('Phase 1B.5C-D.1 — Frontend Protected Platform Admin Toggle Tests', () => {
@@ -7,7 +7,6 @@ describe('Phase 1B.5C-D.1 — Frontend Protected Platform Admin Toggle Tests', (
   const ownerUser = { role: 'owner', sub: 'sub-owner', email: 'owner@example.com' };
   const protectedAdminUser = { role: 'admin', sub: 'sub-prot-admin', email: 'prot_admin@example.com' };
   const normalAdminUser = { role: 'admin', sub: 'sub-normal-admin', email: 'normal_admin@example.com' };
-  const normalStaffUser = { role: 'staff', sub: 'sub-staff', email: 'staff@example.com' };
 
   const targetNormalStaff = {
     staff_id: 'staff-target',

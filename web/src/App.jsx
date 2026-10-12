@@ -218,7 +218,7 @@ export function AppContent() {
             return;
           }
         }
-      } catch (e) {
+      } catch {
         // Ignore
       }
       setIsPlatformAdmin(false);

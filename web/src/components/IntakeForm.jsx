@@ -83,7 +83,7 @@ const IntakeForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Release 2: Staff options for preferred sitter dropdown
   const [staffOptions, setStaffOptions] = useState([]);
-  const [staffOptionsLoading, setStaffOptionsLoading] = useState(false);
+  const [, setStaffOptionsLoading] = useState(false);
   const selectedService = SERVICE_TYPES.services[formData.service_type];
   const canonicalWindowModel = getCanonicalWindowModel(formData.service_type);
   const usesCheckInSchedule = selectedService?.windowSelectionMode === 'match_visits_per_day';

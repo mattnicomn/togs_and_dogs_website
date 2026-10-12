@@ -155,7 +155,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
     setEmailSendSuccess(false);
 
     try {
-      const response = await sendPaymentEmail(reqId, clientId);
+      await sendPaymentEmail(reqId, clientId);
       setEmailSendSuccess(true);
       setShowConfirmEmailModal(false);
       setSecondsRemaining(120); // Immediately trigger 2-minute cooldown locally
@@ -1314,7 +1314,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                         setIsAssigning(true);
                         try {
                           await onAssign(pet._originItem, e.target.value);
-                        } catch(err) {
+                        } catch {
                           // Error handled by parent
                         } finally {
                           setIsAssigning(false);

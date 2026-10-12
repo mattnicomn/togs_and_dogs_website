@@ -4,7 +4,7 @@ import { completeGoogleAuth } from '../api/client';
 
 const GoogleCallback = () => {
     const [status, setStatus] = useState('processing');
-    const [error, setError] = useState(null);
+    const [, setError] = useState(null);
     const navigate = useNavigate();
     const location = useLocation();
 

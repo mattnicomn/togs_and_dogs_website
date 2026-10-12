@@ -37,7 +37,7 @@ const PlatformAuditLog = () => {
         minute: '2-digit',
         second: '2-digit'
       });
-    } catch (e) {
+    } catch {
       return dateStr;
     }
   };

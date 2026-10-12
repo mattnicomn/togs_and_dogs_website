@@ -132,8 +132,8 @@ const ClientPortal = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState(null);
-  const [userRole, setUserRole] = useState(null);
-  const [tenantInfo, setTenantInfo] = useState(null);
+  const [, setUserRole] = useState(null);
+  const [tenantInfo] = useState(null);
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [error, setError] = useState(null);
 
