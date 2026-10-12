@@ -164,21 +164,47 @@ describe('PlatformTenantDetail — load, failure, retry, companyId change, stale
     expect(screen.queryByRole('heading', { name: 'Alpha Co' })).not.toBeInTheDocument();
   });
 
-  it('6. a response that resolves after unmount is ignored without error', async () => {
+  it('6. a response resolving after unmount is explicitly invalidated (handler does not consume it)', async () => {
     const d = deferred();
     getPlatformTenant.mockImplementationOnce(() => d.promise);
 
-    const { unmount } = renderAt('/platform-admin/tog_and_dogs');
+    // Instrument the resolved payload: applyTenant() reads `.profile` and
+    // `.subscription`. If the post-unmount continuation were to run applyTenant,
+    // these getters would fire. The unmount guard must short-circuit BEFORE that,
+    // so the getters must never be read — this proves explicit request
+    // invalidation rather than merely React ignoring a state update.
+    let profileRead = 0;
+    let subscriptionRead = 0;
+    const instrumented = {
+      company_id: 'tog_and_dogs',
+      get profile() { profileRead++; return { display_name: 'Togs & Dogs', notes: '' }; },
+      get subscription() { subscriptionRead++; return { tier: 'premium', status: 'active' }; },
+      entitlement_summary: { limits: {} },
+    };
 
-    // Unmount while the request is still pending, then resolve it.
-    unmount();
-    await act(async () => {
-      d.resolve(tenant('tog_and_dogs', 'Togs & Dogs'));
-      await d.promise;
-    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const { unmount } = renderAt('/platform-admin/tog_and_dogs');
 
-    // No assertion on DOM (unmounted); the test passes if no act/update error is
-    // thrown when the late response settles after unmount.
-    expect(getPlatformTenant).toHaveBeenCalledWith('tog_and_dogs');
+      // Unmount while the request is still pending, then resolve it late.
+      unmount();
+      await act(async () => {
+        d.resolve(instrumented);
+        await d.promise;
+      });
+
+      // Explicit invalidation evidence: the success continuation short-circuited,
+      // so applyTenant never consumed the payload.
+      expect(profileRead).toBe(0);
+      expect(subscriptionRead).toBe(0);
+      // And no React "state update after unmount" / act warning was emitted.
+      const warned = errorSpy.mock.calls.some(args =>
+        String(args[0] || '').match(/unmounted|not wrapped in act|state update/i)
+      );
+      expect(warned).toBe(false);
+      expect(getPlatformTenant).toHaveBeenCalledWith('tog_and_dogs');
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });

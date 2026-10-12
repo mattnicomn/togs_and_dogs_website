@@ -129,23 +129,33 @@ const PlatformTenantDetail = () => {
   // Initial load (and reload when companyId changes). The effect inlines the
   // fetch and uses promise continuations only — no synchronous setState in the
   // effect body (react-hooks/set-state-in-effect) and no external function in
-  // its deps (react-hooks/exhaustive-deps). The shared generation guard prevents
-  // a stale response for a previous companyId (or an in-flight manual refresh)
-  // from overwriting newer data: each new load — effect re-run on companyId
-  // change OR a manual refresh — increments the generation and invalidates any
-  // earlier in-flight response. (Any setState after unmount is a harmless no-op
-  // in React, so no cleanup mutation of the ref is needed.)
+  // its deps (react-hooks/exhaustive-deps).
+  //
+  // Two complementary guards invalidate stale responses:
+  //  (1) a per-effect-run local `active` flag, flipped false in the cleanup, so
+  //      this run's response handlers short-circuit explicitly on unmount or
+  //      when the effect re-runs (companyId change). This is a plain closure
+  //      variable, so it does NOT trigger the ref-in-cleanup lint warning, and
+  //      it is Strict-Mode-safe (each mount/cleanup pair owns its own flag).
+  //  (2) the shared `loadSeqRef` generation, which also invalidates this run
+  //      when a manual Retry / post-save refresh starts a newer load.
+  // A continuation applies its result only when BOTH guards still consider this
+  // run current, giving explicit request invalidation (not reliance on React
+  // silently dropping a post-unmount setState).
   useEffect(() => {
+    let active = true;
     const seq = ++loadSeqRef.current;
     const targetCompanyId = companyId;
+    const isCurrent = () => active && seq === loadSeqRef.current;
     getPlatformTenant(targetCompanyId)
-      .then(data => { if (seq === loadSeqRef.current) applyTenant(data); })
+      .then(data => { if (isCurrent()) applyTenant(data); })
       .catch(err => {
-        if (seq !== loadSeqRef.current) return;
+        if (!isCurrent()) return;
         console.error('Failed to load tenant details:', err);
         setError(err.message || 'Failed to fetch tenant metadata.');
       })
-      .finally(() => { if (seq === loadSeqRef.current) setLoading(false); });
+      .finally(() => { if (isCurrent()) setLoading(false); });
+    return () => { active = false; };
   }, [companyId]);
 
   if (loading) {
