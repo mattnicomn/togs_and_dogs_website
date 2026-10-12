@@ -1261,11 +1261,18 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
     checkAuth();
   }, []);
 
-  useEffect(() => {
-    if (role === 'staff' && view !== 'SCHEDULER') {
-      setView('SCHEDULER');
-    }
-  }, [role, view]);
+  // Staff are confined to the Scheduler view. Applied during render using
+  // React's documented "adjust state while rendering when a value changes"
+  // pattern (https://react.dev/learn/you-might-not-need-an-effect) instead of a
+  // synchronous setState inside an effect (react-hooks/set-state-in-effect).
+  // Behavior is identical to the prior effect: any UI action that attempts to
+  // select a non-Scheduler view for a staff user is immediately clamped back to
+  // SCHEDULER. The `view !== 'SCHEDULER'` guard makes this self-terminating (no
+  // render loop), and non-staff roles are never affected. Role detection,
+  // capability gating, authentication, and routing are unchanged.
+  if (role === 'staff' && view !== 'SCHEDULER') {
+    setView('SCHEDULER');
+  }
 
   // Release 4B Hotfix: Reactive data fetching when filters change
   // This ensures the list stays populated when navigating between views.
