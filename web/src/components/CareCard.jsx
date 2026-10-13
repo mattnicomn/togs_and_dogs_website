@@ -4,6 +4,35 @@ import { createPaymentSession, sendPaymentEmail } from '../api/client';
 import { getKnownServiceTypeLabel } from '../utils/serviceLabels';
 import AdminQuoteEditor from './AdminQuoteEditor';
 
+// Release 12V: Payment-email cooldown window (2 minutes).
+const PAYMENT_EMAIL_COOLDOWN_MS = 120000;
+
+// Pure helper: whole seconds remaining in the cooldown window for a given
+// last-sent ISO timestamp, evaluated against the supplied "now". Returns 0 when
+// there is no timestamp or the window has elapsed. Deriving this from the
+// authoritative timestamp keeps the countdown a function of real elapsed time
+// rather than requiring a synchronous setState inside an effect.
+const computeCooldownSeconds = (lastSentAt, now = Date.now()) => {
+  if (!lastSentAt) return 0;
+  const remainingMs = PAYMENT_EMAIL_COOLDOWN_MS - (now - new Date(lastSentAt).getTime());
+  return remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0;
+};
+
+// Release 12R: Pure helper for the initial/reset "Amount to Charge" value.
+// Prefers the request's stored payment_amount_cents, then the pet quote_amount,
+// otherwise empty. Shared by the lazy state initializer and the reset-on-new-
+// pet-reference adjustment so both paths behave identically.
+const computeInitialPaymentAmount = (pet) => {
+  const originItem = pet?._originItem || {};
+  if (originItem.payment_amount_cents) {
+    return (originItem.payment_amount_cents / 100).toFixed(2);
+  }
+  if (pet?.quote_amount) {
+    return parseFloat(pet.quote_amount).toFixed(2);
+  }
+  return '';
+};
+
 const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList = [], onAssign, onAddPet, onPaymentSessionCreated, onQuoteUpdated }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
@@ -29,8 +58,10 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   // Release 4E: Staff assignment state
   const [isAssigning, setIsAssigning] = useState(false);
 
-  // Release 12R: Stripe payment session states
-  const [paymentAmount, setPaymentAmount] = useState('');
+  // Release 12R: Stripe payment session states.
+  // Seeded from the request so the first render already shows the correct
+  // amount; subsequently reset on each new `pet` reference (see below).
+  const [paymentAmount, setPaymentAmount] = useState(() => computeInitialPaymentAmount(pet));
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [showConfirmPaymentGen, setShowConfirmPaymentGen] = useState(false);
@@ -41,45 +72,65 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailSendSuccess, setEmailSendSuccess] = useState(false);
   const [emailSendError, setEmailSendError] = useState('');
-  const [secondsRemaining, setSecondsRemaining] = useState(0);
-
-  // Release 12R: Initialize and reset payment states when pet prop changes
-  // Note: activePet is derived later from _normalizePets(); use pet prop directly here
-  useEffect(() => {
-    const originItem = pet._originItem || {};
-    const initialAmount = originItem.payment_amount_cents 
-      ? (originItem.payment_amount_cents / 100).toFixed(2) 
-      : (pet.quote_amount ? parseFloat(pet.quote_amount).toFixed(2) : '');
-    setPaymentAmount(initialAmount);
-    setPaymentError('');
-    setShowConfirmPaymentGen(false);
-    setCopySuccess(false);
-
-    // Release 12V: Reset email send states on pet prop change
-    setShowConfirmEmailModal(false);
-    setEmailSendSuccess(false);
-    setEmailSendError('');
-  }, [pet]);
+  // Initialize the cooldown directly from the authoritative last-sent timestamp
+  // so the first render already reflects the correct remaining time (no
+  // synchronous setState in an effect needed to seed it).
+  const [secondsRemaining, setSecondsRemaining] = useState(
+    () => computeCooldownSeconds(pet._originItem?.payment_email_sent_at)
+  );
 
   // Release 12V: Countdown timer for rate limiting/disabled state (recently sent within 2 minutes)
   const lastSentAt = pet._originItem?.payment_email_sent_at;
   const clientEmail = pet._originItem?.client_email || pet.client_email || '';
+
+  // Request identity used to key both the payment/email reset and the cooldown
+  // resync, so switching requests (or any new pet reference) is handled as a
+  // distinct event even when two requests share the same payment_email_sent_at.
+  const requestIdentity = pet._originItem?.PK ?? pet._originItem?.request_id ?? pet.request_id ?? null;
+
+  // Release 12R: Reset transient payment/email state whenever a new `pet`
+  // reference arrives (approved behavior: reset on every new reference,
+  // including same-request refreshes; a user's typed amount is preserved while
+  // the reference is unchanged). Applied during render via React's documented
+  // "adjust state while rendering when a value changes" pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect) instead of inside an
+  // effect (react-hooks/set-state-in-effect). The previously-synced reference is
+  // held in state (no refs read/written during render).
+  const [syncedPetReference, setSyncedPetReference] = useState(pet);
+  if (syncedPetReference !== pet) {
+    setSyncedPetReference(pet);
+    setPaymentAmount(computeInitialPaymentAmount(pet));
+    setPaymentError('');
+    setShowConfirmPaymentGen(false);
+    setCopySuccess(false);
+    setShowConfirmEmailModal(false);
+    setEmailSendSuccess(false);
+    setEmailSendError('');
+  }
+
+  // Resync the countdown when the authoritative cooldown source changes. The
+  // signature combines the request identity with payment_email_sent_at so that
+  // switching to a different request always re-derives the cooldown — even when
+  // the two requests carry an identical timestamp — preventing an optimistic
+  // cooldown from one request leaking into another. Applied during render (the
+  // "adjust state while rendering" pattern) using a state-held signature rather
+  // than a ref.
+  const cooldownSignature = `${requestIdentity}::${lastSentAt ?? ''}`;
+  const [syncedCooldownSignature, setSyncedCooldownSignature] = useState(cooldownSignature);
+  if (syncedCooldownSignature !== cooldownSignature) {
+    setSyncedCooldownSignature(cooldownSignature);
+    setSecondsRemaining(computeCooldownSeconds(lastSentAt));
+  }
+
+  // Tick the countdown down once per second while a cooldown is active. The
+  // interval's setState runs asynchronously (on each timer fire), not
+  // synchronously within the effect body, and remaining time is recomputed from
+  // the authoritative timestamp each tick. Cleanup clears the interval.
   useEffect(() => {
-    if (!lastSentAt) {
-      setSecondsRemaining(0);
-      return;
-    }
-    const updateCountdown = () => {
-      const diffMs = Date.now() - new Date(lastSentAt).getTime();
-      const remainingMs = 120000 - diffMs;
-      if (remainingMs > 0) {
-        setSecondsRemaining(Math.ceil(remainingMs / 1000));
-      } else {
-        setSecondsRemaining(0);
-      }
-    };
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
+    if (!lastSentAt) return undefined;
+    const interval = setInterval(() => {
+      setSecondsRemaining(computeCooldownSeconds(lastSentAt));
+    }, 1000);
     return () => clearInterval(interval);
   }, [lastSentAt]);
 
@@ -155,7 +206,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
     setEmailSendSuccess(false);
 
     try {
-      const response = await sendPaymentEmail(reqId, clientId);
+      await sendPaymentEmail(reqId, clientId);
       setEmailSendSuccess(true);
       setShowConfirmEmailModal(false);
       setSecondsRemaining(120); // Immediately trigger 2-minute cooldown locally
@@ -256,29 +307,73 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   const petInfo = _normalizePets();
   const allPets = petInfo.pets;
   const [activePetIndex, setActivePetIndex] = useState(0);
+  // Tracks the add-pet selection signature already applied, so a new pet is
+  // auto-selected exactly once per add-pet event (see below).
+  const [appliedNewPetSelection, setAppliedNewPetSelection] = useState(null);
   const activePet = allPets[activePetIndex] || pet;
   const hasMultiplePets = allPets.length > 1;
   const canEditActivePet = petInfo.hasTrueRecords && !!activePet.pet_id && !activePet._fetchFailed;
 
-  // Release 5B Hotfix 2: Auto-select newly added pet when _newPetIndex is set
-  useEffect(() => {
-    if (pet._newPetIndex !== undefined && pet._newPetIndex >= 0 && pet._newPetIndex < allPets.length) {
-      setActivePetIndex(pet._newPetIndex);
+  // Release 5B Hotfix 2: Auto-select the newly added pet when the parent's
+  // add-pet workflow supplies pet._newPetIndex.
+  //
+  // The selection is applied during render using React's documented
+  // "adjust state while rendering when a value changes" pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
+  // instead of inside an effect (react-hooks/set-state-in-effect). The applied
+  // add-pet signature is stored in state and compared each render, so:
+  //   - a given add-pet event auto-selects exactly once;
+  //   - unrelated re-renders (same signature) do not override a user's later
+  //     manual pet-tab choice;
+  //   - the signature includes the request identity, so reusing this CareCard
+  //     instance for a different request (even one whose _newPetIndex happens to
+  //     match) is treated as its own event rather than a replay of the prior one.
+  // requestIdentity is derived once near the top of the component.
+  const newPetIndex = pet._newPetIndex;
+  const isValidNewPetIndex =
+    Number.isInteger(newPetIndex) && newPetIndex >= 0 && newPetIndex < allPets.length;
+  const newPetSelectionSignature = isValidNewPetIndex ? `${requestIdentity}::${newPetIndex}` : null;
+  if (newPetSelectionSignature !== null && newPetSelectionSignature !== appliedNewPetSelection) {
+    setAppliedNewPetSelection(newPetSelectionSignature);
+    if (activePetIndex !== newPetIndex) {
+      setActivePetIndex(newPetIndex);
     }
-  }, [pet._newPetIndex, allPets.length]);
+  }
 
-  // Release 5A Hotfix 2: Reinitialize formData when active pet changes.
-  // Only runs when NOT in edit mode (edit mode blocks tab switching).
-  useEffect(() => {
-    if (!isEditing) {
-      setFormData({
-        health: {},
-        document_links: {},
-        scheduled_duration: 60,
-        ...activePet
-      });
-    }
-  }, [activePetIndex]);
+  // Release 5A Hotfix 2: Reinitialize formData when the active pet changes.
+  //
+  // Applied during render using React's documented "adjust state while rendering
+  // when a value changes" pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect) instead of inside an
+  // effect (react-hooks/set-state-in-effect, and its stale exhaustive-deps on
+  // activePet/isEditing). The trigger is a composite identity signature of the
+  // active pet — request identity + selected index + the pet's own identity
+  // (pet_id, else name, else legacy _index) — so that:
+  //   - switching pet tabs reloads the newly selected pet's fields;
+  //   - switching to a different request even at the SAME index reloads, so the
+  //     previous request's editable values can never leak in (no stale cross-
+  //     request form data);
+  //   - a same-identity refresh (same pet, new object reference) does NOT reload,
+  //     so unsaved edits and user-entered values survive;
+  //   - the !isEditing guard is preserved, so an identity change is never allowed
+  //     to clobber in-progress edits (pet-tab switching is already blocked while
+  //     editing). The applied signature only advances when a reload is actually
+  //     performed, so a change that arrives mid-edit is applied once editing ends.
+  const activePetIdentity =
+    activePet.pet_id ?? activePet.name ?? activePet._index ?? activePetIndex;
+  const formDataPetSignature = `${requestIdentity}::${activePetIndex}::${activePetIdentity}`;
+  // Initialized to null so the first render reloads formData from activePet,
+  // matching the original effect that also ran on mount.
+  const [syncedFormDataSignature, setSyncedFormDataSignature] = useState(null);
+  if (formDataPetSignature !== syncedFormDataSignature && !isEditing) {
+    setSyncedFormDataSignature(formDataPetSignature);
+    setFormData({
+      health: {},
+      document_links: {},
+      scheduled_duration: 60,
+      ...activePet
+    });
+  }
 
   // Release 4B: Improved name fallback logic
   // Prioritizes actual pet names over the client name (common in legacy records)
@@ -1314,7 +1409,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                         setIsAssigning(true);
                         try {
                           await onAssign(pet._originItem, e.target.value);
-                        } catch(err) {
+                        } catch {
                           // Error handled by parent
                         } finally {
                           setIsAssigning(false);

@@ -8,22 +8,31 @@ const PlatformAuditLog = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchAuditLogs = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getPlatformAudit();
-      setAudits(data.audits || []);
-    } catch (err) {
-      console.error('Failed to load platform audit logs:', err);
-      setError(err.message || 'Failed to fetch audit history.');
-    } finally {
-      setLoading(false);
-    }
+  // Manual refresh/retry path: safe to set loading synchronously here because
+  // this runs from a user event handler, not from an effect body.
+  const fetchAuditLogs = () => {
+    setLoading(true);
+    setError(null);
+    getPlatformAudit()
+      .then(data => setAudits(data.audits || []))
+      .catch(err => {
+        console.error('Failed to load platform audit logs:', err);
+        setError(err.message || 'Failed to fetch audit history.');
+      })
+      .finally(() => setLoading(false));
   };
 
+  // Initial load on mount. `loading` already initializes to `true`, so the
+  // effect performs the fetch via promise continuations only — it never calls
+  // setState synchronously in the effect body (react-hooks/set-state-in-effect).
   useEffect(() => {
-    fetchAuditLogs();
+    getPlatformAudit()
+      .then(data => setAudits(data.audits || []))
+      .catch(err => {
+        console.error('Failed to load platform audit logs:', err);
+        setError(err.message || 'Failed to fetch audit history.');
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const formatDate = (dateStr) => {
@@ -37,7 +46,7 @@ const PlatformAuditLog = () => {
         minute: '2-digit',
         second: '2-digit'
       });
-    } catch (e) {
+    } catch {
       return dateStr;
     }
   };

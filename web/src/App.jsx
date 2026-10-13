@@ -218,7 +218,7 @@ export function AppContent() {
             return;
           }
         }
-      } catch (e) {
+      } catch {
         // Ignore
       }
       setIsPlatformAdmin(false);
@@ -227,27 +227,42 @@ export function AppContent() {
     checkUserSession();
   }, [location.pathname]);
 
+  // Tenant branding (header/footer) is only shown on an admin, non-tenant route.
+  const shouldLoadTenantInfo = isAdminRoute && !isTenantRoute;
+
+  // When the route is NOT a tenant-info route, clear any tenant branding
+  // synchronously during render (React's "adjust state while rendering when a
+  // value changes" pattern — https://react.dev/learn/you-might-not-need-an-effect),
+  // instead of calling setTenantInfo(null) inside an effect
+  // (react-hooks/set-state-in-effect). Behavior is identical: navigating away
+  // from an admin route clears the tenant presentation.
+  if (!shouldLoadTenantInfo && tenantInfo !== null) {
+    setTenantInfo(null);
+  }
+
+  // Load tenant info for admin (non-tenant) routes. The effect uses promise
+  // continuations only — no synchronous setState in the effect body. A per-run
+  // `active` flag (cleared on cleanup) plus a monotonic generation guard ensure
+  // a slow fetch for a previous route (or a response after unmount) cannot
+  // overwrite the current tenant presentation.
+  const tenantLoadSeqRef = useRef(0);
   useEffect(() => {
-    const fetchTenant = async () => {
+    if (!shouldLoadTenantInfo) return undefined;
+    let active = true;
+    const seq = ++tenantLoadSeqRef.current;
+    const isCurrent = () => active && seq === tenantLoadSeqRef.current;
+    (async () => {
       try {
         const session = await getSession();
-        if (session) {
-          const info = await getTenantInfo();
-          setTenantInfo(info);
-        } else {
-          setTenantInfo(null);
-        }
+        const info = session ? await getTenantInfo() : null;
+        if (isCurrent()) setTenantInfo(info);
       } catch (e) {
         console.error('Failed to fetch tenant info for App shell:', e);
-        setTenantInfo(null);
+        if (isCurrent()) setTenantInfo(null);
       }
-    };
-    if (isAdminRoute && !isTenantRoute) {
-      fetchTenant();
-    } else {
-      setTenantInfo(null);
-    }
-  }, [location.pathname, isAdminRoute, isTenantRoute]);
+    })();
+    return () => { active = false; };
+  }, [location.pathname, shouldLoadTenantInfo]);
 
   return (
     <div className="app-container">

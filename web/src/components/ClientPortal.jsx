@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getSession, signIn, getEffectiveRole } from '../api/auth';
 import { getClientRequests, requestCancellation } from '../api/client';
 import UserProfile from './UserProfile';
@@ -132,41 +132,24 @@ const ClientPortal = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState(null);
-  const [userRole, setUserRole] = useState(null);
-  const [tenantInfo, setTenantInfo] = useState(null);
+  const [, setUserRole] = useState(null);
+  const [tenantInfo] = useState(null);
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [error, setError] = useState(null);
 
   const tenantPresentation = deriveTenantPresentation(tenantInfo);
 
-  useEffect(() => {
-    checkSession();
-  }, []);
-
-  const checkSession = async () => {
-    try {
-      const s = await getSession();
-      if (s) {
-        const role = getEffectiveRole(s);
-        if (['owner', 'admin', 'client'].includes(role)) {
-          setSession(s);
-          setUserRole(role);
-          await fetchMyBookings(s, role);
-        } else {
-          setError("Access denied. Staff members must use the Staff Portal.");
-          setSession(null);
-        }
-      }
-    } catch (e) {
-      console.error("No session", e);
-    }
-  };
-
-  const fetchMyBookings = async (activeSession, role) => {
+  // Fetch the signed-in client's bookings. Closes over only stable references
+  // (getClientRequests import + state setters) and takes session/role as
+  // arguments, so an empty-dependency useCallback keeps its identity stable
+  // across renders — safe to reference from the mount effect without causing a
+  // re-initialization loop. Request parameters, authorization behavior, and
+  // display semantics are unchanged.
+  const fetchMyBookings = useCallback(async (activeSession, role) => {
     if (!activeSession) return;
     try {
       setLoading(true);
-      const data = await getClientRequests(); 
+      const data = await getClientRequests();
       if (data.message === "No local profile linked") {
         setRequests([]);
         // Release 6E: Clear role-specific messaging instead of misleading "not linked" for admin/owner
@@ -184,7 +167,41 @@ const ClientPortal = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Session bootstrap on mount. The async worker is defined INSIDE the effect so
+  // its only external reference is the stable `fetchMyBookings` callback (listed
+  // honestly below), resolving the prior declaration-order error
+  // (react-hooks/immutability) and the missing-dependency warning
+  // (react-hooks/exhaustive-deps). All setState calls sit behind `await`
+  // boundaries. A per-run `active` flag, cleared on cleanup, prevents a late
+  // getSession resolution after unmount from continuing authorization or
+  // applying stale state. (This guards state application; it does not cancel the
+  // in-flight getSession/getClientRequests network calls.)
+  useEffect(() => {
+    let active = true;
+    const initSession = async () => {
+      try {
+        const s = await getSession();
+        if (!active) return;
+        if (s) {
+          const role = getEffectiveRole(s);
+          if (['owner', 'admin', 'client'].includes(role)) {
+            setSession(s);
+            setUserRole(role);
+            await fetchMyBookings(s, role);
+          } else {
+            setError("Access denied. Staff members must use the Staff Portal.");
+            setSession(null);
+          }
+        }
+      } catch (e) {
+        console.error("No session", e);
+      }
+    };
+    initSession();
+    return () => { active = false; };
+  }, [fetchMyBookings]);
 
   const handleCancelRequest = async (req) => {
     const { reqId, clientId } = resolveIds(req);

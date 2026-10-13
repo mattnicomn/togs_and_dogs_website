@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { signIn, forgotPassword, confirmForgotPassword, getSession, getEffectiveRole } from '../api/auth';
 
-import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData, createAdminBooking, listAdminClientPets, getTenantInfo } from '../api/client';
+import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData, createAdminBooking, listAdminClientPets, getTenantInfo } from '../api/client';
 import { SERVICE_TYPES } from '../generated/contracts';
 import * as XLSX from 'xlsx';
 
-import { accountStatusLabel, accountStatusClass, profileStatusLabel, profileStatusClass, getVisibleClients, CLIENT_FILTERS } from '../utils/clientManagement';
+import { getVisibleClients, CLIENT_FILTERS } from '../utils/clientManagement';
 import { describeGuidedWorkflowAction, GUIDED_ACTION_SEMANTICS, resolveGuidedWorkflowAction } from '../utils/workflowActions';
 import { bootstrapTenantSession, TENANT_ACCESS_ERROR } from '../utils/tenantContext';
 import { deriveTenantPresentation, updateDocumentTitle, DEFAULT_BRANDING } from '../utils/tenantPresentation';
@@ -117,7 +117,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
   const [staffLoading, setStaffLoading] = useState(false);
   const [staffError, setStaffError] = useState(null);
   const [editingStaffId, setEditingStaffId] = useState(null);
-  const [staffLinkPrompt, setStaffLinkPrompt] = useState(null);
+  const [, setStaffLinkPrompt] = useState(null);
   const [staffForm, setStaffForm] = useState({
     display_name: '',
     role: 'Staff',
@@ -138,7 +138,6 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
   const [clientFilter, setClientFilter] = useState('all');
   // Phase 1B.1B: Client detail drawer
   const [clientDetailTarget, setClientDetailTarget] = useState(null);
-  const clientDetailBtnRef = useRef(null);
   // Release 5D Hotfix 1: Pets loaded for the selected/editing client
   const [clientPets, setClientPets] = useState([]);
   const [clientForm, setClientForm] = useState({
@@ -750,10 +749,6 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
     // from appearing in Trash. Such records are treated as data integrity issues instead.
     return s === 'DELETED' || s === 'TRASH' || s === 'DELETE';
   };
-  const isCancellationPendingRecord = (item) => {
-    const s = (item.status || "").toUpperCase();
-    return s === 'CANCELLATION_REQUESTED';
-  };
   const isCancelledRecord = (item) => {
     const s = (item.status || "").toUpperCase();
     return s === 'CANCELLED' || s === 'DECLINED' || s === 'REJECTED' || s === 'CANCELLATION_DENIED';
@@ -762,7 +757,6 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
   const isRequestLikeRecord = (item) => {
     if (!item || !item.PK) return false;
     const pk = item.PK.toUpperCase();
-    const sk = (item.SK || "").toUpperCase();
     const type = (item.type || "").toUpperCase();
 
     // Explicitly exclude system/audit prefixes
@@ -1164,10 +1158,16 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
     }
   }, [allRequests]);
 
-  // Clear stale selections when switching filters
-  React.useEffect(() => {
+  // Clear stale selections when switching filters. Uses React's "adjust state
+  // while rendering when a value changes" pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect) instead of a
+  // synchronous setState inside an effect (react-hooks/set-state-in-effect).
+  // Behavior is identical: when statusFilter changes, the selection resets.
+  const [selectionFilterKey, setSelectionFilterKey] = useState(statusFilter);
+  if (statusFilter !== selectionFilterKey) {
+    setSelectionFilterKey(statusFilter);
     setSelectedIds([]);
-  }, [statusFilter]);
+  }
 
 
   const getGuidedActions = (item) => {
@@ -1261,11 +1261,18 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
     checkAuth();
   }, []);
 
-  useEffect(() => {
-    if (role === 'staff' && view !== 'SCHEDULER') {
-      setView('SCHEDULER');
-    }
-  }, [role, view]);
+  // Staff are confined to the Scheduler view. Applied during render using
+  // React's documented "adjust state while rendering when a value changes"
+  // pattern (https://react.dev/learn/you-might-not-need-an-effect) instead of a
+  // synchronous setState inside an effect (react-hooks/set-state-in-effect).
+  // Behavior is identical to the prior effect: any UI action that attempts to
+  // select a non-Scheduler view for a staff user is immediately clamped back to
+  // SCHEDULER. The `view !== 'SCHEDULER'` guard makes this self-terminating (no
+  // render loop), and non-staff roles are never affected. Role detection,
+  // capability gating, authentication, and routing are unchanged.
+  if (role === 'staff' && view !== 'SCHEDULER') {
+    setView('SCHEDULER');
+  }
 
   // Release 4B Hotfix: Reactive data fetching when filters change
   // This ensures the list stays populated when navigating between views.
@@ -1424,7 +1431,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
       const { cognitoUser } = challengeContext;
       cognitoUser.completeNewPasswordChallenge(newPassword, {}, {
 
-        onSuccess: async (result) => {
+        onSuccess: async () => {
           setAuthChallenge(null);
           setChallengeContext(null);
           const session = await getSession();
@@ -1530,36 +1537,6 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
       }
     } finally {
       setIsSavingStaff(false);
-    }
-  };
-
-  const handleDisableStaff = async (staffId, hasCognito) => {
-    const staff = staffList.find(s => s.staff_id === staffId);
-    const staffName = staff?.display_name || 'this staff member';
-    if (hasCognito) {
-      setConfirmAction({
-        type: 'staff',
-        id: staffId,
-        action: 'disable_with_choice',
-        name: staffName,
-        message: `Turn off login access for ${staffName}?`,
-        consequence: "Click 'Turn Off Both' to disable the profile AND login access, or 'Profile Only' to disable just the profile.",
-        variant: 'disable-choice',
-        hasCognito: true
-      });
-      setConfirmTypedInput('');
-    } else {
-      setConfirmAction({
-        type: 'staff',
-        id: staffId,
-        action: 'disable_profile_only',
-        name: staffName,
-        message: `Disable ${staffName}'s staff profile?`,
-        consequence: "They will no longer appear as assignable. This can be reversed by restoring the profile.",
-        variant: 'confirm',
-        hasCognito: false
-      });
-      setConfirmTypedInput('');
     }
   };
 
@@ -2834,7 +2811,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
         setLoading(true);
         // Release 5A Hotfix 1: Fetch all PET# records with reliable fallback.
         // If a fetch fails, include a placeholder with the pet_id so tabs still render.
-        const petPromises = petIds.map((pid, idx) => 
+        const petPromises = petIds.map((pid) => 
           getPet(pid, item.linked_client_profile_id || item.client_id).catch(err => {
             console.warn(`Failed to load PET#${pid}:`, err.message);
             // Return a minimal fallback so the pet tab still appears
@@ -5694,7 +5671,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
                 const staff = staffList.find(s => (s.email || s.display_name) === workerId);
                 const updatedOrigin = {...originItem, worker_id: workerId, worker_name: staff?.display_name || workerId, status: 'ASSIGNED'};
                 await handleSelectPet(updatedOrigin);
-              } catch(e) { /* CareCard refresh failed — list is still updated */ }
+              } catch { /* CareCard refresh failed — list is still updated */ }
             }
           }}
           onAddPet={async (clientId, petData) => {
@@ -5715,7 +5692,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
               
               // Re-fetch all PET# records using the updated ID list
               if (allPetIds.length > 0) {
-                const petPromises = allPetIds.map((pid, idx) =>
+                const petPromises = allPetIds.map((pid) =>
                   getPet(pid, clientId).catch(() => ({ pet_id: pid, name: "Deleted/Unavailable pet record", _fetchFailed: true }))
                 );
                 const petResults = await Promise.all(petPromises);

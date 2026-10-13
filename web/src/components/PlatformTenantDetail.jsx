@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import { getPlatformTenant, updatePlatformTenant } from '../api/platform';
 import './PlatformAdmin.css';
 
@@ -51,11 +51,24 @@ const tierPriority = { starter: 1, professional: 2, premium: 3, enterprise: 4 };
 
 const PlatformTenantDetail = () => {
   const { companyId } = useParams();
-  const navigate = useNavigate();
 
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // React-recommended "adjust state during render when a prop changes" pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect). When the route
+  // companyId changes in place (without a remount), reset to the loading state
+  // synchronously during render so the spinner shows while the new tenant loads.
+  // This preserves the original spinner-on-companyId-change behavior without
+  // calling setState in an effect body.
+  const [loadedCompanyId, setLoadedCompanyId] = useState(companyId);
+  if (companyId !== loadedCompanyId) {
+    setLoadedCompanyId(companyId);
+    setTenant(null);
+    setError(null);
+    setLoading(true);
+  }
 
   // Edit Modal State
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -72,31 +85,77 @@ const PlatformTenantDetail = () => {
   const [modalError, setModalError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  const fetchTenantDetail = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getPlatformTenant(companyId);
-      setTenant(data);
-      
-      // Initialize form fields
-      setFormFields({
-        display_name: data.profile?.display_name || '',
-        subscription_tier: data.subscription?.tier || 'starter',
-        subscription_status: data.subscription?.status || 'active',
-        admin_override_until: data.profile?.admin_override_until ? data.profile.admin_override_until.substring(0, 16) : '',
-        notes: data.profile?.notes || '',
-      });
-    } catch (err) {
-      console.error('Failed to load tenant details:', err);
-      setError(err.message || 'Failed to fetch tenant metadata.');
-    } finally {
-      setLoading(false);
-    }
+  // Monotonic load-generation guard. EVERY load (initial mount, companyId
+  // change, manual Retry, and post-save refresh) increments this and captures
+  // its own id; a continuation only applies its result if it is still the most
+  // recent load. This prevents ANY stale/slow response — including an in-flight
+  // manual refresh for a previous companyId — from overwriting newer data, and
+  // also discards results after unmount.
+  const loadSeqRef = useRef(0);
+
+  // Applies a successfully-fetched tenant record to component state.
+  const applyTenant = (data) => {
+    setTenant(data);
+    // Initialize form fields
+    setFormFields({
+      display_name: data.profile?.display_name || '',
+      subscription_tier: data.subscription?.tier || 'starter',
+      subscription_status: data.subscription?.status || 'active',
+      admin_override_until: data.profile?.admin_override_until ? data.profile.admin_override_until.substring(0, 16) : '',
+      notes: data.profile?.notes || '',
+    });
   };
 
+  // Manual retry / post-save refresh path (user event handler): resets loading
+  // synchronously (safe here — not an effect body), then loads under the
+  // generation guard, capturing the target companyId at call time so a late
+  // response cannot cross tenants. Returns the promise so the save handler can
+  // await the refresh.
+  const fetchTenantDetail = () => {
+    const seq = ++loadSeqRef.current;
+    const targetCompanyId = companyId;
+    setLoading(true);
+    setError(null);
+    return getPlatformTenant(targetCompanyId)
+      .then(data => { if (seq === loadSeqRef.current) applyTenant(data); })
+      .catch(err => {
+        if (seq !== loadSeqRef.current) return;
+        console.error('Failed to load tenant details:', err);
+        setError(err.message || 'Failed to fetch tenant metadata.');
+      })
+      .finally(() => { if (seq === loadSeqRef.current) setLoading(false); });
+  };
+
+  // Initial load (and reload when companyId changes). The effect inlines the
+  // fetch and uses promise continuations only — no synchronous setState in the
+  // effect body (react-hooks/set-state-in-effect) and no external function in
+  // its deps (react-hooks/exhaustive-deps).
+  //
+  // Two complementary guards invalidate stale responses:
+  //  (1) a per-effect-run local `active` flag, flipped false in the cleanup, so
+  //      this run's response handlers short-circuit explicitly on unmount or
+  //      when the effect re-runs (companyId change). This is a plain closure
+  //      variable, so it does NOT trigger the ref-in-cleanup lint warning, and
+  //      it is Strict-Mode-safe (each mount/cleanup pair owns its own flag).
+  //  (2) the shared `loadSeqRef` generation, which also invalidates this run
+  //      when a manual Retry / post-save refresh starts a newer load.
+  // A continuation applies its result only when BOTH guards still consider this
+  // run current, giving explicit request invalidation (not reliance on React
+  // silently dropping a post-unmount setState).
   useEffect(() => {
-    fetchTenantDetail();
+    let active = true;
+    const seq = ++loadSeqRef.current;
+    const targetCompanyId = companyId;
+    const isCurrent = () => active && seq === loadSeqRef.current;
+    getPlatformTenant(targetCompanyId)
+      .then(data => { if (isCurrent()) applyTenant(data); })
+      .catch(err => {
+        if (!isCurrent()) return;
+        console.error('Failed to load tenant details:', err);
+        setError(err.message || 'Failed to fetch tenant metadata.');
+      })
+      .finally(() => { if (isCurrent()) setLoading(false); });
+    return () => { active = false; };
   }, [companyId]);
 
   if (loading) {
@@ -139,7 +198,7 @@ const PlatformTenantDetail = () => {
         hour: '2-digit',
         minute: '2-digit'
       });
-    } catch (e) {
+    } catch {
       return dateStr;
     }
   };
@@ -154,7 +213,7 @@ const PlatformTenantDetail = () => {
     if (!override) return false;
     try {
       return new Date() < new Date(override);
-    } catch (e) {
+    } catch {
       return false;
     }
   };

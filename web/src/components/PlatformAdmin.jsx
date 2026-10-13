@@ -11,22 +11,31 @@ const PlatformAdmin = () => {
   
   const navigate = useNavigate();
 
-  const fetchTenants = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getPlatformTenants();
-      setTenants(data.tenants || []);
-    } catch (err) {
-      console.error('Failed to load tenants:', err);
-      setError(err.message || 'Failed to fetch platform tenants. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+  // Manual retry path: runs from a user event handler, so setting loading
+  // synchronously here is fine (not an effect body).
+  const fetchTenants = () => {
+    setLoading(true);
+    setError(null);
+    getPlatformTenants()
+      .then(data => setTenants(data.tenants || []))
+      .catch(err => {
+        console.error('Failed to load tenants:', err);
+        setError(err.message || 'Failed to fetch platform tenants. Please try again.');
+      })
+      .finally(() => setLoading(false));
   };
 
+  // Initial load on mount. `loading` already initializes to `true`; the effect
+  // uses promise continuations only and never sets state synchronously in its
+  // body (react-hooks/set-state-in-effect).
   useEffect(() => {
-    fetchTenants();
+    getPlatformTenants()
+      .then(data => setTenants(data.tenants || []))
+      .catch(err => {
+        console.error('Failed to load tenants:', err);
+        setError(err.message || 'Failed to fetch platform tenants. Please try again.');
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const formatDate = (dateStr) => {
@@ -38,7 +47,7 @@ const PlatformAdmin = () => {
         month: 'short',
         day: 'numeric'
       });
-    } catch (e) {
+    } catch {
       return dateStr;
     }
   };
