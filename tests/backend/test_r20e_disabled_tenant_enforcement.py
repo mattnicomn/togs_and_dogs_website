@@ -226,17 +226,45 @@ class TestHandlerRouteGating:
         body = json.loads(resp['body'])
         assert body['error'] == 'TenantDisabled'
 
+    @patch('botocore.httpsession.URLLib3Session.send',
+           side_effect=AssertionError('Unmocked AWS/botocore network call attempted in scheduler test'))
     @patch('handlers.google_auth_handler.calendar_health_check')
-    def test_google_auth_handler_allowed_for_scheduler(self, mock_health_check):
-        """google_auth_handler allows scheduled EventBridge health check even if disabled."""
+    def test_google_auth_handler_allowed_for_scheduler(self, mock_health_check, _no_net):
+        """google_auth_handler allows the scheduled EventBridge health check even
+        when a tenant is disabled.
+
+        The implemented and deployed contract (infra/prod/main.tf EventBridge
+        target input) is source='aws.events', action='health_check'. The prior
+        fixture used source='aws.scheduler', which the handler correctly does NOT
+        recognize as the scheduled contract, so it fell through to the HTTP path
+        and returned 403. Using the real deployed source proves the legitimate
+        scheduled event reaches calendar_health_check and bypasses tenant gating.
+        """
+        mock_health_check.return_value = {'statusCode': 200, 'body': '{"status":"OK"}'}
+        event = {
+            'source': 'aws.events',
+            'action': 'health_check'
+        }
+        resp = google_auth_handler(event, None)
+        assert resp['statusCode'] == 200
+        mock_health_check.assert_called_once()
+
+    @patch('botocore.httpsession.URLLib3Session.send',
+           side_effect=AssertionError('Unmocked AWS/botocore network call attempted in scheduler test'))
+    @patch('handlers.google_auth_handler.calendar_health_check')
+    def test_google_auth_handler_unrecognized_scheduler_source_denied(self, mock_health_check, _no_net):
+        """An unrecognized scheduler source (e.g. 'aws.scheduler') must NOT be
+        treated as the authorized scheduled health contract. It falls through to
+        the HTTP path and is denied (fail-closed), and the health check is never
+        invoked. This preserves the scheduler-source authentication boundary."""
         mock_health_check.return_value = {'statusCode': 200, 'body': '{"status":"OK"}'}
         event = {
             'source': 'aws.scheduler',
             'action': 'health_check'
         }
         resp = google_auth_handler(event, None)
-        assert resp['statusCode'] == 200
-        mock_health_check.assert_called_once()
+        assert resp['statusCode'] == 403
+        mock_health_check.assert_not_called()
 
     def test_intake_handler_blocked(self):
         """intake_handler returns 403 when tenant is disabled."""
