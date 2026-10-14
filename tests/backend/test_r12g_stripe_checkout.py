@@ -20,6 +20,80 @@ from handlers.admin_handler import handler as admin_handler
 from handlers.stripe_webhook_handler import handler as webhook_handler
 from common.stripe_client import StripeAPIError
 
+
+# --- Network isolation (Gate C3b.3g.1) ---
+#
+# Function-scoped, autouse guard: every test in this module runs with the real
+# outbound HTTP transports replaced by raisers, so any UNMOCKED AWS/botocore,
+# Stripe, or Postmark request fails loudly instead of silently reaching the
+# network. The tested paths mock get_item / table / create_checkout_session /
+# notify_event above these layers, so this guard only fires on a genuine leak
+# (a future edit or an unanticipated code path). Tests that legitimately drive
+# the real stripe_client payload builder patch urllib.request.urlopen with their
+# own mock, which applies after this fixture and therefore takes precedence.
+# Auto-restored after each test by the patch context managers.
+
+@pytest.fixture(autouse=True)
+def no_network():
+    def _blocked_boto(*args, **kwargs):
+        raise AssertionError(
+            "Unmocked AWS/botocore network call attempted in an isolated Stripe-"
+            "checkout test. Add an explicit scoped mock for the operation reached."
+        )
+
+    with patch('botocore.httpsession.URLLib3Session.send', _blocked_boto):
+        yield
+
+
+# --- Isolation helpers (Gate C3b.3g / V3f) ---
+#
+# The admin handler runs require_active_tenant() BEFORE the payment-session
+# route. That precondition looks up TENANT#<company>/METADATA via common.db
+# .get_item and builds a TenantEntitlement from it. These tests swap the route's
+# get_item for the SAME patched common.db.get_item, so a single return_value fed
+# a REQUEST record to the entitlement lookup -> subscription_status absent ->
+# treated as 'disabled' -> require_active_tenant returned 403 TenantDisabled,
+# masking the real payment outcomes.
+#
+# The fix is a KEY-AWARE get_item side_effect: return realistic ACTIVE tenant
+# metadata for the TENANT#.../METADATA key, and the request record under test
+# for its REQ#/CLIENT# key. Unknown keys return None (no success-shaped data
+# silently leaks). This lets the REAL role gate, tenant-ownership guard, amount
+# validation, and payment-state guards decide every outcome.
+
+
+def make_tenant_metadata(company_id='tog_and_dogs'):
+    """Realistic ACTIVE tenant metadata so the real entitlement precondition
+    resolves to active/not-blocked without touching AWS."""
+    return {
+        'PK': f'TENANT#{company_id}',
+        'SK': 'METADATA',
+        'company_id': company_id,
+        'subscription_tier': 'starter',
+        'subscription_status': 'active',
+        'is_active': True,
+    }
+
+
+def make_key_aware_get_item(request_record=None, tenant_companies=('tog_and_dogs',)):
+    """Build a get_item(pk, sk, ...) side_effect that distinguishes entity types.
+
+    - TENANT#<c>/METADATA  -> active tenant metadata (for each c in tenant_companies)
+    - the request_record's own PK/SK -> that record
+    - anything else        -> None (never silently success-shaped)
+    """
+    tenants = {f'TENANT#{c}': make_tenant_metadata(c) for c in tenant_companies}
+
+    def _side_effect(pk, sk=None, *args, **kwargs):
+        if pk in tenants and sk == 'METADATA':
+            return dict(tenants[pk])
+        if request_record is not None and pk == request_record.get('PK') and sk == request_record.get('SK'):
+            return dict(request_record)
+        return None
+
+    return _side_effect
+
+
 # --- HELPERS ---
 
 def make_admin_event(role='admin', company_id='tog_and_dogs', body=None, method='POST',
@@ -65,7 +139,8 @@ class TestAdminStripeCheckoutCreation:
     @patch('common.stripe_client.create_checkout_session')
     def test_admin_create_session_success(self, mock_create, mock_table, mock_get):
         """Admin can create checkout session for request in same tenant."""
-        mock_get.return_value = make_req_record(company_id='tog_and_dogs')
+        mock_get.side_effect = make_key_aware_get_item(
+            request_record=make_req_record(company_id='tog_and_dogs'))
         mock_create.return_value = {
             'id': 'cs_test_123',
             'url': 'https://checkout.stripe.com/c/pay/cs_test_123'
@@ -117,8 +192,16 @@ class TestAdminStripeCheckoutCreation:
 
     @patch('common.db.get_item')
     def test_non_admin_creation_forbidden(self, mock_get):
-        """Non-admin roles are rejected with 403."""
-        mock_get.return_value = make_req_record(company_id='tog_and_dogs')
+        """Non-admin roles are rejected with 403 by the REAL role gate.
+
+        Key-aware get_item makes the active-tenant precondition pass, so the 403
+        must originate from the route's own role check (role not in
+        [owner, admin]) rather than a TenantDisabled precondition block. The
+        request record resolves cleanly; only the role differs. We also swap in
+        the (patched) real get_item so the route resolves the request record.
+        """
+        mock_get.side_effect = make_key_aware_get_item(
+            request_record=make_req_record(company_id='tog_and_dogs'))
 
         for role in ['staff', 'client', 'unknown']:
             event = make_admin_event(
@@ -126,13 +209,47 @@ class TestAdminStripeCheckoutCreation:
                 company_id='tog_and_dogs',
                 body={'amount_cents': 15000, 'client_id': 'client-001'}
             )
-            response = admin_handler(event, None)
+            orig_get = admin_handler.__globals__.get('get_item')
+            try:
+                from common.db import get_item as real_get
+                admin_handler.__globals__['get_item'] = real_get
+                response = admin_handler(event, None)
+            finally:
+                admin_handler.__globals__['get_item'] = orig_get
             assert response['statusCode'] == 403
+            # Admin role on the SAME setup must NOT be 403 — proving the denial is
+            # role-driven, not a precondition artifact.
+        admin_event = make_admin_event(
+            role='admin', company_id='tog_and_dogs',
+            body={'amount_cents': 15000, 'client_id': 'client-001'})
+        with patch('common.stripe_client.create_checkout_session',
+                   return_value={'id': 'cs_probe', 'url': 'https://checkout.stripe.com/pay/cs_probe'}), \
+             patch('common.db.table'):
+            orig_get = admin_handler.__globals__.get('get_item')
+            orig_table = admin_handler.__globals__.get('table')
+            try:
+                from common.db import get_item as real_get, table as real_table
+                admin_handler.__globals__['get_item'] = real_get
+                admin_handler.__globals__['table'] = real_table
+                admin_resp = admin_handler(admin_event, None)
+            finally:
+                admin_handler.__globals__['get_item'] = orig_get
+                admin_handler.__globals__['table'] = orig_table
+        assert admin_resp['statusCode'] != 403
 
     @patch('common.db.get_item')
     def test_cross_tenant_creation_forbidden(self, mock_get):
-        """Cross-tenant payment session creation returns 403."""
-        mock_get.return_value = make_req_record(company_id='tenant_b')
+        """Cross-tenant payment session creation returns 403 from the REAL
+        tenant-ownership guard.
+
+        Caller is tenant_a (active), the request belongs to tenant_b. Key-aware
+        get_item returns ACTIVE metadata for TENANT#tenant_a (so the precondition
+        passes) and the tenant_b request record for the REQ# key, so the 403 can
+        only come from validate_tenant_ownership — not a TenantDisabled block.
+        """
+        mock_get.side_effect = make_key_aware_get_item(
+            request_record=make_req_record(company_id='tenant_b'),
+            tenant_companies=('tenant_a', 'tenant_b'))
 
         # Admin belongs to tenant_a, trying to access request in tenant_b
         event = make_admin_event(
@@ -140,7 +257,7 @@ class TestAdminStripeCheckoutCreation:
             company_id='tenant_a',
             body={'amount_cents': 15000, 'client_id': 'client-001'}
         )
-        
+
         orig_get = admin_handler.__globals__.get('get_item')
         try:
             from common.db import get_item as real_get
@@ -153,8 +270,11 @@ class TestAdminStripeCheckoutCreation:
 
     @patch('common.db.get_item')
     def test_invalid_amount_rejected(self, mock_get):
-        """Missing or non-positive integer amounts are rejected with 400."""
-        mock_get.return_value = make_req_record(company_id='tog_and_dogs')
+        """Missing or non-positive integer amounts are rejected with 400 by the
+        REAL amount validator (validate_and_parse_amount_cents), reached only
+        because the active-tenant precondition now resolves cleanly."""
+        mock_get.side_effect = make_key_aware_get_item(
+            request_record=make_req_record(company_id='tog_and_dogs'))
 
         invalid_amounts = [None, -500, 0, 10.5, "1000", True, False]
         for amt in invalid_amounts:
@@ -176,7 +296,8 @@ class TestAdminStripeCheckoutCreation:
     @patch('common.stripe_client.create_checkout_session')
     def test_stripe_creation_failure_handled(self, mock_create, mock_get):
         """Stripe creation failure returns 500."""
-        mock_get.return_value = make_req_record(company_id='tog_and_dogs')
+        mock_get.side_effect = make_key_aware_get_item(
+            request_record=make_req_record(company_id='tog_and_dogs'))
         mock_create.side_effect = StripeAPIError("Stripe API is down", status_code=502)
 
         event = make_admin_event(
@@ -209,7 +330,7 @@ class TestAdminStripeCheckoutCreation:
             for status in ['paid', 'refunded', 'waived', ' PAID ', 'refunded ']:
                 record = make_req_record(company_id='tog_and_dogs')
                 record['payment_status'] = status
-                mock_get.return_value = record
+                mock_get.side_effect = make_key_aware_get_item(request_record=record)
                 mock_create.reset_mock()
 
                 event = make_admin_event(
@@ -252,7 +373,7 @@ class TestAdminStripeCheckoutCreation:
                 else:
                     record.pop('payment_status', None)
                     
-                mock_get.return_value = record
+                mock_get.side_effect = make_key_aware_get_item(request_record=record)
                 mock_create.reset_mock()
                 mock_table.update_item.reset_mock()
 
@@ -279,7 +400,7 @@ class TestAdminStripeCheckoutCreation:
         record['payment_status'] = 'payment_link_sent'
         record['stripe_payment_url'] = 'https://checkout.stripe.com/pay/cs_existing_456'
         record['stripe_checkout_session_id'] = 'cs_existing_456'
-        mock_get.return_value = record
+        mock_get.side_effect = make_key_aware_get_item(request_record=record)
 
         event = make_admin_event(
             role='admin',
@@ -310,8 +431,8 @@ class TestAdminStripeCheckoutCreation:
         record = make_req_record(company_id='tog_and_dogs')
         record['payment_status'] = 'payment_link_sent'
         # missing stripe_payment_url and stripe_checkout_session_id
-        mock_get.return_value = record
-        
+        mock_get.side_effect = make_key_aware_get_item(request_record=record)
+
         mock_create.return_value = {
             'id': 'cs_fallback_789',
             'url': 'https://checkout.stripe.com/pay/cs_fallback_789'
@@ -344,7 +465,8 @@ class TestAdminStripeCheckoutCreation:
     @patch('common.db.get_item')
     def test_r13b_amount_validation_extended(self, mock_get):
         """Extended amount validations cover NaN, Infinity, and huge/max amounts."""
-        mock_get.return_value = make_req_record(company_id='tog_and_dogs')
+        mock_get.side_effect = make_key_aware_get_item(
+            request_record=make_req_record(company_id='tog_and_dogs'))
 
         # 1. NaN and Infinity
         for bad_val in [float('nan'), float('inf'), float('-inf')]:
@@ -535,7 +657,14 @@ class TestStripeWebhookBookingPaymentExtension:
         try:
             from common.db import get_item as real_get
             handler.__globals__['get_item'] = real_get
-            response = handler(api_event, {})
+            # The fails-closed path records a failed-billing-event ledger row,
+            # which does a real DynamoDB put_item. Mock the handler-bound ledger
+            # writer so the inner error path completes WITHOUT any network call
+            # (the no_network guard would otherwise turn this into a generic
+            # "Internal server error"). The real missing-request_id detection and
+            # the 500 "Processing failed" contract are preserved.
+            with patch('handlers.stripe_webhook_handler.record_failed_billing_event'):
+                response = handler(api_event, {})
         finally:
             handler.__globals__['get_item'] = orig_get
 
@@ -575,7 +704,12 @@ class TestStripeWebhookBookingPaymentExtension:
         try:
             from common.db import get_item as real_get
             handler.__globals__['get_item'] = real_get
-            response = handler(api_event, {})
+            # Mock the handler-bound failed-billing-event ledger writer so the
+            # fails-closed path completes without a real DynamoDB put_item. The
+            # real cross-tenant mismatch detection and the 500 "Processing
+            # failed" contract are preserved.
+            with patch('handlers.stripe_webhook_handler.record_failed_billing_event'):
+                response = handler(api_event, {})
         finally:
             handler.__globals__['get_item'] = orig_get
 

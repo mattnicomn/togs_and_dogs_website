@@ -16,6 +16,72 @@ os.environ.setdefault('DATA_TABLE_NAME', 'test-table')
 from handlers.admin_handler import handler as admin_handler
 from common.notifications.service import notify_event, check_payment_email_rate_limit
 
+
+# --- Network isolation (Gate C3b.3g.1) ---
+#
+# Function-scoped, autouse guard: every test runs with the real outbound HTTP
+# transports replaced by raisers so any UNMOCKED AWS/botocore or Postmark
+# request fails loudly instead of silently reaching the network. The tested
+# paths mock get_item / table / notify_event / rate-limit above these layers, so
+# this only fires on a genuine leak. Auto-restored after each test.
+
+@pytest.fixture(autouse=True)
+def no_network():
+    def _blocked_boto(*args, **kwargs):
+        raise AssertionError(
+            "Unmocked AWS/botocore network call attempted in an isolated payment-"
+            "email test. Add an explicit scoped mock for the operation reached."
+        )
+
+    def _blocked_urlopen(*args, **kwargs):
+        raise AssertionError(
+            "Unmocked outbound HTTP (Postmark/urllib) attempted in an isolated "
+            "payment-email test. Add an explicit scoped mock."
+        )
+
+    with patch('botocore.httpsession.URLLib3Session.send', _blocked_boto), \
+         patch('urllib.request.urlopen', _blocked_urlopen):
+        yield
+
+
+# --- Isolation helpers (Gate C3b.3g / V3f) ---
+#
+# The admin handler runs require_active_tenant() BEFORE the send-payment-email
+# route. That precondition looks up TENANT#<company>/METADATA via common.db
+# .get_item and builds a TenantEntitlement. These tests fed a REQUEST record to
+# that shared get_item mock -> subscription_status absent -> treated 'disabled'
+# -> require_active_tenant returned 403 TenantDisabled, masking the real
+# eligibility/rate-limit/cooldown/Postmark outcomes. The key-aware side_effect
+# returns ACTIVE tenant metadata for the TENANT#.../METADATA key and the request
+# record for its REQ#/CLIENT# key; unknown keys return None. The real role gate,
+# tenant-ownership guard, payment-state guards, link/email eligibility, rate
+# limit, and cooldown all continue to decide every outcome.
+
+
+def make_tenant_metadata(company_id='tog_and_dogs'):
+    return {
+        'PK': f'TENANT#{company_id}',
+        'SK': 'METADATA',
+        'company_id': company_id,
+        'subscription_tier': 'starter',
+        'subscription_status': 'active',
+        'is_active': True,
+    }
+
+
+def make_key_aware_get_item(request_record=None, tenant_companies=('tog_and_dogs',)):
+    tenants = {f'TENANT#{c}': make_tenant_metadata(c) for c in tenant_companies}
+
+    def _side_effect(pk, sk=None, *args, **kwargs):
+        if pk in tenants and sk == 'METADATA':
+            return dict(tenants[pk])
+        if request_record is not None and pk == request_record.get('PK') and sk == request_record.get('SK'):
+            return dict(request_record)
+        return None
+
+    return _side_effect
+
+
 # --- HELPERS ---
 
 def make_admin_event(role='admin', company_id='tog_and_dogs', body=None, method='POST',
@@ -68,7 +134,7 @@ class TestAdminPaymentLinkEmail:
     @patch('common.notifications.service.notify_event')
     def test_send_payment_email_success(self, mock_notify, mock_rate_limit, mock_table, mock_get):
         """Admin can successfully send a payment email and update DB attributes."""
-        mock_get.return_value = make_req_record()
+        mock_get.side_effect = make_key_aware_get_item(request_record=make_req_record())
         mock_rate_limit.return_value = False
         mock_notify.return_value = {'success': True, 'message': 'Email sent.'}
         mock_table.update_item = MagicMock()
@@ -82,7 +148,14 @@ class TestAdminPaymentLinkEmail:
             admin_handler.__globals__['get_item'] = real_get
             admin_handler.__globals__['table'] = real_table
 
-            response = admin_handler(event, None)
+            # admin_handler binds notify_event at import (from common.notifications
+            # .service import notify_event), so the decorator patch on the service
+            # module does not reach the handler's reference. Patch the handler's
+            # bound name so the SEND RESULT is driven by the mock, not the real
+            # dry-run notifier.
+            with patch('handlers.admin_handler.notify_event',
+                       return_value={'success': True, 'message': 'Email sent.'}):
+                response = admin_handler(event, None)
         finally:
             admin_handler.__globals__['get_item'] = orig_get
             admin_handler.__globals__['table'] = orig_table
@@ -104,18 +177,49 @@ class TestAdminPaymentLinkEmail:
 
     @patch('common.db.get_item')
     def test_non_admin_forbidden(self, mock_get):
-        """Non-admin roles are rejected with 403."""
-        mock_get.return_value = make_req_record()
+        """Non-admin roles are rejected with 403 by the REAL role gate.
+
+        Key-aware get_item makes the active-tenant precondition pass, so the 403
+        originates from the route's role check, not a TenantDisabled block. A
+        probe confirms admin on the identical setup is NOT 403.
+        """
+        mock_get.side_effect = make_key_aware_get_item(request_record=make_req_record())
 
         for role in ['staff', 'client', 'unknown']:
             event = make_admin_event(role=role, company_id='tog_and_dogs')
-            response = admin_handler(event, None)
+            orig_get = admin_handler.__globals__.get('get_item')
+            try:
+                from common.db import get_item as real_get
+                admin_handler.__globals__['get_item'] = real_get
+                response = admin_handler(event, None)
+            finally:
+                admin_handler.__globals__['get_item'] = orig_get
             assert response['statusCode'] == 403
+
+        # Probe: admin on the SAME setup clears the role gate (not a precondition 403).
+        admin_event = make_admin_event(role='admin', company_id='tog_and_dogs')
+        with patch('common.notifications.service.check_payment_email_rate_limit', return_value=False), \
+             patch('handlers.admin_handler.notify_event', return_value={'success': True, 'message': 'Email sent.'}), \
+             patch('common.db.table'):
+            orig_get = admin_handler.__globals__.get('get_item')
+            orig_table = admin_handler.__globals__.get('table')
+            try:
+                from common.db import get_item as real_get, table as real_table
+                admin_handler.__globals__['get_item'] = real_get
+                admin_handler.__globals__['table'] = real_table
+                admin_resp = admin_handler(admin_event, None)
+            finally:
+                admin_handler.__globals__['get_item'] = orig_get
+                admin_handler.__globals__['table'] = orig_table
+        assert admin_resp['statusCode'] != 403
 
     @patch('common.db.get_item')
     def test_cross_tenant_forbidden(self, mock_get):
-        """Cross-tenant payment email requests are rejected with 403."""
-        mock_get.return_value = make_req_record(company_id='tenant_b')
+        """Cross-tenant payment email requests are rejected with 403 from the
+        REAL tenant-ownership guard (caller tenant_a active, request tenant_b)."""
+        mock_get.side_effect = make_key_aware_get_item(
+            request_record=make_req_record(company_id='tenant_b'),
+            tenant_companies=('tenant_a', 'tenant_b'))
 
         event = make_admin_event(role='admin', company_id='tenant_a')
         
@@ -133,7 +237,7 @@ class TestAdminPaymentLinkEmail:
     def test_missing_payment_link_blocks(self, mock_get):
         """Request missing payment URL or session ID blocks with 400."""
         # Missing URL
-        mock_get.return_value = make_req_record(stripe_url=None)
+        mock_get.side_effect = make_key_aware_get_item(request_record=make_req_record(stripe_url=None))
         event = make_admin_event(role='admin')
         
         orig_get = admin_handler.__globals__.get('get_item')
@@ -148,7 +252,7 @@ class TestAdminPaymentLinkEmail:
         assert "active payment link" in json.loads(response['body'])['error']
 
         # Missing session ID
-        mock_get.return_value = make_req_record(stripe_id=None)
+        mock_get.side_effect = make_key_aware_get_item(request_record=make_req_record(stripe_id=None))
         try:
             from common.db import get_item as real_get
             admin_handler.__globals__['get_item'] = real_get
@@ -165,7 +269,8 @@ class TestAdminPaymentLinkEmail:
         orig_get = admin_handler.__globals__.get('get_item')
         
         for p_status in ['paid', 'refunded', 'waived']:
-            mock_get.return_value = make_req_record(payment_status=p_status)
+            mock_get.side_effect = make_key_aware_get_item(
+                request_record=make_req_record(payment_status=p_status))
             event = make_admin_event(role='admin')
             try:
                 from common.db import get_item as real_get
@@ -180,7 +285,7 @@ class TestAdminPaymentLinkEmail:
     @patch('common.db.get_item')
     def test_missing_client_email_blocks(self, mock_get):
         """Request missing client email blocks with 400."""
-        mock_get.return_value = make_req_record(email=None)
+        mock_get.side_effect = make_key_aware_get_item(request_record=make_req_record(email=None))
         event = make_admin_event(role='admin')
         
         orig_get = admin_handler.__globals__.get('get_item')
@@ -198,7 +303,7 @@ class TestAdminPaymentLinkEmail:
     @patch('common.notifications.service.check_payment_email_rate_limit')
     def test_rate_limit_blocks(self, mock_rate_limit, mock_get):
         """Request exceeding the 3 sends per hour rate limit blocks with 429."""
-        mock_get.return_value = make_req_record()
+        mock_get.side_effect = make_key_aware_get_item(request_record=make_req_record())
         mock_rate_limit.return_value = True
         event = make_admin_event(role='admin')
         
@@ -219,7 +324,7 @@ class TestAdminPaymentLinkEmail:
     @patch('common.notifications.service.notify_event')
     def test_postmark_failure_safe_error(self, mock_notify, mock_rate_limit, mock_table, mock_get):
         """Postmark send failure returns 500 and does NOT update database request email fields."""
-        mock_get.return_value = make_req_record()
+        mock_get.side_effect = make_key_aware_get_item(request_record=make_req_record())
         mock_rate_limit.return_value = False
         mock_notify.return_value = {'success': False, 'message': 'Postmark server error'}
         mock_table.update_item = MagicMock()
@@ -232,7 +337,13 @@ class TestAdminPaymentLinkEmail:
             from common.db import get_item as real_get, table as real_table
             admin_handler.__globals__['get_item'] = real_get
             admin_handler.__globals__['table'] = real_table
-            response = admin_handler(event, None)
+            # Patch the handler's bound notify_event so the FAILURE result is
+            # actually exercised (the service-module decorator patch does not
+            # reach the handler's import-time binding, which otherwise runs the
+            # real dry-run notifier and returns success).
+            with patch('handlers.admin_handler.notify_event',
+                       return_value={'success': False, 'message': 'Postmark server error'}):
+                response = admin_handler(event, None)
         finally:
             admin_handler.__globals__['get_item'] = orig_get
             admin_handler.__globals__['table'] = orig_table
@@ -240,7 +351,7 @@ class TestAdminPaymentLinkEmail:
         assert response['statusCode'] == 500
         assert "delivery failed" in json.loads(response['body'])['error']
         
-        # Verify update_item was NOT called
+        # Verify update_item was NOT called (no success metadata persisted on failure)
         mock_table.update_item.assert_not_called()
 
     @patch('common.db.table')
@@ -253,17 +364,23 @@ class TestAdminPaymentLinkEmail:
         
         # event has query_params = {}, so client_id is resolved by querying
         event = make_admin_event(role='admin', query_params={})
-        
-        # Mock rate limit and notify_event
+
+        # The active-tenant precondition still runs: isolate ITS get_item lookup
+        # (TENANT#.../METADATA -> active metadata) so it does not hit the real DB
+        # or receive a MagicMock. The route's client_id-less path then falls back
+        # to the mocked table.query to resolve the request record (the behavior
+        # under test). No request record is returned via get_item here, forcing
+        # the real query-fallback branch.
         orig_table = admin_handler.__globals__.get('table')
         try:
             admin_handler.__globals__['table'] = mock_table
-            with patch('common.notifications.service.check_payment_email_rate_limit', return_value=False), \
-                 patch('common.notifications.service.notify_event', return_value={'success': True, 'message': 'Email sent.'}):
+            with patch('common.db.get_item', side_effect=make_key_aware_get_item(request_record=None)), \
+                 patch('common.notifications.service.check_payment_email_rate_limit', return_value=False), \
+                 patch('handlers.admin_handler.notify_event', return_value={'success': True, 'message': 'Email sent.'}):
                 response = admin_handler(event, None)
         finally:
             admin_handler.__globals__['table'] = orig_table
-            
+
         assert response['statusCode'] == 200
         mock_table.query.assert_called_once()
         body = json.loads(response['body'])
@@ -284,8 +401,9 @@ class TestAdminPaymentLinkEmail:
             # 1. Under cooldown (e.g. sent 30 seconds ago)
             from datetime import datetime, timezone, timedelta
             sent_30s_ago = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
-            mock_get.return_value = make_req_record(status='PENDING_REVIEW', payment_status='payment_link_sent')
-            mock_get.return_value['payment_email_sent_at'] = sent_30s_ago
+            record_under = make_req_record(status='PENDING_REVIEW', payment_status='payment_link_sent')
+            record_under['payment_email_sent_at'] = sent_30s_ago
+            mock_get.side_effect = make_key_aware_get_item(request_record=record_under)
 
             response = admin_handler(event, None)
             assert response['statusCode'] == 429
@@ -293,10 +411,18 @@ class TestAdminPaymentLinkEmail:
 
             # 2. Past cooldown (e.g. sent 90 seconds ago)
             sent_90s_ago = (datetime.now(timezone.utc) - timedelta(seconds=90)).isoformat()
-            mock_get.return_value['payment_email_sent_at'] = sent_90s_ago
+            record_past = make_req_record(status='PENDING_REVIEW', payment_status='payment_link_sent')
+            record_past['payment_email_sent_at'] = sent_90s_ago
+            mock_get.side_effect = make_key_aware_get_item(request_record=record_past)
 
-            with patch('common.notifications.service.notify_event', return_value={'success': True, 'message': 'Email sent.'}), \
-                 patch('common.db.table.update_item') as mock_update:
+            # Mock the handler-bound audit writer and DB update so the success
+            # path does not reach real DynamoDB (the no_network guard would
+            # otherwise turn the post-send audit put_item into a 500). The real
+            # cooldown-expiry logic and the 200 success contract are preserved.
+            with patch('handlers.admin_handler.notify_event', return_value={'success': True, 'message': 'Email sent.'}), \
+                 patch('handlers.admin_handler.log_action'), \
+                 patch('handlers.admin_handler.table') as mock_tbl:
+                mock_tbl.update_item = MagicMock()
                 response = admin_handler(event, None)
                 assert response['statusCode'] == 200
                 assert json.loads(response['body'])['message'] == "Payment email sent successfully"
