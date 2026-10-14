@@ -181,48 +181,149 @@ class TestGoogleCalendarTenantGate:
         # Blocked before any Google OAuth client configuration is consulted.
         mock_get_config.assert_not_called()
 
+    # ---- OAuth callback: two distinct fail-closed security requirements -----
+    #
+    # Gate C3b.3h.2a splits the former combined callback test (which accepted
+    # 400 OR 403, concealing which boundary fired) into two precise tests:
+    #   (1) malformed/legacy-invalid state -> exactly 400 INVALID_OAUTH_STATE
+    #       (schema-v2 state-integrity / replay protection), and
+    #   (2) a syntactically & semantically VALID, unexpired, unconsumed schema-v2
+    #       transaction for an eligible-but-UNBOUND tenant -> denied by the real
+    #       provider-binding control with exactly 403 OAUTH_ACCESS_DENIED, BEFORE
+    #       any token exchange.
+
+    # A canonical secret ARN that satisfies common.google_calendar._SECRET_ARN.
+    _VALID_PROVIDER_SECRET_ARN = (
+        'arn:aws:secretsmanager:us-east-1:123456789012:secret:'
+        'togs-and-dogs-prod/calendar/test_tenant_alpha/tokens-Ab1234'
+    )
+    # A valid UUIDv4 matching _OAUTH_STATE_PATTERN.
+    _VALID_OAUTH_STATE = '00000000-0000-4000-8000-000000000001'
+
+    def _valid_v2_state_record(self, company_id='test_tenant_alpha', now=1_900_000_000):
+        """Build a schema-v2 OAUTHSTATE record that PASSES _load_oauth_transaction.
+
+        Uses only synthetic values and the exact deployed prod redirect/
+        destination pair, with created<=now<expires<=created+600 so the real
+        expiry/replay window check passes. 'now' is pinned by patching the
+        handler's time in the test below.
+        """
+        from handlers.google_auth_handler import _OAUTH_PROD_REDIRECT, _OAUTH_PROD_DESTINATION
+        created = now - 60
+        return {
+            'PK': f'OAUTHSTATE#{self._VALID_OAUTH_STATE}',
+            'SK': 'META',
+            'schema_version': 'v2',
+            'status': 'PENDING',
+            'company_id': company_id,
+            'initiating_principal': 'owner-sub-123',
+            'provider_secret_arn': self._VALID_PROVIDER_SECRET_ARN,
+            'redirect_uri': _OAUTH_PROD_REDIRECT,
+            'post_auth_destination': _OAUTH_PROD_DESTINATION,
+            'created_at': created,
+            'expires_at': now + 300,
+        }
+
+    def _eligible_tenant_record(self, company_id='test_tenant_alpha'):
+        """A tenant that PASSES _require_oauth_tenant_eligible (active, calendar
+        enabled, google provider) so execution reaches the binding boundary."""
+        return {
+            'PK': f'TENANT#{company_id}',
+            'SK': 'METADATA',
+            'company_id': company_id,
+            'subscription_tier': 'starter',
+            'subscription_status': 'active',
+            'is_active': True,
+            'calendar_enabled': True,
+            'calendar_provider': 'google',
+        }
+
     @patch('handlers.google_auth_handler.secrets')
     @patch('common.google_calendar._resolve_google_token_binding')
+    @patch('handlers.google_auth_handler.get_google_config')
     @patch('handlers.google_auth_handler.table')
-    def test_non_default_tenant_callback_blocked(self, mock_table, mock_binding, mock_secrets):
-        """Non-default tenant callback exchange is blocked (fail-closed).
+    def test_non_default_tenant_callback_malformed_state_rejected(
+            self, mock_table, mock_get_config, mock_binding, mock_secrets):
+        """Requirement 1: a malformed/legacy-invalid OAuth state fails closed with
+        exactly 400 INVALID_OAUTH_STATE, before eligibility/binding/exchange.
 
-        AC-9 hardened the callback: handle_callback consumes the OAuth state via
-        _load_oauth_transaction with strict schema-v2 integrity checks (schema_
-        version, PENDING status, canonical provider_secret_arn, matched
-        redirect/destination, and a bounded created/expiry window) BEFORE any
-        token exchange. The 'state123' / minimal-record fixture does not satisfy
-        that contract (it is not a valid, unconsumed v2 transaction), so the
-        callback is denied with INVALID_OAUTH_STATE and the exchange never runs.
-        This exercises the real replay/integrity protection rather than asserting
-        stale 'not supported' wording. We also set the provider binding to None
-        so that even a schema-valid state could only reach OAUTH_ACCESS_DENIED,
-        never a connected/redirect outcome.
+        The minimal legacy record (missing schema_version/status/arn/destinations/
+        timestamps) is rejected by the real _load_oauth_transaction schema-v2
+        integrity check. No eligibility lookup, binding resolution, Google config
+        read, token exchange, or secret write occurs.
         """
-        mock_binding.return_value = None
         mock_table.get_item.return_value = {
             'Item': {
                 'PK': 'OAUTHSTATE#state123',
                 'SK': 'META',
-                'company_id': 'test_tenant_alpha'
+                'company_id': 'test_tenant_alpha',
             }
         }
         event = {
             'httpMethod': 'GET',
             'path': '/admin/auth/callback',
-            'queryStringParameters': {
-                'code': 'oauthcode123',
-                'state': 'state123'
-            }
+            'queryStringParameters': {'code': 'oauthcode123', 'state': 'state123'},
         }
         resp = handle_callback(event)
-        # Fail-closed: never a success/redirect; the hardened state-integrity
-        # contract denies this transaction.
-        assert resp['statusCode'] in (400, 403)
-        body = json.loads(resp['body'])
-        assert body['error'] in ('INVALID_OAUTH_STATE', 'OAUTH_ACCESS_DENIED')
-        # No token exchange / secret write ever occurred.
+        assert resp['statusCode'] == 400
+        assert json.loads(resp['body'])['error'] == 'INVALID_OAUTH_STATE'
+        # Rejected at state integrity — never reached binding, config, or exchange.
+        mock_binding.assert_not_called()
+        mock_get_config.assert_not_called()
         mock_secrets.put_secret_value.assert_not_called()
+
+    @patch('handlers.google_auth_handler.time')
+    @patch('handlers.google_auth_handler.secrets')
+    @patch('handlers.google_auth_handler.get_google_config')
+    @patch('common.google_calendar._resolve_google_token_binding')
+    @patch('handlers.google_auth_handler.table')
+    def test_non_default_tenant_callback_valid_state_unbound_denied(
+            self, mock_table, mock_binding, mock_get_config, mock_secrets, mock_time):
+        """Requirement 2: a VALID, unexpired, unconsumed schema-v2 transaction for
+        an eligible-but-UNBOUND tenant is denied by the REAL provider-binding
+        control with exactly 403 OAUTH_ACCESS_DENIED — proving the binding
+        boundary (not merely state parsing) was reached, and that NO code
+        exchange, token persistence, Secrets mutation, or redirect occurs.
+
+        The state passes the real _load_oauth_transaction schema-v2 validation
+        (we do NOT mock _load_oauth_transaction); the tenant passes the real
+        _require_oauth_tenant_eligible; then _require_oauth_binding sees an
+        unbound tenant (resolver -> None) and raises OAUTH_ACCESS_DENIED.
+        """
+        now = 1_900_000_000
+        mock_time.time.return_value = now  # pin the expiry/replay window check
+
+        state_rec = self._valid_v2_state_record(now=now)
+        tenant_rec = self._eligible_tenant_record()
+
+        def key_aware_get_item(Key=None, **kwargs):
+            pk = (Key or {}).get('PK')
+            if pk == state_rec['PK']:
+                return {'Item': dict(state_rec)}
+            if pk == tenant_rec['PK']:
+                return {'Item': dict(tenant_rec)}
+            return {}
+
+        mock_table.get_item.side_effect = key_aware_get_item
+        mock_binding.return_value = None  # eligible but UNBOUND -> binding denies
+
+        event = {
+            'httpMethod': 'GET',
+            'path': '/admin/auth/callback',
+            'queryStringParameters': {'code': 'synthetic-oauth-code', 'state': self._VALID_OAUTH_STATE},
+        }
+        resp = handle_callback(event)
+
+        # Denied precisely at the provider-binding boundary.
+        assert resp['statusCode'] == 403
+        assert json.loads(resp['body'])['error'] == 'OAUTH_ACCESS_DENIED'
+        # Proof the binding authorization boundary was actually reached (i.e. the
+        # state passed real schema-v2 validation and eligibility).
+        mock_binding.assert_called()
+        # Fail-closed: no OAuth code exchange, no token persistence/redirect.
+        mock_get_config.assert_not_called()
+        mock_secrets.put_secret_value.assert_not_called()
+        assert resp.get('statusCode') != 302
 
     @patch('common.google_calendar._resolve_google_token_binding')
     def test_non_default_tenant_disconnect_noop(self, mock_binding):
