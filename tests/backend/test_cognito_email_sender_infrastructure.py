@@ -5,7 +5,14 @@ import re
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SENDER_TF = REPO_ROOT / "infra" / "prod" / "cognito_email_sender.tf"
+# OPS-3A.1D production-root hygiene (commit 626f36b) relocated this Terraform to
+# infra/deferred/ (R100 rename, content unchanged); the feature is IMPLEMENTED
+# but intentionally NOT DEPLOYED. The deferred location is the authoritative
+# source for the static-safety checks below until a separately approved
+# activation release. See infra/deferred/cognito-email-sender/README.md.
+DEFERRED_DIR = REPO_ROOT / "infra" / "deferred" / "cognito-email-sender"
+SENDER_TF = DEFERRED_DIR / "cognito_email_sender.tf"
+PROD_SENDER_TF = REPO_ROOT / "infra" / "prod" / "cognito_email_sender.tf"
 AUTH_TF = REPO_ROOT / "modules" / "auth" / "main.tf"
 PROD_MAIN_TF = REPO_ROOT / "infra" / "prod" / "main.tf"
 LOCK_FILE = REPO_ROOT / "src" / "cognito_email_sender" / "requirements.lock"
@@ -17,6 +24,29 @@ def _code_without_comments(path: Path) -> str:
         line for line in path.read_text(encoding="utf-8").splitlines()
         if not line.lstrip().startswith("#")
     )
+
+
+def test_cognito_email_sender_terraform_is_deferred_and_isolated_from_prod_root():
+    """The custom email sender is implemented-but-not-deployed. Its Terraform
+    must live only under infra/deferred/ and must not be present or wired in the
+    active infra/prod root. This guards both an accidental deletion and an
+    unapproved production re-activation (either flips this test red)."""
+    # 1. Canonical deferred source exists.
+    assert SENDER_TF.exists(), f"Deferred Terraform missing at canonical path: {SENDER_TF}"
+    # 2. Absent from the active production root.
+    assert not PROD_SENDER_TF.exists(), (
+        f"Deferred Terraform unexpectedly present in production root: {PROD_SENDER_TF}. "
+        "Activation is a separately approved release; it must not appear in infra/prod without it."
+    )
+    # 3. The active production root does not instantiate/activate the deferred
+    #    resources: module "auth" custom-email-sender inputs stay null and the
+    #    prod root does not reference the deferred filename or sender resources.
+    prod_main = _code_without_comments(PROD_MAIN_TF)
+    assert "cognito_email_sender.tf" not in prod_main
+    assert "aws_kms_key.cognito_email_sender" not in prod_main
+    assert "aws_lambda_function.cognito_email_sender" not in prod_main
+    assert "custom_email_sender_lambda_arn  = null" in prod_main
+    assert "custom_email_sender_kms_key_arn = null" in prod_main
 
 
 def test_sender_uses_dedicated_source_and_package_not_shared_backend_archive():
