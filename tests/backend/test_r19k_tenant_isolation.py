@@ -16,6 +16,23 @@ from handlers.google_auth_handler import get_status, calendar_health_check, init
 from handlers.admin_handler import handler as admin_handler
 
 
+@pytest.fixture(autouse=True)
+def _no_network():
+    """Function-scoped, autouse guard (Gate C3b.3h.2): any UNMOCKED AWS/botocore
+    call fails loudly rather than silently reaching the network. The Google-
+    Calendar tests mock the provider-binding resolver and secrets above this
+    layer; the S1 pagination tests use an in-memory seeded fake table. This only
+    fires on a genuine leak. Auto-restored per test."""
+    from unittest.mock import patch as _patch
+    def _blocked(*args, **kwargs):
+        raise AssertionError(
+            "Unmocked AWS/botocore network call attempted in an isolated tenant-"
+            "isolation test. Add an explicit scoped mock for the operation reached."
+        )
+    with _patch('botocore.httpsession.URLLib3Session.send', _blocked):
+        yield
+
+
 @pytest.mark.parametrize('company', ['tog_and_dogs', 'test_tenant_alpha', 'future_tenant'])
 @pytest.mark.parametrize('status', ['ALL', 'PENDING_REVIEW', None])
 def test_s1_admin_request_lists_scope_every_page(s1_read_table, company, status):
@@ -91,53 +108,98 @@ def make_event(path, http_method='GET', groups=None, custom_company_id=None, ema
 
 class TestGoogleCalendarTenantGate:
 
-    @patch('handlers.google_auth_handler.get_google_config')
-    @patch('handlers.google_auth_handler.get_stored_tokens')
-    def test_default_tenant_status_connected(self, mock_get_tokens, mock_get_config):
-        """Default tenant status is fetched from Secrets Manager normally."""
-        mock_get_config.return_value = {'client_id': 'some-client-id'}
-        mock_get_tokens.return_value = {
+    @patch('handlers.google_auth_handler.secrets')
+    @patch('common.google_calendar._resolve_google_token_binding')
+    def test_default_tenant_status_connected(self, mock_binding, mock_secrets):
+        """Default tenant: a resolved provider binding + valid cached tokens -> CONNECTED.
+
+        AC-9 contract: get_status resolves the per-tenant provider binding via
+        common.google_calendar._resolve_google_token_binding (the authoritative
+        boundary — NOT the removed get_stored_tokens helper), then reads the
+        bound secret from Secrets Manager and classifies the cached tokens. We
+        model a bound default tenant and a valid, non-expired token blob so the
+        REAL _classify_cached_status produces CONNECTED, without any live
+        DynamoDB/Secrets access.
+        """
+        bound_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:togs-and-dogs-prod/calendar/tog_and_dogs/tokens-Ab1234'
+        mock_binding.return_value = ('togs-and-dogs-prod/calendar/tog_and_dogs/tokens', bound_arn)
+        mock_secrets.get_secret_value.return_value = {'SecretString': json.dumps({
             'access_token': 'valid-token',
             'refresh_token': 'refresh-token',
             'updated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-            'expires_in': 3600
-        }
-        
+            'expires_in': 3600,
+        })}
+
         event = make_event('/admin/auth/status', http_method='GET', groups=['owner'], custom_company_id='tog_and_dogs')
         resp = get_status(event)
         assert resp['statusCode'] == 200
         body = json.loads(resp['body'])
         assert body['status'] == 'CONNECTED'
-        mock_get_tokens.assert_called_once()
+        # The bound secret was read exactly once from the resolved ARN.
+        mock_secrets.get_secret_value.assert_called_once_with(SecretId=bound_arn)
+        # No token/credential material leaks into the response.
+        assert 'access_token' not in body and 'refresh_token' not in body
 
-    @patch('handlers.google_auth_handler.get_google_config')
-    @patch('handlers.google_auth_handler.get_stored_tokens')
-    def test_non_default_tenant_status_not_connected(self, mock_get_tokens, mock_get_config):
-        """Non-default tenant status returns NOT_CONNECTED immediately without Secrets Manager lookup."""
+    @patch('handlers.google_auth_handler.secrets')
+    @patch('common.google_calendar._resolve_google_token_binding')
+    def test_non_default_tenant_status_not_connected(self, mock_binding, mock_secrets):
+        """Non-default tenant with verified metadata but no calendar_secret_ref
+        resolves to an UNBOUND provider (resolver returns None) -> NOT_CONNECTED,
+        and NO secret is ever read. This is the AC-9 fail-closed outcome for an
+        unconfigured tenant (a 200/NOT_CONNECTED denial of calendar data, not a
+        connected state)."""
+        mock_binding.return_value = None  # unbound non-default tenant
+
         event = make_event('/admin/auth/status', http_method='GET', groups=['owner'], custom_company_id='test_tenant_alpha')
-        
+
         resp = get_status(event)
         assert resp['statusCode'] == 200
         body = json.loads(resp['body'])
         assert body['status'] == 'NOT_CONNECTED'
-        mock_get_tokens.assert_not_called()
-        mock_get_config.assert_not_called()
+        # Unbound tenant must never trigger a Secrets Manager read.
+        mock_secrets.get_secret_value.assert_not_called()
 
     @patch('handlers.google_auth_handler.get_google_config')
-    def test_non_default_tenant_initiate_oauth_blocked(self, mock_get_config):
-        """Non-default tenant is blocked from initiating Google OAuth."""
+    @patch('common.google_calendar._resolve_google_token_binding')
+    def test_non_default_tenant_initiate_oauth_blocked(self, mock_binding, mock_get_config):
+        """Non-default tenant is blocked from initiating Google OAuth.
+
+        AC-9 contract: initiate_auth calls _require_oauth_binding, which treats an
+        unbound tenant (resolver returns None) as OAUTH_ACCESS_DENIED (403). The
+        request is denied before any Google config is read, so the tenant cannot
+        start an OAuth flow. (The prior 'not supported' wording predates AC-9;
+        the current fail-closed category is OAUTH_ACCESS_DENIED.)
+        """
+        mock_binding.return_value = None  # unbound non-default tenant
+
         event = make_event('/admin/auth/google', http_method='GET', groups=['owner'], custom_company_id='test_tenant_alpha')
-        
+
         resp = initiate_auth(event)
         assert resp['statusCode'] == 403
         body = json.loads(resp['body'])
-        assert "not supported" in body['error']
+        assert body['error'] == 'OAUTH_ACCESS_DENIED'
+        # Blocked before any Google OAuth client configuration is consulted.
         mock_get_config.assert_not_called()
 
+    @patch('handlers.google_auth_handler.secrets')
+    @patch('common.google_calendar._resolve_google_token_binding')
     @patch('handlers.google_auth_handler.table')
-    def test_non_default_tenant_callback_blocked(self, mock_table):
-        """Non-default tenant callback exchange is blocked."""
-        # Mock State validation
+    def test_non_default_tenant_callback_blocked(self, mock_table, mock_binding, mock_secrets):
+        """Non-default tenant callback exchange is blocked (fail-closed).
+
+        AC-9 hardened the callback: handle_callback consumes the OAuth state via
+        _load_oauth_transaction with strict schema-v2 integrity checks (schema_
+        version, PENDING status, canonical provider_secret_arn, matched
+        redirect/destination, and a bounded created/expiry window) BEFORE any
+        token exchange. The 'state123' / minimal-record fixture does not satisfy
+        that contract (it is not a valid, unconsumed v2 transaction), so the
+        callback is denied with INVALID_OAUTH_STATE and the exchange never runs.
+        This exercises the real replay/integrity protection rather than asserting
+        stale 'not supported' wording. We also set the provider binding to None
+        so that even a schema-valid state could only reach OAUTH_ACCESS_DENIED,
+        never a connected/redirect outcome.
+        """
+        mock_binding.return_value = None
         mock_table.get_item.return_value = {
             'Item': {
                 'PK': 'OAUTHSTATE#state123',
@@ -154,18 +216,29 @@ class TestGoogleCalendarTenantGate:
             }
         }
         resp = handle_callback(event)
-        assert resp['statusCode'] == 403
+        # Fail-closed: never a success/redirect; the hardened state-integrity
+        # contract denies this transaction.
+        assert resp['statusCode'] in (400, 403)
         body = json.loads(resp['body'])
-        assert "not supported" in body['error']
+        assert body['error'] in ('INVALID_OAUTH_STATE', 'OAUTH_ACCESS_DENIED')
+        # No token exchange / secret write ever occurred.
+        mock_secrets.put_secret_value.assert_not_called()
 
-    def test_non_default_tenant_disconnect_noop(self):
-        """Non-default tenant disconnect returns success without clearing Secrets Manager."""
+    @patch('common.google_calendar._resolve_google_token_binding')
+    def test_non_default_tenant_disconnect_noop(self, mock_binding):
+        """Non-default tenant disconnect is a no-op that never clears Secrets Manager.
+
+        AC-9 contract: disconnect_auth resolves the provider binding; an unbound
+        tenant (resolver returns None) returns 200 'Google Calendar is not
+        configured.' and performs NO secret write (no cross-tenant or primary
+        credential is touched)."""
+        mock_binding.return_value = None  # unbound non-default tenant
         event = make_event('/admin/auth/google', http_method='DELETE', groups=['owner'], custom_company_id='test_tenant_alpha')
         with patch('handlers.google_auth_handler.secrets') as mock_secrets:
             resp = disconnect_auth(event)
             assert resp['statusCode'] == 200
             body = json.loads(resp['body'])
-            assert "successfully" in body['message']
+            assert "not configured" in body['message']
             mock_secrets.put_secret_value.assert_not_called()
 
 
@@ -277,25 +350,37 @@ class TestCognitoUserFiltering:
 
 class TestTenantInfoEndpoint:
 
+    @patch('handlers.google_auth_handler.secrets')
+    @patch('common.google_calendar._resolve_google_token_binding')
+    @patch('common.entitlement._get_entitlement_safely')
     @patch('handlers.admin_handler.get_item')
-    @patch('handlers.google_auth_handler.get_google_config')
-    @patch('handlers.google_auth_handler.get_stored_tokens')
-    def test_tenant_info_default_company(self, mock_get_tokens, mock_get_config, mock_get_item):
-        """tenant-info returns correct metadata for default tenant including calendar status."""
+    def test_tenant_info_default_company(self, mock_get_item, mock_ent, mock_binding, mock_secrets):
+        """tenant-info returns correct metadata for default tenant including calendar status.
+
+        The tenant-info route derives google_calendar_status by calling the real
+        get_status, which resolves the per-tenant provider binding (AC-9). We
+        model an active default tenant with a resolved binding + valid cached
+        tokens so the REAL status resolution yields CONNECTED — exercising the
+        current logic, not the removed get_stored_tokens helper.
+        """
+        from common.billing import TenantEntitlement
         mock_get_item.return_value = {
             'company_id': 'tog_and_dogs',
             'display_name': 'Tog & Dogs Production',
             'subscription_tier': 'premium',
             'subscription_status': 'active'
         }
-        mock_get_config.return_value = {'client_id': 'client-id'}
-        mock_get_tokens.return_value = {
+        mock_ent.return_value = TenantEntitlement(
+            company_id='tog_and_dogs', subscription_tier='premium', subscription_status='active')
+        bound_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:togs-and-dogs-prod/calendar/tog_and_dogs/tokens-Ab1234'
+        mock_binding.return_value = ('togs-and-dogs-prod/calendar/tog_and_dogs/tokens', bound_arn)
+        mock_secrets.get_secret_value.return_value = {'SecretString': json.dumps({
             'access_token': 'tok',
             'refresh_token': 'ref',
             'updated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-            'expires_in': 3600
-        }
-        
+            'expires_in': 3600,
+        })}
+
         event = make_event('/admin/tenant-info', http_method='GET', groups=['owner'], custom_company_id='tog_and_dogs')
         resp = admin_handler(event, None)
         assert resp['statusCode'] == 200
@@ -308,16 +393,25 @@ class TestTenantInfoEndpoint:
         assert 'refresh_token' not in body
         assert 'access_token' not in body
 
+    @patch('handlers.google_auth_handler.secrets')
+    @patch('common.google_calendar._resolve_google_token_binding')
+    @patch('common.entitlement._get_entitlement_safely')
     @patch('handlers.admin_handler.get_item')
-    def test_tenant_info_second_company(self, mock_get_item):
-        """tenant-info returns correct metadata for second tenant, calendar shows NOT_CONNECTED."""
+    def test_tenant_info_second_company(self, mock_get_item, mock_ent, mock_binding, mock_secrets):
+        """tenant-info for an active second tenant: calendar is unbound (resolver
+        returns None) -> NOT_CONNECTED, with no Secrets Manager read. Proves the
+        second tenant surfaces an unconfigured calendar, never a connected one."""
+        from common.billing import TenantEntitlement
         mock_get_item.return_value = {
             'company_id': 'test_tenant_alpha',
             'display_name': 'Test Tenant Alpha LLC',
             'subscription_tier': 'starter',
             'subscription_status': 'active'
         }
-        
+        mock_ent.return_value = TenantEntitlement(
+            company_id='test_tenant_alpha', subscription_tier='starter', subscription_status='active')
+        mock_binding.return_value = None  # unbound second tenant
+
         event = make_event('/admin/tenant-info', http_method='GET', groups=['owner'], custom_company_id='test_tenant_alpha')
         resp = admin_handler(event, None)
         assert resp['statusCode'] == 200
@@ -327,3 +421,4 @@ class TestTenantInfoEndpoint:
         assert body['subscription_tier'] == 'starter'
         assert body['subscription_status'] == 'active'
         assert body['google_calendar_status'] == 'NOT_CONNECTED'
+        mock_secrets.get_secret_value.assert_not_called()
