@@ -53,8 +53,17 @@ def test_canonical_timed_duration_matches_contract(service_type, metadata):
     body = build_event(build_timed_item(service_type))
     start, end = timed_bounds(body)
 
+    # The item is built WITHOUT occurrence_schedule_mode='fixed', so even a
+    # canonical fixed-schedule service (e.g. OVERNIGHT) is rendered through the
+    # backward-compatibility path. That path uses legacyDurationMinutes when the
+    # contract defines a legacy divergence, otherwise durationMinutes — mirroring
+    # google_calendar._build_event_body's compatibility_duration. Deriving the
+    # expectation from the contract (independently of the code under test) keeps
+    # this a real parity check rather than a tautology.
+    expected_minutes = metadata["legacyDurationMinutes"] or metadata["durationMinutes"]
+
     assert start == datetime(2030, 1, 15, 9, 15)
-    assert end - start == timedelta(minutes=metadata["durationMinutes"])
+    assert end - start == timedelta(minutes=expected_minutes)
     assert body["start"]["timeZone"] == "America/New_York"
     assert body["end"]["timeZone"] == "America/New_York"
 
