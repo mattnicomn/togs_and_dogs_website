@@ -16,6 +16,34 @@ os.environ.setdefault('DATA_TABLE_NAME', 'test-table')
 from handlers.admin_handler import handler as admin_handler
 from common.notifications.service import notify_event, check_payment_email_rate_limit
 
+
+# --- Network isolation (Gate C3b.3g.1) ---
+#
+# Function-scoped, autouse guard: every test runs with the real outbound HTTP
+# transports replaced by raisers so any UNMOCKED AWS/botocore or Postmark
+# request fails loudly instead of silently reaching the network. The tested
+# paths mock get_item / table / notify_event / rate-limit above these layers, so
+# this only fires on a genuine leak. Auto-restored after each test.
+
+@pytest.fixture(autouse=True)
+def no_network():
+    def _blocked_boto(*args, **kwargs):
+        raise AssertionError(
+            "Unmocked AWS/botocore network call attempted in an isolated payment-"
+            "email test. Add an explicit scoped mock for the operation reached."
+        )
+
+    def _blocked_urlopen(*args, **kwargs):
+        raise AssertionError(
+            "Unmocked outbound HTTP (Postmark/urllib) attempted in an isolated "
+            "payment-email test. Add an explicit scoped mock."
+        )
+
+    with patch('botocore.httpsession.URLLib3Session.send', _blocked_boto), \
+         patch('urllib.request.urlopen', _blocked_urlopen):
+        yield
+
+
 # --- Isolation helpers (Gate C3b.3g / V3f) ---
 #
 # The admin handler runs require_active_tenant() BEFORE the send-payment-email
@@ -387,8 +415,14 @@ class TestAdminPaymentLinkEmail:
             record_past['payment_email_sent_at'] = sent_90s_ago
             mock_get.side_effect = make_key_aware_get_item(request_record=record_past)
 
+            # Mock the handler-bound audit writer and DB update so the success
+            # path does not reach real DynamoDB (the no_network guard would
+            # otherwise turn the post-send audit put_item into a 500). The real
+            # cooldown-expiry logic and the 200 success contract are preserved.
             with patch('handlers.admin_handler.notify_event', return_value={'success': True, 'message': 'Email sent.'}), \
-                 patch('common.db.table.update_item') as mock_update:
+                 patch('handlers.admin_handler.log_action'), \
+                 patch('handlers.admin_handler.table') as mock_tbl:
+                mock_tbl.update_item = MagicMock()
                 response = admin_handler(event, None)
                 assert response['statusCode'] == 200
                 assert json.loads(response['body'])['message'] == "Payment email sent successfully"

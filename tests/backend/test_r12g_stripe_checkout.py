@@ -20,6 +20,31 @@ from handlers.admin_handler import handler as admin_handler
 from handlers.stripe_webhook_handler import handler as webhook_handler
 from common.stripe_client import StripeAPIError
 
+
+# --- Network isolation (Gate C3b.3g.1) ---
+#
+# Function-scoped, autouse guard: every test in this module runs with the real
+# outbound HTTP transports replaced by raisers, so any UNMOCKED AWS/botocore,
+# Stripe, or Postmark request fails loudly instead of silently reaching the
+# network. The tested paths mock get_item / table / create_checkout_session /
+# notify_event above these layers, so this guard only fires on a genuine leak
+# (a future edit or an unanticipated code path). Tests that legitimately drive
+# the real stripe_client payload builder patch urllib.request.urlopen with their
+# own mock, which applies after this fixture and therefore takes precedence.
+# Auto-restored after each test by the patch context managers.
+
+@pytest.fixture(autouse=True)
+def no_network():
+    def _blocked_boto(*args, **kwargs):
+        raise AssertionError(
+            "Unmocked AWS/botocore network call attempted in an isolated Stripe-"
+            "checkout test. Add an explicit scoped mock for the operation reached."
+        )
+
+    with patch('botocore.httpsession.URLLib3Session.send', _blocked_boto):
+        yield
+
+
 # --- Isolation helpers (Gate C3b.3g / V3f) ---
 #
 # The admin handler runs require_active_tenant() BEFORE the payment-session
@@ -632,7 +657,14 @@ class TestStripeWebhookBookingPaymentExtension:
         try:
             from common.db import get_item as real_get
             handler.__globals__['get_item'] = real_get
-            response = handler(api_event, {})
+            # The fails-closed path records a failed-billing-event ledger row,
+            # which does a real DynamoDB put_item. Mock the handler-bound ledger
+            # writer so the inner error path completes WITHOUT any network call
+            # (the no_network guard would otherwise turn this into a generic
+            # "Internal server error"). The real missing-request_id detection and
+            # the 500 "Processing failed" contract are preserved.
+            with patch('handlers.stripe_webhook_handler.record_failed_billing_event'):
+                response = handler(api_event, {})
         finally:
             handler.__globals__['get_item'] = orig_get
 
@@ -672,7 +704,12 @@ class TestStripeWebhookBookingPaymentExtension:
         try:
             from common.db import get_item as real_get
             handler.__globals__['get_item'] = real_get
-            response = handler(api_event, {})
+            # Mock the handler-bound failed-billing-event ledger writer so the
+            # fails-closed path completes without a real DynamoDB put_item. The
+            # real cross-tenant mismatch detection and the 500 "Processing
+            # failed" contract are preserved.
+            with patch('handlers.stripe_webhook_handler.record_failed_billing_event'):
+                response = handler(api_event, {})
         finally:
             handler.__globals__['get_item'] = orig_get
 
