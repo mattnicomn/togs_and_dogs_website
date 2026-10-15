@@ -13,6 +13,10 @@ from common.check_in import (
     canonical_window_start,
     validate_booking_window_fields,
 )
+from common.google_calendar import (
+    INHERITED_REQUEST_WINDOW_SOURCE,
+    resolve_inherited_request_window,
+)
 
 MAX_MULTI_DAY_OCCURRENCES = 14
 
@@ -282,7 +286,22 @@ def handler(event, context):
                 # Google Calendar accepts caller-selected IDs using base32hex
                 # characters. This stable ID makes insert replay conflict-safe.
                 item['calendar_event_id'] = f"td{uuid.UUID(job_id).hex}"
-            
+            elif is_multi_day:
+                # Legacy multi-day children (non-canonical services such as
+                # WALK_30MIN / PET_SITTING) carry no canonical occurrence window.
+                # Inherit a single, explicit, unambiguous parent request window so
+                # the stated preference survives on each occurrence. This is a
+                # label only: no start_time / scheduled_time is ever synthesized,
+                # and inheritance is skipped for ANYTIME / AFTERNOON / missing /
+                # ambiguous parent windows. Any child-specific window already on
+                # the item is left authoritative.
+                inherited_window = resolve_inherited_request_window(request_item)
+                if inherited_window and not item.get('occurrence_window') and not item.get('visit_window'):
+                    item['occurrence_window'] = inherited_window
+                    item['visit_window'] = inherited_window
+                    item['visit_windows'] = [inherited_window]
+                    item['window_source'] = INHERITED_REQUEST_WINDOW_SOURCE
+
             if uses_child_calendar_sync:
                 item['occurrence_date'] = occurrence_date
                 item['scheduled_date'] = occurrence_date
