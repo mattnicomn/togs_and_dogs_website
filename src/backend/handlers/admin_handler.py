@@ -691,6 +691,7 @@ def handler(event, context):
                     apply_quote_accept, apply_quote_decline, QuoteStatus,
                     QuoteContractError, evaluate_booking_approval_predicate,
                     to_cents as _to_cents,
+                    normalize_stored_cents as _stored_cents,
                 )
                 now_iso = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
                 try:
@@ -794,7 +795,9 @@ def handler(event, context):
                         merged.get('quote_status'),
                         payment_requirement,
                         payment_status,
-                        quote_amount_cents=_to_cents(merged.get('quote_amount_cents')),
+                        # Canonical stored cents (DynamoDB Decimal) — read as stored
+                        # cents, not via to_cents which would ×100 a Decimal.
+                        quote_amount_cents=_stored_cents(merged.get('quote_amount_cents')),
                         payment_waived=bool(merged.get('payment_waived_by')),
                     )
                     resp_body["booking_ready"] = ready
@@ -3025,6 +3028,7 @@ def handler(event, context):
             from common.quote_contract import (
                 apply_quote_update, QuoteStatus, QuoteContractError,
                 to_cents as _to_cents,
+                normalize_stored_cents as _stored_cents,
             )
             incoming = {}
             if 'quote_amount_cents' in body:
@@ -3112,7 +3116,10 @@ def handler(event, context):
                 "request_id": request_id,
                 "quote_status": merged.get('quote_status'),
                 "quote_revision": merged.get('quote_revision'),
-                "quote_amount_cents": _to_cents(merged.get('quote_amount_cents')),
+                # Canonical cents: either inbound int (amount in PATCH) or the stored
+                # DynamoDB Decimal (amount-preserving edit). normalize_stored_cents
+                # preserves both identically; to_cents would ×100 the stored Decimal.
+                "quote_amount_cents": _stored_cents(merged.get('quote_amount_cents')),
                 "currency": merged.get('currency') or 'USD',
                 "status": merged.get('status'),
             }, event)
@@ -3175,6 +3182,7 @@ def handler(event, context):
 
             from common.quote_contract import (
                 apply_quote_send, QuoteStatus, QuoteContractError, to_cents as _to_cents,
+                normalize_stored_cents as _stored_cents,
             )
             now_iso = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
             try:
@@ -3231,7 +3239,9 @@ def handler(event, context):
                 "request_id": request_id,
                 "quote_status": send_fields['quote_status'],
                 "quote_revision": send_fields['quote_revision'],
-                "quote_amount_cents": _to_cents(request_item.get('quote_amount_cents')),
+                # Canonical stored cents (DynamoDB Decimal) — read as stored cents,
+                # not via to_cents which would ×100 a Decimal.
+                "quote_amount_cents": _stored_cents(request_item.get('quote_amount_cents')),
                 "status": 'QUOTE_SENT',
             }, event)
 
