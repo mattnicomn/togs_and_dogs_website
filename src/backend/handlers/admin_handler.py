@@ -4,7 +4,10 @@ import boto3
 from datetime import datetime, timezone
 from common.db import query_by_status, get_item, update_status, table
 from common.notifications.service import notify_event
-from common.google_calendar import sync_calendar_event, delete_event
+from common.google_calendar import (
+    sync_calendar_event, delete_event,
+    INHERITED_REQUEST_WINDOW_SOURCE, resolve_inherited_request_window,
+)
 from common.response import success, bad_request, internal_error, not_found, error
 from common.auth import get_effective_role, sanitize_booking_for_role, get_claims
 from common.tenant_read_scope import (
@@ -376,6 +379,20 @@ def _build_job_occurrence_summary(request_item, event, role, user_email):
             or job_record.get('start_date')
         )
         occurrence_window = job_record.get('occurrence_window') or job_record.get('visit_window')
+        occurrence_window_source = job_record.get('window_source')
+
+        # Read-time fallback for historical legacy multi-day children that were
+        # created before window inheritance existed. When the child carries no
+        # window of its own, surface a single explicit unambiguous parent request
+        # window as a display-only label and mark its provenance. This never
+        # mutates the stored JOB record and never fabricates a precise time;
+        # child-level windows always stay authoritative.
+        if not occurrence_window:
+            inherited_window = resolve_inherited_request_window(request_item)
+            if inherited_window:
+                occurrence_window = inherited_window
+                occurrence_window_source = INHERITED_REQUEST_WINDOW_SOURCE
+
         status = job_record.get('status', 'JOB_CREATED')
 
         jobs_summary.append({
@@ -384,6 +401,7 @@ def _build_job_occurrence_summary(request_item, event, role, user_email):
             'occurrence_date': occurrence_date,
             'occurrence_end_date': job_record.get('occurrence_end_date') or job_record.get('end_date'),
             'occurrence_window': occurrence_window,
+            'occurrence_window_source': occurrence_window_source,
             'occurrence_index': job_record.get('occurrence_index'),
             'total_occurrences': job_record.get('total_occurrences'),
             'status': status,

@@ -315,6 +315,80 @@ WINDOW_START_HOURS = {
     'MORNING': 8, 'MIDDAY': 11, 'AFTERNOON': 14, 'EVENING': 17,
 }
 
+# Provenance marker distinguishing a window label inherited from the parent
+# booking request from a window that implies a scheduled appointment time.
+INHERITED_REQUEST_WINDOW_SOURCE = 'inherited_request_window'
+
+
+def _inheritable_window_ids():
+    """Window ids eligible for legacy multi-day inheritance.
+
+    An inheritable window must be contract-active, eligible for new bookings,
+    and carry a concrete start-of-window — i.e. a label a human can read, not an
+    appointment time. ANYTIME and AFTERNOON (legacy / ineligible / null start)
+    are intentionally excluded, so inheriting one of them never happens.
+    """
+    inheritable = set()
+    for window_id, window in WINDOW_METADATA.items():
+        if (
+            window.get('lifecycle') == 'active'
+            and window.get('newBookingEligibility') == 'eligible'
+            and window.get('start')
+        ):
+            inheritable.add(window_id)
+    return inheritable
+
+
+def resolve_inherited_request_window(request_item):
+    """Return a single explicit inheritable parent window id, else ``None``.
+
+    This is the sole authority for legacy multi-day window inheritance and is
+    shared by the child-JOB builder and the read-time occurrence-summary
+    fallback so the two can never drift. It inherits ONLY when the parent
+    carries exactly one explicit, unambiguous, inheritable window:
+
+    - ``visit_windows`` with multiple distinct values -> ambiguous -> ``None``.
+    - ``visit_window`` and ``visit_windows`` that disagree -> ambiguous -> ``None``.
+    - ANYTIME, AFTERNOON, missing, empty, or non-inheritable value -> ``None``.
+
+    It never fabricates a window and never returns a start time.
+    """
+    if not isinstance(request_item, dict):
+        return None
+
+    inheritable = _inheritable_window_ids()
+
+    def _normalize(value):
+        return value.strip().upper() if isinstance(value, str) and value.strip() else None
+
+    raw_windows = request_item.get('visit_windows')
+    windows_list = []
+    if isinstance(raw_windows, (list, tuple)):
+        windows_list = [w for w in (_normalize(v) for v in raw_windows) if w]
+    distinct_windows = list(dict.fromkeys(windows_list))
+
+    single_window = _normalize(request_item.get('visit_window'))
+
+    # Reconcile the two possible sources. Any genuine disagreement between an
+    # explicit visit_window and a distinct visit_windows list is ambiguous.
+    if distinct_windows and single_window:
+        if len(distinct_windows) != 1 or distinct_windows[0] != single_window:
+            return None
+        effective = single_window
+    elif distinct_windows:
+        if len(distinct_windows) != 1:
+            return None
+        effective = distinct_windows[0]
+    elif single_window:
+        effective = single_window
+    else:
+        return None
+
+    if effective not in inheritable:
+        return None
+    return effective
+
+
 SERVICE_COLORS = {
     'WALK_30MIN': '9', 'WALK_60MIN': '9', 'DROPIN_1HR': '7',
     'DROPIN_3HR': '7', 'OVERNIGHT': '6', 'PET_SITTING': '10', 'MEET_GREET': '3',
@@ -378,6 +452,23 @@ def _build_event_body(item, assigned_worker=None):
             f"{_format_local_time(resolved_start_time)}–{_format_local_time(fixed_end_time)}"
             + (" next morning" if service_metadata.get('crossesMidnight') else "")
         )
+    elif not scheduled_time and item.get('window_source') == INHERITED_REQUEST_WINDOW_SOURCE:
+        # Inherited legacy multi-day window: show the requested window as a label
+        # only. Deliberately leave resolved_start_time None so the event falls
+        # through to the all-day (Case 4) path. An inherited window is a stated
+        # preference, never a committed appointment time, so no clock time is
+        # synthesized from WINDOW_START_HOURS or canonical_window_start here.
+        inherited_window = (
+            item.get('occurrence_window')
+            or item.get('visit_window')
+            or (item.get('visit_windows') or [None])[0]
+        )
+        window_meta = WINDOW_METADATA.get(inherited_window) if inherited_window else None
+        if window_meta and window_meta.get('label'):
+            window_label = window_meta['label']
+        elif inherited_window:
+            window_label = str(inherited_window).capitalize()
+        # resolved_start_time intentionally stays None -> Case 4 all-day event.
     elif not scheduled_time:
         windows = item.get('visit_windows') or []
         if not windows:
