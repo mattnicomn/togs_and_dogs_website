@@ -1,6 +1,21 @@
 # Current Project State
 
-**Last Updated:** 2026-10-11 — Gate C3c delegated-merge governance policy (documentation-only; `PETCARE_HERO_GATE_C3C_DELEGATED_MERGE_POLICY`). See the Delegated-Merge Policy section immediately below; the GitHub Gate C2/C3a enforcement closeout and the cross-device governance sync closeout follow it; earlier release history is preserved under **Release Checkpoint History**.
+**Last Updated:** 2026-10-20 — PR #19 canonical quote cents read fix DEPLOYED to production + M4-B VERIFIED (`PR19_PRODUCTION_DEPLOYED_M4B_VERIFIED_PHASE_COMPLETE`). See the PR #19 deployment section immediately below; the Gate C3c delegated-merge policy and earlier history follow it.
+
+---
+
+## 2026-10-20 — PR #19: Canonical Quote Cents Read Fix — Production Deployment + M4-B Verification
+
+**Disposition:** `PR19_PRODUCTION_DEPLOYED_M4B_VERIFIED_PHASE_COMPLETE`
+
+- Owner-approved production deployment of the merged PR #19 backend canonical-quote-cents read fix. Code-only, 13-Lambda in-place update: `terraform apply pr19-cents.tfplan` → **`Apply complete! Resources: 0 added, 13 changed, 0 destroyed`** in account `358604342897`.
+- All 13 Lambdas moved from `CodeSha256 gBjdlXDUn0+0gHHyF/W5aKv35NROe81lsQZbBf4YR6I=` to **`QgEdTeYYMYF3k+b4f22NoHv2I7GEowtO1ynQ7ISafVk=`**, Active/Successful, `python3.11`. API Gateway `a022yxuiue` / prod stage `hhryhc` unchanged; `TENANT_RESOLUTION_MODE=multi` unchanged; AC-9 excluded; zero env/config/IAM/API/DynamoDB/Cognito/SNS/SES/Stripe/tenant change.
+- Deployment RC `release/pr19-canonical-cents-rc @ d082517` = OPS-3A.3 clean baseline `ce6b724` + clean cherry-pick of PR #19 squash `9a269ac`; runtime delta = exactly `src/backend/common/quote_contract.py` + `src/backend/handlers/admin_handler.py`. Saved-plan SHA-256 `1DCC0491…104040`.
+- **M4-B VERIFIED (`M4_B_RESULT=PASS`)** — Android Pixel 8 emulator (owner screenshot): quote renders, total `$200.00` (prior `$20,000.00` ×100 defect resolved), "No payment required"/"Not required", Accept + Decline visible, no crash. Quote-visibility / amount-display / payment-requirement / accept-visibility / decline-visibility / crash-regression all PASS. No Accept/Decline/Send performed.
+- **Rollback preserved (not executed):** baseline `ce6b724` + previous package `gBjdlXDUn0…`; retained `backend.zip`/`ops3a3-production.tfplan` intact in the historical OPS-3A.3 RC worktree.
+- **Gates preserved:** `M4_C_DECLINE_AUTHORIZED=NO` (the single mobile Decline remains a separate explicit owner decision); scheduling parked (`SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`, `SCHEDULING_PR_MERGE_AUTHORIZED=NO`); Stripe sandbox-only; Ryan testing NO; no second tenant; no production test data.
+- See [PR #19 production deployment record](../release-notes/pr19-canonical-quote-cents-production-deployment.md).
+- **Next owner decision:** `M4_C_DECLINE_AUTHORIZED=NO — OWNER DECISION REQUIRED`.
 
 ---
 
