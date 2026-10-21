@@ -1,6 +1,19 @@
 # Current Project State
 
-**Last Updated:** 2026-10-20 — PR #19 canonical quote cents read fix DEPLOYED to production + M4-B VERIFIED (`PR19_PRODUCTION_DEPLOYED_M4B_VERIFIED_PHASE_COMPLETE`). See the PR #19 deployment section immediately below; the Gate C3c delegated-merge policy and earlier history follow it.
+**Last Updated:** 2026-10-21 — M4-C one controlled client Decline ACCEPTED (`M4_C_DECLINE_ACCEPTANCE_PASS`; `M4_C_DECLINE_AUTHORIZED=CONSUMED`). See the M4-C section immediately below; the PR #19 production deployment + M4-B entry and earlier history follow it.
+
+---
+
+## 2026-10-21 — M4-C: One Controlled Client Decline Acceptance
+
+**Disposition:** `M4_C_DECLINE_ACCEPTANCE_PASS`
+
+- Owner-authorized, one-time client **Decline** (`SENT → DECLINED`) of the established safe M4 production test quote, performed by Matthew in the mobile app. Exactly one Decline; no Accept, no Send/Resend, no second Decline. Authoritative checkpoint `main == origin/main == e5366df02905d89b9e612c62aa1fbb9fe9765348`.
+- **Accepted via owner-supplied mobile (on-device) evidence.** UI-observed results: quote now DECLINED (`M4_C_DECLINE_TRANSITION=PASS`); amount still `$200.00`; payment requirement NONE; declined state renders, no crash (`M4_C_MOBILE_DECLINED_STATE=PASS`); Accept/Decline no longer valid second actions (first-action-wins reflected); no booking→APPROVED, no payment/Stripe mutation, no unexpected notification side effect observed. **`M4_C_RESULT=PASS`.**
+- **Evidence limitation (explicit):** record-level `quote_revision` unchanged and `quote_declined_at`/`quote_accepted_at` fields are contract-expected (per `apply_quote_decline`: SENT→DECLINED, revision not incremented, acceptance fields unset) but were NOT independently read/verified by the agent — no backend record, request PK/SK, client ID, or auth token was requested, provided, or used.
+- **`M4_C_DECLINE_AUTHORIZED=CONSUMED`** — the single approved Decline is used; no further client mutation is authorized. No Accept performed.
+- **Gates preserved:** `M4_B_RESULT=PASS`; scheduling parked (`SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`, `SCHEDULING_PR_MERGE_AUTHORIZED=NO`); Stripe sandbox-only; Ryan NO; no second tenant; no tenant-resolution change; no mobile distribution; no production test data; no Terraform/Lambda/API deployment. Production backend remains the PR #19 release (`QgEdTeYYMYF3k+b4f22NoHv2I7GEowtO1ynQ7ISafVk=`); rollback (`ce6b724` + `gBjdlXDUn0…`) preserved.
+- See [M4-C client decline acceptance record](../release-notes/m4c-client-decline-acceptance.md).
 
 ---
 
