@@ -144,6 +144,87 @@ def sanitize_booking_for_role(record, role):
         
     return sanitized
 
+
+# ---------------------------------------------------------------------------
+# Client request-LIST projection (explicit allowlist).
+#
+# GET /client/requests historically returned raw REQUEST records passed through
+# the denylist-based sanitize_booking_for_role(). A denylist exposes every new
+# REQUEST field by default; once the canonical quote lifecycle began writing
+# commercial/internal quote fields onto the REQUEST record
+# (quote_amount_cents, deposit_amount_cents, payment_requirement,
+# quote_notes_client, quote_notes_internal, quote_history, revision/timestamps),
+# those fields could pass through to the client list even though the approved
+# quote contract keeps pricing OUT of the general booking list and serves the
+# authoritative client quote only from the dedicated GET /client/quotes/{id}
+# projection (which additionally hides DRAFT).
+#
+# This helper replaces that denylist pass-through for the client list with an
+# EXPLICIT allowlist built from a fresh dict. Any field not named here is absent
+# by construction, so future REQUEST fields never leak by default. The allowlist
+# is the union of fields the current client list consumers legitimately depend on
+# (mobile BookingsScreen; web ClientPortal) and contains NO quote/commercial/
+# internal fields. In particular quote_status is intentionally NOT included: a
+# list-level canonical quote status is a separate future design decision, so this
+# remediation makes the accidental pass-through disappear rather than canonize it.
+#
+# The dedicated GET /client/quotes/{requestId} endpoint is unchanged and remains
+# the authoritative client-safe commercial quote projection.
+# ---------------------------------------------------------------------------
+
+#: Fields the client booking LIST (GET /client/requests) may expose. Union of the
+#: fields the current client list UIs read. No quote/commercial/internal fields.
+CLIENT_REQUEST_LIST_ALLOWLIST = (
+    # Identity / routing (primary id fields; raw PK/SK are deliberately excluded).
+    "request_id",
+    "client_id",
+    "entity_type",
+    # Workflow status (RequestStatus — NOT the commercial quote_status).
+    "status",
+    # Client-safe display.
+    "client_name",
+    "pet_name",
+    "pet_names",
+    "service_type",
+    # Dates / scheduling (client-safe).
+    "selected_dates",
+    "start_date",
+    "end_date",
+    "is_multi_day",
+    "total_occurrences",
+    "completed_count",
+    "visit_windows",
+    "visit_window",
+    "timeframe",
+    # Assignment display (client-safe sitter name only; worker_id etc. excluded).
+    "worker_name",
+    "assigned_sitter",
+    # Ordering.
+    "created_at",
+)
+
+
+def project_client_request_list_item(record):
+    """Return a client-safe LIST projection of a single REQUEST record.
+
+    Explicit allowlist: builds a NEW dict containing ONLY the fields in
+    ``CLIENT_REQUEST_LIST_ALLOWLIST`` that are present on ``record``. The raw
+    REQUEST dict is never reused, so quote/commercial/internal fields (and any
+    future REQUEST field) are absent by construction — they cannot pass through.
+
+    This is the client booking-LIST contract only. The authoritative client-safe
+    commercial quote view remains the dedicated GET /client/quotes/{requestId}
+    projection (build_client_quote_projection), which this function does not alter.
+    """
+    if not isinstance(record, dict):
+        return record
+    projected = {}
+    for field in CLIENT_REQUEST_LIST_ALLOWLIST:
+        if field in record:
+            projected[field] = record[field]
+    return projected
+
+
 def resolve_client_identity(event):
     """
     Resolves the logged-in Cognito user to a local client profile.
