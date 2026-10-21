@@ -303,3 +303,80 @@ def test_handler_list_legacy_request_renders(patched):
     assert items[0]['status'] == 'PENDING_REVIEW'
     for field in FORBIDDEN_LIST_FIELDS:
         assert field not in items[0]
+
+
+# ---------------------------------------------------------------------------
+# Issue #1 — fail-closed projection behavior.
+# A non-dict / malformed input must NEVER pass through unchanged; it must yield
+# an empty safe projection so arbitrary content cannot bypass the allowlist.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize('bad', [
+    None,
+    "REQ#leak",
+    12345,
+    ['PK', 'SK'],
+    ('request_id', 'x'),
+    object(),
+    b'bytes',
+])
+def test_projection_non_dict_fails_closed(bad):
+    result = project_client_request_list_item(bad)
+    assert result == {}, f"non-dict input {type(bad).__name__} did not fail closed"
+    assert result is not bad
+
+
+def test_projection_malformed_cannot_expose_arbitrary_content():
+    # A list of (key, value) pairs must not be coerced/leaked as a mapping.
+    sneaky = [('quote_amount_cents', 5000), ('PK', 'REQ#secret')]
+    result = project_client_request_list_item(sneaky)
+    assert result == {}
+
+
+def test_projection_normal_dict_behavior_unchanged():
+    # Fail-closed change must not alter normal DynamoDB dict projection.
+    projected = project_client_request_list_item(_full_quote_request(status='SENT'))
+    assert projected['request_id'] == 'req-xyz'
+    assert projected['status'] == 'QUOTE_SENT'
+    for field in FORBIDDEN_LIST_FIELDS:
+        assert field not in projected
+
+
+def test_projection_empty_dict_returns_empty():
+    assert project_client_request_list_item({}) == {}
+
+
+# ---------------------------------------------------------------------------
+# Issue #2/#3 — identity contract: raw PK/SK are never exposed, and every
+# legitimate REQUEST carries first-class request_id/client_id (fallback is NOT
+# required). CLIENT_REQUEST_LEGACY_ID_FALLBACK_REQUIRED=NO.
+# ---------------------------------------------------------------------------
+
+def test_projection_never_exposes_raw_pk_sk():
+    rec = _full_quote_request()
+    rec['PK'] = 'REQ#req-xyz'
+    rec['SK'] = 'CLIENT#client-xyz'
+    projected = project_client_request_list_item(rec)
+    assert 'PK' not in projected
+    assert 'SK' not in projected
+    # Public ids still available from the first-class attributes.
+    assert projected['request_id'] == 'req-xyz'
+    assert projected['client_id'] == 'client-xyz'
+
+
+def test_projection_modern_record_exposes_first_class_ids_only():
+    # Contract regression: a modern record carries request_id/client_id directly;
+    # the projection surfaces them without ever touching PK/SK.
+    rec = {
+        'PK': 'REQ#abc',
+        'SK': 'CLIENT#def',
+        'entity_type': 'REQUEST',
+        'request_id': 'abc',
+        'client_id': 'def',
+        'status': 'PENDING_REVIEW',
+        'service_type': 'OVERNIGHT',
+    }
+    projected = project_client_request_list_item(rec)
+    assert projected['request_id'] == 'abc'
+    assert projected['client_id'] == 'def'
+    assert 'PK' not in projected and 'SK' not in projected

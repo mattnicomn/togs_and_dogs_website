@@ -215,9 +215,20 @@ def project_client_request_list_item(record):
     This is the client booking-LIST contract only. The authoritative client-safe
     commercial quote view remains the dedicated GET /client/quotes/{requestId}
     projection (build_client_quote_projection), which this function does not alter.
+
+    Fail-closed: a non-dict / malformed input returns an EMPTY projection ({}),
+    never the unprojected input. An unexpected object must never bypass the
+    allowlist and leak arbitrary content to the client.
+
+    Identity contract: every REQUEST record created by the intake paths carries
+    first-class ``request_id`` and ``client_id`` attributes (see
+    handlers/intake_handler.py), so the allowlist copies them directly. Raw
+    DynamoDB keys ``PK``/``SK`` are intentionally NOT exposed; the web client's
+    PK/SK id-fallback is defensive/obsolete, not a live requirement
+    (CLIENT_REQUEST_LEGACY_ID_FALLBACK_REQUIRED=NO).
     """
     if not isinstance(record, dict):
-        return record
+        return {}
     projected = {}
     for field in CLIENT_REQUEST_LIST_ALLOWLIST:
         if field in record:
