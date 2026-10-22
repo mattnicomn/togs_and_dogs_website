@@ -1,10 +1,25 @@
 # W4 Option A — Client Workflow Status Presentation (frontend-only)
 
-**Disposition:** `W4_OPTION_A_HARDENED_READY_FOR_FINAL_REVIEW`
+**Disposition:** `W4_OPTION_A_MERGED_NOT_DEPLOYED`
 
-**Checkpoint at authoring:** branch `fix/w4-frontend-workflow-summary` created from
-`origin/main == e72b479aee0ba4968b15b167a634e3408e6cc0e2`. Not merged, not deployed.
-Production remains the PR #22 release (`PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`).
+`W4_IMPLEMENTATION_STATUS=MERGED_NOT_DEPLOYED`
+
+**Merge checkpoint (2026-10-22):** PR #24 (`fix: normalize client workflow status
+presentation`, head `fix/w4-frontend-workflow-summary`) was squash-merged into `main`.
+- pre-merge main: `e72b479aee0ba4968b15b167a634e3408e6cc0e2`
+- authorized PR head: `01a3e97b3d831d33c790e411b61feb85ca444902`
+- resulting main: `main == origin/main == 853b73ac399a6ff47bd37f5059c1c1e99b02949d`
+- scope: exactly the approved 9 files (mobile/web frontend + tests + this doc); frontend-only;
+  no backend/API/infra change.
+
+**Deployment boundary:** `W4_DEPLOYED=NO`. Merging PR #24 did **not** change production. The
+latest completed production backend release remains the PR #22 release
+(`PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`); production web/mobile remain on their existing
+deployed state. This merge integrates source into `main` only; no web deploy, no mobile build
+or distribution, no Terraform, no AWS mutation occurred.
+
+**Original authoring checkpoint:** branch `fix/w4-frontend-workflow-summary` was created from
+`origin/main == e72b479aee0ba4968b15b167a634e3408e6cc0e2`.
 
 ## What this implements (architecture `W4_OPTION_A_FRONTEND_WORKFLOW_SUMMARY`)
 
@@ -61,8 +76,13 @@ intentionally fetches `GET /client/quotes/{requestId}`.
   (unused `userRole`/`setTenantInfo`, `checkSession` hoisting) not touched by W4.
 - `W4_NEW_REGRESSIONS=0`.
 
-## Gates preserved (unchanged by W4)
+## Next workstream (approved sequence W2 → W4 → W1 → W3)
+`NEXT_RECOMMENDED_WORKSTREAM=W1`. W1 remains `W1_IMPLEMENTATION_AUTHORIZED=NO` until Matthew
+separately approves it; W1 is NOT started by this merge/closeout.
+
+## Gates preserved (unchanged by W4 merge)
 `SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`;
 `SCHEDULING_PR_MERGE_AUTHORIZED=NO`; Stripe sandbox-only; `RYAN_TESTING_AUTHORIZED=NO`;
 no second tenant; no production test data; no production functional quote mutation;
-no EAS/TestFlight/App Store/Google Play/public mobile distribution. No deployment authorized.
+no EAS/TestFlight/App Store/Google Play/public mobile distribution. No deployment authorized
+(`W4_DEPLOYED=NO`).
