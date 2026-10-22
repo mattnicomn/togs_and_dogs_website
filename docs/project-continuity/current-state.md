@@ -1,6 +1,26 @@
 # Current Project State
 
-**Last Updated:** 2026-10-22 — PR #22 client-request quote-field privacy remediation DEPLOYED to production and convergence-verified (`PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`). See the PR #22 production deployment section immediately below; the M4-C entry, the PR #19 production deployment + M4-B entry, and earlier history follow it.
+**Last Updated:** 2026-10-22 — W4 Option A (client workflow status presentation, frontend-only) PR #24 squash-merged into `main` (`W4_OPTION_A_MERGED_NOT_DEPLOYED`; `W4_DEPLOYED=NO`). See the W4 merge section immediately below; the PR #22 production deployment section, the M4-C entry, the PR #19 production deployment + M4-B entry, and earlier history follow it. Latest completed production backend release remains PR #22 (`PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`).
+
+---
+
+## 2026-10-22 — W4 Option A: Client Workflow Status Presentation (frontend-only) — Merged, Not Deployed
+
+**Disposition:** `W4_OPTION_A_MERGED_NOT_DEPLOYED`
+
+`W4_IMPLEMENTATION_STATUS=MERGED_NOT_DEPLOYED`
+
+- Owner-authorized MERGE-ONLY integration of PR #24 (`fix: normalize client workflow status presentation`, head branch `fix/w4-frontend-workflow-summary`). Squash-merged into `main`.
+  - pre-merge main: `e72b479aee0ba4968b15b167a634e3408e6cc0e2`
+  - authorized PR head: `01a3e97b3d831d33c790e411b61feb85ca444902`
+  - resulting main: `main == origin/main == 853b73ac399a6ff47bd37f5059c1c1e99b02949d`
+  - scope: exactly the approved 9 files (`docs/release-notes/w4-client-workflow-status-presentation.md`, `mobile/__tests__/BookingsScreen.test.tsx`, `mobile/__tests__/ClientRequestDetailScreen.test.tsx`, `mobile/__tests__/workflowStatus.test.ts`, `mobile/src/screens/BookingsScreen.tsx`, `mobile/src/screens/ClientRequestDetailScreen.tsx`, `mobile/src/utils/workflowStatus.ts`, `web/src/components/ClientPortal.jsx`, `web/tests/RequestStatusDisplayCompatibility.test.jsx`); **frontend-only**; no backend/API/infra change.
+- **W4 semantics (as merged):** request-list `RequestStatus` is a non-commercial workflow summary — `QUOTE_NEEDED`/`QUOTE_SENT`/`QUOTED` → neutral `In Review`; unknown `RequestStatus` → neutral `In Review`; request-level `DECLINED` → `Declined`; `CANCELLATION_REQUESTED` → `Cancellation Pending`; `CANCELLATION_DENIED` → `Cancellation Denied`. Canonical commercial quote state remains detail-only (`GET /client/quotes/{requestId}`); unknown canonical quote state != `NOT_REQUIRED`; no N+1 quote fetches added; PR #22 client-request privacy boundary preserved.
+- **Validation (completed before merge; not re-run for this docs closeout):** focused mobile 53 tests PASS; mobile broad 33 suites / 290 tests PASS; web 28 files / 438 tests PASS; mobile typecheck clean; zero new regressions; only pre-existing web eslint baseline issues remain.
+- **Deployment boundary:** `W4_DEPLOYED=NO`. Merging PR #24 did NOT change production. Production remains on the existing deployed backend/web/mobile state; latest completed production backend release remains `PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`. No web deploy, no mobile build/distribution, no Terraform, no AWS mutation.
+- **Next workstream (approved sequence W2 → W4 → W1 → W3):** `NEXT_RECOMMENDED_WORKSTREAM=W1`; `W1_IMPLEMENTATION_AUTHORIZED=NO` until Matthew separately approves it. W1 NOT started.
+- **Gates preserved:** `SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`; `SCHEDULING_PR_MERGE_AUTHORIZED=NO`; Stripe sandbox-only; `RYAN_TESTING_AUTHORIZED=NO`; no second tenant; no production test data; no production quote mutation; no mobile distribution authorization; no web deployment authorization.
+- See [W4 Option A client workflow status presentation record](../release-notes/w4-client-workflow-status-presentation.md).
 
 ---
 
