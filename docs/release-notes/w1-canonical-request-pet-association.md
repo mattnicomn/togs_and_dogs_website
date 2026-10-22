@@ -61,12 +61,19 @@ the identity authority when `pet_ids` is present.
     trusted identity. The offending id / reason are **never surfaced** (logging only).
   - `create_or_link_pets_from_request` treats a canonical `pet_ids` array as **authoritative**
     (existing selections never re-created/renamed) and decides what is new by **identity, not
-    name**: a structured `pets[]` entry is an echo iff its `pet_id` is a selected canonical id;
-    every other entry is new-pet intent and is created even if some owned pet shares its display
-    name. Idempotency is **request-scoped** via `created_from_request_id == request_id` (a pet
-    created by this request on a prior run is reused; a same-name pet from a different request or
-    a pre-existing owned pet never suppresses creation and is never treated as this request's
-    identity). The legacy name-match path remains only for requests without `pet_ids`.
+    name**: a structured `pets[]` entry is an echo of a *client-selected* existing pet iff its
+    `pet_id` is a canonical id that is NOT this request's own creation provenance; every other
+    entry is new-pet intent and is created even if some owned pet shares its display name.
+    **Real-retry idempotency is request-scoped** via `created_from_request_id == request_id`:
+    all active pets this request created on any earlier run are kept available for reconciliation
+    **even when they already appear in the request's persisted `pet_ids`** (the first run appends
+    the new-pet IDs to `pet_ids`, so a true retry sees them there) — the id-less structured
+    new-pet entries are reconciled deterministically (stable `created_at`/`pet_id` order) against
+    that request-created provenance set, and only a genuine shortfall is created. A same-name pet
+    from a different request or a pre-existing owned pet never suppresses creation and is never
+    treated as this request's identity. A second and third invocation over the persisted
+    post-first-run REQUEST create nothing and keep the same final `pet_ids`. The legacy name-match
+    path remains only for requests without `pet_ids`.
 - `src/backend/handlers/intake_handler.py` (authenticated client-portal path only):
   - Calls `resolve_owned_pet_ids` against the **server-resolved** `client_id` / `company_id`
     (never body-supplied identity). If `ok` is False the whole request is **rejected with a
@@ -92,8 +99,11 @@ the identity authority when `pet_ids` is present.
   `pet_id`, never by display-name equality. A genuinely-new pet sharing a selected/owned pet's
   name is still created; two distinct owned pets with the same name stay independently associated
   by id.
-- `W1_MIXED_NEW_PET_IDEMPOTENCY=PASS` — mixed existing+new retries are idempotent via
-  request-scoped provenance (`created_from_request_id`), not global same-name ownership.
+- `W1_MIXED_NEW_PET_IDEMPOTENCY=PASS` / `W1_REAL_PERSISTED_RETRY_IDEMPOTENCY=PASS` — mixed
+  existing+new retries are idempotent via request-scoped provenance (`created_from_request_id`),
+  not global same-name ownership, and are proven against the **persisted post-first-run REQUEST
+  state** (`pet_ids` already containing the created new-pet IDs) across second and third
+  invocations (zero re-creation).
 - The response is **non-disclosing**: it never reveals which id failed, nor whether an id exists,
   belongs to another client/tenant, or is inactive.
 - `W1_NEW_REQUESTS_CANONICAL_PET_IDS=PASS` — new authenticated-client requests persist canonical
@@ -121,15 +131,17 @@ service windows, Ryan historical W1 Walk behavior, and Overnight O1 behavior are
 Admin Client Management were not redesigned.
 
 ## Tests
-- Backend: `tests/backend/test_w1_canonical_pet_association.py` — **38 tests** covering ownership
+- Backend: `tests/backend/test_w1_canonical_pet_association.py` — **39 tests** covering ownership
   / tenant / dedupe / order / duplicate-name-distinct-id; hardened all-or-nothing validity
   (absent-ok, empty-ok, non-list shape rejected, non-string/blank entry rejected, any unowned id
   rejects whole selection, fail-closed); handler-level generic non-disclosing 400 with no
   `put_item` on invalid input; valid existing + new pet persists; new pet sharing a selected
   pet's name is still listed/created; identity-not-name mixed linking (echo-by-id skipped,
   new-by-absence-of-id created, same-name unselected/other-request pet does not suppress);
-  request-scoped idempotency on retry; spoofed names not overriding identity; public path
-  unaffected; legacy name path preserved. **PASS**.
+  **real persisted-post-first-run retry idempotency** (first run creates once and appends the
+  new-pet ID to `pet_ids`; second and third runs over the persisted association create nothing),
+  multi-new-pet deterministic retry reconciliation; spoofed names not overriding identity; public
+  path unaffected; legacy name path preserved. **PASS**.
 - Mobile: `mobile/__tests__/IntakeScreen.test.tsx` — 7 new W1 tests (ID-keyed selection,
   duplicate-name independence, multi-select, deselect/reselect, new-pet-only, existing+new, no
   name→id reconstruction). Full IntakeScreen suite **35/35 PASS**; `tsc --noEmit` clean.

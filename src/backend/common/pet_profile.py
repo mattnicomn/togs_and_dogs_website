@@ -315,20 +315,27 @@ def _link_mixed_existing_and_new(request_item, request_id, client_id,
     """
     canonical_set = set(canonical_existing_ids)
 
-    # Pets this request already created on a previous run (request-scoped
-    # provenance), in a stable order so retries reconcile positionally.
+    # All active owned PET records this request created on any earlier run,
+    # in a stable order so retries reconcile deterministically. CRUCIAL: we keep
+    # these request-created IDs available for reconciliation EVEN WHEN they are
+    # already present in canonical_existing_ids. On a real retry the request's
+    # persisted pet_ids already contains the previously-created new-pet IDs
+    # (e.g. first run appended NEW-MILO), so those IDs ARE in canonical_set; we
+    # must still recognize them as this request's own new-pet provenance to
+    # reconcile the id-less structured new-pet entries, otherwise we would create
+    # duplicates. True client-selected existing IDs are those canonical IDs that
+    # are NOT request-created provenance.
     owned_pets = _get_client_pets(owner_client_id, company_id)
-    prior_created_ids = [
+    request_created_ids = [
         p.get('pet_id')
         for p in sorted(owned_pets, key=lambda x: (x.get('created_at') or '', x.get('pet_id') or ''))
         if p.get('created_from_request_id') == request_id
         and p.get('pet_id')
-        and p.get('pet_id') not in canonical_set
     ]
 
     pets_array = request_item.get('pets')
-    created_ids = []
-    reused_ids = []
+    created_ids = []       # freshly created on THIS invocation
+    reconciled_ids = []    # matched to this request's prior provenance (reused)
     created_count = 0
 
     if pets_array and isinstance(pets_array, list):
@@ -340,16 +347,19 @@ def _link_mixed_existing_and_new(request_item, request_id, client_id,
             if not pet_name:
                 continue
             entry_id = pet_data.get('pet_id')
-            # Echo of a selected existing pet — identified by canonical id, not
-            # by name. Do not create another record.
-            if isinstance(entry_id, str) and entry_id.strip() in canonical_set:
+            # Echo of a CLIENT-SELECTED existing pet — identified by a canonical
+            # id that is NOT this request's own creation provenance. Not created.
+            if (isinstance(entry_id, str)
+                    and entry_id.strip() in canonical_set
+                    and entry_id.strip() not in request_created_ids):
                 continue
-            # New-pet intent. Reuse a pet this same request created earlier
+            # New-pet intent (id-less, or an id that is this request's own
+            # provenance). Reuse this request's previously-created PET in order
             # (request-scoped idempotency) before creating a fresh one.
-            if reuse_index < len(prior_created_ids):
-                reused_ids.append(prior_created_ids[reuse_index])
+            if reuse_index < len(request_created_ids):
+                reconciled_ids.append(request_created_ids[reuse_index])
                 reuse_index += 1
-                print(f"INFO: [PetProfile] Reused request-scoped PET#{prior_created_ids[reuse_index - 1]} "
+                print(f"INFO: [PetProfile] Reconciled request-scoped PET#{request_created_ids[reuse_index - 1]} "
                       f"(name: {pet_name}) on retry of REQ#{request_id}")
                 continue
             new_pet_id = _create_new_pet(pet_data, owner_client_id, company_id, request_id, now)
@@ -357,8 +367,8 @@ def _link_mixed_existing_and_new(request_item, request_id, client_id,
             created_count += 1
             print(f"INFO: [PetProfile] Created new PET#{new_pet_id} (name: {pet_name}) alongside canonical existing selection")
 
-    # New-pet ids contributed by this call = reused (from a prior run) + freshly created.
-    created_ids = reused_ids + created_ids
+    # New-pet IDs contributed by this call = reconciled (prior provenance) + fresh.
+    created_ids = reconciled_ids + created_ids
     warnings = []
 
     # Final authoritative association: canonical existing IDs (order preserved)

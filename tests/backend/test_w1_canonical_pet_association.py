@@ -487,20 +487,67 @@ def test_link_new_pet_same_name_as_SELECTED_is_still_created(monkeypatch):
     assert result['pet_ids'] == ['PET-1', 'NEW-Max-1']
 
 
-def test_link_request_scoped_idempotency_on_retry(monkeypatch):
-    # First run created NEW-Milo attributable to req-1 (created_from_request_id).
-    # On retry the owned set now includes it; it must be REUSED, not recreated.
-    owned = [
+def test_link_real_persisted_retry_idempotency_first_then_second_then_third(monkeypatch):
+    """The ACTUAL retry contract, modeling the persisted REQUEST state between
+    invocations (the previous test used the pre-first-run association, hiding the
+    duplication bug).
+
+    First run: pet_ids=['PET-1'], pets=[PET-1 echo, id-less Milo] → creates Milo,
+    final ['PET-1','NEW-Milo-1'].
+    Second run (persisted): pet_ids=['PET-1','NEW-Milo-1'] (as the first run wrote
+    it) + the SAME id-less Milo entry still in pets[]; owned now includes
+    NEW-Milo-1 with created_from_request_id==req → MUST reconcile, create 0.
+    Third run: identical to second → still 0.
+    """
+    # ---- First invocation ----
+    created = _mixed_env(monkeypatch, [{'pet_id': 'PET-1', 'name': 'Buster'}])
+    req_first = {'pet_ids': ['PET-1'],
+                 'pets': [{'pet_id': 'PET-1', 'name': 'Buster'}, {'name': 'Milo'}]}
+    r1 = pet_profile.create_or_link_pets_from_request(req_first, 'req-1', 'client-A', 'tenant-1')
+    assert created == ['Milo']
+    assert r1['pet_ids'] == ['PET-1', 'NEW-Milo-1']
+    assert r1['created'] == 1
+
+    # ---- Second invocation (persisted post-first-run state) ----
+    owned_after_first = [
         {'pet_id': 'PET-1', 'name': 'Buster'},
-        {'pet_id': 'NEW-Milo', 'name': 'Milo', 'created_from_request_id': 'req-1',
+        {'pet_id': 'NEW-Milo-1', 'name': 'Milo', 'created_from_request_id': 'req-1',
          'created_at': '2026-07-01T00:00:00Z'},
     ]
-    created = _mixed_env(monkeypatch, owned)
-    request_item = {'pet_ids': ['PET-1'],
-                    'pets': [{'pet_id': 'PET-1', 'name': 'Buster'}, {'name': 'Milo'}]}
-    result = pet_profile.create_or_link_pets_from_request(request_item, 'req-1', 'client-A', 'tenant-1')
-    assert created == []                              # idempotent — nothing recreated
-    assert result['pet_ids'] == ['PET-1', 'NEW-Milo']
+    created2 = _mixed_env(monkeypatch, owned_after_first)
+    req_retry = {'pet_ids': ['PET-1', 'NEW-Milo-1'],   # association as first run wrote it
+                 'pets': [{'pet_id': 'PET-1', 'name': 'Buster'}, {'name': 'Milo'}]}
+    r2 = pet_profile.create_or_link_pets_from_request(dict(req_retry), 'req-1', 'client-A', 'tenant-1')
+    assert created2 == []                               # NO duplicate created
+    assert r2['pet_ids'] == ['PET-1', 'NEW-Milo-1']     # association unchanged
+    assert r2['created'] == 0
+
+    # ---- Third invocation (same persisted state) ----
+    created3 = _mixed_env(monkeypatch, owned_after_first)
+    r3 = pet_profile.create_or_link_pets_from_request(dict(req_retry), 'req-1', 'client-A', 'tenant-1')
+    assert created3 == []
+    assert r3['pet_ids'] == ['PET-1', 'NEW-Milo-1']
+    assert r3['created'] == 0
+
+
+def test_link_real_persisted_retry_multi_new_pets_deterministic(monkeypatch):
+    """Two id-less new pets: retry reconciles both by request-scoped provenance
+    in deterministic (created_at, pet_id) order; zero recreation."""
+    owned_after_first = [
+        {'pet_id': 'PET-1', 'name': 'Buster'},
+        {'pet_id': 'NEW-Milo', 'name': 'Milo', 'created_from_request_id': 'req-9',
+         'created_at': '2026-07-01T00:00:01Z'},
+        {'pet_id': 'NEW-Rex', 'name': 'Rex', 'created_from_request_id': 'req-9',
+         'created_at': '2026-07-01T00:00:02Z'},
+    ]
+    created = _mixed_env(monkeypatch, owned_after_first)
+    req_retry = {'pet_ids': ['PET-1', 'NEW-Milo', 'NEW-Rex'],
+                 'pets': [{'pet_id': 'PET-1', 'name': 'Buster'},
+                          {'name': 'Milo'}, {'name': 'Rex'}]}
+    result = pet_profile.create_or_link_pets_from_request(req_retry, 'req-9', 'client-A', 'tenant-1')
+    assert created == []
+    assert result['pet_ids'] == ['PET-1', 'NEW-Milo', 'NEW-Rex']
+    assert result['created'] == 0
 
 
 def test_link_same_name_from_DIFFERENT_request_does_not_suppress(monkeypatch):
