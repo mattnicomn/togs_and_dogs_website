@@ -21,6 +21,16 @@ intentionally fetches `GET /client/quotes/{requestId}`.
   terminology is synthesized from `RequestStatus`.
 - `mobile/src/screens/BookingsScreen.tsx`: badge now uses the helper instead of a map whose
   `?? item.status` fallback leaked raw enums. No per-row `getClientQuote` call added.
+
+> **Hardening correction (2026, PR #24 follow-up commit):** the helper now also maps the
+> customer-visible terminal/warning RequestStatus values `DECLINED` (→ "Declined"),
+> `CANCELLATION_REQUESTED` (→ "Cancellation Pending"), and `CANCELLATION_DENIED`
+> (→ "Cancellation Denied") with request-oriented wording, so they no longer fall through to the
+> neutral "In Review" unknown-fallback. `DECLINED` here is the REQUEST/workflow decline — NOT
+> canonical quote_status DECLINED — and carries no quote/commercial/payment claim. The web
+> `ClientPortal` gained the same `DECLINED` ("This request was declined.") and
+> `CANCELLATION_DENIED` request-oriented entries. Quote-phase (`QUOTE_NEEDED`/`QUOTE_SENT`/`QUOTED`)
+> and genuinely unknown values remain neutral "In Review".
 - `mobile/src/screens/ClientRequestDetailScreen.tsx` (§4.3): the unknown/default canonical
   quote state now renders neutral "Quote status unavailable…" language instead of reusing
   the `NOT_REQUIRED` "No quote action is required" copy. **UNKNOWN != NOT_REQUIRED.**

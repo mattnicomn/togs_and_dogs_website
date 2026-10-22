@@ -146,6 +146,14 @@ describe('BookingsScreen', () => {
       expect(screen.getByText('Approved')).toBeTruthy();
     });
 
+    it('terminal DECLINED request renders "Declined", not the neutral "In Review"', async () => {
+      await renderWithStatus('DECLINED');
+      expect(screen.getByText('Declined')).toBeTruthy();
+      expect(screen.queryByText('In Review')).toBeNull();
+      // Request-oriented wording only: no commercial quote claim on the list card.
+      expect(screen.queryByText(/quote/i)).toBeNull();
+    });
+
     it('unknown status does not render raw enum text', async () => {
       await renderWithStatus('SOME_FUTURE_STATUS');
       expect(screen.queryByText('SOME_FUTURE_STATUS')).toBeNull();

@@ -42,8 +42,35 @@ describe('getWorkflowStatusPresentation — known non-quote statuses', () => {
     ['JOB_CREATED', 'Scheduled'],
     ['COMPLETED', 'Completed'],
     ['CANCELLED', 'Cancelled'],
+    ['DECLINED', 'Declined'],
+    ['CANCELLATION_REQUESTED', 'Cancellation Pending'],
+    ['CANCELLATION_DENIED', 'Cancellation Denied'],
   ])('%s maps to friendly label %s', (status, expected) => {
     expect(getWorkflowStatusLabel(status)).toBe(expected);
+  });
+});
+
+describe('getWorkflowStatusPresentation — DECLINED is a terminal REQUEST decline, not a quote/unknown', () => {
+  it('DECLINED renders "Declined" (not the neutral "In Review" fallback)', () => {
+    const { label } = getWorkflowStatusPresentation('DECLINED');
+    expect(label).toBe('Declined');
+    expect(label).not.toBe(NEUTRAL);
+  });
+
+  it('DECLINED does not introduce quote/commercial terminology', () => {
+    const { label } = getWorkflowStatusPresentation('DECLINED');
+    // "Declined" is the legitimate REQUEST-workflow label. It must not carry commercial
+    // quote/payment phrasing ("quote", "payment", "deposit", "accepted", "awaiting",
+    // "not required"). The bare word "declined" as a request status is acceptable; the
+    // assertion targets commercial terminology specifically.
+    expect(label).not.toMatch(/quote|accepted|payment|deposit|not required|awaiting/i);
+    expect(label).toBe('Declined');
+  });
+
+  it('DECLINED uses a danger-style color consistent with CANCELLED', () => {
+    expect(getWorkflowStatusPresentation('DECLINED').color).toBe(
+      getWorkflowStatusPresentation('CANCELLED').color
+    );
   });
 });
 

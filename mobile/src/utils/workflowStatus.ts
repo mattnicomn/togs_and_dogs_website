@@ -46,7 +46,15 @@ const QUOTE_PHASE_STATUSES = new Set<string>([
   'QUOTED',
 ]);
 
-/** Known, non-quote workflow statuses with deterministic friendly labels + colors. */
+/**
+ * Known, non-quote workflow statuses with deterministic friendly labels + colors.
+ *
+ * These are REQUEST/workflow-position labels (customerVisible RequestStatus values),
+ * NOT canonical commercial quote state. In particular DECLINED here means the REQUEST
+ * workflow was declined (terminal/danger) — it is NOT "quote declined" / "client
+ * declined quote" / a commercial-offer or payment state. Canonical quote DECLINED is a
+ * separate concept shown only on the detail surface that fetches the quote endpoint.
+ */
 const KNOWN_STATUS_PRESENTATION: Record<string, WorkflowStatusPresentation> = {
   PENDING_REVIEW: { label: 'Pending Review', color: '#f59e0b' },
   NEEDS_REVIEW: { label: 'Pending Review', color: '#f59e0b' },
@@ -57,6 +65,8 @@ const KNOWN_STATUS_PRESENTATION: Record<string, WorkflowStatusPresentation> = {
   JOB_CREATED: { label: 'Scheduled', color: '#10b981' },
   SCHEDULED: { label: 'Scheduled', color: '#10b981' },
   COMPLETED: { label: 'Completed', color: '#6b7280' },
+  // Terminal request-workflow decline (danger). Request-oriented wording only.
+  DECLINED: { label: 'Declined', color: '#ef4444' },
   CANCELLATION_REQUESTED: { label: 'Cancellation Pending', color: '#ef4444' },
   CANCELLATION_DENIED: { label: 'Cancellation Denied', color: '#ef4444' },
   CANCELLED: { label: 'Cancelled', color: '#ef4444' },

@@ -118,6 +118,23 @@ describe('Phase 24A-2C.1B Web Request-Status Display Compatibility', () => {
       expect(screen.queryByText('CUSTOM TEST STATUS')).not.toBeInTheDocument();
       expect(await screen.findByText('In Review')).toBeInTheDocument();
     });
+
+    test('terminal DECLINED REQUEST renders "Declined" (request wording), not neutral In Review', async () => {
+      const mockRequests = [
+        { PK: 'REQ#40', status: 'DECLINED', pet_name: 'Pet Q', start_date: '2026-09-02', service_type: 'WALK_30MIN' },
+      ];
+      getClientRequests.mockResolvedValue({ requests: mockRequests });
+
+      render(<ClientPortal />);
+
+      // DECLINED is a customerVisible terminal RequestStatus — it must render "Declined",
+      // NOT collapse to the neutral "In Review" unknown fallback, and must use
+      // request-oriented wording (not "Your quote was declined").
+      expect(await screen.findByText('Declined')).toBeInTheDocument();
+      expect(screen.queryByText('In Review')).not.toBeInTheDocument();
+      expect(await screen.findByText('This request was declined.')).toBeInTheDocument();
+      expect(screen.queryByText(/quote/i)).not.toBeInTheDocument();
+    });
   });
 
   describe('MasterScheduler Status Display & Filter Compatibility', () => {

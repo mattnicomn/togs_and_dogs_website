@@ -245,6 +245,11 @@ const ClientPortal = () => {
       'COMPLETED': { label: statusMap.COMPLETED?.label || 'Completed', msg: 'This visit has been completed.', color: '#718096', bg: 'rgba(113, 128, 150, 0.1)' },
       'CANCELLED': { label: statusMap.CANCELLED?.label || 'Cancelled', msg: 'This request has been cancelled.', color: '#e53e3e', bg: 'rgba(229, 62, 62, 0.1)' },
       'CANCELLATION_REQUESTED': { label: 'Cancellation Pending', msg: 'Your cancellation request is being reviewed.', color: '#e53e3e', bg: 'rgba(229, 62, 62, 0.1)' },
+      'CANCELLATION_DENIED': { label: statusMap.CANCELLATION_DENIED?.label || 'Cancellation Denied', msg: 'Your cancellation request was denied.', color: '#e53e3e', bg: 'rgba(229, 62, 62, 0.1)' },
+      // W4 Option A: terminal REQUEST/workflow decline (customerVisible RequestStatus).
+      // Request-oriented wording ONLY — this is NOT canonical quote_status DECLINED and
+      // must not claim the quote/commercial offer/payment was declined.
+      'DECLINED': { label: statusMap.DECLINED?.label || 'Declined', msg: 'This request was declined.', color: '#e53e3e', bg: 'rgba(229, 62, 62, 0.1)' },
     };
     // W4 Option A: unknown/unrecognized RequestStatus must not leak a raw-ish enum
     // string to the client. Fall back to neutral workflow-summary wording.
