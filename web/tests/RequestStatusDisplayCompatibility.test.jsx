@@ -46,8 +46,14 @@ describe('Phase 24A-2C.1B Web Request-Status Display Compatibility', () => {
       // Verify canonical labels rendered in DOM
       expect(await screen.findByText(REQUEST_STATUSES.statuses.PENDING_REVIEW.label)).toBeInTheDocument();
       expect(await screen.findByText(REQUEST_STATUSES.statuses.MEET_GREET_REQUIRED.label)).toBeInTheDocument();
-      expect(await screen.findByText(REQUEST_STATUSES.statuses.QUOTE_NEEDED.label)).toBeInTheDocument();
-      expect(await screen.findByText(REQUEST_STATUSES.statuses.QUOTE_SENT.label)).toBeInTheDocument();
+      // W4 Option A: quote-phase RequestStatus values are a non-commercial workflow
+      // POSITION on this client list surface, not canonical commercial quote state.
+      // QUOTE_NEEDED / QUOTE_SENT collapse to neutral "In Review" wording (they must
+      // NOT render "Quote Needed"/"Quote Sent" or any commercial quote claim here).
+      expect(screen.queryByText(REQUEST_STATUSES.statuses.QUOTE_NEEDED.label)).not.toBeInTheDocument();
+      expect(screen.queryByText(REQUEST_STATUSES.statuses.QUOTE_SENT.label)).not.toBeInTheDocument();
+      // Both quote-phase rows show the neutral summary label.
+      expect((await screen.findAllByText('In Review')).length).toBeGreaterThanOrEqual(2);
       expect(await screen.findByText(REQUEST_STATUSES.statuses.APPROVED.label)).toBeInTheDocument();
       expect(await screen.findByText(REQUEST_STATUSES.statuses.COMPLETED.label)).toBeInTheDocument();
       expect(await screen.findByText(REQUEST_STATUSES.statuses.CANCELLED.label)).toBeInTheDocument();
@@ -91,8 +97,10 @@ describe('Phase 24A-2C.1B Web Request-Status Display Compatibility', () => {
       expect(await screen.findByText('Meet & Greet Required')).toBeInTheDocument();
       // BOOKED -> Approved
       expect(await screen.findByText('Approved')).toBeInTheDocument();
-      // QUOTED -> Quoted
-      expect(await screen.findByText('Quoted')).toBeInTheDocument();
+      // W4 Option A: QUOTED (quote-phase synonym) collapses to neutral "In Review" on
+      // this client surface, NOT "Quoted" (no commercial quote claim from RequestStatus).
+      expect(screen.queryByText('Quoted')).not.toBeInTheDocument();
+      expect(await screen.findByText('In Review')).toBeInTheDocument();
       // SCHEDULED -> Scheduled
       expect(await screen.findByText('Scheduled')).toBeInTheDocument();
     });
@@ -105,8 +113,27 @@ describe('Phase 24A-2C.1B Web Request-Status Display Compatibility', () => {
 
       render(<ClientPortal />);
 
-      // Fallback: replace underscores with spaces -> CUSTOM TEST STATUS
-      expect(await screen.findByText('CUSTOM TEST STATUS')).toBeInTheDocument();
+      // W4 Option A: unknown/noncanonical status must NOT leak a raw-ish enum string
+      // ("CUSTOM TEST STATUS") to the client. It falls back to neutral workflow wording.
+      expect(screen.queryByText('CUSTOM TEST STATUS')).not.toBeInTheDocument();
+      expect(await screen.findByText('In Review')).toBeInTheDocument();
+    });
+
+    test('terminal DECLINED REQUEST renders "Declined" (request wording), not neutral In Review', async () => {
+      const mockRequests = [
+        { PK: 'REQ#40', status: 'DECLINED', pet_name: 'Pet Q', start_date: '2026-09-02', service_type: 'WALK_30MIN' },
+      ];
+      getClientRequests.mockResolvedValue({ requests: mockRequests });
+
+      render(<ClientPortal />);
+
+      // DECLINED is a customerVisible terminal RequestStatus — it must render "Declined",
+      // NOT collapse to the neutral "In Review" unknown fallback, and must use
+      // request-oriented wording (not "Your quote was declined").
+      expect(await screen.findByText('Declined')).toBeInTheDocument();
+      expect(screen.queryByText('In Review')).not.toBeInTheDocument();
+      expect(await screen.findByText('This request was declined.')).toBeInTheDocument();
+      expect(screen.queryByText(/quote/i)).not.toBeInTheDocument();
     });
   });
 

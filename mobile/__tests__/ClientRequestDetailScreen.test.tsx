@@ -150,7 +150,10 @@ describe('ClientRequestDetailScreen (read-only display)', () => {
       baseQuote({ quote_status: 'DRAFT', quote_amount_cents: 5000, deposit_amount_cents: 1500, quote_notes_client: 'draft notes' })
     );
     await render(<ClientRequestDetailScreen route={route()} />);
-    await waitFor(() => expect(screen.getByText('No quote action is required for this booking.')).toBeTruthy());
+    // W4 §4.3: an unknown/server-hidden state renders NEUTRAL unavailable language,
+    // NOT the NOT_REQUIRED "no quote action required" copy (UNKNOWN != NOT_REQUIRED).
+    await waitFor(() => expect(screen.getByText(/Quote status unavailable/)).toBeTruthy());
+    expect(screen.queryByText('No quote action is required for this booking.')).toBeNull();
     expect(screen.queryByText('$50.00')).toBeNull();
     expect(screen.queryByText('Deposit')).toBeNull();
     expect(screen.queryByText('Full payment required')).toBeNull();
@@ -165,12 +168,24 @@ describe('ClientRequestDetailScreen (read-only display)', () => {
       baseQuote({ quote_status: 'FUTURE_UNKNOWN', quote_amount_cents: 9900, deposit_amount_cents: 2000, quote_notes_client: 'secret' })
     );
     await render(<ClientRequestDetailScreen route={route()} />);
-    await waitFor(() => expect(screen.getByText('No quote action is required for this booking.')).toBeTruthy());
+    // W4 §4.3: neutral unavailable language, never NOT_REQUIRED copy.
+    await waitFor(() => expect(screen.getByText(/Quote status unavailable/)).toBeTruthy());
+    expect(screen.queryByText('No quote action is required for this booking.')).toBeNull();
     expect(screen.queryByText('$99.00')).toBeNull();
     expect(screen.queryByText('Deposit')).toBeNull();
     expect(screen.queryByText('secret')).toBeNull();
     expect(screen.queryByLabelText('Accept quote')).toBeNull();
     expect(screen.queryByLabelText('Decline quote')).toBeNull();
+  });
+
+  it('W4 §4.3: NOT_REQUIRED keeps explicit no-quote-required semantics (distinct from unknown)', async () => {
+    mockGetClientQuote.mockResolvedValue(
+      baseQuote({ quote_status: 'NOT_REQUIRED', quote_amount_cents: 0, payment_requirement: 'NONE' })
+    );
+    await render(<ClientRequestDetailScreen route={route()} />);
+    await waitFor(() => expect(screen.getByText('No quote action is required for this booking.')).toBeTruthy());
+    // The explicit NOT_REQUIRED state must NOT use the neutral "unavailable" copy.
+    expect(screen.queryByText(/Quote status unavailable/)).toBeNull();
   });
 
   it('shows a retryable error on a non-auth/non-404 failure', async () => {
