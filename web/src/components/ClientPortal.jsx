@@ -230,9 +230,14 @@ const ClientPortal = () => {
       'MEET_GREET_REQUIRED': { label: statusMap.MEET_GREET_REQUIRED?.label || 'Meet & Greet Required', msg: 'Ryan will follow up to schedule a meet & greet.', color: '#f08c3a', bg: 'rgba(240, 140, 58, 0.1)' },
       'NEEDS_MG': { label: statusMap.MEET_GREET_REQUIRED?.label || 'Meet & Greet Required', msg: 'Ryan will follow up to schedule a meet & greet.', color: '#f08c3a', bg: 'rgba(240, 140, 58, 0.1)' },
       'MG_SCHEDULED': { label: 'M&G Scheduled', msg: 'Your meet & greet has been scheduled.', color: '#f08c3a', bg: 'rgba(240, 140, 58, 0.1)' },
-      'QUOTE_NEEDED': { label: statusMap.QUOTE_NEEDED?.label || 'Quote Needed', msg: 'A quote is being prepared for your review.', color: '#e17c80', bg: 'rgba(225, 124, 128, 0.1)' },
-      'QUOTE_SENT': { label: statusMap.QUOTE_SENT?.label || 'Quote Sent', msg: 'Check your email for your custom care quote.', color: '#e17c80', bg: 'rgba(225, 124, 128, 0.1)' },
-      'QUOTED': { label: 'Quoted', msg: 'A quote has been prepared.', color: '#e17c80', bg: 'rgba(225, 124, 128, 0.1)' },
+      // W4 Option A: quote-phase RequestStatus values are a workflow POSITION on this
+      // list surface, not canonical commercial quote state. They collapse to neutral,
+      // non-commercial wording. The list must not claim a quote was sent / is awaiting
+      // acceptance / accepted / declined / payment due / not required — canonical quote
+      // state is shown only on a surface that fetches GET /client/quotes/{requestId}.
+      'QUOTE_NEEDED': { label: 'In Review', msg: 'Your request is being reviewed. Open the request for the latest details.', color: '#c28b1e', bg: 'rgba(194, 139, 30, 0.1)' },
+      'QUOTE_SENT': { label: 'In Review', msg: 'Your request is being reviewed. Open the request for the latest details.', color: '#c28b1e', bg: 'rgba(194, 139, 30, 0.1)' },
+      'QUOTED': { label: 'In Review', msg: 'Your request is being reviewed. Open the request for the latest details.', color: '#c28b1e', bg: 'rgba(194, 139, 30, 0.1)' },
       'APPROVED': { label: statusMap.APPROVED?.label || 'Approved', msg: 'Your request has been approved. Ryan will follow up to confirm final scheduling details.', color: '#4a7c59', bg: 'rgba(74, 124, 89, 0.1)' },
       'BOOKED': { label: statusMap.APPROVED?.label || 'Approved', msg: 'Your request has been approved. Ryan will follow up to confirm final scheduling details.', color: '#4a7c59', bg: 'rgba(74, 124, 89, 0.1)' },
       'ASSIGNED': { label: 'Scheduled', msg: 'Your visit is scheduled.', color: '#2b6cb0', bg: 'rgba(43, 108, 176, 0.1)' },
@@ -241,7 +246,9 @@ const ClientPortal = () => {
       'CANCELLED': { label: statusMap.CANCELLED?.label || 'Cancelled', msg: 'This request has been cancelled.', color: '#e53e3e', bg: 'rgba(229, 62, 62, 0.1)' },
       'CANCELLATION_REQUESTED': { label: 'Cancellation Pending', msg: 'Your cancellation request is being reviewed.', color: '#e53e3e', bg: 'rgba(229, 62, 62, 0.1)' },
     };
-    return mapping[s] || { label: s.replace(/_/g, ' '), msg: '', color: '#8a8a86', bg: 'rgba(138, 138, 134, 0.1)' };
+    // W4 Option A: unknown/unrecognized RequestStatus must not leak a raw-ish enum
+    // string to the client. Fall back to neutral workflow-summary wording.
+    return mapping[s] || { label: 'In Review', msg: 'Your request is being reviewed. Open the request for the latest details.', color: '#c28b1e', bg: 'rgba(194, 139, 30, 0.1)' };
   };
 
   if (!session) {

@@ -497,10 +497,16 @@ export const ClientRequestDetailScreen = ({ route }: any) => {
           </View>
         );
       default:
+        // W4 Option A (§4.3): an unknown/unrecognized/unexpected canonical quote state
+        // must NOT reuse NOT_REQUIRED copy. UNKNOWN != NOT_REQUIRED. Render neutral
+        // unavailable/pending language instead of implying no quote is required.
         return (
           <View style={styles.card}>
             <Text style={styles.sectionHeader} accessibilityRole="header">Your Quote</Text>
-            <Text style={styles.mutedText}>No quote action is required for this booking.</Text>
+            <Text style={styles.mutedText}>
+              Quote status unavailable right now. We'll update this page when there's more
+              information about your quote.
+            </Text>
           </View>
         );
     }
