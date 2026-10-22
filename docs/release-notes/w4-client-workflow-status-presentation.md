@@ -1,6 +1,6 @@
 # W4 Option A — Client Workflow Status Presentation (frontend-only)
 
-**Disposition:** `W4_OPTION_A_IMPLEMENTED_LOCAL_READY_FOR_REVIEW`
+**Disposition:** `W4_OPTION_A_HARDENED_READY_FOR_FINAL_REVIEW`
 
 **Checkpoint at authoring:** branch `fix/w4-frontend-workflow-summary` created from
 `origin/main == e72b479aee0ba4968b15b167a634e3408e6cc0e2`. Not merged, not deployed.
@@ -52,10 +52,11 @@ intentionally fetches `GET /client/quotes/{requestId}`.
 - `W4_FRONTEND_ONLY_SCOPE=PASS` — no backend/infra/API/contract/DynamoDB/tenant/Stripe/scheduling change.
 
 ## Tests
-- Mobile focused: `workflowStatus` + `BookingsScreen` + `ClientRequestDetailScreen.test` — pass.
-- Mobile broad: 33 suites / 283 tests pass; mobile `tsc --noEmit` clean. Pre-existing act()
+- Mobile focused: `workflowStatus` + `BookingsScreen` + `ClientRequestDetailScreen.test` —
+  53 tests PASS.
+- Mobile broad: 33 suites / 290 tests pass; mobile `tsc --noEmit` clean. Pre-existing act()
   warnings (IntakeScreen / RequestDetailDecline* / mutations) are unchanged and unrelated.
-- Web: vitest 28 files / 437 tests pass (incl. updated ClientPortal W4 assertions; MasterScheduler
+- Web: vitest 28 files / 438 tests pass (incl. updated ClientPortal W4 assertions; MasterScheduler
   admin assertions untouched). eslint on changed files shows only pre-existing ClientPortal issues
   (unused `userRole`/`setTenantInfo`, `checkSession` hoisting) not touched by W4.
 - `W4_NEW_REGRESSIONS=0`.
