@@ -163,6 +163,17 @@ Recommended capability placement:
 ## B. Tracked workstreams
 
 ### Workstream 1 — Existing Pet Selection (canonical pet association)
+
+> **Status (2026-10-22): IMPLEMENTED LOCALLY — Draft PR, not deployed.**
+> `W1_CANONICAL_PET_ASSOCIATION_IMPLEMENTED_LOCAL_READY_FOR_REVIEW`. Canonical
+> association is now `pet_ids: string[]`; selection is keyed by `pet_id` on mobile and
+> on a new web-client existing-pet picker; `pet_names` is derived display/legacy-compat
+> only. Ownership is enforced server-side (`resolve_owned_pet_ids`, non-disclosing,
+> fail-closed); `create_or_link_pets_from_request` treats existing ids as authoritative
+> and creates only genuinely-new pets idempotently. See
+> `docs/release-notes/w1-canonical-request-pet-association.md`. Not deployed; W3 remains
+> unauthorized.
+
 Requirements:
 - Select existing profile pet(s) **by `pet_id`**; multi-pet supported.
 - Add-new-pet only when needed; existing + newly-added in one request.

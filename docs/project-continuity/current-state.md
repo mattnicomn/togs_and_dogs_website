@@ -1,6 +1,25 @@
 # Current Project State
 
-**Last Updated:** 2026-10-22 — W4 Option A (client workflow status presentation, frontend-only) PR #24 squash-merged into `main` (`W4_OPTION_A_MERGED_NOT_DEPLOYED`; `W4_DEPLOYED=NO`). See the W4 merge section immediately below; the PR #22 production deployment section, the M4-C entry, the PR #19 production deployment + M4-B entry, and earlier history follow it. Latest completed production backend release remains PR #22 (`PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`).
+**Last Updated:** 2026-10-22 — Workflow & Payment Architecture **Workstream 1** (Existing Pet Selection / canonical request↔pet association) implemented locally on branch `fix/w1-canonical-request-pet-association` from `main == 066a260` (`W1_CANONICAL_PET_ASSOCIATION_IMPLEMENTED_LOCAL_READY_FOR_REVIEW`; `W1_DEPLOYED=NO`; Draft PR, not merged). See the W1 section immediately below; the W4 merge section, the PR #22 production deployment section, the M4-C entry, the PR #19 + M4-B entry, and earlier history follow it. Latest completed production backend release remains PR #22 (`PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`).
+
+---
+
+## 2026-10-22 — Workstream 1: Existing Pet Selection (canonical request↔pet association) — Local, Not Deployed
+
+**Disposition:** `W1_CANONICAL_PET_ASSOCIATION_IMPLEMENTED_LOCAL_READY_FOR_REVIEW`
+
+> **Naming boundary:** this is *Workflow & Payment Architecture — Workstream 1 (Existing Pet Selection)*, NOT the historical *Ryan W1 20-Minute Walk canonical scheduling windows* (untouched).
+
+- Canonical request↔pet association is now `CANONICAL_REQUEST_PET_ASSOCIATION=pet_ids: string[]` for existing profile pets; `pet_names` is a derived display/legacy-compat value, never the identity authority when `pet_ids` is present. Authored from `main == 066a260af3b3c95af2e36a4dbf945f8234ac099f`; frontend + intake/pet-association backend only; **not deployed**.
+- **Mobile** (`IntakeScreen.tsx`): selection keyed by `pet_id` (not name); pre-select/toggle/deselect by id; duplicate names independently selectable; submits canonical `pet_ids`; derived display names; eliminated the legacy name→id lookup + comma-joined `pet_names`-as-identity producer for existing pets.
+- **Web client** (`IntakeForm.jsx`): added a first-class authenticated-client existing-pet picker (`W1_WEB_CLIENT_PARITY_REQUIRED=YES`) loading pets once via the client-safe `GET /client/pets`, selecting by `pet_id`, submitting canonical `pet_ids`; add-new path preserved; no admin endpoint; no N+1. Public path unchanged.
+- **Backend**: `common/pet_profile.resolve_owned_pet_ids` validates caller `pet_ids` against the server-resolved client/tenant's active owned pets (non-disclosing drop of foreign/invalid ids; fail-closed); `intake_handler` persists validated canonical `pet_ids` + derived names on the client-portal write path (never trusting body identity/names); `create_or_link_pets_from_request` treats existing `pet_ids` as authoritative and creates only genuinely-new `pets[]` entries, idempotently.
+- **Flags:** `W1_PET_OWNERSHIP_ENFORCEMENT=PASS`; `W1_NEW_REQUESTS_CANONICAL_PET_IDS=PASS`; `W1_LEGACY_READ_COMPATIBILITY=PASS`; `W1_CLIENT_REQUEST_PRIVACY_BOUNDARY=PASS` (PR #22 `/client/requests` projection untouched); `W1_N_PLUS_ONE_PET_FETCHES_ADDED=NO`; `W1_SECURITY_REVIEW=PASS`; `W1_SCOPE_REVIEW=PASS`; `W1_NEW_PET_CREATION_ARCHITECTURE_CONFLICT_FOUND` NOT triggered.
+- **Tests:** backend `test_w1_canonical_pet_association.py` 19 PASS; mobile IntakeScreen 35/35 PASS + `tsc` clean; web vitest 29 files / 444 PASS. `W1_NEW_REGRESSIONS=0` (full backend suite identical pre-existing failure set vs clean baseline `066a260`: 90 failed on both; this branch +19 passing = new W1 tests; pre-existing failures are environmental — Google Calendar/tenant/Stripe/Postmark/entitlement — unrelated to pet association).
+- **Admin/scheduling preserved:** admin-created bookings, `APPROVED`/`VISIT_BOOKING`, scheduling/assignment/service windows, Ryan W1 Walk, Overnight O1 unchanged.
+- **Boundary:** `W1_DEPLOYED=NO`; no deploy/Terraform/AWS/API-Gateway/backend deployment. `NEXT_RECOMMENDED_WORKSTREAM=W3` (sequence W2→W4→W1→W3); W3 not authorized.
+- **Gates preserved:** `SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`; `SCHEDULING_PR_MERGE_AUTHORIZED=NO`; Stripe sandbox-only; `RYAN_TESTING_AUTHORIZED=NO`; no second tenant; no production test data; no production quote mutation; no mobile distribution; no web deployment.
+- See [W1 canonical request↔pet association record](../release-notes/w1-canonical-request-pet-association.md).
 
 ---
 

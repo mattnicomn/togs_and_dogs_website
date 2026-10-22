@@ -420,6 +420,22 @@ def handler(event, context):
             # Public path /requests
             workflow_type = WorkflowType.CUSTOMER_INTAKE
         
+        # Workstream 1: Canonical existing-pet association by pet_id.
+        # For authenticated client submissions, validate any caller-supplied
+        # pet_ids against the client's OWN active pets (server-resolved identity),
+        # and treat the validated set as the canonical REQUEST↔pet association.
+        # pet_names is NEVER the identity authority when pet_ids is present; the
+        # display names for selected existing pets are derived from the owned
+        # pet records. Foreign/invalid IDs are dropped non-disclosingly.
+        canonical_pet_ids = None
+        owned_pet_names = []
+        if is_portal_path and role == 'client' and client_id:
+            from common.pet_profile import resolve_owned_pet_ids
+            ownership = resolve_owned_pet_ids(body.get('pet_ids'), client_id, company_id)
+            if ownership['pet_ids']:
+                canonical_pet_ids = ownership['pet_ids']
+                owned_pet_names = ownership['pet_names']
+
         # Basic validation for required fields (non-empty, non-whitespace)
         # Release 4A Hotfix: Generate pet_names from pets[] BEFORE validation.
         # The frontend sends pets[] array instead of pet_names string.
@@ -427,6 +443,25 @@ def handler(event, context):
         pet_names = body.get('pet_names')
         if not pet_names or not pet_names.strip():
             pet_names = _generate_pet_names_string(body)
+
+        # W1: when canonical existing-pet IDs are present, the persisted display
+        # string is derived from the validated owned pets combined with any
+        # structured new-pet entries — never from caller-supplied name authority.
+        if canonical_pet_ids:
+            new_pet_names = []
+            pets_for_display = body.get('pets')
+            if isinstance(pets_for_display, list):
+                new_pet_names = [
+                    (p.get('name') or '').strip()
+                    for p in pets_for_display
+                    if isinstance(p, dict) and (p.get('name') or '').strip()
+                    # Exclude new-pet entries that merely echo an already-selected
+                    # existing pet's display name (avoid double-listing).
+                    and (p.get('name') or '').strip() not in owned_pet_names
+                ]
+            combined = list(owned_pet_names) + new_pet_names
+            if combined:
+                pet_names = ', '.join(combined)
         
         required_fields = {
             'client_name': client_name,
@@ -520,7 +555,11 @@ def handler(event, context):
             # Release 4: Multi-pet structured data.
             # pets array stores per-pet fields. Legacy pet_names auto-generated for backward compat.
             'pets': body.get('pets') or None,
-            'pet_names': pet_names,  # Already generated/normalized before validation
+            # Workstream 1: canonical existing-pet association. Only validated,
+            # owned IDs are persisted; absent when no existing pet was selected
+            # (new-pet-only requests still flow through the pets[] array).
+            'pet_ids': canonical_pet_ids if canonical_pet_ids else None,
+            'pet_names': pet_names,  # Derived display/compat string, not identity authority
             'pet_info': body.get('pet_info'),
             # Release 4: Household-level vet/emergency info.
             'vet_info': body.get('vet_info') or None,
