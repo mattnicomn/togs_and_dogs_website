@@ -544,8 +544,19 @@ def handler(event, context):
                 response = items_table.scan(**scan_kwargs)
                 items = response.get('Items', [])
                 
-                # Aggressively redact staff notes and pricing metadata
-                items = [sanitize_booking_for_role(item, 'client') for item in items]
+                # Client booking-list privacy: use an EXPLICIT client-safe allowlist
+                # projection rather than the denylist-based sanitizer. A denylist
+                # exposes every REQUEST field by default; the canonical quote lifecycle
+                # writes commercial/internal quote fields (quote_amount_cents,
+                # deposit_amount_cents, payment_requirement, quote_notes_client,
+                # quote_notes_internal, quote_history, revision/timestamps) onto the
+                # REQUEST, which the approved quote contract keeps OUT of the general
+                # booking list (the dedicated GET /client/quotes/{id} projection is the
+                # authoritative commercial view and additionally hides DRAFT). The
+                # explicit allowlist drops all such fields by construction and never
+                # reuses the raw record.
+                from common.auth import project_client_request_list_item
+                items = [project_client_request_list_item(item) for item in items]
                 
                 # Sort newest first based on start_date
                 items.sort(key=lambda x: x.get('start_date', ''), reverse=True)
