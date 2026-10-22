@@ -1,6 +1,23 @@
 # Current Project State
 
-**Last Updated:** 2026-10-21 — M4-C one controlled client Decline ACCEPTED (`M4_C_DECLINE_ACCEPTANCE_PASS`; `M4_C_DECLINE_AUTHORIZED=CONSUMED`). See the M4-C section immediately below; the PR #19 production deployment + M4-B entry and earlier history follow it.
+**Last Updated:** 2026-10-22 — PR #22 client-request quote-field privacy remediation DEPLOYED to production and convergence-verified (`PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`). See the PR #22 production deployment section immediately below; the M4-C entry, the PR #19 production deployment + M4-B entry, and earlier history follow it.
+
+---
+
+## 2026-10-22 — PR #22: Client-Request Quote-Field Privacy Projection — Production Deployment Verified
+
+**Disposition:** `PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`
+
+- Owner-approved production deployment of merged PR #22 as a code-only, 13-Lambda in-place update in account `358604342897`. Authoritative source checkpoint `main == origin/main == fd60a760b8f60e34cec7a698fa1771bf3f8a8a99` (PR #22 squash merge).
+- **Privacy remediation:** `GET /client/requests` now uses an explicit client-safe allowlist projection (`common.auth.project_client_request_list_item`) instead of raw REQUEST pass-through through the denylist sanitizer. Prevents incidental exposure of quote/commercial/internal REQUEST fields (`quote_status`, `quote_revision`, `quote_amount_cents`, `currency`, `deposit_amount_cents`, `payment_requirement`, `payment_status`, `quote_notes_client`, `quote_notes_internal`, `internal_pricing_notes`, `quote_history`, quote lifecycle timestamps/revisions, decline reason, audit/admin/internal/staff fields, raw PK/SK). Known mobile/web client-list consumers source-audited; required fields preserved. Fails closed on non-dict input. Dedicated `GET /client/quotes/{requestId}` unchanged and still hides DRAFT.
+- **Precise characterization (NOT a confirmed incident):** source-level exposure *path* proven; **no production customer/business records were inspected**; actual historical exposure remains unknown; this was a privacy-hardening correction. `CLIENT_REQUEST_LIST_QUOTE_STATUS_CONTRACTUALLY_EXPOSED=NO`; `CLIENT_REQUEST_LIST_QUOTE_STATUS_CAN_PASS_THROUGH_INCIDENTALLY=NO`.
+- **Deployment:** saved-plan SHA-256 `1E707B846999C2B1352BB77334BFB6DCA2F15681D594D6569A1B3D9DA6EBB170`; `terraform apply pr22-privacy.tfplan` → **`Apply complete! Resources: 0 added, 13 changed, 0 destroyed`**. All 13 Lambdas moved `CodeSha256 QgEdTeYYMYF3k+b4f22NoHv2I7GEowtO1ynQ7ISafVk=` → **`W6cqyudlRQF3Zw7uN2V42JzziwYITg8r5mCnsGdDAq4=`**, Active/Successful. API `a022yxuiue` / prod stage `hhryhc` unchanged; `TENANT_RESOLUTION_MODE=multi` unchanged; **AC-9 excluded** (`AC9_DEPLOYED_BY_PR22_RC=NO`). Deployment RC `release/pr22-client-request-privacy-rc @ b94455a` = PR #19 production baseline `d082517` + cherry-pick of PR #22 squash `fd60a76`; runtime delta = exactly `common/auth.py` + `handlers/admin_handler.py`.
+- **Terraform convergence:** Matthew manually ran `terraform plan -detailed-exitcode` (fresh session) → **`No changes. Your infrastructure matches the configuration.`**, exit code `0` → `PR22_TERRAFORM_CONVERGENCE=PASS`.
+- **Rollback (preserved, not executed):** PR #19 baseline `d082517` + previous package `QgEdTeYYMYF3k+b4f22NoHv2I7GEowtO1ynQ7ISafVk=`; historical RC worktrees untouched.
+- **Acceptance boundary:** infrastructure/package verification + convergence only; no production business/customer records inspected; no functional quote mutation (Send/Accept/Decline) performed.
+- **W4 next state:** privacy deployment gate now closed. `W4_CAN_PROCEED_INDEPENDENTLY=YES`; `W4_IMPLEMENTATION_STATUS=READY_FOR_OWNER_APPROVED_IMPLEMENTATION` (selected architecture `W4_OPTION_A_FRONTEND_WORKFLOW_SUMMARY`; separate future phase; not implemented here).
+- **Gates preserved:** scheduling parked (`SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`, `SCHEDULING_PR_MERGE_AUTHORIZED=NO`); Stripe sandbox-only; `RYAN_TESTING_AUTHORIZED=NO`; no second tenant; no mobile distribution; no production test data.
+- See [PR #22 client-request privacy production deployment record](../release-notes/pr22-client-request-privacy-production-deployment.md).
 
 ---
 
