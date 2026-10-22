@@ -427,11 +427,25 @@ def handler(event, context):
         # pet_names is NEVER the identity authority when pet_ids is present; the
         # display names for selected existing pets are derived from the owned
         # pet records. Foreign/invalid IDs are dropped non-disclosingly.
+        # W1 (hardened): existing-pet association is ALL-OR-NOTHING. If an
+        # authenticated client supplied a `pet_ids` field, every entry must be a
+        # well-formed id for an active pet owned by this client under this tenant.
+        # Any malformed shape/entry or any unowned id rejects the whole request
+        # with a single generic, non-disclosing 400 — we never reveal which id
+        # failed or why, and we never silently drop part of the selection.
         canonical_pet_ids = None
         owned_pet_names = []
-        if is_portal_path and role == 'client' and client_id:
+        if is_portal_path and role == 'client':
             from common.pet_profile import resolve_owned_pet_ids
             ownership = resolve_owned_pet_ids(body.get('pet_ids'), client_id, company_id)
+            if not ownership['ok']:
+                # Generic client-facing message; no rejected ids, no reason leaked.
+                print(f"INFO: [W1] Rejected client request — invalid pet_ids "
+                      f"(reason={ownership.get('reason')})")
+                return bad_request(
+                    "One or more selected pets are invalid. Refresh your pets and try again.",
+                    event,
+                )
             if ownership['pet_ids']:
                 canonical_pet_ids = ownership['pet_ids']
                 owned_pet_names = ownership['pet_names']
@@ -446,19 +460,27 @@ def handler(event, context):
 
         # W1: when canonical existing-pet IDs are present, the persisted display
         # string is derived from the validated owned pets combined with any
-        # structured new-pet entries — never from caller-supplied name authority.
+        # structured NEW-pet entries — never from caller-supplied name authority.
+        # A structured entry is a NEW pet iff it carries no canonical selected
+        # pet_id (identity is the id, never the name); so a new pet that happens
+        # to share a selected pet's display name is still listed.
         if canonical_pet_ids:
+            selected_id_set = set(canonical_pet_ids)
             new_pet_names = []
             pets_for_display = body.get('pets')
             if isinstance(pets_for_display, list):
-                new_pet_names = [
-                    (p.get('name') or '').strip()
-                    for p in pets_for_display
-                    if isinstance(p, dict) and (p.get('name') or '').strip()
-                    # Exclude new-pet entries that merely echo an already-selected
-                    # existing pet's display name (avoid double-listing).
-                    and (p.get('name') or '').strip() not in owned_pet_names
-                ]
+                for p in pets_for_display:
+                    if not isinstance(p, dict):
+                        continue
+                    name = (p.get('name') or '').strip()
+                    if not name:
+                        continue
+                    entry_id = p.get('pet_id')
+                    # Skip entries that are echoes of a selected existing pet
+                    # (identified by their canonical id, not by name).
+                    if isinstance(entry_id, str) and entry_id.strip() in selected_id_set:
+                        continue
+                    new_pet_names.append(name)
             combined = list(owned_pet_names) + new_pet_names
             if combined:
                 pet_names = ', '.join(combined)

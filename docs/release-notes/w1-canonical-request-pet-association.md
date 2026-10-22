@@ -1,8 +1,15 @@
 # Workstream 1 — Existing Pet Selection (canonical request↔pet association)
 
-**Disposition:** `W1_CANONICAL_PET_ASSOCIATION_IMPLEMENTED_LOCAL_READY_FOR_REVIEW`
+**Disposition:** `W1_CANONICAL_PET_ASSOCIATION_HARDENED_READY_FOR_FINAL_REVIEW`
 
 `W1_IMPLEMENTATION_STATUS=LOCAL_IMPLEMENTED_NOT_DEPLOYED`
+
+> **Contract hardening (PR #26 follow-up commit):** invalid supplied existing-pet associations
+> now **reject the whole client request generically** (HTTP 400, nothing persisted) instead of
+> being silently dropped; the `pet_ids` field shape is validated at the API boundary; and new-pet
+> identity is decided by the absence of a canonical `pet_id` (never by display-name equality),
+> with request-scoped idempotency (`created_from_request_id`). See the hardened descriptions
+> below.
 
 **Checkpoint at authoring:** branch `fix/w1-canonical-request-pet-association` created from
 `origin/main == 066a260af3b3c95af2e36a4dbf945f8234ac099f`. Not merged, not deployed.
@@ -43,29 +50,52 @@ the identity authority when `pet_ids` is present.
 
 ### Backend
 - `src/backend/common/pet_profile.py`:
-  - New `resolve_owned_pet_ids(raw_pet_ids, client_id, company_id)` — the canonical ownership
-    gate. Normalizes caller input (strings only, trim, order-preserving dedupe) and accepts an
-    id only if it maps to an **active PET owned by this client under this tenant** (same filter
-    as `GET /client/pets`, via `_owned_pet_map`). Foreign-client, foreign-tenant, inactive, and
-    unknown ids are dropped **non-disclosingly**. Derives display names from the validated owned
-    records. Fails closed when trusted identity is missing.
-  - `create_or_link_pets_from_request` now treats a canonical `pet_ids` array as **authoritative**
-    (existing selections are never re-created or name-matched) while still creating genuinely-new
-    structured `pets[]` entries that are not already represented — idempotent on re-run
-    (`_link_mixed_existing_and_new`). The legacy name-match path remains for requests without
-    `pet_ids`.
+  - `resolve_owned_pet_ids(raw_pet_ids, client_id, company_id)` — the canonical ownership gate.
+    **Existing-pet association is ALL-OR-NOTHING** (hardened): if the client supplied a `pet_ids`
+    field at all, every entry must be a well-formed string id for an **active PET owned by this
+    client under this tenant** (same filter as `GET /client/pets`, via `_owned_pet_map`). It
+    returns a validity signal (`ok`/`supplied`/`reason`): a non-list shape, a non-string/blank
+    entry, or ANY unowned id (covering foreign-client, foreign-tenant, inactive, unknown) makes
+    `ok=False`. An absent field (or empty list) is valid new-pet-only intake. Order-preserving
+    dedupe of valid ids; display names derived from the owned records. Fails closed without
+    trusted identity. The offending id / reason are **never surfaced** (logging only).
+  - `create_or_link_pets_from_request` treats a canonical `pet_ids` array as **authoritative**
+    (existing selections never re-created/renamed) and decides what is new by **identity, not
+    name**: a structured `pets[]` entry is an echo iff its `pet_id` is a selected canonical id;
+    every other entry is new-pet intent and is created even if some owned pet shares its display
+    name. Idempotency is **request-scoped** via `created_from_request_id == request_id` (a pet
+    created by this request on a prior run is reused; a same-name pet from a different request or
+    a pre-existing owned pet never suppresses creation and is never treated as this request's
+    identity). The legacy name-match path remains only for requests without `pet_ids`.
 - `src/backend/handlers/intake_handler.py` (authenticated client-portal path only):
-  - Validates caller-supplied `pet_ids` against the **server-resolved** `client_id` /
-    `company_id` (never body-supplied identity) via `resolve_owned_pet_ids`, persists the
-    validated canonical `pet_ids`, and derives the persisted `pet_names` display string from the
-    validated owned pets + structured new-pet entries. Spoofed caller names cannot override
-    canonical identity/name.
+  - Calls `resolve_owned_pet_ids` against the **server-resolved** `client_id` / `company_id`
+    (never body-supplied identity). If `ok` is False the whole request is **rejected with a
+    single generic, non-disclosing HTTP 400** ("One or more selected pets are invalid. Refresh
+    your pets and try again.") and **nothing is persisted** — no silent partial drop, no
+    new-pet-only fallback. On success it persists the validated canonical `pet_ids` and derives
+    the display `pet_names` from the validated owned pets + structured NEW-pet entries (new
+    entries distinguished by lacking a canonical `pet_id`, so a new pet sharing a selected pet's
+    name is still listed). Spoofed caller names never override canonical identity/name.
 
 ## Canonical contract guarantees
 - `W1_PET_OWNERSHIP_ENFORCEMENT=PASS` — every accepted existing `pet_id` is proven to belong to
   the authenticated client, within the client's tenant, and active. No trust in caller-supplied
   `client_id`/`company_id`/PK/SK/arbitrary ids. No cross-client or cross-tenant association.
-  Non-disclosing failure (a foreign id is dropped, never confirmed to exist).
+- `W1_INVALID_PET_ID_REQUEST_REJECTION=PASS` — a supplied existing-pet selection is **all-or-
+  nothing**: any malformed, inactive, unknown, foreign-client, or foreign-tenant id rejects the
+  entire client request (generic HTTP 400, nothing persisted). Invalid ids are NOT silently
+  dropped and do NOT fall back to new-pet-only.
+- `W1_PET_IDS_INPUT_VALIDATION=PASS` — if the `pet_ids` field is present it must be a list of
+  non-empty strings; a non-list shape or any non-string/blank entry is rejected generically.
+  Absence of the field remains valid for new-pet-only intake.
+- `W1_NAME_IS_NOT_IDENTITY=PASS` — new-pet intent is identified by the absence of a canonical
+  `pet_id`, never by display-name equality. A genuinely-new pet sharing a selected/owned pet's
+  name is still created; two distinct owned pets with the same name stay independently associated
+  by id.
+- `W1_MIXED_NEW_PET_IDEMPOTENCY=PASS` — mixed existing+new retries are idempotent via
+  request-scoped provenance (`created_from_request_id`), not global same-name ownership.
+- The response is **non-disclosing**: it never reveals which id failed, nor whether an id exists,
+  belongs to another client/tenant, or is inactive.
 - `W1_NEW_REQUESTS_CANONICAL_PET_IDS=PASS` — new authenticated-client requests persist canonical
   `pet_ids` for existing selections; names are derived.
 - `W1_LEGACY_READ_COMPATIBILITY=PASS` — legacy `pet_id`, `pet_ids`, `pets`, and `pet_names`
@@ -91,11 +121,15 @@ service windows, Ryan historical W1 Walk behavior, and Overnight O1 behavior are
 Admin Client Management were not redesigned.
 
 ## Tests
-- Backend: `tests/backend/test_w1_canonical_pet_association.py` — 19 tests covering ownership /
-  tenant / dedupe / order / duplicate-name-distinct-id / foreign-client / foreign-tenant /
-  malformed / fail-closed; intake persistence of canonical `pet_ids` + derived names; spoofed
-  names not overriding identity; foreign ids dropped → new-pet fallback; public path unaffected;
-  mixed existing+new linking authoritative and idempotent; legacy name path preserved. **PASS**.
+- Backend: `tests/backend/test_w1_canonical_pet_association.py` — **38 tests** covering ownership
+  / tenant / dedupe / order / duplicate-name-distinct-id; hardened all-or-nothing validity
+  (absent-ok, empty-ok, non-list shape rejected, non-string/blank entry rejected, any unowned id
+  rejects whole selection, fail-closed); handler-level generic non-disclosing 400 with no
+  `put_item` on invalid input; valid existing + new pet persists; new pet sharing a selected
+  pet's name is still listed/created; identity-not-name mixed linking (echo-by-id skipped,
+  new-by-absence-of-id created, same-name unselected/other-request pet does not suppress);
+  request-scoped idempotency on retry; spoofed names not overriding identity; public path
+  unaffected; legacy name path preserved. **PASS**.
 - Mobile: `mobile/__tests__/IntakeScreen.test.tsx` — 7 new W1 tests (ID-keyed selection,
   duplicate-name independence, multi-select, deselect/reselect, new-pet-only, existing+new, no
   name→id reconstruction). Full IntakeScreen suite **35/35 PASS**; `tsc --noEmit` clean.

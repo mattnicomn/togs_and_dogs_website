@@ -6,7 +6,7 @@
 
 ## 2026-10-22 — Workstream 1: Existing Pet Selection (canonical request↔pet association) — Local, Not Deployed
 
-**Disposition:** `W1_CANONICAL_PET_ASSOCIATION_IMPLEMENTED_LOCAL_READY_FOR_REVIEW`
+**Disposition:** `W1_CANONICAL_PET_ASSOCIATION_HARDENED_READY_FOR_FINAL_REVIEW`
 
 > **Naming boundary:** this is *Workflow & Payment Architecture — Workstream 1 (Existing Pet Selection)*, NOT the historical *Ryan W1 20-Minute Walk canonical scheduling windows* (untouched).
 
@@ -14,7 +14,8 @@
 - **Mobile** (`IntakeScreen.tsx`): selection keyed by `pet_id` (not name); pre-select/toggle/deselect by id; duplicate names independently selectable; submits canonical `pet_ids`; derived display names; eliminated the legacy name→id lookup + comma-joined `pet_names`-as-identity producer for existing pets.
 - **Web client** (`IntakeForm.jsx`): added a first-class authenticated-client existing-pet picker (`W1_WEB_CLIENT_PARITY_REQUIRED=YES`) loading pets once via the client-safe `GET /client/pets`, selecting by `pet_id`, submitting canonical `pet_ids`; add-new path preserved; no admin endpoint; no N+1. Public path unchanged.
 - **Backend**: `common/pet_profile.resolve_owned_pet_ids` validates caller `pet_ids` against the server-resolved client/tenant's active owned pets (non-disclosing drop of foreign/invalid ids; fail-closed); `intake_handler` persists validated canonical `pet_ids` + derived names on the client-portal write path (never trusting body identity/names); `create_or_link_pets_from_request` treats existing `pet_ids` as authoritative and creates only genuinely-new `pets[]` entries, idempotently.
-- **Flags:** `W1_PET_OWNERSHIP_ENFORCEMENT=PASS`; `W1_NEW_REQUESTS_CANONICAL_PET_IDS=PASS`; `W1_LEGACY_READ_COMPATIBILITY=PASS`; `W1_CLIENT_REQUEST_PRIVACY_BOUNDARY=PASS` (PR #22 `/client/requests` projection untouched); `W1_N_PLUS_ONE_PET_FETCHES_ADDED=NO`; `W1_SECURITY_REVIEW=PASS`; `W1_SCOPE_REVIEW=PASS`; `W1_NEW_PET_CREATION_ARCHITECTURE_CONFLICT_FOUND` NOT triggered.
+- **Hardening (PR #26 follow-up):** invalid supplied existing-pet ids now REJECT the whole client request generically (HTTP 400, nothing persisted) instead of silent-drop; `pet_ids` shape validated at the API boundary; new-pet identity decided by absence of canonical `pet_id` (never name); mixed-new-pet idempotency is request-scoped (`created_from_request_id`).
+- **Flags:** `W1_PET_OWNERSHIP_ENFORCEMENT=PASS`; `W1_INVALID_PET_ID_REQUEST_REJECTION=PASS`; `W1_PET_IDS_INPUT_VALIDATION=PASS`; `W1_NAME_IS_NOT_IDENTITY=PASS`; `W1_MIXED_NEW_PET_IDEMPOTENCY=PASS`; `W1_NEW_REQUESTS_CANONICAL_PET_IDS=PASS`; `W1_LEGACY_READ_COMPATIBILITY=PASS`; `W1_CLIENT_REQUEST_PRIVACY_BOUNDARY=PASS` (PR #22 `/client/requests` projection untouched); `W1_N_PLUS_ONE_PET_FETCHES_ADDED=NO`; `W1_SECURITY_REVIEW=PASS`; `W1_SCOPE_REVIEW=PASS`; `W1_NEW_PET_CREATION_ARCHITECTURE_CONFLICT_FOUND` NOT triggered.
 - **Tests:** backend `test_w1_canonical_pet_association.py` 19 PASS; mobile IntakeScreen 35/35 PASS + `tsc` clean; web vitest 29 files / 444 PASS. `W1_NEW_REGRESSIONS=0` (full backend suite identical pre-existing failure set vs clean baseline `066a260`: 90 failed on both; this branch +19 passing = new W1 tests; pre-existing failures are environmental — Google Calendar/tenant/Stripe/Postmark/entitlement — unrelated to pet association).
 - **Admin/scheduling preserved:** admin-created bookings, `APPROVED`/`VISIT_BOOKING`, scheduling/assignment/service windows, Ryan W1 Walk, Overnight O1 unchanged.
 - **Boundary:** `W1_DEPLOYED=NO`; no deploy/Terraform/AWS/API-Gateway/backend deployment. `NEXT_RECOMMENDED_WORKSTREAM=W3` (sequence W2→W4→W1→W3); W3 not authorized.
