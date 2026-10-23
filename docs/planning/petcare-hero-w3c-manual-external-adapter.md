@@ -2,7 +2,8 @@
 
 **Date:** 2026-10-23
 **Phase:** W3-C planning / source reconciliation. **This document implements nothing.**
-**Disposition:** `W3C_MANUAL_EXTERNAL_IMPLEMENTATION_PLAN_READY_FOR_MATTHEW`
+**Disposition:** `W3C_MANUAL_EXTERNAL_IMPLEMENTATION_PLAN_HARDENED_READY_FOR_MATTHEW`
+(PR #30 IAM/atomicity hardening applied)
 
 **Authoritative checkpoint:** `main == origin/main == 2813451e7182eb0f1b9ee0b85e26f3247eef9889`
 (PR #29 MERGED; W3-B `MERGED_NOT_DEPLOYED`).
@@ -13,6 +14,9 @@
 - `W3_SELECTED_LONG_TERM_MODEL=PROVIDER_ABSTRACTION + STRIPE_CONNECT_DIRECT_CHARGES`
 - `W3_C_IMPLEMENTATION_AUTHORIZED=NO` (planning only; implementation requires a
   separate explicit Matthew authorization)
+- `W3C1_IAM_CHANGE_AUTHORIZED=NO`; `W3C1_TERRAFORM_CHANGE_AUTHORIZED=NO`;
+  `W3C1_DEPLOYMENT_AUTHORIZED=NO` — the required runtime `dynamodb:TransactWriteItems`
+  IAM grant (see §4.1) is **not** authorized in this planning turn.
 - Stripe Connect Direct remains **known, non-executable, not started**. Marketplace /
   indirect remains **not selected**.
 
@@ -26,7 +30,9 @@ owner/admin authorization boundary — no API route, no UI, no Stripe.
 
 `W3C1_SOURCE_RECONCILIATION=PASS` — the merged W3-B domain plus the existing
 auth/RBAC, tenant-ownership, concurrency, and audit machinery are sufficient to build
-W3-C1 with **no infrastructure change** and **no new spoofing surface**.
+W3-C1 with **no new AWS resource** and **no new spoofing surface**. (One runtime IAM
+policy grant is required before deployment — `dynamodb:TransactWriteItems` — see §4.1;
+it is an existing-role modification, not a new resource, and is not authorized here.)
 
 **W3-B domain (`src/backend/common/payment_domain.py`, merged):** provides everything
 the adapter needs as pure building blocks — `canonical_cents`, the six-state
@@ -63,7 +69,10 @@ summary.
 **Atomic multi-item writes:** **`TransactWriteItems` is NOT currently used anywhere**
 in the backend (only named, as explicitly avoided, in `tenant_read_adapter.py`). It is a
 standard DynamoDB API available through the existing `boto3` resource/client with **no
-provisioning** — see §4.
+new resource to provision**, BUT the active Lambda DynamoDB IAM policy
+(`modules/iam/main.tf`) does **not** currently grant `dynamodb:TransactWriteItems`
+(`W3C1_TRANSACTWRITE_IAM_PRESENT=NO`) — so runtime use requires a future owner-approved
+IAM policy modification (an existing-role change, not a new resource). See §4.1.
 
 **Audit (`src/backend/common/audit.py`):** `log_action(event, action, target_pk, …)`
 derives `user_email`/`user_role` **server-side** from claims and writes an immutable
@@ -165,17 +174,55 @@ attempts** (summary revision/status guard), **stale summary status** (guard mism
 409), **amount race** (revision guard invalidates a stale computed total), **conflicting
 idempotency keys** (semantic-payload comparison), **all-or-nothing** (transaction).
 
-`W3C1_INFRA_CHANGE_REQUIRED=NO` — `TransactWriteItems` is a standard DynamoDB call on the
-existing single table via the existing `boto3` client; it needs **no new table, GSI,
-secret, Lambda, API route, IAM resource, or Terraform** (IAM note below). If a review
-finds the current Lambda execution role lacks `dynamodb:TransactWriteItems`, that is a
-one-line IAM policy-statement addition on the existing role (no new resource) — to be
-confirmed during W3-C1 implementation review; **if** it required a Terraform/role change,
-implementation would pause and raise it for approval rather than proceed. A fully
-infra-free **Fallback B** also exists: a single-item conditional write is not enough, but
-the summary can embed a monotonic `payment_summary_revision` and the event carries the
-same revision, with a reconciliation read — however **TransactWriteItems is strongly
-preferred** for true atomicity and is the recommendation.
+### 4.1 Infrastructure classification (corrected — PR #30 IAM review)
+
+The earlier blanket `W3C1_INFRA_CHANGE_REQUIRED=NO` was imprecise. A confirmed source
+review of `modules/iam/main.tf` shows the active Lambda DynamoDB policy
+(`${name_prefix}-dynamodb-access`, attached to the `lambda_exec` role, scoped to the
+application `data_table_arn` + `/index/*`) grants exactly `dynamodb:GetItem`,
+`PutItem`, `UpdateItem`, `DeleteItem`, `Query`, `Scan` — and **does NOT grant
+`dynamodb:TransactWriteItems`**. So:
+
+- `W3C1_TRANSACTWRITE_IAM_PRESENT=NO`
+- `W3C1_NEW_AWS_RESOURCE_REQUIRED=NO`
+- `W3C1_DYNAMODB_SCHEMA_CHANGE_REQUIRED=NO`
+- `W3C1_NEW_TABLE_REQUIRED=NO`
+- `W3C1_NEW_GSI_REQUIRED=NO`
+- `W3C1_NEW_SECRET_REQUIRED=NO`
+- `W3C1_NEW_LAMBDA_REQUIRED=NO`
+- `W3C1_NEW_API_ROUTE_REQUIRED=NO`
+- **`W3C1_RUNTIME_IAM_CHANGE_REQUIRED=YES`**
+
+**Required future IAM action:** add `dynamodb:TransactWriteItems` to the `Action` list of
+the existing `${name_prefix}-dynamodb-access` policy for the existing application table.
+This is a **modification of an existing role/policy, not a new AWS resource** (one line
+in `modules/iam/main.tf`).
+
+**Governance:** Matthew has **not** authorized this IAM/Terraform change in this planning
+turn. No Terraform/IAM file is edited here; nothing is applied or deployed.
+
+- `W3C1_IAM_CHANGE_AUTHORIZED=NO`
+- `W3C1_TERRAFORM_CHANGE_AUTHORIZED=NO`
+- `W3C1_DEPLOYMENT_AUTHORIZED=NO`
+
+**Implementation vs runtime enablement** — two distinct concepts:
+
+- **A. W3-C1 LOCAL IMPLEMENTATION** — the adapter/service code, transaction-orchestration
+  code, and tests can be written and run entirely against a **mocked transaction
+  client** (as the existing backend tests mock `common.db.table` and the boto3 client).
+  No AWS mutation is needed to build or test it.
+  `W3C1_LOCAL_CODE_CAN_BE_IMPLEMENTED_WITHOUT_INFRA_MUTATION=YES`.
+- **B. W3-C1 RUNTIME ENABLEMENT** — for the code to actually execute against production
+  DynamoDB, the Lambda role must possess `dynamodb:TransactWriteItems`, which requires
+  the owner-approved IAM/Terraform change above **before** any deployment/use.
+  `W3C1_RUNTIME_ENABLEMENT_REQUIRES_IAM_CHANGE=YES`.
+
+The atomicity design is **not** weakened to avoid IAM: REQUEST summary and PAYMENT_EVENT
+remain two distinct items that must commit all-or-nothing, so `TransactWriteItems`
+remains the recommendation. A two-independent-writes fallback is explicitly **rejected**
+(it can leave the event persisted without the summary, or vice versa), and the separate
+PAYMENT_EVENT entity is **not** collapsed into an embedded audit list merely to dodge the
+IAM grant.
 
 ---
 
@@ -320,10 +367,27 @@ Each successful external settlement produces **exactly one immutable PAYMENT_EVE
 - `PAYMENT_PARTIALLY_SETTLED` when it reaches/stays `PARTIALLY_PAID` (or records a
   below-threshold deposit contribution).
 
-No new event/status vocabulary is created. In addition, `audit.log_action(event,
-"EXTERNAL_PAYMENT_RECORDED", f"REQ#{request_id}", previous_status=…, new_status=…)` writes
-the `AUDIT#` record. The actor is **server-derived** from the authenticated identity on
-both records.
+No new event/status vocabulary is created. The actor on the PAYMENT_EVENT is
+**server-derived** from the authenticated identity.
+
+**Atomicity scope clarification (PR #30 review):** the TransactWriteItems transaction
+contains **exactly two items** — the PAYMENT_EVENT `Put` and the REQUEST summary
+`Update` — and those two are atomic with each other. The PAYMENT_EVENT is the
+**mandatory, authoritative payment audit event** and the canonical payment audit trail;
+it carries the server-derived actor, previous/resulting status, amount delta, currency,
+and opaque reference. The generic `audit.log_action(...)` `AUDIT#` write is
+**supplementary** and is performed **after** the transaction commits successfully — it is
+deliberately **outside** the two-item transaction. Consequences made explicit:
+
+- Do **not** claim all three records (PAYMENT_EVENT + REQUEST summary + AUDIT#) are
+  atomic. Only the first two are.
+- A failure to write the supplementary `AUDIT#` item MUST NOT leave payment state
+  ambiguous: the authoritative payment state (summary + PAYMENT_EVENT) is already durably
+  and atomically committed, so a missing supplementary `AUDIT#` is a non-fatal logging
+  gap (log and continue), never a payment-state inconsistency.
+- The transaction is **not** expanded to a third (`AUDIT#`) item in W3-C1 absent a
+  concrete requirement; the PAYMENT_EVENT already satisfies the authoritative
+  payment-audit need.
 
 ---
 
@@ -378,24 +442,37 @@ as in W3-B).
 
 ## 15. Cost / infrastructure expectation
 
-`W3C1_INCREMENTAL_INFRA_COST_EXPECTATION=NONE_WITHIN_EXISTING_ARCHITECTURE`
+`W3C1_INCREMENTAL_RESOURCE_COST_EXPECTATION=NEGLIGIBLE_WITHIN_EXISTING_ARCHITECTURE`
 
 W3-C1 as an internal backend service/helper requires **no new AWS service, table, GSI,
-secret, Lambda, or API Gateway route**. It uses the existing single DynamoDB table and
-the existing `boto3` client. The only possible non-resource adjustment is confirming the
-existing Lambda role permits `dynamodb:TransactWriteItems` (a policy-statement line on an
-existing role, not a new resource); if that unexpectedly required a Terraform/role change,
-implementation would pause for approval. `W3C1_INFRA_CHANGE_REQUIRED=NO`.
+secret, Lambda, or API Gateway route**, and uses the existing single DynamoDB table and
+the existing `boto3` client. Cost is **negligible, not literally zero**, because:
+
+- there is **no new standalone AWS resource** and the IAM policy update itself carries no
+  standalone resource cost;
+- DynamoDB **transaction request** pricing (a TransactWriteItems write is billed as 2×
+  the write units of the equivalent non-transactional writes) applies **only when the
+  operation is actually executed at runtime** — i.e. once W3-C2/W3-D exercise the path on
+  real data, not from the W3-C1 code/tests themselves (which use a mocked client);
+- the existing application table remains in use with no capacity-model change.
+
+See §4.1 for the precise infrastructure-change classification. The single required future
+infra action is the owner-approved `dynamodb:TransactWriteItems` IAM policy addition
+(`W3C1_RUNTIME_IAM_CHANGE_REQUIRED=YES`); there is **no new AWS resource**
+(`W3C1_NEW_AWS_RESOURCE_REQUIRED=NO`).
 
 ---
 
 ## 16. Non-goals (W3-C1)
 
 No API route (W3-C2); no UI (W3-D1); no Stripe API/Connect/OAuth/Checkout/PaymentIntent/
-webhook/secret; no refunds (deferred); no Terraform/AWS/deploy; no production mutation or
-production test data; no second tenant; no tenant-resolution change; no Ryan testing; no
-scheduling; no mobile distribution; no auto-approval / booking creation; no runtime switch
-of the existing Stripe path; no client payment-confirmation path.
+webhook/secret; no refunds (deferred); **no Terraform/IAM edit** (the required
+`dynamodb:TransactWriteItems` grant is a future, separately-authorized change — §4.1); no
+AWS mutation/deploy; no production mutation or production test data; no second tenant; no
+tenant-resolution change; no Ryan testing; no scheduling; no mobile distribution; no
+auto-approval / booking creation; no runtime switch of the existing Stripe path; no client
+payment-confirmation path. W3-C1 local code + tests are built against a **mocked**
+transaction client only.
 
 ---
 
@@ -406,7 +483,9 @@ Latest completed production backend release remains
 merged, not deployed. Stripe sandbox-only; no customer money through the USMISSIONHERO
 Stripe platform account. `SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`;
 `SCHEDULING_PR_MERGE_AUTHORIZED=NO`; `RYAN_TESTING_AUTHORIZED=NO`; no second tenant; no
-production test data; `W3_C_IMPLEMENTATION_AUTHORIZED=NO`.
+production test data; `W3_C_IMPLEMENTATION_AUTHORIZED=NO`;
+`W3C1_IAM_CHANGE_AUTHORIZED=NO`; `W3C1_TERRAFORM_CHANGE_AUTHORIZED=NO`;
+`W3C1_DEPLOYMENT_AUTHORIZED=NO`.
 
-**Disposition:** `W3C_MANUAL_EXTERNAL_IMPLEMENTATION_PLAN_READY_FOR_MATTHEW`. STOP before
-implementation.
+**Disposition:** `W3C_MANUAL_EXTERNAL_IMPLEMENTATION_PLAN_HARDENED_READY_FOR_MATTHEW`.
+STOP before implementation.
