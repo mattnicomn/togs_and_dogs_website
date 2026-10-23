@@ -43,9 +43,22 @@ production backend release remains `PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`.
 > kept (no `PENDING`/`FAILED`/`PARTIALLY_REFUNDED`; failures are `PAYMENT_EVENT` metadata), and
 > `PAYMENT_EVENT` records live in the **existing single table** under the REQUEST item collection
 > (`SK=PAYEVENT#{idempotency_key}`) so **no new table/GSI** is needed
-> (`W3B_PAYMENT_EVENT_STORAGE_INFRA_CHANGE_REQUIRED=NO`). `W3B_NEW_REGRESSIONS=0`. No Stripe
-> API/Connect/OAuth/Checkout/PaymentIntent/webhook, no Terraform/AWS/deploy. W3-C (Stripe Connect
-> Direct adapter) remains unbuilt and requires separate authorization. See the
+> (`W3B_PAYMENT_EVENT_STORAGE_INFRA_CHANGE_REQUIRED=NO`). `W3B_NEW_REGRESSIONS=0`.
+>
+> **PR #29 hardening (2026-09-24):** all canonical `*_cents` use strict minor-unit
+> `normalize_stored_cents` (no `to_cents` ×100 inflation) —
+> `W3B_CANONICAL_CENTS_MAGNITUDE_PRESERVED=PASS`; `PAYMENT_EVENT` persistence is a real
+> append-only conditional write (`persist_payment_event`, `attribute_not_exists(PK) AND
+> attribute_not_exists(SK)`) with a `CREATED`/`DUPLICATE_SAME_EVENT`/
+> `CONFLICTING_IDEMPOTENCY_KEY` result contract (`W3B_PAYMENT_EVENT_PERSISTENCE=PASS`,
+> `W3B_PAYMENT_EVENT_IDEMPOTENCY=PASS`); tenant/request ownership is enforced fail-closed before
+> any write (`load_owned_request`, `W3B_PAYMENT_TENANT_ISOLATION=PASS`); provider identifiers are
+> split into known vs active-executable (active = `MANUAL_EXTERNAL` only;
+> `W3B_PROVIDER_EXECUTION_BOUNDARY=PASS`); audit metadata uses a recursive allowlist sanitizer
+> (`W3B_PAYMENT_EVENT_METADATA_SAFETY=PASS`). The persistence layer imports `common.db`/`botocore`
+> lazily, keeping the module top level import-clean. No Stripe API/Connect/OAuth/Checkout/
+> PaymentIntent/webhook, no Terraform/AWS/deploy. W3-C (Stripe Connect Direct adapter) remains
+> unbuilt and requires separate authorization. See the
 > [W3-B release note](../release-notes/w3b-provider-neutral-payment-domain.md).
 
 ---
