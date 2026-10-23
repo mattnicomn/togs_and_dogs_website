@@ -26,6 +26,14 @@ from common.manual_external_adapter import (
     RECORD_CREATED,
     RECORD_DUPLICATE_SAME_EVENT,
     RECORD_CONFLICTING_IDEMPOTENCY_KEY,
+    ERR_VALIDATION,
+    ERR_NOT_AUTHORIZED,
+    ERR_OWNERSHIP,
+    ERR_NOT_FOUND,
+    ERR_STATE_CONFLICT,
+    ERR_IDEMPOTENCY_CONFLICT,
+    ERR_STALE_CONFLICT,
+    ERR_INFRASTRUCTURE,
 )
 
 
@@ -181,49 +189,115 @@ def test_conflicting_idempotency_key_returns_409():
 # Adapter exceptions -> HTTP (non-disclosing)
 # ---------------------------------------------------------------------------
 
+# Mapping is on the STABLE `code`, never on message text. Each error here carries a
+# sensitive/internal-looking message to prove it is NEVER echoed to the caller.
+
+def _err_body_text(resp):
+    return json.loads(resp['body']).get('error', '')
+
+
 def test_not_authorized_maps_403():
-    with patch(ADAPTER, side_effect=ManualExternalError('not authorized to record external payment')):
+    with patch(ADAPTER, side_effect=ManualExternalError('not authorized to record external payment', code=ERR_NOT_AUTHORIZED)):
         resp = admin_handler(make_event(body=_valid_body()), None)
     assert resp['statusCode'] == 403
 
 
 def test_request_not_found_maps_404():
-    with patch(ADAPTER, side_effect=ManualExternalError('request not found: REQ#req-001/CLIENT#client-001')):
+    with patch(ADAPTER, side_effect=ManualExternalError('request not found: REQ#req-001/CLIENT#client-001', code=ERR_NOT_FOUND)):
         resp = admin_handler(make_event(body=_valid_body()), None)
     assert resp['statusCode'] == 404
+    # Must not echo the adapter message (which contained the REQ#/CLIENT# keys).
+    assert 'REQ#' not in _err_body_text(resp)
+    assert 'CLIENT#' not in _err_body_text(resp)
 
 
-def test_cross_tenant_maps_403_non_disclosing():
-    with patch(ADAPTER, side_effect=ManualExternalError('cross-tenant request ownership mismatch')):
+def test_ownership_maps_403_non_disclosing():
+    # Ownership denial normalizes to the SAME generic 403 as role denial (no enumeration).
+    with patch(ADAPTER, side_effect=ManualExternalError('request ownership mismatch', code=ERR_OWNERSHIP)):
         resp = admin_handler(make_event(body=_valid_body()), None)
     assert resp['statusCode'] == 403
-    # Must not disclose the owning tenant or internal detail.
-    assert 'tenant' not in json.loads(resp['body'])['error'].lower()
+    assert _err_body_text(resp) == "Forbidden"
+    assert 'tenant' not in _err_body_text(resp).lower()
 
 
-def test_client_ownership_mismatch_maps_403():
-    with patch(ADAPTER, side_effect=ManualExternalError('client ownership mismatch for request')):
-        resp = admin_handler(make_event(body=_valid_body()), None)
-    assert resp['statusCode'] == 403
+def test_ownership_and_role_denial_are_indistinguishable():
+    # L4: a caller cannot tell "not your tenant" (OWNERSHIP) from "not allowed" (role) or
+    # from NOT_AUTHORIZED — all three return the identical generic 403 body.
+    staff_resp = admin_handler(make_event(role='staff', body=_valid_body()), None)
+    with patch(ADAPTER, side_effect=ManualExternalError('x', code=ERR_OWNERSHIP)):
+        own_resp = admin_handler(make_event(body=_valid_body()), None)
+    with patch(ADAPTER, side_effect=ManualExternalError('x', code=ERR_NOT_AUTHORIZED)):
+        auth_resp = admin_handler(make_event(body=_valid_body()), None)
+    assert staff_resp['statusCode'] == own_resp['statusCode'] == auth_resp['statusCode'] == 403
+    assert _err_body_text(staff_resp) == _err_body_text(own_resp) == _err_body_text(auth_resp) == "Forbidden"
 
 
-def test_validation_error_maps_400():
-    with patch(ADAPTER, side_effect=ManualExternalError('amount_delta_cents must be a positive integer of cents')):
+def test_validation_error_maps_400_no_message_leak():
+    with patch(ADAPTER, side_effect=ManualExternalError('amount_delta_cents must be a positive integer of cents', code=ERR_VALIDATION)):
         resp = admin_handler(make_event(body=_valid_body(amount_delta_cents=-1)), None)
     assert resp['statusCode'] == 400
+    # Fixed generic 400 message; raw adapter text is not echoed.
+    assert 'amount_delta_cents' not in _err_body_text(resp)
+
+
+def test_state_conflict_maps_409():
+    with patch(ADAPTER, side_effect=ManualExternalError('cannot record settlement from status PAID', code=ERR_STATE_CONFLICT)):
+        resp = admin_handler(make_event(body=_valid_body()), None)
+    assert resp['statusCode'] == 409
+
+
+def test_idempotency_conflict_exception_maps_409():
+    with patch(ADAPTER, side_effect=ManualExternalError('idempotency_key reused with a different payment payload', code=ERR_IDEMPOTENCY_CONFLICT)):
+        resp = admin_handler(make_event(body=_valid_body()), None)
+    assert resp['statusCode'] == 409
 
 
 def test_stale_summary_maps_409():
-    with patch(ADAPTER, side_effect=StaleSummaryConflict('stale revision')):
+    with patch(ADAPTER, side_effect=StaleSummaryConflict('request payment summary changed concurrently; reload and retry')):
         resp = admin_handler(make_event(body=_valid_body()), None)
     assert resp['statusCode'] == 409
+
+
+def test_infrastructure_error_maps_500_no_leak():
+    # L2: infra/transaction failures surface as a generic 500, never a 4xx, and never leak
+    # internal/DynamoDB detail.
+    with patch(ADAPTER, side_effect=ManualExternalError('DynamoDB table name is not configured', code=ERR_INFRASTRUCTURE)):
+        resp = admin_handler(make_event(body=_valid_body()), None)
+    assert resp['statusCode'] == 500
+    assert 'DynamoDB' not in _err_body_text(resp)
+
+
+def test_transaction_failure_maps_500_no_aws_code_leak():
+    with patch(ADAPTER, side_effect=ManualExternalError('payment transaction failed', code=ERR_INFRASTRUCTURE)):
+        resp = admin_handler(make_event(body=_valid_body()), None)
+    assert resp['statusCode'] == 500
+    assert 'transaction' not in _err_body_text(resp).lower()
 
 
 def test_unexpected_error_maps_500_no_leak():
     with patch(ADAPTER, side_effect=RuntimeError('boto internal detail')):
         resp = admin_handler(make_event(body=_valid_body()), None)
     assert resp['statusCode'] == 500
-    assert 'boto internal detail' not in json.loads(resp['body'])['error']
+    assert 'boto internal detail' not in _err_body_text(resp)
+
+
+def test_uncoded_manual_external_error_defaults_to_400():
+    # Defense-in-depth: a ManualExternalError raised without an explicit code defaults to
+    # ERR_VALIDATION -> generic 400 (never a silent 2xx, never a message leak).
+    with patch(ADAPTER, side_effect=ManualExternalError('some new internal message')):
+        resp = admin_handler(make_event(body=_valid_body()), None)
+    assert resp['statusCode'] == 400
+    assert 'some new internal message' not in _err_body_text(resp)
+
+
+def test_bare_payment_domain_error_maps_400_no_leak():
+    # Defense-in-depth: a bare PaymentDomainError (parent, uncoded) from a reused domain
+    # helper must map to a generic 400, not a 500, and must not echo its message.
+    from common.payment_domain import PaymentDomainError
+    with patch(ADAPTER, side_effect=PaymentDomainError('invalid canonical cents value: -100 (amount must not be negative)')):
+        resp = admin_handler(make_event(body=_valid_body()), None)
+    assert resp['statusCode'] == 400
+    assert 'canonical cents' not in _err_body_text(resp)
 
 
 # ---------------------------------------------------------------------------
@@ -254,3 +328,172 @@ def test_response_projection_has_no_stripe_or_raw_metadata_fields():
     data = json.loads(resp['body'])
     for forbidden in ('stripe_payment_url', 'stripe_checkout_session_id', 'note', 'metadata', 'external_reference'):
         assert forbidden not in data
+
+
+# ---------------------------------------------------------------------------
+# L3: Adapter-level stable error-code binding (real adapter, mocked auth/db).
+# These lock the adapter's rejection paths to their STABLE codes so a future message
+# reword cannot silently change the route's HTTP mapping (the route maps on code only).
+# ---------------------------------------------------------------------------
+
+import contextlib
+import importlib
+from decimal import Decimal
+import common.manual_external_adapter as mx
+from common.payment_domain import PaymentRequirement, PaymentStatus, QuoteStatus
+
+
+@pytest.fixture(autouse=True)
+def _rebind_live_adapter_classes():
+    """Test-isolation guard for the adapter-level tests below.
+
+    `tests/backend/test_w3b_payment_domain.py` calls importlib.reload(common.payment_domain)
+    in two coupling tests. A reload installs a BRAND-NEW PaymentDomainError class on the
+    live module. The already-imported `common.manual_external_adapter` keeps its import-time
+    reference to the OLD class in its `except PaymentDomainError` clauses, while the reloaded
+    load_owned_request/canonical_cents raise the NEW class — so under full-suite ordering the
+    adapter's translation would miss and an uncoded exception would escape. That is a
+    test-ordering artifact of the reload, not a production path (production never reloads).
+    We defend against it by reloading the adapter here so it re-binds to the live
+    payment_domain classes, and re-resolving the module-global `mx` used by the tests.
+    No product code is changed.
+    """
+    global mx, ManualExternalError, StaleSummaryConflict
+    mx = importlib.reload(importlib.import_module("common.manual_external_adapter"))
+    # Re-bind the exception classes the route tests raise so they match the adapter's
+    # live classes (the ERR_* codes are plain strings and are identity-independent).
+    ManualExternalError = mx.ManualExternalError
+    StaleSummaryConflict = mx.StaleSummaryConflict
+    yield
+
+
+def _adapter_event():
+    return {"requestContext": {"authorizer": {"claims": {
+        "email": "owner@example.com", "cognito:groups": "owner",
+        "custom:company_id": "co-1",
+    }}}}
+
+
+def _adapter_request(**over):
+    base = {
+        "PK": "REQ#req-1", "SK": "CLIENT#cli-1", "entity_type": "REQUEST",
+        "company_id": "co-1", "client_id": "cli-1",
+        "payment_requirement": PaymentRequirement.FULL,
+        "payment_status": PaymentStatus.UNPAID,
+        "amount_required_cents": 5000, "deposit_amount_cents": 0,
+        "amount_paid_cents": 0, "currency": "USD",
+        "quote_status": QuoteStatus.ACCEPTED,
+    }
+    base.update(over)
+    return base
+
+
+@contextlib.contextmanager
+def _adapter_patched(request_item, *, role_ok=True, company="co-1", get_item_side=None):
+    fake_client = MagicMock()
+    fake_table = MagicMock()
+    fake_table.name = "test-table"
+    fake_table.meta.client = fake_client
+    stack = contextlib.ExitStack()
+    if role_ok:
+        stack.enter_context(patch("common.auth.require_owner_or_admin", return_value="owner"))
+    else:
+        stack.enter_context(patch("common.auth.require_owner_or_admin", side_effect=PermissionError("denied")))
+    stack.enter_context(patch("common.auth.get_current_company_id", return_value=company))
+    stack.enter_context(patch("common.auth.get_claims", return_value={"email": "owner@example.com"}))
+    if get_item_side is not None:
+        stack.enter_context(patch("common.db.get_item", side_effect=get_item_side))
+    else:
+        def _default_get(pk, sk):
+            if isinstance(sk, str) and sk.startswith("CLIENT#"):
+                return request_item
+            return None
+        stack.enter_context(patch("common.db.get_item", side_effect=_default_get))
+    stack.enter_context(patch("common.db.table", fake_table))
+    stack.enter_context(patch("common.auth.DEFAULT_COMPANY_ID", "tog_and_dogs"))
+    try:
+        yield
+    finally:
+        stack.close()
+
+
+def _call_adapter(**over):
+    op = {
+        "request_id": "req-1", "client_id": "cli-1", "amount_delta_cents": 5000,
+        "currency": "USD", "idempotency_key": "idem-1",
+        "payment_method_category": "CASH",
+    }
+    op.update(over)
+    return mx.record_external_payment(_adapter_event(), **op)
+
+
+def test_adapter_code_not_authorized():
+    with _adapter_patched(_adapter_request(), role_ok=False):
+        with pytest.raises(mx.ManualExternalError) as ei:
+            _call_adapter()
+    assert ei.value.code == mx.ERR_NOT_AUTHORIZED
+
+
+def test_adapter_code_not_found_when_request_absent():
+    # load_owned_request raises (no record) AND the existence probe finds nothing -> NOT_FOUND.
+    with _adapter_patched(None, get_item_side=lambda pk, sk: None):
+        with pytest.raises(mx.ManualExternalError) as ei:
+            _call_adapter()
+    assert ei.value.code == mx.ERR_NOT_FOUND
+
+
+def test_adapter_code_ownership_when_cross_tenant():
+    # REQUEST exists (probe finds it) but belongs to another tenant -> OWNERSHIP.
+    other = _adapter_request(company_id="other-co")
+    def _get(pk, sk):
+        if isinstance(sk, str) and sk.startswith("CLIENT#"):
+            return other
+        return None
+    with _adapter_patched(other, get_item_side=_get):
+        with pytest.raises(mx.ManualExternalError) as ei:
+            _call_adapter()
+    assert ei.value.code == mx.ERR_OWNERSHIP
+
+
+def test_adapter_code_validation_negative_amount():
+    with _adapter_patched(_adapter_request()):
+        with pytest.raises(mx.ManualExternalError) as ei:
+            _call_adapter(amount_delta_cents=-100)
+    assert ei.value.code == mx.ERR_VALIDATION
+
+
+def test_adapter_code_validation_currency_mismatch():
+    with _adapter_patched(_adapter_request(currency="USD")):
+        with pytest.raises(mx.ManualExternalError) as ei:
+            _call_adapter(currency="EUR")
+    assert ei.value.code == mx.ERR_VALIDATION
+
+
+def test_adapter_code_state_conflict_terminal_status():
+    with _adapter_patched(_adapter_request(payment_status=PaymentStatus.PAID)):
+        with pytest.raises(mx.ManualExternalError) as ei:
+            _call_adapter()
+    assert ei.value.code == mx.ERR_STATE_CONFLICT
+
+
+def test_adapter_code_state_conflict_overpayment():
+    with _adapter_patched(_adapter_request(amount_required_cents=5000, amount_paid_cents=0)):
+        with pytest.raises(mx.ManualExternalError) as ei:
+            _call_adapter(amount_delta_cents=6000)
+    assert ei.value.code == mx.ERR_STATE_CONFLICT
+
+
+def test_adapter_code_state_conflict_requirement_none():
+    with _adapter_patched(_adapter_request(payment_requirement=PaymentRequirement.NONE)):
+        with pytest.raises(mx.ManualExternalError) as ei:
+            _call_adapter()
+    assert ei.value.code == mx.ERR_STATE_CONFLICT
+
+
+def test_adapter_code_infrastructure_when_table_unconfigured():
+    # table resource None -> INFRASTRUCTURE (resolved during the transaction build).
+    with _adapter_patched(_adapter_request()):
+        with patch("common.db.table", None):
+            with pytest.raises(mx.ManualExternalError) as ei:
+                _call_adapter()
+    assert ei.value.code == mx.ERR_INFRASTRUCTURE

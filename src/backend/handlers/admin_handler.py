@@ -2847,7 +2847,16 @@ def handler(event, context):
                 RECORD_CREATED,
                 RECORD_DUPLICATE_SAME_EVENT,
                 RECORD_CONFLICTING_IDEMPOTENCY_KEY,
+                ERR_VALIDATION,
+                ERR_NOT_AUTHORIZED,
+                ERR_OWNERSHIP,
+                ERR_NOT_FOUND,
+                ERR_STATE_CONFLICT,
+                ERR_IDEMPOTENCY_CONFLICT,
+                ERR_STALE_CONFLICT,
+                ERR_INFRASTRUCTURE,
             )
+            from common.payment_domain import PaymentDomainError
 
             # 1. Role gate (gateway also enforces Cognito; re-check here). Owner/admin only;
             #    staff/client are rejected with no write.
@@ -2897,26 +2906,49 @@ def handler(event, context):
                     payment_method_category=body.get('payment_method_category'),
                     note=body.get('note'),
                 )
-            except StaleSummaryConflict as sc:
-                # Concurrent writer / stale summary revision — safe to retry. No write.
-                return error(409, "Conflict: the payment summary changed concurrently; reload and retry", event)
             except ManualExternalError as me:
-                # Ownership failures must be non-disclosing. load_owned_request raises a
-                # PaymentDomainError (ManualExternalError's parent) with an ownership/not-found
-                # message; map both to a generic 403/404 that never reveals the owning tenant.
-                msg = str(me)
-                low = msg.lower()
-                if 'not authorized' in low:
+                # STABLE error-code mapping (W3-C2 hardening). We map on the adapter's
+                # typed `code` — NEVER on the message text — and never return the raw
+                # adapter message or any internal/DynamoDB detail to the caller. The raw
+                # message is logged server-side only.
+                #
+                # StaleSummaryConflict is a ManualExternalError subclass, so it is handled
+                # here too via its ERR_STALE_CONFLICT code.
+                code = getattr(me, 'code', ERR_VALIDATION)
+                print(f"INFO: external-payment rejected for REQ#{request_id} code={code}: {me}")
+
+                if code == ERR_NOT_AUTHORIZED:
                     return error(403, "Forbidden", event)
-                if 'request not found' in low:
-                    return not_found("Request not found", event)
-                if 'ownership mismatch' in low or 'cross-tenant' in low:
-                    # Fail closed; do not disclose the owning tenant.
+                if code == ERR_OWNERSHIP:
+                    # Fail closed; never disclose the owning tenant. Normalized to the SAME
+                    # generic 403 shape used for role denial so a caller cannot distinguish
+                    # "not your tenant" from "not allowed".
                     _claims = get_claims(event) or {}
-                    print(f"SECURITY: Cross-tenant external-payment attempt by {_claims.get('email')} for REQ#{request_id}")
+                    print(f"SECURITY: external-payment ownership denial by {_claims.get('email')} for REQ#{request_id}")
                     return error(403, "Forbidden", event)
-                # All other adapter errors are validation/state problems -> 400.
-                return bad_request(f"External payment rejected: {msg}", event)
+                if code == ERR_NOT_FOUND:
+                    # Generic 404 — does not reveal whether the record exists under another
+                    # tenant (that case is ERR_OWNERSHIP -> 403 above).
+                    return not_found("Request not found", event)
+                if code == ERR_IDEMPOTENCY_CONFLICT:
+                    return error(409, "Conflict: idempotency_key already used with different payment details", event)
+                if code == ERR_STALE_CONFLICT:
+                    return error(409, "Conflict: the payment summary changed concurrently; reload and retry", event)
+                if code == ERR_STATE_CONFLICT:
+                    return error(409, "Conflict: payment cannot be recorded in the request's current state", event)
+                if code == ERR_INFRASTRUCTURE:
+                    # Server/config/transaction failure — generic 500, no internal detail.
+                    print(f"ERROR: external-payment infrastructure failure for REQ#{request_id}: {me}")
+                    return internal_error("Failed to record external payment", event)
+                # ERR_VALIDATION and any unrecognized code -> generic 400 with a FIXED
+                # message (no raw adapter text echoed).
+                return bad_request("External payment request is invalid", event)
+            except PaymentDomainError as pde:
+                # Defense-in-depth: a reused W3-B domain helper could raise a bare
+                # PaymentDomainError (parent of ManualExternalError) without a stable code.
+                # Treat as generic caller-input invalidity (400); never echo the message.
+                print(f"INFO: external-payment domain rejection for REQ#{request_id}: {pde}")
+                return bad_request("External payment request is invalid", event)
             except Exception as ex:
                 print(f"ERROR: external-payment unexpected failure for REQ#{request_id}: {ex}")
                 return internal_error("Failed to record external payment", event)

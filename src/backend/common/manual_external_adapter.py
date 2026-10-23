@@ -61,12 +61,48 @@ RECORD_DUPLICATE_SAME_EVENT = PERSIST_DUPLICATE_SAME_EVENT
 RECORD_CONFLICTING_IDEMPOTENCY_KEY = PERSIST_CONFLICTING_IDEMPOTENCY_KEY
 
 
+# ---------------------------------------------------------------------------
+# Stable error codes (W3-C2 hardening)
+# ---------------------------------------------------------------------------
+# Callers (HTTP routes) MUST map on these stable codes, never on exception message
+# text. Messages are developer-facing/log-only and may change; codes are the contract.
+# Grouping by intended caller disposition:
+#   *_VALIDATION   -> 400 (bad caller input)
+#   NOT_AUTHORIZED -> 403 (role/authorization)
+#   OWNERSHIP      -> 403 (tenant/client ownership; non-disclosing)
+#   NOT_FOUND      -> 404 (request does not exist for this caller; non-disclosing)
+#   STATE_CONFLICT -> 409 (terminal/illegal state, overpayment)
+#   IDEMPOTENCY_CONFLICT -> 409 (key reused with different evidence)
+#   STALE_CONFLICT -> 409 (concurrent writer / stale summary revision)
+#   INFRASTRUCTURE -> 500 (server/config/transaction failure; never a client 4xx)
+ERR_VALIDATION = "VALIDATION"
+ERR_NOT_AUTHORIZED = "NOT_AUTHORIZED"
+ERR_OWNERSHIP = "OWNERSHIP"
+ERR_NOT_FOUND = "NOT_FOUND"
+ERR_STATE_CONFLICT = "STATE_CONFLICT"
+ERR_IDEMPOTENCY_CONFLICT = "IDEMPOTENCY_CONFLICT"
+ERR_STALE_CONFLICT = "STALE_CONFLICT"
+ERR_INFRASTRUCTURE = "INFRASTRUCTURE"
+
+
 class ManualExternalError(PaymentDomainError):
-    """Raised for invalid MANUAL_EXTERNAL settlement operations (caller maps to 4xx)."""
+    """Raised for invalid MANUAL_EXTERNAL settlement operations.
+
+    Carries a STABLE ``code`` (one of the ``ERR_*`` constants above) so HTTP callers can
+    map to a status without parsing the human-readable message. ``code`` defaults to
+    ``ERR_VALIDATION`` (the safe 400 default) when not specified.
+    """
+
+    def __init__(self, message, code=ERR_VALIDATION):
+        super().__init__(message)
+        self.code = code
 
 
 class StaleSummaryConflict(ManualExternalError):
     """The REQUEST summary changed under us (stale revision / concurrent writer)."""
+
+    def __init__(self, message, code=ERR_STALE_CONFLICT):
+        super().__init__(message, code=code)
 
 
 # ---------------------------------------------------------------------------
@@ -289,13 +325,17 @@ def _resolve_table_and_name():
     """
     from common.db import table as _table
     if _table is None:
-        raise ManualExternalError("DynamoDB table resource is not configured")
+        raise ManualExternalError(
+            "DynamoDB table resource is not configured", code=ERR_INFRASTRUCTURE
+        )
     table_name = getattr(_table, "name", None)
     if not table_name:
         import os
         table_name = os.environ.get("DATA_TABLE_NAME")
     if not table_name:
-        raise ManualExternalError("DynamoDB table name is not configured")
+        raise ManualExternalError(
+            "DynamoDB table name is not configured", code=ERR_INFRASTRUCTURE
+        )
     return _table.meta.client, table_name
 
 
@@ -384,7 +424,9 @@ def record_external_payment(
     try:
         require_owner_or_admin(event)
     except PermissionError as exc:
-        raise ManualExternalError("not authorized to record external payment") from exc
+        raise ManualExternalError(
+            "not authorized to record external payment", code=ERR_NOT_AUTHORIZED
+        ) from exc
 
     # 2. Trusted tenant + actor (never from caller body).
     company_id = get_current_company_id(event)
@@ -397,9 +439,21 @@ def record_external_payment(
         raise ManualExternalError("request_id and client_id are required")
     if not idempotency_key or not isinstance(idempotency_key, str) or not idempotency_key.strip():
         raise ManualExternalError("idempotency_key (non-empty string) is required")
-    delta = canonical_cents(amount_delta_cents)
+    try:
+        delta = canonical_cents(amount_delta_cents)
+    except PaymentDomainError as exc:
+        # canonical_cents rejects negative / non-integral / bool / unparseable amounts with
+        # a bare PaymentDomainError. That is caller-input invalidity: normalize it to a
+        # coded ManualExternalError (400) so it never escapes uncoded (which an HTTP caller
+        # would otherwise see as a 500).
+        raise ManualExternalError(
+            "amount_delta_cents must be a positive integer of cents",
+            code=ERR_VALIDATION,
+        ) from exc
     if delta <= 0:
-        raise ManualExternalError("amount_delta_cents must be a positive integer of cents")
+        raise ManualExternalError(
+            "amount_delta_cents must be a positive integer of cents", code=ERR_VALIDATION
+        )
     if not currency:
         raise ManualExternalError("currency is required")
     method_category = validate_payment_method_category(payment_method_category)
@@ -413,7 +467,28 @@ def record_external_payment(
     )
 
     # 4. Load + validate REQUEST ownership (fail closed; no write on mismatch).
-    request_item = load_owned_request(request_id, client_id, company_id)
+    #    load_owned_request (W3-B shared domain, unchanged) raises a bare PaymentDomainError
+    #    on missing/cross-tenant/client-mismatch. Translate it here into a STABLE-coded
+    #    ManualExternalError so the HTTP caller never has to parse message text. We
+    #    deliberately classify missing-vs-unauthorized using the existence of the canonical
+    #    REQUEST key (PK=REQ#.., SK=CLIENT#..): a record that does not exist at all -> 404;
+    #    a record that exists but is not owned by this tenant/client -> 403 ownership. Both
+    #    map to non-disclosing responses at the HTTP layer; this internal split only drives
+    #    the 404-vs-403 status and never leaks the owning tenant.
+    try:
+        request_item = load_owned_request(request_id, client_id, company_id)
+    except ManualExternalError:
+        raise
+    except PaymentDomainError as exc:
+        from common.db import get_item as _probe_get_item
+        exists = bool(_probe_get_item(request_pk(request_id), f"CLIENT#{client_id}"))
+        if exists:
+            raise ManualExternalError(
+                "request ownership mismatch", code=ERR_OWNERSHIP
+            ) from exc
+        raise ManualExternalError(
+            "request not found", code=ERR_NOT_FOUND
+        ) from exc
 
     # 4a. Early idempotency pre-check: if a PAYMENT_EVENT already exists for this
     # (request, idempotency_key), this is a replay. A legitimately-applied prior
@@ -435,7 +510,8 @@ def record_external_payment(
         ):
             return _idempotent_replay_result(request_id, client_id, company_id, request_item)
         raise ManualExternalError(
-            "idempotency_key reused with a different payment payload"
+            "idempotency_key reused with a different payment payload",
+            code=ERR_IDEMPOTENCY_CONFLICT,
         )
 
     # 5. Read canonical current summary (both RAW persisted and normalized forms).
@@ -445,7 +521,8 @@ def record_external_payment(
     if req not in (PaymentRequirement.DEPOSIT, PaymentRequirement.FULL):
         # NONE / unknown → no collection to record.
         raise ManualExternalError(
-            f"request does not require collectible payment (payment_requirement={req!r})"
+            f"request does not require collectible payment (payment_requirement={req!r})",
+            code=ERR_STATE_CONFLICT,
         )
     prev_status = normalize_payment_status(request_item.get("payment_status"))
     required_cents = canonical_cents(request_item.get("amount_required_cents")
@@ -457,21 +534,26 @@ def record_external_payment(
 
     # 6. Currency must match the canonical REQUEST currency (no FX).
     if currency != req_currency:
+        # Caller-supplied currency differs from the canonical request currency: this is a
+        # bad-input validation error (400), not a state conflict.
         raise ManualExternalError(
-            f"currency mismatch: operation {currency!r} != request {req_currency!r}"
+            f"currency mismatch: operation {currency!r} != request {req_currency!r}",
+            code=ERR_VALIDATION,
         )
 
     # 7. Reject settlement from terminal/illegal states up front (clear errors).
     if prev_status in (PaymentStatus.PAID, PaymentStatus.REFUNDED, PaymentStatus.NOT_REQUIRED):
         raise ManualExternalError(
-            f"cannot record settlement from status {prev_status}"
+            f"cannot record settlement from status {prev_status}",
+            code=ERR_STATE_CONFLICT,
         )
 
     # 8. Compute new total + reject overpayment (W3-C1 does not model overpayment).
     new_amount_paid = existing_paid + delta
     if required_cents > 0 and new_amount_paid > required_cents:
         raise ManualExternalError(
-            "amount_paid would exceed required total (overpayment not modeled in W3-C1)"
+            "amount_paid would exceed required total (overpayment not modeled in W3-C1)",
+            code=ERR_STATE_CONFLICT,
         )
 
     # 9. Derive resulting status (never from the caller).
@@ -525,7 +607,12 @@ def record_external_payment(
     except ClientError as exc:
         code = (exc.response or {}).get("Error", {}).get("Code")
         if code not in ("TransactionCanceledException", "ConditionalCheckFailedException"):
-            raise ManualExternalError(f"payment transaction failed: {code}") from exc
+            # Unexpected DynamoDB/transaction failure: server-side infrastructure problem.
+            # The raw AWS error code is kept in logs (via the chained exception) but NOT in
+            # the exception message, so it can never surface to an API caller.
+            raise ManualExternalError(
+                "payment transaction failed", code=ERR_INFRASTRUCTURE
+            ) from exc
         # Classify: read the event key.
         result, existing = _classify_cancellation(request_id, idempotency_key, event_item)
         if result == RECORD_DUPLICATE_SAME_EVENT:
@@ -538,7 +625,8 @@ def record_external_payment(
             committed_revision = _current_summary_revision(current)
         elif result == RECORD_CONFLICTING_IDEMPOTENCY_KEY:
             raise ManualExternalError(
-                "idempotency_key reused with a different payment payload"
+                "idempotency_key reused with a different payment payload",
+                code=ERR_IDEMPOTENCY_CONFLICT,
             )
         else:  # stale / concurrent REQUEST summary conflict, no event exists
             raise StaleSummaryConflict(
