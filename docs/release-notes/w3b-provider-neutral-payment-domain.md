@@ -1,7 +1,7 @@
 # W3-B — Provider-Neutral Payment Domain (Local Implementation, Not Deployed)
 
-**Date:** 2026-09-24
-**Disposition:** `W3B_PROVIDER_NEUTRAL_PAYMENT_DOMAIN_READY_FOR_FINAL_REVIEW`
+**Date:** 2026-10-23
+**Disposition:** `W3B_PROVIDER_NEUTRAL_PAYMENT_DOMAIN_HARDENED_READY_FOR_FINAL_REVIEW`
 **Status flags:** `W3_B_IMPLEMENTATION_AUTHORIZED=YES`;
 `W3_B_PROVIDER_NEUTRAL_PAYMENT_DOMAIN_IMPLEMENTED_LOCAL_NOT_DEPLOYED`;
 `W3_B_DEPLOYED=NO`.
@@ -124,8 +124,10 @@ UI / scheduling / tenant-resolution change).
   isolation / provider boundary / metadata safety).
 - `tests/backend/test_quote_contract.py` (shared enums): **50 passed**.
 - Full backend suite on the feature branch: **1934 passed, 90 failed**.
-- Clean baseline at `f1c49fe` (throwaway worktree, since removed with
-  `git worktree remove --force`, no prune): **1760 passed, 90 failed**.
+- Clean baseline at `f1c49fe` (throwaway worktree; its git worktree **registration was
+  removed** with `git worktree remove --force` and **no `git worktree prune` was run** —
+  a leftover OS temp directory may remain due to a lingering file handle, which does not
+  affect repository worktree state): **1760 passed, 90 failed**.
 - Failing-test node-ID sets are **identical** between baseline and feature branch
   (`Compare-Object` → `new=0 gone=0`); the +174 passing delta over baseline is exactly
   the W3-B tests. **`W3B_NEW_REGRESSIONS=0`.** The 90 pre-existing failures are

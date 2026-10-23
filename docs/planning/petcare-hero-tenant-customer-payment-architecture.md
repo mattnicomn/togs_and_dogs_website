@@ -31,7 +31,7 @@ production backend release remains `PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`.
 > **Naming boundary:** this is *Workflow & Payment Architecture — Workstream 3 (Tenant Customer
 > Payment Architecture)*. It is NOT the historical Ryan scheduling workstreams.
 
-> **W3-B implementation update (2026-09-24):** `W3_B_IMPLEMENTATION_AUTHORIZED=YES` — Matthew
+> **W3-B implementation update (2026-10-23):** `W3_B_IMPLEMENTATION_AUTHORIZED=YES` — Matthew
 > subsequently authorized the W3-B provider-neutral payment **domain**. It is now
 > **implemented locally and delivered as a Draft PR, not merged, not deployed**:
 > `W3_B_PROVIDER_NEUTRAL_PAYMENT_DOMAIN_IMPLEMENTED_LOCAL_NOT_DEPLOYED`; `W3_B_DEPLOYED=NO`.
@@ -45,7 +45,7 @@ production backend release remains `PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`.
 > (`SK=PAYEVENT#{idempotency_key}`) so **no new table/GSI** is needed
 > (`W3B_PAYMENT_EVENT_STORAGE_INFRA_CHANGE_REQUIRED=NO`). `W3B_NEW_REGRESSIONS=0`.
 >
-> **PR #29 hardening (2026-09-24):** all canonical `*_cents` use strict minor-unit
+> **PR #29 hardening (2026-10-23):** all canonical `*_cents` use strict minor-unit
 > `normalize_stored_cents` (no `to_cents` ×100 inflation) —
 > `W3B_CANONICAL_CENTS_MAGNITUDE_PRESERVED=PASS`; `PAYMENT_EVENT` persistence is a real
 > append-only conditional write (`persist_payment_event`, `attribute_not_exists(PK) AND
