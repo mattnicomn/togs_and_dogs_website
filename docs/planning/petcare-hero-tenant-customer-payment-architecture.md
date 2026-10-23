@@ -1,13 +1,27 @@
 # PetCare Hero — Workstream 3 (Tenant Customer Payment Architecture) — Decision Package
 
-**Phase:** W3-A (architecture / decision only). **This document selects nothing and implements nothing.**
+**Phase:** W3-A (architecture / decision). **Matthew has SELECTED the architecture (Option D).**
+This document still implements nothing.
 
-**Disposition:** `W3_PAYMENT_ARCHITECTURE_DECISION_HARDENED_READY_FOR_MATTHEW`
+**Disposition:** `W3_OPTION_D_SELECTED_ARCHITECTURE_READY_FOR_FINAL_REVIEW`
 
 - `W3_ARCHITECTURE_DECISION_PHASE_AUTHORIZED=YES`
-- `W3_PAYMENT_MODEL_SELECTED=NO`
+- `W3_ARCHITECTURE_DECISION_COMPLETE=YES`
+- `W3_PAYMENT_MODEL_SELECTED=YES`
+- `W3_PLANE_B_MODEL_SELECTED=OPTION_D`
+- `W3_OPTION_D_OWNER_APPROVED=YES`
+- `W3_SELECTED_MVP_MODEL=PROVIDER_ABSTRACTION + MANUAL_EXTERNAL`
+- `W3_SELECTED_LONG_TERM_MODEL=PROVIDER_ABSTRACTION + STRIPE_CONNECT_DIRECT_CHARGES`
+- `W3_B_IMPLEMENTATION_READY_FOR_OWNER_AUTHORIZATION=YES`
+- `W3_B_IMPLEMENTATION_AUTHORIZED=NO` (a separate owner authorization is required before any
+  payment-domain code; this selection authorizes **architecture only**, not implementation)
 - `W3_PAYMENT_IMPLEMENTATION_AUTHORIZED=NO`
-- `W3_ARCHITECTURE_DECISION_PHASE_COMPLETE` (pending Matthew's model selection in §8)
+
+> **Owner decision (recorded):** Matthew approved **Option D** —
+> `PROVIDER_ABSTRACTION + MANUAL_EXTERNAL_FIRST`, with the long-term direction
+> `PROVIDER_ABSTRACTION + STRIPE_CONNECT_DIRECT_CHARGES_LATER`. This **selects** the W3
+> architecture; it does **not** authorize W3-B implementation in this turn. Marketplace/indirect
+> Connect (destination/separate charges, platform-first funds flow) was **not** selected.
 
 **Checkpoint:** authored from `main == origin/main == c6e514ed7f47ff9e5ebe2e9b74c29018ecd18943`
 on branch `planning/w3-tenant-customer-payment-architecture`. Documentation/planning only — no
@@ -318,7 +332,39 @@ becomes a payments platform. Note: "Stripe Connect" is **not automatically high-
 depends on funds-flow/responsibility configuration, and direct charges keep the tenant as the
 customer-facing payment account. `W3_RECOMMENDATION_CONFIDENCE=MEDIUM`.
 
-No implementation proceeds until Matthew records a selection here.
+**OWNER SELECTION (recorded 2026-10-23):** Matthew selected **Option D** —
+`W3_PLANE_B_MODEL_SELECTED=OPTION_D`; `W3_PAYMENT_MODEL_SELECTED=YES`;
+`W3_SELECTED_MVP_MODEL=PROVIDER_ABSTRACTION + MANUAL_EXTERNAL`;
+`W3_SELECTED_LONG_TERM_MODEL=PROVIDER_ABSTRACTION + STRIPE_CONNECT_DIRECT_CHARGES`;
+`W3_OPTION_D_OWNER_APPROVED=YES`. Options B (Stripe Connect SaaS direct-charge **as the MVP**),
+C (marketplace/indirect), and E were not selected; C specifically (destination / separate charges /
+platform-first funds flow) is **not** the selected architecture and remains a future change
+requiring explicit approval (not prohibited forever, simply not selected).
+
+This selection **selects the architecture only**. It does **not** authorize W3-B implementation:
+`W3_B_IMPLEMENTATION_READY_FOR_OWNER_AUTHORIZATION=YES` but `W3_B_IMPLEMENTATION_AUTHORIZED=NO`.
+A separate implementation authorization follows after this decision record is reviewed/merged.
+
+### Selected architecture — what it means
+
+**MVP (`MANUAL_EXTERNAL` adapter):**
+- PetCare Hero implements a provider-neutral payment domain.
+- PetCare Hero does **not** move tenant customer money; the tenant collects customer payment using
+  the tenant's own external method.
+- PetCare Hero records provider-neutral payment state/workflow only.
+- PetCare Hero does **not** handle PAN/CVC.
+- **No** tenant customer charge is created on the USMISSIONHERO Stripe account.
+- Plane A (SaaS billing) and Plane B (tenant customer payments) remain separated.
+
+**Long-term (`STRIPE_CONNECT_DIRECT` adapter, later, separately authorized):**
+- Tenant represented as a connected merchant/payment account.
+- **Direct-charge / SaaS-style** funds flow; the customer charge is created against the
+  tenant-connected account (funds appear in the tenant's balance).
+- **Avoid** marketplace / destination / separate-charge architecture unless separately approved.
+- Platform responsibility / funds-flow configuration (Accounts v2 / controller) must be reviewed
+  again before implementation and again before live enablement.
+- This is the selected long-term **architectural adapter direction**; Stripe Connect
+  implementation is **NOT** approved now.
 
 ---
 
@@ -500,9 +546,32 @@ Stripe. No secret values read. No deployment. No worktree prune/repair.
 
 ## 19. Owner decision gate
 
-Implementation (W3-B+) is blocked until Matthew records a selection in **§8**
-(`W3_PLANE_B_MODEL_SELECTED`). Until then: `W3_PAYMENT_MODEL_SELECTED=NO`,
-`W3_PAYMENT_IMPLEMENTATION_AUTHORIZED=NO`.
+**Architecture selection: DONE.** Matthew selected **Option D** (§8):
+`W3_PAYMENT_MODEL_SELECTED=YES`, `W3_PLANE_B_MODEL_SELECTED=OPTION_D`,
+`W3_ARCHITECTURE_DECISION_COMPLETE=YES`.
+
+**Remaining gate — implementation authorization:** W3-B (and all later phases) remain blocked on a
+**separate** explicit owner authorization. `W3_B_IMPLEMENTATION_READY_FOR_OWNER_AUTHORIZATION=YES`;
+`W3_B_IMPLEMENTATION_AUTHORIZED=NO`; `W3_PAYMENT_IMPLEMENTATION_AUTHORIZED=NO`. No payment-domain
+code, no Stripe/Connect work, no deployment proceeds until that separate authorization is given.
+
+### W3-B — Provider-Neutral Payment Domain (planned next phase — NOT authorized/implemented here)
+
+Expected scope (later, upon separate owner authorization):
+- canonical `PaymentStatus` normalization + state transitions (reconcile the live lowercase
+  `payment_link_sent`/`paid` strings to the contract vocabulary);
+- provider-neutral payment summary (on REQUEST);
+- append-only `PAYMENT_EVENT` / transaction audit records;
+- booking-readiness predicate (NONE/DEPOSIT/FULL; quote-accept ≠ paid ≠ APPROVED);
+- amount/currency invariants;
+- tenant isolation (trusted resolution; no caller-supplied identity authority);
+- idempotency primitives;
+- the `MANUAL_EXTERNAL` adapter boundary/interface;
+- unit tests.
+
+Explicit W3-B non-goals (do NOT implement in W3-B): no Stripe API calls; no Stripe Connect; no
+OAuth/account links; no Checkout Sessions; no PaymentIntents; no live Stripe; no webhook
+infrastructure; no Terraform/AWS deployment; no production mutation; no payment UI that moves money.
 
 ---
 
