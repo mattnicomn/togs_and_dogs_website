@@ -30,14 +30,56 @@ Investigation (`infra/prod/main.tf`) confirmed all 13 Lambdas load **one shared 
 - **W1 intake behavior stays dormant** because the `intake` Lambda is not updated. (W1's unconditional `pet_ids` validation lives in `intake_handler.py`/`pet_profile.resolve_owned_pet_ids`, reached only via the `intake` Lambda.)
 - The API deployment fingerprint (`modules/api/deployment-fingerprint`) hashes API semantic config only — **not** Lambda code — so adding the route triggers exactly one API redeploy and Lambda code updates do not perturb it. A targeted IAM + admin-Lambda + API-route apply is cleanly scoped.
 - Runtime dependency order: the IAM `dynamodb:TransactWriteItems` grant must be applied **before/with** the route+Lambda, else the route returns 500 (AccessDenied).
+- **Feasible, but NOT yet plan-verified.** This strategy is architecturally sound, but an admin-only release still **requires its own exact, non-applying targeted Terraform plan** — `terraform plan -target=aws_lambda_function.admin` plus the W3-C2 API Gateway resources (and the API deployment) — to confirm the scope is exactly `aws_lambda_function.admin` + the `external-payment` route/redeploy and nothing else, before any apply is authorized. `W3C2_ADMIN_ONLY_RELEASE_FEASIBLE=YES`; `W3C2_ADMIN_ONLY_TARGETED_PLAN=NOT_RUN`. (The IAM-only plan below is complete and is a *separate* targeted plan; it does not cover the admin Lambda or the API route.)
 
-### Deferred 12-Lambda updates & future-apply risk (RECORDED)
+### Phase A — IAM-only PLAN-ONLY: COMPLETED (not applied)
 
-`W3C2_ADMIN_ONLY_RELEASE_DEFERS_12_LAMBDAS=YES`. An admin-only release intentionally leaves **12 Lambdas on `W6cqyudl…`** while `main` builds `58C9Bl…`. Consequence: **Terraform state will record the other 12 as drifted**, and a future **untargeted `terraform apply` by anyone would sweep all 13 to `58C9Bl…`, silently activating W1 (and the dormant W3-B domain + W3-C1 adapter)** in production. This is an operational footgun that MUST be explicitly gated: any future untargeted apply requires its own owner authorization with W1 acceptance. `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`; `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`.
+`W3C1_TERRAFORM_VALIDATE=PASS`; `W3C1_TARGETED_IAM_PLAN=PASS`;
+`W3C1_TARGETED_IAM_PLAN_COUNTS=0_ADD_1_CHANGE_0_DESTROY`;
+`W3C1_TARGETED_IAM_PLAN_RESOURCE=module.iam.aws_iam_policy.dynamodb_access`;
+`W3C1_TERRAFORM_APPLY_AUTHORIZED=NO`.
+
+A credentialed, **non-applying** targeted plan was executed against the verified live
+baseline: `terraform plan -target=module.iam.aws_iam_policy.dynamodb_access` →
+**`Plan: 0 to add, 1 to change, 0 to destroy`**. The sole change is the in-place addition
+of `dynamodb:TransactWriteItems` to `module.iam.aws_iam_policy.dynamodb_access`; **no ARN
+widening** (Resource unchanged) and **no Lambda or other resource** appears in the plan.
+`terraform validate` passed. No apply was performed and none is authorized. This is the
+IAM grant W3-C2 requires at runtime; it is now plan-verified and awaiting a separate
+apply-authorization gate.
+
+### Lambda update scope: intentionally deferred vs external drift (distinct)
+
+Two different things must not be conflated:
+
+- **Intentionally deferred (by design):** an admin-only W3-C2 release would update **only**
+  `aws_lambda_function.admin` and **deliberately NOT update the other 12 Lambdas** (incl.
+  `intake`). Those 12 are *intended* to stay on the current production artifact
+  `W6cqyudl…`. `W3C2_ADMIN_ONLY_RELEASE_DEFERS_12_LAMBDAS=YES`. This is a chosen release
+  scope, not an anomaly.
+- **Resulting Terraform state condition (a consequence of the deferral, NOT external
+  drift):** because `main` builds `58C9Bl…` but the 12 functions remain on `W6cqyudl…`,
+  Terraform would show those 12 as pending in-place code updates on any **untargeted**
+  plan. This is an *expected, self-inflicted* pending-change set produced by the targeted
+  release — it is **distinct from external/out-of-band drift** (i.e., changes made to AWS
+  outside Terraform). The read-only audit found **no external drift**: all 13 functions are
+  uniform on the exact `W6cqyudl…` artifact Terraform last applied, with no manual/console
+  mutation. `W3C2_EXTERNAL_DRIFT_OBSERVED=NO`.
+
+**Future-apply safeguard:** because of the deferral, a future **untargeted `terraform
+apply`** by anyone would sweep all 13 Lambdas to `58C9Bl…` and **silently activate W1**
+(and deploy the otherwise-dormant W3-B domain + W3-C1 adapter). This MUST be explicitly
+gated: any untargeted apply requires its own owner authorization with W1 acceptance.
+`W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`; `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`.
 
 ### Gates preserved
 
-No apply, deploy, Lambda update, API change, IAM modification, Stripe, tenant change, Ryan testing, or production data write performed. Latest completed production backend release remains `PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`. Next planned step is a separately-authorized Phase A IAM-only PLAN-ONLY gate.
+No apply, deploy, Lambda update, API change, IAM modification, Stripe, tenant change, Ryan
+testing, or production data write performed. Latest completed production backend release
+remains `PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`. The IAM-only targeted plan is COMPLETE
+(above); the next separately-authorized gates are (a) the **IAM-only apply** of the
+plan-verified `0/1/0` change, and (b) an **admin-only W3-C2 targeted plan** (admin Lambda +
+API route) before its own apply.
 
 Checkpoint: `main == origin/main == 7787f503f1557357dd0f1ca21dd4d227c39339a8`.
 
