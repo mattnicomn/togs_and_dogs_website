@@ -31,6 +31,23 @@ production backend release remains `PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`.
 > **Naming boundary:** this is *Workflow & Payment Architecture — Workstream 3 (Tenant Customer
 > Payment Architecture)*. It is NOT the historical Ryan scheduling workstreams.
 
+> **W3-B implementation update (2026-09-24):** `W3_B_IMPLEMENTATION_AUTHORIZED=YES` — Matthew
+> subsequently authorized the W3-B provider-neutral payment **domain**. It is now
+> **implemented locally and delivered as a Draft PR, not merged, not deployed**:
+> `W3_B_PROVIDER_NEUTRAL_PAYMENT_DOMAIN_IMPLEMENTED_LOCAL_NOT_DEPLOYED`; `W3_B_DEPLOYED=NO`.
+> The proposals in §§9–16 below are the W3-A design; the realized domain lives in
+> `src/backend/common/payment_domain.py` (+ `tests/backend/test_w3b_payment_domain.py`), built
+> **alongside** the existing deployed Stripe path with no runtime switch, on branch
+> `feat/w3b-provider-neutral-payment-domain` from `main == f1c49fe` (W3-A Option D, PR #28).
+> Implementation decisions vs the §§9–16 proposals: the existing **6** `PaymentStatus` values are
+> kept (no `PENDING`/`FAILED`/`PARTIALLY_REFUNDED`; failures are `PAYMENT_EVENT` metadata), and
+> `PAYMENT_EVENT` records live in the **existing single table** under the REQUEST item collection
+> (`SK=PAYEVENT#{idempotency_key}`) so **no new table/GSI** is needed
+> (`W3B_PAYMENT_EVENT_STORAGE_INFRA_CHANGE_REQUIRED=NO`). `W3B_NEW_REGRESSIONS=0`. No Stripe
+> API/Connect/OAuth/Checkout/PaymentIntent/webhook, no Terraform/AWS/deploy. W3-C (Stripe Connect
+> Direct adapter) remains unbuilt and requires separate authorization. See the
+> [W3-B release note](../release-notes/w3b-provider-neutral-payment-domain.md).
+
 ---
 
 ## 1. Executive summary
