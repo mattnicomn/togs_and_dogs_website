@@ -28,6 +28,37 @@ DomainReject = PaymentDomainError
 
 
 # ---------------------------------------------------------------------------
+# Test-isolation guard (autouse)
+# ---------------------------------------------------------------------------
+# `tests/backend/test_w3b_payment_domain.py` calls ``importlib.reload`` on
+# ``common.payment_domain`` inside two of its coupling tests. A reload constructs a
+# BRAND-NEW ``PaymentDomainError`` class object and rebinds it on the live module. When
+# the full suite runs W3-B before W3-C1 (alphabetical collection order), our import-time
+# alias ``DomainReject = PaymentDomainError`` is left pointing at the STALE pre-reload
+# class, while the adapter (which imports the symbol lazily / by attribute) raises the
+# POST-reload class. ``pytest.raises(DomainReject)`` then fails to match an exception that
+# is, by identity, a different class — so the rejection-path assertions leak the very
+# error they assert. This is pure cross-test state bleed, invisible in isolation.
+#
+# Fix (test-file-local only): before every test, re-resolve the exception classes from
+# the currently-live modules and rebind the module globals used in assertions. This makes
+# the W3-C1 assertions robust to any earlier reload of the shared domain module, without
+# touching product code or any other test.
+@pytest.fixture(autouse=True)
+def _rebind_live_exception_classes():
+    import importlib
+    live_pd = importlib.import_module("common.payment_domain")
+    live_mx = importlib.import_module("common.manual_external_adapter")
+    g = globals()
+    g["PaymentDomainError"] = live_pd.PaymentDomainError
+    g["DomainReject"] = live_pd.PaymentDomainError
+    # Keep the adapter alias (`mx`) and its error type pointing at the live objects too,
+    # so `pytest.raises(mx.ManualExternalError)` matches the adapter-raised subclass.
+    g["mx"] = live_mx
+    yield
+
+
+# ---------------------------------------------------------------------------
 # Helpers / fixtures
 # ---------------------------------------------------------------------------
 
@@ -78,6 +109,7 @@ def _patched(adapter_request=None, get_item_side=None, raise_exc=None,
     """Return a contextmanager stack patching auth + db for the adapter."""
     fake_client = _FakeClient(raise_exc=raise_exc)
     fake_table = MagicMock()
+    fake_table.name = "test-table"          # authoritative table-resource name
     fake_table.meta.client = fake_client
 
     patches = []
@@ -433,14 +465,17 @@ def test_completed_at_set_on_paid():
 # ---------------------------------------------------------------------------
 
 def _existing_event(**over):
-    from common.payment_domain import build_payment_event
+    from common.payment_domain import build_payment_event, sanitize_payment_event_metadata
+    # Default metadata matches what _BASE_OP (no external_reference, no method category)
+    # produces: {"payment_method_category": "OTHER"}, so an exact replay binds.
+    md = over.pop("metadata", sanitize_payment_event_metadata({"payment_method_category": "OTHER"}))
     kw = dict(
         request_id="req-1", company_id="co-1",
         event_type="PAYMENT_SETTLED", idempotency_key="idem-1",
         previous_status=PaymentStatus.UNPAID, resulting_status=PaymentStatus.PAID,
         client_id="cli-1", provider=PaymentProvider.MANUAL_EXTERNAL,
         amount_delta_cents=5000, currency="USD", provider_txn_ref=None,
-        actor="manual_external:owner@example.com",
+        actor="manual_external:owner@example.com", metadata=md,
     )
     kw.update(over)
     return build_payment_event(**kw)
@@ -513,10 +548,10 @@ def test_transaction_has_two_conditional_items():
     upd = next(i for i in items if "Update" in i)["Update"]
     assert put["ConditionExpression"] == "attribute_not_exists(PK) AND attribute_not_exists(SK)"
     assert "attribute_exists(PK)" in upd["ConditionExpression"]
-    # Event item keyed under REQUEST collection.
-    assert put["Item"]["PK"] == "REQ#req-1"
-    assert put["Item"]["SK"].startswith("PAYEVENT#")
-    assert put["Item"]["payment_provider"] == "MANUAL_EXTERNAL"
+    # Low-level AttributeValue-encoded Item keyed under REQUEST collection.
+    assert put["Item"]["PK"] == {"S": "REQ#req-1"}
+    assert put["Item"]["SK"]["S"].startswith("PAYEVENT#")
+    assert put["Item"]["payment_provider"] == {"S": "MANUAL_EXTERNAL"}
 
 
 def test_revision_zero_guard_allows_absent_field():
@@ -534,7 +569,7 @@ def test_revision_increment_from_existing():
         amount_delta_cents=2500, currency="USD", idempotency_key="k9")
     assert out["payment_summary_revision"] == 2
     upd = next(i for i in client.calls[0]["TransactItems"] if "Update" in i)["Update"]
-    assert upd["ExpressionAttributeValues"][":exprev"] == 1
+    assert upd["ExpressionAttributeValues"][":exprev"] == {"N": "1"}
 
 
 # ---------------------------------------------------------------------------
@@ -596,7 +631,7 @@ def test_provider_always_manual_external():
     out, client = _run(adapter_request=_request(), **_BASE_OP)
     assert out["payment_provider"] == PaymentProvider.MANUAL_EXTERNAL
     put = next(i for i in client.calls[0]["TransactItems"] if "Put" in i)["Put"]
-    assert put["Item"]["payment_provider"] == "MANUAL_EXTERNAL"
+    assert put["Item"]["payment_provider"] == {"S": "MANUAL_EXTERNAL"}
 
 
 def test_no_target_status_input_accepted():
@@ -606,3 +641,236 @@ def test_no_target_status_input_accepted():
     assert "payment_status" not in params
     assert "resulting_status" not in params
     assert "company_id" not in params  # tenant is server-derived
+
+
+# ===========================================================================
+# W3-C1 HARDENING COVERAGE (PR #31 review)
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Low-level DynamoDB TransactWriteItems SDK shape (AttributeValue encoding).
+# ---------------------------------------------------------------------------
+
+def _transact_items(client):
+    return client.calls[0]["TransactItems"]
+
+
+def test_lowlevel_put_item_attributevalue_encoded():
+    _, client = _run(adapter_request=_request(), **_BASE_OP)
+    put = next(i for i in _transact_items(client) if "Put" in i)["Put"]
+    item = put["Item"]
+    # Every value is an AttributeValue wrapper, not a native Python value.
+    assert item["PK"] == {"S": "REQ#req-1"}
+    assert item["entity_type"] == {"S": "PAYMENT_EVENT"}
+    assert item["amount_delta_cents"] == {"N": "5000"}
+    for k, v in item.items():
+        assert isinstance(v, dict) and len(v) == 1, f"{k} not AttributeValue-encoded: {v!r}"
+        assert next(iter(v)) in {"S", "N", "BOOL", "NULL", "L", "M", "SS", "NS", "B"}
+
+
+def test_lowlevel_update_key_and_values_encoded_names_plain():
+    _, client = _run(adapter_request=_request(), **_BASE_OP)
+    upd = next(i for i in _transact_items(client) if "Update" in i)["Update"]
+    # Key AttributeValue-encoded.
+    assert upd["Key"]["PK"] == {"S": "REQ#req-1"}
+    assert upd["Key"]["SK"] == {"S": "CLIENT#cli-1"}
+    # ExpressionAttributeValues AttributeValue-encoded.
+    for k, v in upd["ExpressionAttributeValues"].items():
+        assert isinstance(v, dict) and len(v) == 1, f"{k} not encoded: {v!r}"
+    assert upd["ExpressionAttributeValues"][":rev"] == {"N": "1"}
+    assert upd["ExpressionAttributeValues"][":ps"] == {"S": PaymentStatus.PAID}
+    # ExpressionAttributeNames remain plain string maps (NOT encoded).
+    for k, v in upd["ExpressionAttributeNames"].items():
+        assert isinstance(v, str)
+    # UpdateExpression / ConditionExpression remain strings.
+    assert isinstance(upd["UpdateExpression"], str)
+    assert isinstance(upd["ConditionExpression"], str)
+
+
+def test_lowlevel_both_operands_carry_table_name():
+    _, client = _run(adapter_request=_request(), **_BASE_OP)
+    items = _transact_items(client)
+    put = next(i for i in items if "Put" in i)["Put"]
+    upd = next(i for i in items if "Update" in i)["Update"]
+    assert put["TableName"] == "test-table"
+    assert upd["TableName"] == "test-table"
+
+
+def test_serializer_rejects_nothing_valid_and_round_trips():
+    # The serializer helper is exercised directly for a representative item.
+    from boto3.dynamodb.types import TypeDeserializer
+    enc = mx._serialize_item({"PK": "REQ#x", "n": 42, "none": None, "flag": True})
+    deser = TypeDeserializer()
+    back = {k: deser.deserialize(v) for k, v in enc.items()}
+    assert back["PK"] == "REQ#x"
+    assert int(back["n"]) == 42
+    assert back["none"] is None
+    assert back["flag"] is True
+
+
+def test_table_name_missing_raises_clear_error():
+    import contextlib
+    fake_client = _FakeClient()
+    fake_table = MagicMock()
+    fake_table.name = None
+    fake_table.meta.client = fake_client
+    with patch("common.db.table", fake_table), \
+         patch.dict("os.environ", {}, clear=False):
+        import os
+        old = os.environ.pop("DATA_TABLE_NAME", None)
+        try:
+            with pytest.raises(mx.ManualExternalError):
+                mx._resolve_table_and_name()
+        finally:
+            if old is not None:
+                os.environ["DATA_TABLE_NAME"] = old
+
+
+# ---------------------------------------------------------------------------
+# Idempotency evidence binding (current inputs, not copied-from-stored).
+# ---------------------------------------------------------------------------
+
+def _stored_event_for_replay(**over):
+    from common.payment_domain import build_payment_event, sanitize_payment_event_metadata
+    md = sanitize_payment_event_metadata({"payment_method_category": over.pop("method", "CHECK")})
+    kw = dict(
+        request_id="req-1", company_id="co-1",
+        event_type="PAYMENT_SETTLED", idempotency_key="idem-1",
+        previous_status=PaymentStatus.UNPAID, resulting_status=PaymentStatus.PAID,
+        client_id="cli-1", provider=PaymentProvider.MANUAL_EXTERNAL,
+        amount_delta_cents=5000, currency="USD", provider_txn_ref="CHECK-100",
+        actor="manual_external:owner@example.com", metadata=md,
+    )
+    kw.update(over)
+    return build_payment_event(**kw)
+
+
+def _replay_run(stored_event, paid_request, **op_over):
+    def get_side(pk, sk):
+        if sk.startswith("CLIENT#"):
+            return paid_request
+        if sk.startswith("PAYEVENT#"):
+            return stored_event
+        return None
+    op = dict(_BASE_OP, external_reference="CHECK-100", payment_method_category="CHECK")
+    op.update(op_over)
+    return _run(get_item_side=get_side, raise_exc=_cond_failed(), **op)
+
+
+_PAID_REQ = dict(
+    PK="REQ#req-1", SK="CLIENT#cli-1", entity_type="REQUEST",
+    company_id="co-1", client_id="cli-1",
+    payment_requirement=PaymentRequirement.FULL, payment_status=PaymentStatus.PAID,
+    amount_required_cents=5000, deposit_amount_cents=0, amount_paid_cents=5000,
+    currency="USD", quote_status=QuoteStatus.ACCEPTED, payment_summary_revision=1,
+    payment_completed_at="2026-10-23T10:00:00Z",
+)
+
+
+def test_replay_identical_is_duplicate():
+    stored = _stored_event_for_replay()
+    out, client = _replay_run(stored, dict(_PAID_REQ))
+    assert out["result"] == mx.RECORD_DUPLICATE_SAME_EVENT
+    assert out["amount_paid_cents"] == 5000
+    assert out["payment_summary_revision"] == 1
+    assert client.calls == []  # no transaction attempted on exact replay
+
+
+def test_replay_different_amount_is_conflict():
+    stored = _stored_event_for_replay(amount_delta_cents=5000)
+    patches, client = _patched()
+    # Different current amount under same key.
+    with pytest.raises(mx.ManualExternalError):
+        _replay_run(stored, dict(_PAID_REQ), amount_delta_cents=2500)
+
+
+def test_replay_different_external_reference_is_conflict():
+    stored = _stored_event_for_replay(provider_txn_ref="CHECK-100")
+    with pytest.raises(mx.ManualExternalError):
+        _replay_run(stored, dict(_PAID_REQ), external_reference="CHECK-999")
+
+
+def test_replay_different_method_category_is_conflict():
+    stored = _stored_event_for_replay(method="CHECK")
+    with pytest.raises(mx.ManualExternalError):
+        _replay_run(stored, dict(_PAID_REQ), payment_method_category="CASH")
+
+
+def test_replay_different_note_metadata_is_conflict():
+    from common.payment_domain import build_payment_event, sanitize_payment_event_metadata
+    md = sanitize_payment_event_metadata({"payment_method_category": "CHECK", "note": "first"})
+    stored = build_payment_event(
+        request_id="req-1", company_id="co-1", event_type="PAYMENT_SETTLED",
+        idempotency_key="idem-1", previous_status=PaymentStatus.UNPAID,
+        resulting_status=PaymentStatus.PAID, client_id="cli-1",
+        provider=PaymentProvider.MANUAL_EXTERNAL, amount_delta_cents=5000, currency="USD",
+        provider_txn_ref="CHECK-100", actor="x", metadata=md,
+    )
+    with pytest.raises(mx.ManualExternalError):
+        _replay_run(stored, dict(_PAID_REQ), note="second")
+
+
+# ---------------------------------------------------------------------------
+# Legacy concurrency guard: raw status + raw paid pinned in the condition.
+# ---------------------------------------------------------------------------
+
+def test_guard_pins_raw_status_and_paid():
+    # Legacy lowercase stored status must be pinned RAW in the condition values.
+    # required 10000, existing paid 1000, delta 5000 -> 6000 (< total, no overpayment).
+    _, client = _run(adapter_request=_request(
+        payment_status="payment_link_sent", amount_paid_cents=1000,
+        amount_required_cents=10000), **_BASE_OP)
+    upd = next(i for i in _transact_items(client) if "Update" in i)["Update"]
+    vals = upd["ExpressionAttributeValues"]
+    # Raw (lowercase) status pinned, not the normalized uppercase.
+    assert vals[":eps"] == {"S": "payment_link_sent"}
+    assert vals[":eap"] == {"N": "1000"}
+    cond = upd["ConditionExpression"]
+    assert "#eps = :eps" in cond
+    assert "#eap = :eap" in cond
+
+
+def test_guard_absent_paid_uses_attribute_not_exists():
+    # A settleable record (UNPAID) with no amount_paid_cents field present -> logical 0,
+    # guarded via attribute_not_exists so a concurrently-added nonzero value is not lost.
+    req = _request(amount_required_cents=5000, payment_status=PaymentStatus.UNPAID)
+    req.pop("amount_paid_cents", None)
+    _, client = _run(adapter_request=req, **_BASE_OP)
+    upd = next(i for i in _transact_items(client) if "Update" in i)["Update"]
+    cond = upd["ConditionExpression"]
+    assert "attribute_not_exists(#eap)" in cond
+    assert ":eap" not in upd["ExpressionAttributeValues"]
+    # Status is present (UNPAID) so it is pinned by value.
+    assert upd["ExpressionAttributeValues"][":eps"] == {"S": PaymentStatus.UNPAID}
+
+
+def test_guard_revision_pinned_with_status_and_paid():
+    _, client = _run(adapter_request=_request(
+        amount_required_cents=5000, amount_paid_cents=2500,
+        payment_status=PaymentStatus.PARTIALLY_PAID, payment_summary_revision=1),
+        event=_event(), request_id="req-1", client_id="cli-1",
+        amount_delta_cents=2500, currency="USD", idempotency_key="k10")
+    upd = next(i for i in _transact_items(client) if "Update" in i)["Update"]
+    cond = upd["ConditionExpression"]
+    assert "#rev = :exprev" in cond
+    assert "#eps = :eps" in cond
+    assert "#eap = :eap" in cond
+    vals = upd["ExpressionAttributeValues"]
+    assert vals[":exprev"] == {"N": "1"}
+    assert vals[":eps"] == {"S": PaymentStatus.PARTIALLY_PAID}
+    assert vals[":eap"] == {"N": "2500"}
+
+
+# ---------------------------------------------------------------------------
+# Malformed revision normalization.
+# ---------------------------------------------------------------------------
+
+def test_malformed_revision_raises_manual_external_error():
+    with pytest.raises(mx.ManualExternalError):
+        mx._current_summary_revision({"payment_summary_revision": "not-a-number"})
+
+
+def test_fractional_revision_raises_manual_external_error():
+    from decimal import Decimal
+    with pytest.raises(mx.ManualExternalError):
+        mx._current_summary_revision({"payment_summary_revision": Decimal("1.5")})

@@ -1,11 +1,15 @@
 # W3-C1 — MANUAL_EXTERNAL Payment Adapter (Local Implementation, Not Deployed)
 
-**Date:** 2026-10-23
-**Disposition:** `W3C1_MANUAL_EXTERNAL_ADAPTER_DRAFT_PR_READY_FOR_OWNER_REVIEW`
+**Date:** 2026-10-23 (hardened 2026-09-24)
+**Disposition:** `W3C1_MANUAL_EXTERNAL_ADAPTER_HARDENED_READY_FOR_FINAL_REVIEW`
 **Status flags:** `W3C1_LOCAL_IMPLEMENTATION_AUTHORIZED=YES`;
 `W3C1_MANUAL_EXTERNAL_ADAPTER_IMPLEMENTED_LOCAL_NOT_DEPLOYED`;
 `W3C1_RUNTIME_ENABLED=NO`; `W3C1_IAM_CHANGE_AUTHORIZED=NO`;
 `W3C1_TERRAFORM_CHANGE_AUTHORIZED=NO`; `W3C1_DEPLOYMENT_AUTHORIZED=NO`.
+**Hardening flags:** `W3C1_DYNAMODB_TRANSACTION_SERIALIZATION=PASS`;
+`W3C1_TRANSACTION_TABLE_NAME=PASS`; `W3C1_IDEMPOTENCY_EVIDENCE_BINDING=PASS`;
+`W3C1_LEGACY_CONCURRENCY_GUARD=PASS`; `W3C1_TEST_ISOLATION=PASS`;
+`W3C1_NEW_REGRESSIONS=0`.
 
 ## Summary
 
@@ -22,11 +26,13 @@ one Draft PR; not merged, not deployed. `W3C1_IMPLEMENTATION_RECONCILIATION=PASS
 
 ## Scope (exact files)
 
-- `src/backend/common/manual_external_adapter.py` — new server-only adapter/service.
-- `tests/backend/test_w3c1_manual_external_adapter.py` — new tests (42).
+- `src/backend/common/manual_external_adapter.py` — new server-only adapter/service
+  (transaction/idempotency/concurrency hardening).
+- `tests/backend/test_w3c1_manual_external_adapter.py` — new tests (57), incl. an
+  autouse test-isolation guard.
 - `docs/release-notes/w3c1-manual-external-adapter.md` — this note.
-- `docs/project-continuity/current-state.md`, `docs/project-continuity/document-map.md`,
-  `docs/release-notes/index.md` — doc updates.
+- `docs/project-continuity/current-state.md`, `docs/release-notes/index.md` — doc
+  updates.
 
 No handlers/routes, API Gateway, web/mobile, Terraform, IAM, Stripe, webhook,
 scheduling, or tenant-provisioning files changed. `W3C1_SCOPE_EXPANSION_REQUIRES_OWNER_REVIEW`
@@ -75,6 +81,32 @@ not triggered.
   `Put` (`attribute_not_exists(PK) AND attribute_not_exists(SK)`) + REQUEST summary
   `Update` (revision guard). All-or-nothing; no two-independent-writes; the W3-B
   `persist_payment_event` primitive is intentionally not used here.
+- **Transaction serialization** (`W3C1_DYNAMODB_TRANSACTION_SERIALIZATION=PASS`): the two
+  operands are built as low-level `TransactWriteItems` items and marshalled through
+  `boto3.dynamodb.types.TypeSerializer` so every `Item`/`Key`/`ExpressionAttributeValues`
+  field is AttributeValue-encoded (`{"S": …}`/`{"N": …}`), while `ExpressionAttributeNames`
+  and the condition/update expression strings stay plain. The transaction is executed via
+  `table.meta.client.transact_write_items` so each operand carries an explicit
+  `TableName`.
+- **Transaction table resolution** (`W3C1_TRANSACTION_TABLE_NAME=PASS`): the table resource
+  and its name are resolved from the live `common.db.table` (preferring `table.name`,
+  falling back to the `DATA_TABLE_NAME` env var); if neither yields a name the adapter
+  raises `ManualExternalError` before any write, so a transaction is never issued without
+  a `TableName`.
+- **Idempotency evidence binding** (`W3C1_IDEMPOTENCY_EVIDENCE_BINDING=PASS`): a replay is
+  classified `DUPLICATE_SAME_EVENT` only when the stored event matches the **current
+  request's** full evidence — tenant, client, canonical amount delta, currency, provider
+  transaction reference, payment-method category, and the sanitized metadata/note —
+  rather than a looser subset; any divergence is a `CONFLICTING_IDEMPOTENCY_KEY` with no
+  write.
+- **Legacy concurrency guard** (`W3C1_LEGACY_CONCURRENCY_GUARD=PASS`): the REQUEST summary
+  `Update` condition pins `attribute_exists(PK)`, the revision
+  (`attribute_not_exists(#rev) OR #rev = :exprev` for logical 0, else `#rev = :exprev`),
+  **and** the pre-read RAW `payment_status` and `amount_paid_cents` (each as `#x = :x`, or
+  `attribute_not_exists(#x)` when absent at read time). This closes the legacy window
+  where a revision-less or concurrently-mutated summary could be overwritten. A malformed
+  or fractional stored revision is normalized to `ManualExternalError` (no lower-level
+  type leaks).
 - **Optimistic concurrency** (`W3C1_PAYMENT_SUMMARY_REVISION=PASS`):
   `payment_summary_revision` — absent/legacy → logical 0 (guard accepts
   `attribute_not_exists(#rev) OR #rev = 0`); first settlement → 1; each subsequent → +1;
@@ -112,26 +144,59 @@ Terraform/IAM file was edited this phase.
 
 ## Verification
 
-- Focused suite `tests/backend/test_w3c1_manual_external_adapter.py`: **42 passed**
+- Focused suite `tests/backend/test_w3c1_manual_external_adapter.py`: **57 passed**
   (authorization, tenant/ownership, canonical cents incl. Decimal magnitude, FULL +
   DEPOSIT derivation incl. below-deposit partial reconciliation, status guards,
   `payment_completed_at`, idempotency/conflict/stale classification, two-item
-  conditional transaction contract, revision semantics, evidence/metadata safety,
-  booking readiness, provider-always-MANUAL_EXTERNAL, no-target-status, no
-  Stripe/network/route imports).
+  conditional transaction contract, low-level AttributeValue serialization, TableName
+  resolution incl. the missing-name error, revision semantics incl. malformed/fractional
+  normalization, idempotency evidence binding (replay same/different amount, reference,
+  method category, note/metadata), legacy raw-status/paid concurrency guard,
+  evidence/metadata safety, booking readiness, provider-always-MANUAL_EXTERNAL,
+  no-target-status, no Stripe/network/route imports).
 - `tests/backend/test_w3b_payment_domain.py` (174) + `tests/backend/test_quote_contract.py`
   (50): **224 passed** — no regression in the reused W3-B domain.
-- **`W3C1_NEW_REGRESSIONS=0`.** The adapter is a new module imported by no existing
-  runtime handler, so it cannot affect other suites; the full-backend failing set is the
-  same ~90 pre-existing environmental failures (Terraform/IAM static analysis, Google
-  Calendar tenant resolution, Stripe/Postmark, entitlement DB, rbac/purge,
-  terms-acceptance, intake) present on the clean `0eccf1a` baseline, plus zero new.
-  (Note: a shell/stdout-capture defect in this environment prevented an independent
-  re-capture of the full-suite node-ID baseline diff this turn; the zero-regression
-  conclusion rests on the passing focused + W3-B + quote-contract suites and the fact
-  that the only W3-C1-attributable full-suite failures observed were self-test assertion
-  mismatches, all since fixed and passing. Flagged for the reviewer to re-run the full
-  comparison in a clean environment.)
+
+### Test isolation (`W3C1_TEST_ISOLATION=PASS`)
+
+A full-suite run initially surfaced 6 W3-C1 "failures" that never reproduced in isolation
+or under `-k w3c1_manual_external`. Root cause
+(`W3C1_TEST_STATE_LEAK_ROOT_CAUSE`): `tests/backend/test_w3b_payment_domain.py` calls
+`importlib.reload(common.payment_domain)` inside two coupling tests, which constructs a
+**new** `PaymentDomainError` class object on the live module. Because W3-B collates before
+W3-C1 (alphabetical order), the W3-C1 test file's import-time alias
+`DomainReject = PaymentDomainError` was left pointing at the **stale pre-reload** class,
+so `pytest.raises(DomainReject)` no longer matched the freshly-raised post-reload
+exception and 6 rejection-path assertions leaked the very error they asserted — pure
+cross-test state bleed, invisible in isolation.
+
+Fix (test-file-local only, no product-code change): an autouse fixture in
+`test_w3c1_manual_external_adapter.py` re-resolves the exception classes from the
+currently-live `common.payment_domain` / `common.manual_external_adapter` modules before
+each test, so assertions are robust to any earlier reload of the shared domain module.
+`W3C1_SCOPE_EXPANSION_REQUIRES_OWNER_REVIEW` not triggered. Order independence verified:
+isolated **57 passed**; `test_w3b_payment_domain.py` + `test_w3c1_manual_external_adapter.py`
+together (reproduces the reload ordering) **231 passed**; three `-k w3c1_manual_external`
+context runs **57 passed** each.
+
+### Full-suite regression comparison (`W3C1_NEW_REGRESSIONS=0`)
+
+A JUnit-XML node-ID comparison was run between this feature branch and a detached worktree
+at the clean `0eccf1a` base:
+
+| Run | tests | failures | errors |
+| --- | ----- | -------- | ------ |
+| Feature (`FEATURE_W3C1.xml`) | 2081 | 90 | 0 |
+| Baseline (`BASELINE_W3C1.xml`, `0eccf1a`) | 2024 | 90 | 0 |
+
+The feature adds exactly 57 tests (the W3-C1 file), all passing. The exact set difference
+`FEATURE − BASELINE` of failing node IDs is empty: **`NEW_FAILING_NODE_IDS=NONE`**, and
+**0** W3-C1 nodes fail in the full feature suite. The 90 failures are the identical
+pre-existing environmental set on both runs (Terraform/IAM static analysis against absent
+`.tf` files, public-intake tenant-resolution, phase24a service-type/duration contract,
+Google Calendar tenant isolation, Stripe/Postmark, entitlement DB, rbac/purge,
+terms-acceptance, intake). The baseline detached worktree was removed afterward (no
+`git worktree prune`).
 
 ## Boundary / gates preserved
 

@@ -49,7 +49,7 @@ from common.payment_domain import (
     PERSIST_DUPLICATE_SAME_EVENT,
     PERSIST_CONFLICTING_IDEMPOTENCY_KEY,
 )
-from common.quote_contract import QuoteStatus, normalize_stored_cents
+from common.quote_contract import QuoteStatus, normalize_stored_cents, QuoteContractError
 
 
 # ---------------------------------------------------------------------------
@@ -143,10 +143,12 @@ def _current_summary_revision(request_item):
         return 0
     try:
         return int(normalize_stored_cents(raw))  # integer, non-negative, no ×100
-    except PaymentDomainError:
+    except (PaymentDomainError, QuoteContractError) as exc:
+        # normalize_stored_cents raises the quote-contract error type; normalize any
+        # malformed-revision failure to ManualExternalError so no lower-level type leaks.
         raise ManualExternalError(
-            f"invalid {PAYMENT_SUMMARY_REVISION_FIELD}: {raw!r}"
-        )
+            f"invalid {PAYMENT_SUMMARY_REVISION_FIELD}: {raw!r} ({exc})"
+        ) from exc
 
 
 def _now_iso():
@@ -186,12 +188,17 @@ def derive_resulting_status(payment_requirement, prev_status, new_amount_paid,
 
 def _build_summary_update_item(request_id, client_id, resulting_status, new_amount_paid,
                                currency, payment_completed_at, expected_revision,
-                               next_revision):
+                               next_revision, expected_raw_status, expected_raw_paid):
     """Build the TransactWriteItems `Update` operand for the REQUEST summary.
 
-    Conditional guard: the REQUEST exists AND its revision equals ``expected_revision``.
-    For ``expected_revision == 0`` the guard also accepts a record where the revision
-    attribute is absent (legacy/first-settlement), via ``attribute_not_exists``.
+    Conditional guard pins the exact payment state the settlement was computed from:
+    the REQUEST exists, ``payment_summary_revision`` equals ``expected_revision`` (absent
+    accepted as 0), the RAW persisted ``payment_status`` equals ``expected_raw_status``
+    (``None`` -> attribute absent), and the RAW persisted ``amount_paid_cents`` equals
+    ``expected_raw_paid`` (``None`` -> attribute absent). The raw values are the exact
+    stored forms (e.g. lowercase ``paid`` from the legacy path), so a concurrent legacy
+    writer that changes status/amount without bumping the revision still fails the
+    transaction stale instead of being overwritten.
     """
     names = {
         "#ps": "payment_status",
@@ -219,20 +226,43 @@ def _build_summary_update_item(request_id, client_id, resulting_status, new_amou
         values[":pca"] = payment_completed_at
         set_clauses.append("#pca = :pca")
 
+    # Concurrency guard: the REQUEST must exist, and the payment state this settlement
+    # was computed from must be UNCHANGED at commit time. Besides the W3-C1 revision we
+    # also pin the RAW persisted payment_status and amount_paid_cents, because the legacy
+    # Stripe path mutates those WITHOUT incrementing payment_summary_revision — pinning
+    # revision alone would let a concurrent legacy write be silently overwritten.
+    conditions = ["attribute_exists(PK)"]
+
+    # Revision guard (legacy/first-write records may omit the field -> logical 0).
     if expected_revision == 0:
-        # First settlement / legacy record: revision absent OR explicitly 0.
-        condition = (
-            "attribute_exists(PK) AND "
-            "(attribute_not_exists(#rev) OR #rev = :exprev)"
-        )
+        conditions.append("(attribute_not_exists(#rev) OR #rev = :exprev)")
     else:
-        condition = "attribute_exists(PK) AND #rev = :exprev"
+        conditions.append("#rev = :exprev")
+
+    # Raw-status guard. expected_raw_status is the UNNORMALIZED value read from the
+    # REQUEST (e.g. lowercase "paid"/"payment_link_sent" from the legacy path), so the
+    # condition compares against what is actually stored. Absent -> treat as "no status".
+    names["#eps"] = "payment_status"
+    if expected_raw_status is None:
+        conditions.append("attribute_not_exists(#eps)")
+    else:
+        values[":eps"] = expected_raw_status
+        conditions.append("#eps = :eps")
+
+    # Raw paid-amount guard. Absent -> logical 0; a legacy record omitting the field must
+    # not be overwritten if some other path has since written a nonzero value.
+    names["#eap"] = "amount_paid_cents"
+    if expected_raw_paid is None:
+        conditions.append("attribute_not_exists(#eap)")
+    else:
+        values[":eap"] = expected_raw_paid
+        conditions.append("#eap = :eap")
 
     return {
         "Update": {
             "Key": {"PK": request_pk(request_id), "SK": request_sk(client_id)},
             "UpdateExpression": "SET " + ", ".join(set_clauses),
-            "ConditionExpression": condition,
+            "ConditionExpression": " AND ".join(conditions),
             "ExpressionAttributeNames": names,
             "ExpressionAttributeValues": values,
         }
@@ -250,29 +280,74 @@ def _build_event_put_item(event_item, table_name):
     return {"Put": put}
 
 
+def _resolve_table_and_name():
+    """Return (low_level_client, table_name) from the repository Table resource.
+
+    Prefers the authoritative Table-resource name over the environment variable. Fails
+    clearly (ManualExternalError) if no table/name is configured — every low-level
+    transaction operand requires a valid TableName.
+    """
+    from common.db import table as _table
+    if _table is None:
+        raise ManualExternalError("DynamoDB table resource is not configured")
+    table_name = getattr(_table, "name", None)
+    if not table_name:
+        import os
+        table_name = os.environ.get("DATA_TABLE_NAME")
+    if not table_name:
+        raise ManualExternalError("DynamoDB table name is not configured")
+    return _table.meta.client, table_name
+
+
+def _serialize_item(mapping):
+    """AttributeValue-encode a flat/native Python dict for the low-level DynamoDB API.
+
+    Uses ``boto3.dynamodb.types.TypeSerializer`` so native values (str/int/Decimal/None/
+    bool/list/dict) become the ``{"S":..}``/``{"N":..}``/``{"NULL":..}`` wire form the
+    low-level ``transact_write_items`` requires. Centralized rather than hand-built.
+    """
+    from boto3.dynamodb.types import TypeSerializer
+    ser = TypeSerializer()
+    return {k: ser.serialize(v) for k, v in mapping.items()}
+
+
+def _to_lowlevel_transact_items(event_item, summary_update, table_name):
+    """Transform resource-style operands into low-level AttributeValue-encoded operands.
+
+    Expressions stay as strings and ``ExpressionAttributeNames`` stay as normal string
+    maps; only ``Item`` / ``Key`` / ``ExpressionAttributeValues`` are AttributeValue
+    encoded. Both operands carry ``TableName``.
+    """
+    put = {
+        "TableName": table_name,
+        "Item": _serialize_item(event_item),
+        "ConditionExpression": "attribute_not_exists(PK) AND attribute_not_exists(SK)",
+    }
+    upd_src = summary_update["Update"]
+    update = {
+        "TableName": table_name,
+        "Key": _serialize_item(upd_src["Key"]),
+        "UpdateExpression": upd_src["UpdateExpression"],
+        "ConditionExpression": upd_src["ConditionExpression"],
+        "ExpressionAttributeNames": dict(upd_src["ExpressionAttributeNames"]),
+        "ExpressionAttributeValues": _serialize_item(upd_src["ExpressionAttributeValues"]),
+    }
+    return [{"Put": put}, {"Update": update}]
+
+
 def _execute_transaction(event_item, summary_update):
     """Execute the two-item atomic transaction via the low-level DynamoDB client.
 
-    Lazy client acquisition keeps imports clean and tests AWS-free. Returns None on
-    success; raises the botocore ClientError on cancellation so the caller can classify.
-    Note: the TransactWriteItems `Put` built here is resource-form; for execution we route
-    through the table's meta client with an explicit TableName, matching repo conventions.
+    Lazy client acquisition keeps imports clean and tests AWS-free. The operands are
+    AttributeValue-encoded (TypeSerializer) because ``transact_write_items`` is the
+    LOW-LEVEL API — native Python values would be rejected at runtime. Returns the
+    serialized TransactItems on success (for assertions); raises the botocore ClientError
+    on cancellation so the caller can classify.
     """
-    import os
-    from common.db import table as _table
-
-    table_name = os.environ.get("DATA_TABLE_NAME")
-    client = _table.meta.client
-
-    # Event Put needs TableName in low-level form.
-    event_put = _build_event_put_item(event_item, table_name)
-    # Summary Update needs TableName in low-level form.
-    summary_update = dict(summary_update)
-    summary_update["Update"] = dict(summary_update["Update"])
-    summary_update["Update"]["TableName"] = table_name
-
-    client.transact_write_items(TransactItems=[event_put, summary_update])
-    return None
+    client, table_name = _resolve_table_and_name()
+    transact_items = _to_lowlevel_transact_items(event_item, summary_update, table_name)
+    client.transact_write_items(TransactItems=transact_items)
+    return transact_items
 
 
 # ---------------------------------------------------------------------------
@@ -329,6 +404,13 @@ def record_external_payment(
         raise ManualExternalError("currency is required")
     method_category = validate_payment_method_category(payment_method_category)
     opaque_ref = validate_external_reference(external_reference)
+    # Sanitized evidence metadata is computed from CURRENT inputs (before the replay
+    # check) so it participates in idempotency-key binding — a caller cannot reuse a key
+    # and silently change the method category / note.
+    safe_metadata = sanitize_payment_event_metadata(
+        {"payment_method_category": method_category, "note": note} if note is not None
+        else {"payment_method_category": method_category}
+    )
 
     # 4. Load + validate REQUEST ownership (fail closed; no write on mismatch).
     request_item = load_owned_request(request_id, client_id, company_id)
@@ -336,25 +418,29 @@ def record_external_payment(
     # 4a. Early idempotency pre-check: if a PAYMENT_EVENT already exists for this
     # (request, idempotency_key), this is a replay. A legitimately-applied prior
     # settlement may have driven the summary to a terminal state (e.g. PAID), so we must
-    # classify the replay BEFORE the terminal-state guard rejects it. We only short-
-    # circuit on an EXACT semantic match (same event payload); a different payload under
-    # the same key is a conflict. A brand-new key falls through to normal processing, and
-    # the conditional transaction remains the authoritative idempotency guard against
-    # races between this pre-check and the write.
+    # classify the replay BEFORE the terminal-state guard rejects it. We short-circuit
+    # ONLY on an exact match of the CURRENT normalized operation inputs against the stored
+    # event (W3-C1 evidence-bound comparison — NOT a copy of the stored values). A
+    # different payload under the same key is a conflict (no write). A brand-new key falls
+    # through to normal processing; the conditional transaction remains the authoritative
+    # idempotency guard against races between this pre-check and the write.
     from common.db import get_item as _get_item
     existing_evt = _get_item(request_pk(request_id), payment_event_sk(idempotency_key))
     if existing_evt:
-        # Rebuild a candidate strictly for semantic comparison (no write).
-        candidate = _build_replay_candidate(
-            request_id, company_id, client_id, idempotency_key, existing_evt, delta, currency
-        )
-        if _events_semantically_equal(existing_evt, candidate):
+        if _settlement_matches_stored_event(
+            existing_evt,
+            request_id=request_id, company_id=company_id, client_id=client_id,
+            amount_delta_cents=delta, currency=currency, provider_txn_ref=opaque_ref,
+            payment_method_category=method_category, metadata=safe_metadata,
+        ):
             return _idempotent_replay_result(request_id, client_id, company_id, request_item)
         raise ManualExternalError(
             "idempotency_key reused with a different payment payload"
         )
 
-    # 5. Read canonical current summary.
+    # 5. Read canonical current summary (both RAW persisted and normalized forms).
+    raw_status = request_item.get("payment_status")      # exact stored form (may be lowercase)
+    raw_paid = request_item.get("amount_paid_cents")     # exact stored form (may be absent)
     req = request_item.get("payment_requirement")
     if req not in (PaymentRequirement.DEPOSIT, PaymentRequirement.FULL):
         # NONE / unknown → no collection to record.
@@ -397,10 +483,7 @@ def record_external_payment(
     event_type = (PaymentEventType.PAYMENT_SETTLED
                   if resulting_status == PaymentStatus.PAID
                   else PaymentEventType.PAYMENT_PARTIALLY_SETTLED)
-    safe_metadata = sanitize_payment_event_metadata(
-        {"payment_method_category": method_category, "note": note} if note is not None
-        else {"payment_method_category": method_category}
-    )
+    # safe_metadata was computed from current inputs at step 3 (evidence binding).
     now_iso = _now_iso()
     payment_completed_at = now_iso if resulting_status == PaymentStatus.PAID else None
 
@@ -421,12 +504,13 @@ def record_external_payment(
         now_iso=now_iso,
     )
 
-    # 11. Build the conditional summary update.
+    # 11. Build the conditional summary update (pins revision + RAW status + RAW paid).
     expected_revision = _current_summary_revision(request_item)
     next_revision = expected_revision + 1
     summary_update = _build_summary_update_item(
         request_id, client_id, resulting_status, new_amount_paid, currency,
         payment_completed_at, expected_revision, next_revision,
+        expected_raw_status=raw_status, expected_raw_paid=raw_paid,
     )
 
     # 12. Atomic two-item transaction.
@@ -502,27 +586,53 @@ def record_external_payment(
     }
 
 
-def _build_replay_candidate(request_id, company_id, client_id, idempotency_key,
-                            stored_event, delta, currency):
-    """Build a comparison-only event dict for the early idempotency pre-check.
+def _event_method_category(event_item):
+    """Extract the stored payment_method_category from an event's sanitized metadata."""
+    md = event_item.get("metadata")
+    if isinstance(md, dict):
+        return md.get("payment_method_category")
+    return None
 
-    Compares the operation-derived identity (provider, amount delta, currency, request/
-    company/client ids, opaque reference) against the stored event, reusing the stored
-    event's status/type fields (a genuine replay recomputes the same transition). This
-    is NOT persisted; it exists solely for ``_events_semantically_equal``.
+
+def _settlement_matches_stored_event(stored_event, *, request_id, company_id, client_id,
+                                     amount_delta_cents, currency, provider_txn_ref,
+                                     payment_method_category, metadata):
+    """W3-C1 evidence-bound idempotency comparison (CURRENT inputs vs stored event).
+
+    Unlike a copy-of-stored comparison, every field below comes from the CURRENT
+    normalized operation inputs, so reusing one idempotency key with any materially
+    different settlement is detected as a conflict (not a false duplicate). Compared:
+    request/company/client identity, provider (always MANUAL_EXTERNAL), amount delta
+    (canonical cents), currency, opaque external reference, payment_method_category, and
+    the full sanitized evidence metadata. ``note`` is covered because it lives inside the
+    sanitized ``metadata`` that is compared in full.
     """
-    return {
-        "event_type": stored_event.get("event_type"),
-        "payment_provider": PaymentProvider.MANUAL_EXTERNAL,
-        "previous_payment_status": stored_event.get("previous_payment_status"),
-        "resulting_payment_status": stored_event.get("resulting_payment_status"),
-        "amount_delta_cents": delta,
-        "currency": currency,
-        "request_id": request_id,
-        "company_id": company_id,
-        "client_id": client_id,
-        "provider_txn_ref": stored_event.get("provider_txn_ref"),
-    }
+    try:
+        cur_delta = canonical_cents(amount_delta_cents)
+        stored_delta = canonical_cents(stored_event.get("amount_delta_cents"))
+    except PaymentDomainError:
+        return False
+
+    if stored_event.get("payment_provider") != PaymentProvider.MANUAL_EXTERNAL:
+        return False
+    if stored_event.get("request_id") != request_id:
+        return False
+    if stored_event.get("company_id") != company_id:
+        return False
+    if stored_event.get("client_id") != client_id:
+        return False
+    if stored_delta != cur_delta:
+        return False
+    if (stored_event.get("currency") or DEFAULT_CURRENCY) != (currency or DEFAULT_CURRENCY):
+        return False
+    if stored_event.get("provider_txn_ref") != provider_txn_ref:
+        return False
+    if _event_method_category(stored_event) != payment_method_category:
+        return False
+    # Full sanitized evidence metadata must match (covers note + method category).
+    if (stored_event.get("metadata") or None) != (metadata or None):
+        return False
+    return True
 
 
 def _idempotent_replay_result(request_id, client_id, company_id, request_item):
