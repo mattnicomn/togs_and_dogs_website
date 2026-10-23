@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from common.db import query_by_status, get_item, update_status, table
 from common.notifications.service import notify_event
 from common.google_calendar import sync_calendar_event, delete_event
-from common.response import success, bad_request, internal_error, not_found, error
+from common.response import success, bad_request, internal_error, not_found, error, format_response
 from common.auth import get_effective_role, sanitize_booking_for_role, get_claims
 from common.tenant_read_scope import (
     build_tenant_read_filter, read_confidential_page, PaginationTraversalLimitReached,
@@ -2827,6 +2827,129 @@ def handler(event, context):
                 "payment_status": "payment_link_sent"
             }, event)
 
+        elif http_method == 'POST' and '/admin/requests/' in path and path.endswith('/external-payment'):
+            # W3-C2: record a MANUAL_EXTERNAL (cash/check/bank-transfer/external-processor)
+            # payment against a REQUEST. Thin HTTP adapter over the merged W3-C1 service
+            # `common.manual_external_adapter.record_external_payment`, which is the single
+            # source of truth for authorization, tenant/request ownership, canonical-cent
+            # validation, idempotency/conflict classification, the atomic
+            # TransactWriteItems write, the authoritative PAYMENT_EVENT, and the post-commit
+            # audit entry. No business logic is duplicated here, and NO separate audit event
+            # is emitted (the adapter owns the audit trail) to avoid duplicate audit events.
+            #
+            # Boundaries: owner/admin only; server derives tenant/actor/status/paid-total; no
+            # auto-approval/booking/scheduling/notification; no Stripe path touched; client
+            # privacy preserved via non-disclosing ownership errors.
+            from common.manual_external_adapter import (
+                record_external_payment,
+                ManualExternalError,
+                StaleSummaryConflict,
+                RECORD_CREATED,
+                RECORD_DUPLICATE_SAME_EVENT,
+                RECORD_CONFLICTING_IDEMPOTENCY_KEY,
+            )
+
+            # 1. Role gate (gateway also enforces Cognito; re-check here). Owner/admin only;
+            #    staff/client are rejected with no write.
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin']:
+                return error(403, "Forbidden", event)
+
+            # 2. Parse request_id from the path (never from the body).
+            request_id = path_params.get('request_id') or path_params.get('requestId')
+            if not request_id:
+                parts = [p for p in path.split('/') if p]
+                if (len(parts) >= 4 and parts[0] == 'admin' and parts[1] == 'requests'
+                        and parts[3] == 'external-payment'):
+                    request_id = parts[2]
+            if not request_id:
+                return bad_request("Missing request_id in path", event)
+
+            # 3. Parse body + client_id (clientId query param or client_id in body).
+            try:
+                body = json.loads(event.get('body', '{}')) if event.get('body') else {}
+            except Exception:
+                return bad_request("Invalid JSON body", event)
+            if not isinstance(body, dict):
+                return bad_request("Invalid JSON body", event)
+
+            client_id = query_params.get('clientId') or query_params.get('client_id') or body.get('client_id')
+            if not client_id:
+                return bad_request("Missing required client_id (clientId query param or client_id in body)", event)
+
+            idempotency_key = body.get('idempotency_key')
+            if not idempotency_key or not isinstance(idempotency_key, str) or not idempotency_key.strip():
+                return bad_request("idempotency_key (non-empty string) is required", event)
+
+            # 4. Delegate to the W3-C1 adapter. The caller is NEVER authoritative for
+            #    company/tenant, actor, status, paid total, or payment_completed_at; those
+            #    are all derived server-side inside the adapter. amount_delta_cents is strict
+            #    integer minor units (the adapter rejects non-integral/negative/zero).
+            try:
+                result = record_external_payment(
+                    event,
+                    request_id=request_id,
+                    client_id=client_id,
+                    amount_delta_cents=body.get('amount_delta_cents'),
+                    currency=body.get('currency') or 'USD',
+                    idempotency_key=idempotency_key,
+                    external_reference=body.get('external_reference'),
+                    payment_method_category=body.get('payment_method_category'),
+                    note=body.get('note'),
+                )
+            except StaleSummaryConflict as sc:
+                # Concurrent writer / stale summary revision — safe to retry. No write.
+                return error(409, "Conflict: the payment summary changed concurrently; reload and retry", event)
+            except ManualExternalError as me:
+                # Ownership failures must be non-disclosing. load_owned_request raises a
+                # PaymentDomainError (ManualExternalError's parent) with an ownership/not-found
+                # message; map both to a generic 403/404 that never reveals the owning tenant.
+                msg = str(me)
+                low = msg.lower()
+                if 'not authorized' in low:
+                    return error(403, "Forbidden", event)
+                if 'request not found' in low:
+                    return not_found("Request not found", event)
+                if 'ownership mismatch' in low or 'cross-tenant' in low:
+                    # Fail closed; do not disclose the owning tenant.
+                    _claims = get_claims(event) or {}
+                    print(f"SECURITY: Cross-tenant external-payment attempt by {_claims.get('email')} for REQ#{request_id}")
+                    return error(403, "Forbidden", event)
+                # All other adapter errors are validation/state problems -> 400.
+                return bad_request(f"External payment rejected: {msg}", event)
+            except Exception as ex:
+                print(f"ERROR: external-payment unexpected failure for REQ#{request_id}: {ex}")
+                return internal_error("Failed to record external payment", event)
+
+            # 5. Map adapter result -> HTTP. Response projection is client-safe (no raw
+            #    metadata, no Stripe fields, no internal provider detail). Booking readiness
+            #    is informational only (no approval/booking performed).
+            outcome = result.get('result')
+            resp_body = {
+                "result": outcome,
+                "request_id": request_id,
+                "client_id": client_id,
+                "previous_status": result.get('previous_status'),
+                "resulting_status": result.get('resulting_status'),
+                "amount_paid_cents": result.get('amount_paid_cents'),
+                "currency": body.get('currency') or 'USD',
+                "payment_completed_at": result.get('payment_completed_at'),
+                "payment_summary_revision": result.get('payment_summary_revision'),
+                "booking_ready": result.get('booking_ready'),
+                "booking_ready_reason": result.get('booking_ready_reason'),
+            }
+
+            if outcome == RECORD_CONFLICTING_IDEMPOTENCY_KEY:
+                # Same idempotency key, different evidence — no write.
+                return error(409, "Conflict: idempotency_key already used with different payment details", event)
+            if outcome == RECORD_CREATED:
+                return format_response(201, resp_body, event)
+            if outcome == RECORD_DUPLICATE_SAME_EVENT:
+                # Idempotent replay — returns the already-persisted state, no re-apply.
+                return success(resp_body, event)
+            # Defensive: unknown result vocabulary should never apply money silently.
+            return internal_error("Unrecognized payment result", event)
+
         elif http_method == 'POST' and '/admin/requests/' in path and path.endswith('/send-payment-email'):
             role = get_effective_role(event)
             if role not in ['owner', 'admin']:
@@ -3911,7 +4034,6 @@ def handler(event, context):
             return bad_request(f"Unsupported action: {action}. Please use ARCHIVE, DELETE, PURGE, or a valid terminal status.", event)
             
     except EntitlementDenied as e:
-        from common.response import format_response
         body = {
             "error": "EntitlementDenied",
             "message": str(e)
