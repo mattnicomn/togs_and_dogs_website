@@ -2,7 +2,7 @@
 
 **Phase:** W3-A (architecture / decision only). **This document selects nothing and implements nothing.**
 
-**Disposition:** `W3_PAYMENT_ARCHITECTURE_DECISION_READY_FOR_MATTHEW`
+**Disposition:** `W3_PAYMENT_ARCHITECTURE_DECISION_HARDENED_READY_FOR_MATTHEW`
 
 - `W3_ARCHITECTURE_DECISION_PHASE_AUTHORIZED=YES`
 - `W3_PAYMENT_MODEL_SELECTED=NO`
@@ -30,24 +30,38 @@ PetCare Hero is a multi-business SaaS. Two money planes must stay architecturall
 
 **Core finding:** the current source implements an early Plane-B booking-payment path
 (`admin create-payment-session` → Stripe Checkout → `stripe_webhook_handler`) **through the same
-single platform Stripe account and the same webhook/secret used for Plane A SaaS billing.** This
-conflates the two planes: today, a pet owner paying Togs & Dogs would pay **into USMISSIONHERO's
-Stripe balance**, making USMISSIONHERO the de-facto merchant/business of record for tenant
-customer money. This is sandbox-only today, so no real customer money has flowed, but the
-architecture must be corrected before any live Plane-B money is enabled.
+single platform Stripe account and the same webhook/secret used for Plane A SaaS billing.** The
+precise, code-grounded characterization (no legal conclusion asserted): the customer charge is
+**created on and settles through the USMISSIONHERO Stripe platform account**; the tenant has **no
+independent Plane-B provider-account identity**; this produces unacceptable Plane-A/Plane-B
+funds-flow and responsibility ambiguity. Any legal/business-of-record characterization requires
+formal commercial/legal confirmation and is out of scope here. This is sandbox-only today (no real
+customer money has flowed), but the architecture must be corrected before any live Plane-B money.
 
-**Recommendation (for Matthew to accept or override):**
-- **MVP:** `W3_RECOMMENDED_MVP_MODEL = PROVIDER_ABSTRACTION + TENANT_OWNED_EXTERNAL` (Option D
-  wrapping Option A) — a canonical provider-neutral payment domain whose first adapter is
-  `MANUAL/EXTERNAL` (tenant collects via their own means; PetCare Hero records state). This keeps
-  USMISSIONHERO entirely out of the Plane-B money flow and out of PCI/merchant-of-record scope
-  while the product matures.
-- **Long term:** `W3_RECOMMENDED_LONG_TERM_MODEL = PROVIDER_ABSTRACTION + TENANT_DIRECT (Stripe
-  tenant-owned)` with an optional later `STRIPE_CONNECT` adapter if/when PetCare Hero chooses to
-  become a payments platform. The provider abstraction is the durable architecture; the specific
-  processor is a pluggable adapter.
-- `W3_RECOMMENDATION_CONFIDENCE = MEDIUM` (the processor choice is genuinely Matthew's product
-  decision; the provider-abstraction + keep-platform-out-of-Plane-B spine is HIGH confidence).
+**Taxonomy note (corrected):** for a SaaS platform integrating *programmatically* with
+tenant-owned Stripe accounts, connected-account authorization/representation **is part of Stripe
+Connect**. There is no clean "tenant-owned Stripe via OAuth" alternative that sits *outside*
+Connect. Stripe's current model should be described by **funds flow and responsibility**
+(connected/merchant configuration, where funds first appear, fee responsibility,
+refund/chargeback/negative-balance responsibility, dashboard/KYC responsibility, direct vs
+indirect charges), not by a "Connect vs non-Connect Stripe" split.
+
+**Recommendation (for Matthew to accept or override; re-derived from the corrected matrix in §7):**
+- **MVP:** `W3_RECOMMENDED_MVP_MODEL = PROVIDER_ABSTRACTION + MANUAL_EXTERNAL` (Option D wrapping
+  Option A) — a canonical provider-neutral payment domain whose first adapter is `MANUAL/EXTERNAL`
+  (tenant collects via their own means; PetCare Hero records state). This avoids PetCare Hero
+  directly handling cardholder data and **materially minimizes** payment/PCI scope and funds-flow
+  responsibility while the product matures (final compliance obligations must be confirmed before
+  live enablement).
+- **Long term:** `W3_RECOMMENDED_LONG_TERM_MODEL = PROVIDER_ABSTRACTION + STRIPE_CONNECT_DIRECT_CHARGES`
+  — Stripe Connect with **direct charges on the connected tenant account** (SaaS-fit; the customer
+  charge appears on the tenant's connected account). A marketplace/indirect model
+  (destination/separate charges, funds originating on the platform) is **not** recommended unless
+  PetCare Hero deliberately becomes a marketplace/payments platform. "Stripe Connect" is **not
+  automatically high-risk** — the risk is a function of funds-flow/responsibility configuration.
+- `W3_RECOMMENDATION_CONFIDENCE = MEDIUM` (the processor/charge-model choice is Matthew's product
+  decision; the provider-abstraction + keep-platform-out-of-Plane-B spine, and the preference for
+  direct charges over marketplace charges, are HIGH confidence).
 
 The actual model choice is deferred to Matthew via the single decision block in **§8**.
 
@@ -163,87 +177,113 @@ Verified call chain (current source):
 
 ---
 
-## 6. Architecture options
+## 6. Architecture options (taxonomy corrected)
 
-### Option A — Tenant-owned external / off-platform
-PetCare Hero manages workflow only; tenant collects customer payments via their own means
-(tenant's own Stripe link, Square, invoice, cash/check). PetCare Hero records payment state
-(manually or via later import).
-- **Pros:** zero PCI/merchant-of-record exposure for USMISSIONHERO; near-zero incremental cost;
-  trivial tenant onboarding; works for any tenant/processor; fastest MVP; clean reconciliation
-  ownership stays with the tenant.
+The options are framed by **funds flow and responsibility**, not by a false "Connect vs
+non-Connect Stripe" split. Any programmatic integration with a tenant-owned Stripe account is a
+**Stripe Connect** integration; the meaningful axis is the **charge model** (direct vs indirect)
+and the resulting responsibility configuration.
+
+### Option A — External / off-platform tenant payments
+PetCare Hero does **not** integrate with a processor. The tenant owns the processor relationship
+entirely outside PetCare Hero (tenant's own Stripe link, Square, invoice, cash/check). PetCare
+Hero records payment state (manually now, or via a later import adapter).
+- **Pros:** PetCare Hero does not handle cardholder data → payment/PCI scope materially minimized;
+  near-zero incremental cost; trivial tenant onboarding; works for any tenant/processor; fastest
+  MVP; reconciliation ownership stays with the tenant.
 - **Cons:** manual/limited automation; no in-product payment UX; reconciliation is tenant-driven.
 
-### Option B — Per-tenant Stripe account (tenant-owned Stripe, direct integration)
-Each tenant connects/owns their own Stripe account; PetCare Hero integrates against that account.
-- **Pros:** tenant is merchant of record; money never touches USMISSIONHERO; good automation.
-- **Cons:** credential/secret isolation per tenant; webhook routing per account; offboarding;
-  **do NOT** default to raw secret-key entry — prefer Stripe OAuth / account authorization. More
-  build + support than A.
+### Option B — Stripe Connect, SaaS / **direct-charge** model
+The tenant is represented as a **connected merchant account**; the customer payment (Checkout/
+PaymentIntent) is created **on the tenant/connected account**, so funds first appear in the
+**connected tenant account balance**. The connected tenant is the seller/merchant-facing payment
+account. The platform *may optionally* collect an application fee later (separately approved).
+- **Funds flow:** customer → **connected tenant account** (direct charge).
+- **Fee responsibility:** configuration-dependent (tenant pays Stripe fees; optional platform app
+  fee).
+- **Refund/chargeback balance impact:** generally the **connected-account** balance.
+- **Loss/negative-balance responsibility:** configuration-dependent; direct charges keep this
+  primarily with the connected tenant.
+- **Dashboard/KYC responsibility:** the connected tenant (platform assists onboarding).
+- **Account/responsibility configuration:** evaluate against **current Stripe Accounts v2 /
+  controller-based responsibility configuration** (who is responsible for fees, losses, pricing,
+  requirements/KYC, dashboard). Do **not** design primarily around the legacy Standard/Express/
+  Custom labels (see §4-note below). Suited to SaaS-style platforms.
+- **Pros:** in-product UX; tenant is the customer-facing payment account; automation; SaaS-fit.
+- **Cons:** Connect onboarding + requirements management; per-connected-account webhook handling;
+  Stripe lock-in for this adapter.
 
-### Option C — Stripe Connect (platform)
-PetCare Hero becomes a Connect platform with connected tenant accounts. Not one design — the
-charge model determines liability:
+### Option C — Stripe Connect, **marketplace / indirect-charge** model
+**Destination charges** (`on_behalf_of` + `transfer_data`) and/or **separate charges + transfers**:
+the charge **originates on the platform** and funds first appear in the **platform** balance
+before transfer.
+- **Funds flow:** customer → **platform** balance → transfer to tenant.
+- **Refund/chargeback balance impact + negative-balance risk:** substantially greater **platform**
+  exposure.
+- **Fit:** marketplace-style models. **Not appropriate** for PetCare Hero's current SaaS model
+  unless the product deliberately becomes a marketplace/payments platform. PetCare Hero should
+  **NOT default to destination/separate charges.**
+- **Pros:** central control of funds/splits (marketplace use cases).
+- **Cons:** highest platform liability (fees/refunds/chargebacks/negative balance), highest
+  complexity, Stripe lock-in.
 
-| Connect model | Merchant/business of record | Who receives charge | Who bears fees | Who bears refunds/disputes/negative balance |
-|---|---|---|---|---|
-| Direct charges (on connected acct) | **tenant** | tenant account | tenant (platform may add app fee) | **tenant** |
-| Destination charges (`on_behalf_of` + `transfer_data`) | can be tenant (with `on_behalf_of`) | **platform** first, then transfer | platform/configurable | **platform** (funds pass through platform) |
-| Separate charges + transfers | **platform** | platform | platform | **platform** |
-
-- **Account types:** Standard (tenant owns dashboard/KYC, least platform liability), Express
-  (platform-managed onboarding, shared), Custom/controller (max control, max platform liability
-  + support + KYC burden).
-- **Key warning:** Connect does **not** automatically keep USMISSIONHERO out of the money flow —
-  destination/separate-charge models route funds through the platform and can make USMISSIONHERO
-  liable for refunds/disputes/negative balances. Only **Standard + direct charges** cleanly keeps
-  the tenant as merchant of record.
-- **Pros:** best in-product UX; scalable; application-fee monetization possible.
-- **Cons:** highest complexity, KYC/requirements management, dispute/liability exposure (model
-  dependent), platform support burden, Stripe-only lock-in.
-
-### Option D — Payment-provider abstraction
-Define a canonical internal `PaymentProvider` interface with adapters: `MANUAL/EXTERNAL`,
-`STRIPE_TENANT_DIRECT`, future `STRIPE_CONNECT`, future others.
+### Option D — Provider abstraction
+Define a canonical internal `PaymentProvider` interface with adapters: `MANUAL/EXTERNAL`
+(= Option A), `STRIPE_CONNECT_DIRECT` (= Option B), future `STRIPE_CONNECT_MARKETPLACE`
+(= Option C) only if ever needed, and future non-Stripe providers.
 - **Pros:** decouples the durable domain from the processor; supports non-Stripe tenants; lets MVP
-  ship with `MANUAL/EXTERNAL` and grow; isolates the legacy platform path behind one adapter.
-- **Cons:** small upfront abstraction cost (mitigated: the domain model is needed regardless).
-  YAGNI risk is low because multi-tenant SaaS will realistically need ≥2 providers.
+  ship with `MANUAL/EXTERNAL` and grow into direct-charge Connect; isolates the legacy platform
+  path behind one adapter.
+- **Cons:** small upfront abstraction cost (mitigated: the payment domain model is needed
+  regardless). YAGNI risk is low because a multi-tenant SaaS will realistically need ≥2 providers.
+
+> **§4-note (current Stripe model):** Stripe's current architecture (Accounts v2) supports
+> **configurable merchant/account responsibilities** — including fee collection and
+> negative-balance/loss responsibility. New designs should be evaluated against the current
+> Accounts v2 / controller responsibility configuration, **not solely** the legacy Standard /
+> Express / Custom account-type labels (retained here only as older background terminology). OAuth
+> connect flows may still involve Accounts v1 in some cases; that is an implementation detail to
+> resolve in the later adapter phase (W3-C), not a separate Plane-B architecture.
 
 ---
 
-## 7. Decision matrix
+## 7. Decision matrix (re-scored on funds flow / responsibility)
 
-Scores: ✅ strong / 🟡 moderate / ❌ weak, from PetCare Hero's multi-tenant SaaS standpoint.
+Scores: ✅ strong / 🟡 moderate / ❌ weak, from PetCare Hero's multi-tenant SaaS standpoint. The
+B-vs-C distinction is about **funds flow / responsibility**, not "Connect vs non-Connect."
 
-| Criterion | A External | B Tenant-direct Stripe | C Connect | D Abstraction (+A first) |
+| Dimension | A External | B Connect SaaS **direct charges** | C Connect **marketplace/indirect** | D Abstraction (+A first, B later) |
 |---|---|---|---|---|
-| Tenant owns customer relationship | ✅ | ✅ | 🟡 (model-dependent) | ✅ |
-| Plane A/B separation | ✅ | ✅ | 🟡 | ✅ |
-| Regulatory/PCI/compliance exposure (USMISSIONHERO) | ✅ lowest | ✅ low | ❌ highest | ✅ (A first) |
-| Merchant/business-of-record clarity | ✅ tenant | ✅ tenant | 🟡 model-dependent | ✅ |
+| Tenant customer relationship (tenant owns it) | ✅ | ✅ | 🟡 | ✅ |
+| Charge account (where charge is created) | tenant (off-platform) | **connected tenant acct** | **platform** | adapter-dependent |
+| Where funds first appear | tenant | **connected tenant balance** | **platform balance** | adapter-dependent |
+| Fee responsibility | tenant | tenant (config; optional app fee) | platform-mediated | adapter-dependent |
+| Refund/chargeback balance impact | tenant | connected-account balance | **platform balance** | adapter-dependent |
+| Loss / negative-balance responsibility | tenant | tenant (config; direct) | **platform** | adapter-dependent |
+| Onboarding / KYC responsibility | tenant (external) | connected tenant (+platform assist) | connected tenant (+more platform) | A: none → B later |
+| SaaS fit | 🟡 | ✅ | ❌ | ✅ |
+| Marketplace fit | ❌ | 🟡 | ✅ | 🟡 |
+| Implementation complexity | ✅ lowest | 🟡 | ❌ highest | 🟡 (domain + 1 adapter) |
+| Platform liability (USMISSIONHERO) | ✅ lowest | 🟡 low (direct) | ❌ highest | ✅ (A first) |
+| Payment/PCI scope (PetCare Hero handling card data) | ✅ none | ✅ none (hosted Checkout/Elements) | ✅ none (hosted) | ✅ (A first) |
 | Tenant portability | ✅ | ✅ | 🟡 | ✅ |
-| Multi-business SaaS scalability | 🟡 | 🟡 | ✅ | ✅ |
-| Development complexity | ✅ lowest | 🟡 | ❌ highest | 🟡 (domain + 1 adapter) |
-| Operational complexity | ✅ | 🟡 | ❌ | 🟡 |
-| Onboarding friction | ✅ | 🟡 (OAuth connect) | 🟡 | ✅ (A first) |
-| Refund/dispute ownership clarity | ✅ tenant | ✅ tenant | 🟡 | ✅ |
-| Webhook complexity | ✅ none | 🟡 per-account | ❌ | 🟡 |
-| Credential isolation | ✅ none held | 🟡 per-tenant secret store | 🟡 | ✅ |
-| AWS secret-management complexity | ✅ | 🟡 | 🟡 | 🟡 |
-| Stripe/platform dependency | ✅ none | 🟡 Stripe | ❌ Stripe platform | ✅ pluggable |
-| Supports non-Stripe tenants later | ✅ | ❌ | ❌ | ✅ |
+| Non-Stripe portability | ✅ | ❌ | ❌ | ✅ |
+| Credential isolation | ✅ none held | 🟡 per-connected-account | 🟡 | ✅ |
 | User experience (in-product pay) | ❌ | ✅ | ✅ | 🟡→✅ (grows) |
-| Automation | ❌ | ✅ | ✅ | 🟡→✅ |
-| Accounting/reconciliation clarity | 🟡 | ✅ | 🟡 | ✅ |
-| Cost/fees to USMISSIONHERO | ✅ lowest | ✅ low | 🟡 (app-fee math) | ✅ |
+| Automation / reconciliation | 🟡 | ✅ | 🟡 | 🟡→✅ |
+| Cost/fees exposure to USMISSIONHERO | ✅ lowest | ✅ low | 🟡 | ✅ |
 | Near-term MVP speed | ✅ fastest | 🟡 | ❌ slowest | ✅ (A adapter) |
-| Future SaaS maturity | 🟡 | 🟡 | ✅ | ✅ |
+| Future SaaS maturity | 🟡 | ✅ | 🟡 | ✅ |
 
-**Cost profile (`W3_COST_PROFILE`):** A = **LOW**; B = **LOW–MEDIUM**; C = **MEDIUM–HIGH**;
-D = **LOW** initially (matches its first adapter), rising only with the chosen processor.
+**Cost profile (`W3_COST_PROFILE`):** A = **LOW**; B (Connect direct) = **LOW–MEDIUM**;
+C (Connect marketplace/indirect) = **MEDIUM–HIGH** (greater platform liability/ops);
+D = **LOW** initially (matches its first adapter), rising only with the chosen charge model.
 (Exact Stripe fees are not asserted here; verify against a current authoritative Stripe source
 before any live-enablement decision.)
+
+**Re-derived recommendation:** Option **D** with a **MANUAL/EXTERNAL** first adapter (= A) and a
+**Connect direct-charge** adapter later (= B). Option C (marketplace/indirect) is explicitly not
+recommended for the current SaaS model. This is a recommendation, not a selection.
 
 ---
 
@@ -251,25 +291,32 @@ before any live-enablement decision.)
 
 **`W3_PLANE_B_MODEL_DECISION_REQUIRED`** — choose exactly one:
 
-- **A. Tenant-owned external / off-platform first** — Client sees a quote in PetCare Hero and pays
-  the tenant outside the app (tenant's own link/invoice/in-person). Who gets paid: the tenant
-  directly. Stripe/account owner: the tenant (outside PetCare Hero). Disputes/refunds: the tenant.
-  PetCare Hero's role: workflow + records payment status.
-- **B. Tenant-owned Stripe integration** — Client pays inside PetCare Hero via the **tenant's own**
-  connected Stripe account (OAuth connect, not raw keys). Who gets paid: the tenant. Account owner:
-  the tenant. Disputes/refunds: the tenant. PetCare Hero's role: integrate + orchestrate.
-- **C. Stripe Connect** — PetCare Hero becomes a Connect platform. Who gets paid / disputes depend
-  on the charge model (see §6/§7) and can make USMISSIONHERO liable. Account owner: connected
-  tenant account under the platform. PetCare Hero's role: payments platform.
-- **D. Provider abstraction + [initial adapter]** — Build the canonical provider-neutral payment
-  domain now; ship with an initial adapter you name (recommend **`MANUAL/EXTERNAL`**), add
-  `STRIPE_TENANT_DIRECT` / `STRIPE_CONNECT` later. Client/paid/disputes follow whichever adapter is
-  active. PetCare Hero's role: workflow now, orchestration later.
+- **A. External / manual first only** — Client sees the quote in PetCare Hero and pays the tenant
+  **outside** the app (tenant's own link/invoice/in-person). Who gets paid: the tenant directly.
+  Payment account owner: the tenant (off-platform). Disputes/refunds: the tenant. PetCare Hero's
+  role: workflow + records payment status.
+- **B. Stripe-integrated SaaS **direct-charge** model now** — Client pays inside PetCare Hero; the
+  charge is created **on the tenant's connected account** (direct charge) so funds appear in the
+  **tenant's** balance. Who gets paid: the tenant. Account: tenant's connected account.
+  Disputes/refunds: primarily the connected-account balance. PetCare Hero's role: integrate +
+  orchestrate (SaaS platform, direct charges).
+- **C. Marketplace / platform **indirect-charge** model now** — Charge originates on the
+  **platform** (destination/separate charges); funds appear in the **platform** balance first.
+  Who gets paid: tenant after transfer. Disputes/refunds/negative-balance: **substantially the
+  platform**. PetCare Hero's role: marketplace/payments platform. (Higher platform liability; not
+  recommended for the current SaaS model.)
+- **D. Provider abstraction, MANUAL/EXTERNAL first, Stripe **direct-charge** adapter later** —
+  Build the canonical provider-neutral payment domain now; ship with `MANUAL/EXTERNAL` (= A), add
+  a `STRIPE_CONNECT_DIRECT` adapter (= B) later; marketplace (= C) only if ever needed. PetCare
+  Hero's role: workflow now, orchestration later.
 - **E. Other** — specify.
 
-**Kiro's recommendation:** **D with an initial `MANUAL/EXTERNAL` adapter** (i.e. D wrapping A),
-with `STRIPE_TENANT_DIRECT` as the intended next adapter and `STRIPE_CONNECT` only if PetCare Hero
-deliberately chooses to be a payments platform. `W3_RECOMMENDATION_CONFIDENCE=MEDIUM`.
+**Kiro's recommendation (re-derived, not assumed):** **D** — provider abstraction with
+`MANUAL/EXTERNAL` first and a **Stripe Connect direct-charge** adapter later (i.e. D wrapping A
+now, B later). Option C (marketplace/indirect) is not recommended unless PetCare Hero deliberately
+becomes a payments platform. Note: "Stripe Connect" is **not automatically high-risk** — risk
+depends on funds-flow/responsibility configuration, and direct charges keep the tenant as the
+customer-facing payment account. `W3_RECOMMENDATION_CONFIDENCE=MEDIUM`.
 
 No implementation proceeds until Matthew records a selection here.
 
@@ -295,7 +342,7 @@ payment state machine.
   Illegal transitions (e.g. `PAID → PAYMENT_LINK_SENT`) are rejected.
 - **Payment fields (provider-neutral):** `payment_requirement`, `payment_status`,
   `amount_required_cents`, `amount_paid_cents`, `currency`, `provider` (enum: MANUAL/EXTERNAL,
-  STRIPE_TENANT_DIRECT, STRIPE_CONNECT, …), `provider_account_ref` (opaque, NOT a secret),
+  STRIPE_CONNECT_DIRECT, STRIPE_CONNECT_MARKETPLACE, …), `provider_account_ref` (opaque, NOT a secret),
   `provider_txn_ref` (session/payment-intent id), `request_id`/`booking_id`, `company_id`
   (tenant), `client_id`, `created_at`, `updated_at`, `payment_completed_at`, refund state
   (`refunded_amount_cents`, `refunded_at`), failure state (`last_failure_reason`), and
@@ -361,7 +408,7 @@ No infrastructure is implemented in W3-A.
 ## 13. Tenant configuration + secret boundary (proposal only)
 
 - **Tenant metadata/config (DynamoDB, non-secret):** `payment_provider`
-  (`MANUAL|STRIPE_TENANT_DIRECT|STRIPE_CONNECT`), `payments_enabled` (bool), `payment_mode`
+  (`MANUAL|STRIPE_CONNECT_DIRECT|STRIPE_CONNECT_MARKETPLACE`), `payments_enabled` (bool), `payment_mode`
   (`sandbox|live`), `payment_provider_account_ref` (opaque account id, **not** a secret),
   `default_currency`.
 - **Secret store (Secrets Manager/SSM, by name only):** any provider credential/connection token,
@@ -406,7 +453,9 @@ Legacy = PET-level "Pricing & Payment (Stripe Sandbox)" (`CareCard`, PET `quote_
   hybrid PAYMENT summary + `PAYMENT_EVENT` entity; booking-readiness predicate; unit tests. **No
   Stripe calls.**
 - **W3-C — selected provider adapter:** implement the adapter for Matthew's chosen Plane-B model
-  (MANUAL/EXTERNAL, or tenant-direct, or Connect).
+  (`MANUAL/EXTERNAL`, or Stripe Connect **direct-charge**, or Stripe Connect marketplace/indirect).
+  Resolve the current Accounts v2 / controller responsibility configuration (and any OAuth/account
+  authorization details) here.
 - **W3-D — sandbox integration:** sandbox-only wiring, split per-plane webhook/events, admin/client
   UI; **no live keys**.
 - **W3-E — controlled acceptance:** separate owner approval; bounded sandbox acceptance.
@@ -418,8 +467,12 @@ Legacy = PET-level "Pricing & Payment (Stripe Sandbox)" (`CareCard`, PET `quote_
 
 ## 17. Security review
 
-- **PCI scope:** MVP (MANUAL/EXTERNAL) keeps USMISSIONHERO out of PCI entirely; tenant-direct /
-  Connect use hosted Checkout/Elements (SAQ-A-ish) — **never** handle PAN/CVC in PetCare Hero.
+- **PCI scope:** MVP (`MANUAL/EXTERNAL`) avoids PetCare Hero directly handling cardholder data and
+  **materially minimizes** payment/PCI scope; Stripe Connect adapters use hosted Checkout/Elements
+  so PetCare Hero still never handles PAN/CVC. **Never** handle PAN/CVC in PetCare Hero. Final PCI/
+  compliance obligations (and the distinct merchant/business-of-record, payment/refund/dispute, and
+  regulatory/legal responsibilities — which are separate questions) must be confirmed before live
+  enablement; this document asserts no legal conclusion.
 - **Secrets:** per-tenant provider credentials in a secret store, by name; never in DynamoDB/logs.
 - **Tokenization:** rely on provider tokenization; store only opaque references.
 - **Webhook auth:** signature-verified; per-plane secret; reject unverified.
