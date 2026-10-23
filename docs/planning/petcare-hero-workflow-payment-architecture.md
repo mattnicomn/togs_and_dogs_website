@@ -164,15 +164,19 @@ Recommended capability placement:
 
 ### Workstream 1 — Existing Pet Selection (canonical pet association)
 
-> **Status (2026-10-22): IMPLEMENTED LOCALLY — Draft PR, not deployed.**
-> `W1_CANONICAL_PET_ASSOCIATION_IMPLEMENTED_LOCAL_READY_FOR_REVIEW`. Canonical
-> association is now `pet_ids: string[]`; selection is keyed by `pet_id` on mobile and
-> on a new web-client existing-pet picker; `pet_names` is derived display/legacy-compat
-> only. Ownership is enforced server-side (`resolve_owned_pet_ids`, non-disclosing,
-> fail-closed); `create_or_link_pets_from_request` treats existing ids as authoritative
-> and creates only genuinely-new pets idempotently. See
-> `docs/release-notes/w1-canonical-request-pet-association.md`. Not deployed; W3 remains
-> unauthorized.
+> **Status (2026-10-23): MERGED into `main` (PR #26) — NOT deployed.**
+> `W1_CANONICAL_PET_ASSOCIATION_MERGED_NOT_DEPLOYED` / `W1_IMPLEMENTATION_STATUS=MERGED_NOT_DEPLOYED`
+> / `W1_DEPLOYED=NO`. Squash-merged: pre-merge `066a260` → head `251dcad` → `main == 429f3b9`;
+> reviewed 12-file scope. Canonical association is `pet_ids: string[]`; selection keyed by
+> `pet_id` on mobile and the web-client existing-pet picker; `pet_names` is derived
+> display/legacy-compat only (name is never identity). Ownership is enforced server-side
+> (`resolve_owned_pet_ids`) **all-or-nothing**: malformed/unknown/foreign/inactive `pet_ids`
+> reject the whole client request generically (HTTP 400, nothing persisted). Mixed existing+new
+> is supported; new-pet identity = absence of a canonical `pet_id`; retry idempotency is
+> request-scoped via `created_from_request_id` (persisted second/third-run retries create zero
+> duplicates). PR #22 `/client/requests` projection untouched. Merging changed `main`, not
+> production. See `docs/release-notes/w1-canonical-request-pet-association.md`.
+> `NEXT_RECOMMENDED_WORKSTREAM=W3`; `W3_IMPLEMENTATION_AUTHORIZED=NO`.
 
 Requirements:
 - Select existing profile pet(s) **by `pet_id`**; multi-pet supported.

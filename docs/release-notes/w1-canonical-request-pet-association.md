@@ -1,18 +1,33 @@
 # Workstream 1 — Existing Pet Selection (canonical request↔pet association)
 
-**Disposition:** `W1_CANONICAL_PET_ASSOCIATION_HARDENED_READY_FOR_FINAL_REVIEW`
+**Disposition:** `W1_CANONICAL_PET_ASSOCIATION_MERGED_NOT_DEPLOYED`
 
-`W1_IMPLEMENTATION_STATUS=LOCAL_IMPLEMENTED_NOT_DEPLOYED`
+`W1_IMPLEMENTATION_STATUS=MERGED_NOT_DEPLOYED`
 
-> **Contract hardening (PR #26 follow-up commit):** invalid supplied existing-pet associations
-> now **reject the whole client request generically** (HTTP 400, nothing persisted) instead of
+`W1_DEPLOYED=NO`
+
+> **Contract hardening (included in the merge):** invalid supplied existing-pet associations
+> **reject the whole client request generically** (HTTP 400, nothing persisted) instead of
 > being silently dropped; the `pet_ids` field shape is validated at the API boundary; and new-pet
 > identity is decided by the absence of a canonical `pet_id` (never by display-name equality),
 > with request-scoped idempotency (`created_from_request_id`). See the hardened descriptions
 > below.
 
-**Checkpoint at authoring:** branch `fix/w1-canonical-request-pet-association` created from
-`origin/main == 066a260af3b3c95af2e36a4dbf945f8234ac099f`. Not merged, not deployed.
+**Merge checkpoint (2026-10-23):** PR #26 (`fix: canonicalize request pet association by pet ID`,
+head `fix/w1-canonical-request-pet-association`) was **squash-merged** into `main`.
+- pre-merge main: `066a260af3b3c95af2e36a4dbf945f8234ac099f`
+- authorized PR #26 head: `251dcad857f3923a6ca9e7c22779bb863acff163`
+- resulting main: `main == origin/main == 429f3b901d61004ff8ea6f92fd957cbeefaec592`
+- merge method: squash
+- scope: exactly the reviewed **12 files** (mobile/web frontend + intake/pet-association backend
+  + tests + W1 docs); no backend/web/mobile deployment, no Terraform, no AWS mutation.
+
+**Deployment boundary:** `W1_DEPLOYED=NO`. Merging PR #26 changed repository `main`, not
+production. The latest completed production backend release remains
+`PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`.
+
+**Original authoring checkpoint:** branch `fix/w1-canonical-request-pet-association` was created
+from `origin/main == 066a260af3b3c95af2e36a4dbf945f8234ac099f`.
 
 > **Naming boundary:** this is *PetCare Hero Workflow & Payment Architecture — Workstream 1,
 > Existing Pet Selection (canonical pet association)*. It is **NOT** the historical *Ryan
@@ -154,10 +169,10 @@ Admin Client Management were not redesigned.
   metadata, tenant resolution, Stripe/Postmark, entitlement DB) and unrelated to pet association.
 
 ## Not done / boundaries
-- Not deployed: no web deploy, no mobile build/distribution, no Terraform, no AWS mutation, no
-  API Gateway deployment, no backend deployment. `W1_DEPLOYED=NO`.
-- `NEXT_RECOMMENDED_WORKSTREAM` after W1 per the approved sequence (W2 → W4 → W1 → W3) is W3,
-  which remains **not authorized**.
+- Merged into `main` (PR #26) but NOT deployed: no web deploy, no mobile build/distribution, no
+  Terraform, no AWS mutation, no API Gateway deployment, no backend deployment. `W1_DEPLOYED=NO`.
+- `NEXT_RECOMMENDED_WORKSTREAM=W3` per the approved sequence (W2 → W4 → W1 → W3);
+  `W3_IMPLEMENTATION_AUTHORIZED=NO` (remains **not authorized**).
 
 ## Gates preserved (unchanged by W1)
 `SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`;
