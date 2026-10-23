@@ -1,6 +1,20 @@
 # Current Project State
 
-**Last Updated:** 2026-10-23 — Workflow & Payment Architecture **Workstream 1** (Existing Pet Selection / canonical request↔pet association) **squash-merged into `main` via PR #26** (`W1_CANONICAL_PET_ASSOCIATION_MERGED_NOT_DEPLOYED`; `W1_IMPLEMENTATION_STATUS=MERGED_NOT_DEPLOYED`; `W1_DEPLOYED=NO`). `main == origin/main == 429f3b901d61004ff8ea6f92fd957cbeefaec592` (pre-merge `066a260`, authorized head `251dcad`). See the W1 section immediately below; the W4 merge section, the PR #22 production deployment section, and earlier history follow it. Latest completed production backend release remains PR #22 (`PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`). `NEXT_RECOMMENDED_WORKSTREAM=W3` with `W3_IMPLEMENTATION_AUTHORIZED=NO`.
+**Last Updated:** 2026-10-23 — Workflow & Payment Architecture **Workstream 3-A** (Tenant Customer Payment Architecture **decision phase**) authored as a planning/decision package (`W3_ARCHITECTURE_DECISION_PHASE_COMPLETE`; `W3_PAYMENT_MODEL_SELECTED=NO`; `W3_PAYMENT_IMPLEMENTATION_AUTHORIZED=NO`). Documentation-only on branch `planning/w3-tenant-customer-payment-architecture` from `main == origin/main == c6e514ed7f47ff9e5ebe2e9b74c29018ecd18943`; no payment implementation, no Stripe secret access, no AWS/Terraform/deploy. W1 (PR #26) and its docs closeout (PR #27) remain merged-not-deployed. Latest completed production backend release remains PR #22 (`PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`). See the W3-A section immediately below; the W1 merge section and earlier history follow it.
+
+---
+
+## 2026-10-23 — Workstream 3-A: Tenant Customer Payment Architecture — Decision Phase (planning-only)
+
+**Disposition:** `W3_PAYMENT_ARCHITECTURE_DECISION_READY_FOR_MATTHEW`
+
+`W3_ARCHITECTURE_DECISION_PHASE_AUTHORIZED=YES`; `W3_ARCHITECTURE_DECISION_PHASE_COMPLETE`; `W3_PAYMENT_MODEL_SELECTED=NO`; `W3_PAYMENT_IMPLEMENTATION_AUTHORIZED=NO`.
+
+- Planning/decision-only package authored from `main == c6e514e`: Plane A (SaaS billing, USMISSIONHERO→tenant) vs Plane B (tenant customer payments, pet owner→tenant) architecture, current-source payment audit, options A–D, decision matrix, recommendation, Matthew decision block, provider-neutral payment-domain + entity + booking-readiness + webhook + tenant-config + isolation + security + legacy-deprecation + roadmap. See [W3 tenant customer payment architecture](../planning/petcare-hero-tenant-customer-payment-architecture.md).
+- **Key finding:** current source conflates Plane A and Plane B — the booking-payment path (`admin create-payment-session` → `stripe_client.create_checkout_session` → shared `stripe_webhook_handler` `payment_type==booking`) uses USMISSIONHERO's single platform Stripe account/secret, so tenant customer money would settle to the platform. `W3_LEGACY_PLATFORM_STRIPE_CONFLATION_RISK=YES`; sandbox-only today (no real money has flowed). `W3_CURRENT_PAYMENT_STATE_MACHINE_EXISTS=PARTIAL` (canonical `PaymentStatus`/`PaymentRequirement` vocabulary exists in `quote_contract.py`; no enforced state machine / payment entity / refunds).
+- **Recommendation (not a selection):** `W3_RECOMMENDED_MVP_MODEL=PROVIDER_ABSTRACTION + TENANT_OWNED_EXTERNAL` (Option D wrapping A), `W3_RECOMMENDED_LONG_TERM_MODEL=PROVIDER_ABSTRACTION + STRIPE_TENANT_DIRECT` (Connect optional later), `W3_RECOMMENDATION_CONFIDENCE=MEDIUM`. `W3_PAYMENT_ENTITY_RECOMMENDATION=hybrid (summary-on-REQUEST + PAYMENT_EVENT records)`; `W3_BOOKING_READINESS_CONTRACT_PROPOSED=YES`; `W3_PAYMENT_TENANT_ISOLATION_DESIGN=PASS`; `W3_PAYMENT_SECURITY_ARCHITECTURE_REVIEW=PASS`.
+- **Boundary:** no payment implementation, no Stripe Connect/OAuth/Checkout/PaymentIntent/webhook/Terraform/secret/UI; no model chosen on Matthew's behalf; Stripe sandbox-only; no deploy. Implementation (W3-B+) blocked until Matthew selects the Plane-B model.
+- **Gates preserved:** `SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`; `SCHEDULING_PR_MERGE_AUTHORIZED=NO`; Stripe sandbox-only; `RYAN_TESTING_AUTHORIZED=NO`; no second tenant; no production test data; no production quote mutation; no backend/web deployment; no mobile distribution; no worktree prune/repair.
 
 ---
 

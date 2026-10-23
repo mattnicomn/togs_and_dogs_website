@@ -65,6 +65,7 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 | Topic | Key Files |
 |-------|-----------|
 | Workflow & payment architecture — existing-pet canonical association, owner/admin canonical quote bridge, billing/payment plane separation (SaaS vs tenant customer payments), and status-vocabulary reconciliation | `docs/planning/petcare-hero-workflow-payment-architecture.md` |
+| W3 Tenant Customer Payment Architecture — decision package (Plane A vs Plane B, current-source payment audit, options A–D, decision matrix, recommendation + Matthew decision block, provider-neutral payment domain; `W3_PAYMENT_MODEL_SELECTED=NO`, implementation gated) | `docs/planning/petcare-hero-tenant-customer-payment-architecture.md` |
 | SaaS architecture roadmap | `docs/planning/release-11a-multi-business-saas-architecture-and-product-roadmap.md` |
 | Platform Tenant Management Control Plane specification (PTM-0 through PTM-13) | `docs/planning/platform-tenant-management-control-plane.md` |
 | PTM-0 source-of-truth reconciliation audit (C; F01 closed by completed S1; F02 and later findings remain) | `docs/planning/ptm-0-source-of-truth-reconciliation-audit.md` |
