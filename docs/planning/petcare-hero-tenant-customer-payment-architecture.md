@@ -33,8 +33,13 @@ production backend release remains `PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`.
 
 > **W3-B implementation update (2026-10-23):** `W3_B_IMPLEMENTATION_AUTHORIZED=YES` — Matthew
 > subsequently authorized the W3-B provider-neutral payment **domain**. It is now
-> **implemented locally and delivered as a Draft PR, not merged, not deployed**:
+> **implemented, hardened, and MERGED into `main` via PR #29 (merged, not deployed)**:
+> `W3_B_IMPLEMENTATION_STATUS=MERGED_NOT_DEPLOYED`;
+> `W3B_PROVIDER_NEUTRAL_PAYMENT_DOMAIN_MERGED_NOT_DEPLOYED`;
 > `W3_B_PROVIDER_NEUTRAL_PAYMENT_DOMAIN_IMPLEMENTED_LOCAL_NOT_DEPLOYED`; `W3_B_DEPLOYED=NO`.
+> PR #29 squash-merged: pre-merge base `f1c49fe` → `main == 2813451e7182eb0f1b9ee0b85e26f3247eef9889`.
+> Next planned phase: **W3-C1** (MANUAL_EXTERNAL adapter, planning only — see
+> [W3-C MANUAL_EXTERNAL adapter plan](petcare-hero-w3c-manual-external-adapter.md)); `W3_C_IMPLEMENTATION_AUTHORIZED=NO`.
 > The proposals in §§9–16 below are the W3-A design; the realized domain lives in
 > `src/backend/common/payment_domain.py` (+ `tests/backend/test_w3b_payment_domain.py`), built
 > **alongside** the existing deployed Stripe path with no runtime switch, on branch

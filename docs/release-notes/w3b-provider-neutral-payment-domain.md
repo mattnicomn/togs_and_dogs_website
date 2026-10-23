@@ -1,10 +1,22 @@
 # W3-B — Provider-Neutral Payment Domain (Local Implementation, Not Deployed)
 
 **Date:** 2026-10-23
-**Disposition:** `W3B_PROVIDER_NEUTRAL_PAYMENT_DOMAIN_HARDENED_READY_FOR_FINAL_REVIEW`
+**Disposition:** `W3B_PROVIDER_NEUTRAL_PAYMENT_DOMAIN_MERGED_NOT_DEPLOYED`
 **Status flags:** `W3_B_IMPLEMENTATION_AUTHORIZED=YES`;
+`W3_B_IMPLEMENTATION_STATUS=MERGED_NOT_DEPLOYED`;
 `W3_B_PROVIDER_NEUTRAL_PAYMENT_DOMAIN_IMPLEMENTED_LOCAL_NOT_DEPLOYED`;
 `W3_B_DEPLOYED=NO`.
+
+> **Merge closeout (2026-10-23):** PR #29 (`feat: add provider-neutral payment domain`)
+> was owner-authorized and **squash-merged into `main`**. Pre-merge base
+> `f1c49fe99e31ce29ca3914fd41e425b9dac212e6` → squash commit / resulting
+> `main == origin/main == 2813451e7182eb0f1b9ee0b85e26f3247eef9889` (single parent =
+> the pre-merge base; merged diff = exactly the 6 authorized W3-B files). W3-B is now
+> `MERGED_NOT_DEPLOYED`: merging changed `main`, **not** production. Latest completed
+> production backend release remains `PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`. The
+> pre-hardening review disposition
+> (`W3B_PROVIDER_NEUTRAL_PAYMENT_DOMAIN_HARDENED_READY_FOR_FINAL_REVIEW`) is retained in
+> the history below as the state at review time.
 
 ## Summary
 
@@ -18,7 +30,8 @@ no UI, no scheduling, no tenant-resolution change.
 
 Authored on branch `feat/w3b-provider-neutral-payment-domain` from
 `main == origin/main == f1c49fe99e31ce29ca3914fd41e425b9dac212e6` (W3-A Option D docs,
-PR #28). Delivered as **one Draft PR** to `main`; not merged, not deployed.
+PR #28), delivered as one PR (#29) and **squash-merged into `main`** at
+`2813451e7182eb0f1b9ee0b85e26f3247eef9889`. Merged, not deployed.
 
 ## Scope (exact files)
 
