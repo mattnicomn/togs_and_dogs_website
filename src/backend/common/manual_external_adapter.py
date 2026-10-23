@@ -467,27 +467,23 @@ def record_external_payment(
     )
 
     # 4. Load + validate REQUEST ownership (fail closed; no write on mismatch).
-    #    load_owned_request (W3-B shared domain, unchanged) raises a bare PaymentDomainError
-    #    on missing/cross-tenant/client-mismatch. Translate it here into a STABLE-coded
-    #    ManualExternalError so the HTTP caller never has to parse message text. We
-    #    deliberately classify missing-vs-unauthorized using the existence of the canonical
-    #    REQUEST key (PK=REQ#.., SK=CLIENT#..): a record that does not exist at all -> 404;
-    #    a record that exists but is not owned by this tenant/client -> 403 ownership. Both
-    #    map to non-disclosing responses at the HTTP layer; this internal split only drives
-    #    the 404-vs-403 status and never leaks the owning tenant.
+    #    load_owned_request (W3-B shared domain, unchanged) fails CLOSED with a bare
+    #    PaymentDomainError on ANY of: record missing, cross-tenant ownership mismatch, or
+    #    client mismatch. We translate ALL of these to the SAME stable code (ERR_NOT_FOUND)
+    #    so a caller can never distinguish "this request does not exist" from "this request
+    #    exists but is not yours" — both yield one identical non-disclosing response at the
+    #    HTTP layer, preventing cross-tenant request-existence enumeration. We deliberately
+    #    do NOT probe the bare REQUEST key to classify the two cases: that would add an extra
+    #    read and a TOCTOU race, and would only exist to produce a distinction we must never
+    #    expose anyway. (Role/authorization denial is a separate, earlier ERR_NOT_AUTHORIZED
+    #    path and is unaffected: it stays a 403 and is not request-scoped.)
     try:
         request_item = load_owned_request(request_id, client_id, company_id)
     except ManualExternalError:
         raise
     except PaymentDomainError as exc:
-        from common.db import get_item as _probe_get_item
-        exists = bool(_probe_get_item(request_pk(request_id), f"CLIENT#{client_id}"))
-        if exists:
-            raise ManualExternalError(
-                "request ownership mismatch", code=ERR_OWNERSHIP
-            ) from exc
         raise ManualExternalError(
-            "request not found", code=ERR_NOT_FOUND
+            "request not found or not accessible", code=ERR_NOT_FOUND
         ) from exc
 
     # 4a. Early idempotency pre-check: if a PAYMENT_EVENT already exists for this

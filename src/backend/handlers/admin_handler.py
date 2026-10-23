@@ -2918,17 +2918,20 @@ def handler(event, context):
                 print(f"INFO: external-payment rejected for REQ#{request_id} code={code}: {me}")
 
                 if code == ERR_NOT_AUTHORIZED:
+                    # ROLE/authorization denial (not request-scoped) — a plain 403. This is
+                    # decided before any request lookup, so it cannot be used to probe
+                    # whether a specific request exists.
                     return error(403, "Forbidden", event)
-                if code == ERR_OWNERSHIP:
-                    # Fail closed; never disclose the owning tenant. Normalized to the SAME
-                    # generic 403 shape used for role denial so a caller cannot distinguish
-                    # "not your tenant" from "not allowed".
+                if code in (ERR_NOT_FOUND, ERR_OWNERSHIP):
+                    # Request-scoped access failure. "Does not exist", "belongs to another
+                    # tenant", and "client mismatch" MUST be INDISTINGUISHABLE to the caller
+                    # so a request_id cannot be enumerated across tenants. Both codes return
+                    # one identical generic 404 (same status, same body). The owning tenant
+                    # is never disclosed. (The adapter collapses all of these to ERR_NOT_FOUND;
+                    # ERR_OWNERSHIP is mapped here too as a defensive alias to the SAME
+                    # response so no future path can reintroduce a distinguishing status.)
                     _claims = get_claims(event) or {}
-                    print(f"SECURITY: external-payment ownership denial by {_claims.get('email')} for REQ#{request_id}")
-                    return error(403, "Forbidden", event)
-                if code == ERR_NOT_FOUND:
-                    # Generic 404 — does not reveal whether the record exists under another
-                    # tenant (that case is ERR_OWNERSHIP -> 403 above).
+                    print(f"SECURITY: external-payment request-access denial by {_claims.get('email')} for REQ#{request_id} code={code}")
                     return not_found("Request not found", event)
                 if code == ERR_IDEMPOTENCY_CONFLICT:
                     return error(409, "Conflict: idempotency_key already used with different payment details", event)

@@ -211,25 +211,38 @@ def test_request_not_found_maps_404():
     assert 'CLIENT#' not in _err_body_text(resp)
 
 
-def test_ownership_maps_403_non_disclosing():
-    # Ownership denial normalizes to the SAME generic 403 as role denial (no enumeration).
+def test_ownership_maps_404_non_disclosing():
+    # Cross-tenant/ownership failure must look IDENTICAL to a nonexistent request: a generic
+    # 404, no tenant disclosure. (Defensive: even if some path emits ERR_OWNERSHIP, the
+    # handler aliases it to the same 404 as ERR_NOT_FOUND.)
     with patch(ADAPTER, side_effect=ManualExternalError('request ownership mismatch', code=ERR_OWNERSHIP)):
         resp = admin_handler(make_event(body=_valid_body()), None)
-    assert resp['statusCode'] == 403
-    assert _err_body_text(resp) == "Forbidden"
+    assert resp['statusCode'] == 404
     assert 'tenant' not in _err_body_text(resp).lower()
+    assert 'REQ#' not in _err_body_text(resp)
 
 
-def test_ownership_and_role_denial_are_indistinguishable():
-    # L4: a caller cannot tell "not your tenant" (OWNERSHIP) from "not allowed" (role) or
-    # from NOT_AUTHORIZED — all three return the identical generic 403 body.
-    staff_resp = admin_handler(make_event(role='staff', body=_valid_body()), None)
-    with patch(ADAPTER, side_effect=ManualExternalError('x', code=ERR_OWNERSHIP)):
-        own_resp = admin_handler(make_event(body=_valid_body()), None)
-    with patch(ADAPTER, side_effect=ManualExternalError('x', code=ERR_NOT_AUTHORIZED)):
-        auth_resp = admin_handler(make_event(body=_valid_body()), None)
-    assert staff_resp['statusCode'] == own_resp['statusCode'] == auth_resp['statusCode'] == 403
-    assert _err_body_text(staff_resp) == _err_body_text(own_resp) == _err_body_text(auth_resp) == "Forbidden"
+def test_nonexistent_and_cross_tenant_are_indistinguishable():
+    # CORE ENUMERATION GUARD: "request does not exist" (ERR_NOT_FOUND) and "exists but not
+    # yours" (ERR_OWNERSHIP) must produce byte-identical client responses (same status AND
+    # body), so a request_id cannot be probed across tenants.
+    with patch(ADAPTER, side_effect=ManualExternalError('request not found or not accessible', code=ERR_NOT_FOUND)):
+        missing = admin_handler(make_event(body=_valid_body()), None)
+    with patch(ADAPTER, side_effect=ManualExternalError('request ownership mismatch', code=ERR_OWNERSHIP)):
+        cross_tenant = admin_handler(make_event(body=_valid_body()), None)
+    assert missing['statusCode'] == cross_tenant['statusCode'] == 404
+    assert missing['body'] == cross_tenant['body']
+
+
+def test_role_denial_is_403_and_precedes_request_lookup():
+    # Role/authorization denial stays a 403 (preserved), and because the handler role gate
+    # runs BEFORE the adapter is ever called, it cannot be used to probe request existence
+    # (the adapter — and any request lookup — is never reached).
+    with patch(ADAPTER) as rec:
+        staff_resp = admin_handler(make_event(role='staff', body=_valid_body()), None)
+    assert staff_resp['statusCode'] == 403
+    assert _err_body_text(staff_resp) == "Forbidden"
+    rec.assert_not_called()
 
 
 def test_validation_error_maps_400_no_message_leak():
@@ -435,15 +448,26 @@ def test_adapter_code_not_authorized():
 
 
 def test_adapter_code_not_found_when_request_absent():
-    # load_owned_request raises (no record) AND the existence probe finds nothing -> NOT_FOUND.
-    with _adapter_patched(None, get_item_side=lambda pk, sk: None):
+    # No record at all -> ERR_NOT_FOUND. No extra existence probe is performed (the adapter
+    # patches common.db.get_item once for load_owned_request; a second probe read was
+    # removed to avoid an extra read + TOCTOU race).
+    calls = []
+    def _count_get(pk, sk):
+        calls.append((pk, sk))
+        return None
+    with _adapter_patched(None, get_item_side=_count_get):
         with pytest.raises(mx.ManualExternalError) as ei:
             _call_adapter()
     assert ei.value.code == mx.ERR_NOT_FOUND
+    # Exactly one REQUEST read (load_owned_request); no second probe read for the same key.
+    client_reads = [c for c in calls if isinstance(c[1], str) and c[1].startswith("CLIENT#")]
+    assert len(client_reads) == 1
 
 
-def test_adapter_code_ownership_when_cross_tenant():
-    # REQUEST exists (probe finds it) but belongs to another tenant -> OWNERSHIP.
+def test_adapter_code_cross_tenant_collapses_to_not_found():
+    # REQUEST exists but belongs to another tenant: the adapter collapses this to the SAME
+    # ERR_NOT_FOUND code as a missing record (no distinguishable ERR_OWNERSHIP escapes), so
+    # the HTTP layer cannot reveal cross-tenant existence.
     other = _adapter_request(company_id="other-co")
     def _get(pk, sk):
         if isinstance(sk, str) and sk.startswith("CLIENT#"):
@@ -452,7 +476,26 @@ def test_adapter_code_ownership_when_cross_tenant():
     with _adapter_patched(other, get_item_side=_get):
         with pytest.raises(mx.ManualExternalError) as ei:
             _call_adapter()
-    assert ei.value.code == mx.ERR_OWNERSHIP
+    assert ei.value.code == mx.ERR_NOT_FOUND
+
+
+def test_adapter_cross_tenant_and_missing_raise_identical_code():
+    # Both the missing-record and cross-tenant cases raise the identical stable code, so no
+    # downstream mapping can ever distinguish them.
+    def _missing(pk, sk):
+        return None
+    other = _adapter_request(company_id="other-co")
+    def _cross(pk, sk):
+        if isinstance(sk, str) and sk.startswith("CLIENT#"):
+            return other
+        return None
+    with _adapter_patched(None, get_item_side=_missing):
+        with pytest.raises(mx.ManualExternalError) as a:
+            _call_adapter()
+    with _adapter_patched(other, get_item_side=_cross):
+        with pytest.raises(mx.ManualExternalError) as b:
+            _call_adapter()
+    assert a.value.code == b.value.code == mx.ERR_NOT_FOUND
 
 
 def test_adapter_code_validation_negative_amount():
