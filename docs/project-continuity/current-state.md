@@ -1,12 +1,16 @@
 # Current Project State
 
-**Last Updated:** 2026-10-22 — Workflow & Payment Architecture **Workstream 1** (Existing Pet Selection / canonical request↔pet association) implemented locally on branch `fix/w1-canonical-request-pet-association` from `main == 066a260` (`W1_CANONICAL_PET_ASSOCIATION_IMPLEMENTED_LOCAL_READY_FOR_REVIEW`; `W1_DEPLOYED=NO`; Draft PR, not merged). See the W1 section immediately below; the W4 merge section, the PR #22 production deployment section, the M4-C entry, the PR #19 + M4-B entry, and earlier history follow it. Latest completed production backend release remains PR #22 (`PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`).
+**Last Updated:** 2026-10-23 — Workflow & Payment Architecture **Workstream 1** (Existing Pet Selection / canonical request↔pet association) **squash-merged into `main` via PR #26** (`W1_CANONICAL_PET_ASSOCIATION_MERGED_NOT_DEPLOYED`; `W1_IMPLEMENTATION_STATUS=MERGED_NOT_DEPLOYED`; `W1_DEPLOYED=NO`). `main == origin/main == 429f3b901d61004ff8ea6f92fd957cbeefaec592` (pre-merge `066a260`, authorized head `251dcad`). See the W1 section immediately below; the W4 merge section, the PR #22 production deployment section, and earlier history follow it. Latest completed production backend release remains PR #22 (`PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`). `NEXT_RECOMMENDED_WORKSTREAM=W3` with `W3_IMPLEMENTATION_AUTHORIZED=NO`.
 
 ---
 
-## 2026-10-22 — Workstream 1: Existing Pet Selection (canonical request↔pet association) — Local, Not Deployed
+## 2026-10-23 — Workstream 1: Existing Pet Selection (canonical request↔pet association) — Merged, Not Deployed
 
-**Disposition:** `W1_CANONICAL_PET_ASSOCIATION_HARDENED_READY_FOR_FINAL_REVIEW`
+**Disposition:** `W1_CANONICAL_PET_ASSOCIATION_MERGED_NOT_DEPLOYED`
+
+`W1_IMPLEMENTATION_STATUS=MERGED_NOT_DEPLOYED`; `W1_DEPLOYED=NO`. PR #26 squash-merged into `main`: pre-merge `066a260af3b3c95af2e36a4dbf945f8234ac099f` → authorized head `251dcad857f3923a6ca9e7c22779bb863acff163` → resulting `main == origin/main == 429f3b901d61004ff8ea6f92fd957cbeefaec592`; exactly the reviewed 12 files; no deployment. Merging PR #26 changed repository `main`, not production.
+
+> **Naming boundary:** this is *Workflow & Payment Architecture — Workstream 1 (Existing Pet Selection)*, NOT the historical *Ryan W1 20-Minute Walk canonical scheduling windows* (untouched).
 
 > **Naming boundary:** this is *Workflow & Payment Architecture — Workstream 1 (Existing Pet Selection)*, NOT the historical *Ryan W1 20-Minute Walk canonical scheduling windows* (untouched).
 
@@ -18,7 +22,7 @@
 - **Flags:** `W1_PET_OWNERSHIP_ENFORCEMENT=PASS`; `W1_INVALID_PET_ID_REQUEST_REJECTION=PASS`; `W1_PET_IDS_INPUT_VALIDATION=PASS`; `W1_NAME_IS_NOT_IDENTITY=PASS`; `W1_MIXED_NEW_PET_IDEMPOTENCY=PASS`; `W1_NEW_REQUESTS_CANONICAL_PET_IDS=PASS`; `W1_LEGACY_READ_COMPATIBILITY=PASS`; `W1_CLIENT_REQUEST_PRIVACY_BOUNDARY=PASS` (PR #22 `/client/requests` projection untouched); `W1_N_PLUS_ONE_PET_FETCHES_ADDED=NO`; `W1_SECURITY_REVIEW=PASS`; `W1_SCOPE_REVIEW=PASS`; `W1_NEW_PET_CREATION_ARCHITECTURE_CONFLICT_FOUND` NOT triggered.
 - **Tests:** backend `test_w1_canonical_pet_association.py` 19 PASS; mobile IntakeScreen 35/35 PASS + `tsc` clean; web vitest 29 files / 444 PASS. `W1_NEW_REGRESSIONS=0` (full backend suite identical pre-existing failure set vs clean baseline `066a260`: 90 failed on both; this branch +19 passing = new W1 tests; pre-existing failures are environmental — Google Calendar/tenant/Stripe/Postmark/entitlement — unrelated to pet association).
 - **Admin/scheduling preserved:** admin-created bookings, `APPROVED`/`VISIT_BOOKING`, scheduling/assignment/service windows, Ryan W1 Walk, Overnight O1 unchanged.
-- **Boundary:** `W1_DEPLOYED=NO`; no deploy/Terraform/AWS/API-Gateway/backend deployment. `NEXT_RECOMMENDED_WORKSTREAM=W3` (sequence W2→W4→W1→W3); W3 not authorized.
+- **Boundary:** `W1_DEPLOYED=NO`; no deploy/Terraform/AWS/API-Gateway/backend deployment. `NEXT_RECOMMENDED_WORKSTREAM=W3` (sequence W2→W4→W1→W3); `W3_IMPLEMENTATION_AUTHORIZED=NO`.
 - **Gates preserved:** `SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`; `SCHEDULING_PR_MERGE_AUTHORIZED=NO`; Stripe sandbox-only; `RYAN_TESTING_AUTHORIZED=NO`; no second tenant; no production test data; no production quote mutation; no mobile distribution; no web deployment.
 - See [W1 canonical request↔pet association record](../release-notes/w1-canonical-request-pet-association.md).
 
