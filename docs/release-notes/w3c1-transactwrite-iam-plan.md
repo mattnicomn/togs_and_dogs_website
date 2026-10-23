@@ -1,8 +1,16 @@
 # W3-C1 — Lambda DynamoDB `TransactWriteItems` IAM Change (PLAN ONLY, Not Applied)
 
 **Date:** 2026-09-24
-**Disposition:** `W3C1_TRANSACTWRITE_IAM_PLAN_READY_FOR_OWNER_REVIEW`
+**Disposition:** `W3C1_TARGETED_IAM_PLAN_VERIFIED_READY_FOR_OWNER_REVIEW`
 **Branch:** `infra/w3c1-transactwrite-iam-plan` (from `main == origin/main == da2fb1fc6179bb3335a6cef06aafdf90d183e5d8`)
+**Plan results:** `W3C1_TERRAFORM_VALIDATE=PASS`;
+`W3C1_FULL_TERRAFORM_PLAN=0_ADD_14_CHANGE_0_DESTROY`;
+`W3C1_FULL_PLAN_SCOPE_DRIFT=13_LAMBDA_SOURCE_CODE_HASH_CHANGES`;
+`W3C1_TARGETED_IAM_PLAN=PASS`;
+`W3C1_TARGETED_IAM_PLAN_COUNTS=0_ADD_1_CHANGE_0_DESTROY`;
+`W3C1_TARGETED_IAM_PLAN_RESOURCE=module.iam.aws_iam_policy.dynamodb_access`.
+Apply remains unauthorized: `W3C1_TERRAFORM_APPLY_AUTHORIZED=NO`, `W3C1_RUNTIME_ENABLED=NO`,
+`W3C1_DEPLOYMENT_AUTHORIZED=NO`.
 
 ## Authorization boundary
 
@@ -71,28 +79,53 @@ change, no new AWS resource.
   modules + providers initialized).
 - **`terraform validate`:** **PASS** — "Success! The configuration is valid."
   `W3C1_TERRAFORM_VALIDATE=PASS`.
-- **`terraform plan`:** **NOT EXECUTED (blocked)** — `W3C1_TERRAFORM_PLAN=BLOCKED_ON_EXPIRED_PROD_SSO`.
-  A backend-connected plan requires `terraform init` against the S3 backend plus valid
-  credentials for account `358604342897`; the prod SSO token is expired and cannot
-  auto-refresh ("Token has expired and refresh failed"). Re-authenticating prod SSO and
-  running a state-refreshing plan against live prod is outside this PLAN-ONLY, no-AWS-access
-  scope, so it was intentionally not performed. No apply, destroy, import, state mutation,
-  refresh-only apply, or targeted apply was run.
 
-### Expected plan (prediction — must be confirmed by a credentialed `terraform plan`)
+Once prod SSO was refreshed, the backend was initialized against the real S3 backend
+(`terraform init` — "Successfully configured the backend 's3'", established config, no
+reconfiguration) and two non-applying plans were executed. No apply, destroy, import, state
+mutation, refresh-only apply, or targeted apply was run; both plans performed read-only state
+refresh only.
 
-The edit is a static change to an inline IAM policy document (`jsonencode(...)`) with no
-dependency on live resource state, so the expected non-applying plan is:
+### Full production plan (executed, non-applying)
 
-- **0 to add, 1 to change, 0 to destroy**
-- Single in-place update: `module.iam.aws_iam_policy.dynamodb_access` — its `policy`
-  attribute changes only to include `dynamodb:TransactWriteItems` in the existing
-  Statement's `Action` list.
-- No Lambda code/config change, no API Gateway change, no DynamoDB table/index change, no
-  secrets/networking change, no new resource, no destroy.
+`W3C1_FULL_TERRAFORM_PLAN=0_ADD_14_CHANGE_0_DESTROY`
+`W3C1_FULL_PLAN_SCOPE_DRIFT=13_LAMBDA_SOURCE_CODE_HASH_CHANGES`
 
-If an actual plan shows anything beyond this single in-place IAM policy change, treat it as
-`W3C1_IAM_PLAN_SCOPE_DRIFT` and STOP.
+`terraform plan` (full) returned **`Plan: 0 to add, 14 to change, 0 to destroy`**:
+
+- 1 authorized change — `module.iam.aws_iam_policy.dynamodb_access` (adds only
+  `dynamodb:TransactWriteItems`; Resource unchanged).
+- 13 **pre-existing** `aws_lambda_function.*` in-place drifts — `admin, assign, cancellation,
+  device, google_auth, intake, job, pet, platform, postmark_webhook, review, ses_feedback,
+  stripe_webhook` — each a `source_code_hash` change `W6cqyudlRQF3Zw7uN2V42JzziwYITg8r5mCnsGdDAq4=`
+  → `58C9BlEJNwm/Gf1AYO028ynYmf42KjeXQn2E1U/MbK8=` (repo `main` backend code is ahead of the
+  prod artifact last deployed 2026-10-22). These are independent of the IAM edit (an IAM
+  policy change cannot alter a Lambda archive hash) and are NOT authorized for apply here.
+
+Because the full plan shows changes beyond the single authorized IAM change, the full plan is
+**not clean**: `W3C1_IAM_PLAN_SCOPE_DRIFT`. A blanket apply of the full plan would also
+redeploy 13 Lambdas — outside this plan-only authorization.
+
+### Targeted IAM plan (executed, non-applying) — scoped validation only
+
+`W3C1_TARGETED_IAM_PLAN=PASS`
+`W3C1_TARGETED_IAM_PLAN_COUNTS=0_ADD_1_CHANGE_0_DESTROY`
+`W3C1_TARGETED_IAM_PLAN_RESOURCE=module.iam.aws_iam_policy.dynamodb_access`
+
+`terraform plan -target=module.iam.aws_iam_policy.dynamodb_access` returned **`Plan: 0 to add,
+1 to change, 0 to destroy`**:
+
+- Exactly one resource in the plan: `module.iam.aws_iam_policy.dynamodb_access`, in-place
+  update; its `policy` diff adds only `+ "dynamodb:TransactWriteItems"` to the existing
+  Statement's `Action` list. Resource ARN unchanged.
+- **No `aws_lambda_function` (or any other) resource appears** in the targeted plan.
+- Terraform emitted the standard informational "Resource targeting is in effect" warning;
+  `-target` was used for plan **validation only**, never with apply.
+
+This targeted plan isolates and proves the IAM change is a clean `0/1/0`. It is a scoped
+validation tool only and does **not** mean the full production plan is clean — the full plan
+still carries the 13 pre-existing Lambda drifts recorded above, which must be reconciled or
+separately authorized before any apply.
 
 ## Source verification after edit
 
