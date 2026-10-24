@@ -80,6 +80,10 @@
           "parent_key": "admin",
           "path_part": "export-data"
         },
+        "admin_external_payment": {
+          "parent_key": "admin_request_id",
+          "path_part": "external-payment"
+        },
         "admin_job": {
           "parent_key": "admin",
           "path_part": "job"
@@ -441,6 +445,12 @@
           "authorization": "COGNITO_USER_POOLS",
           "authorizer_key": "cognito"
         },
+        "post_admin_external_payment": {
+          "resource_key": "admin_external_payment",
+          "http_method": "POST",
+          "authorization": "COGNITO_USER_POOLS",
+          "authorizer_key": "cognito"
+        },
         "post_admin_job_complete": {
           "resource_key": "admin_job_complete",
           "http_method": "POST",
@@ -788,6 +798,12 @@
           "integration_http_method": "POST",
           "target_reference": "admin_handler_invoke_arn"
         },
+        "post_admin_external_payment_lambda": {
+          "method_key": "post_admin_external_payment",
+          "type": "AWS_PROXY",
+          "integration_http_method": "POST",
+          "target_reference": "admin_handler_invoke_arn"
+        },
         "post_admin_job_complete_lambda": {
           "method_key": "post_admin_job_complete",
           "type": "AWS_PROXY",
@@ -940,6 +956,7 @@
           "admin_clients_link",
           "admin_clients_onboard",
           "admin_export",
+          "admin_external_payment",
           "admin_job",
           "admin_job_complete",
           "admin_job_start",
