@@ -46,8 +46,11 @@ access-restricted, non-repo location + an independent copy with a recovery runbo
 `terraform apply -target=aws_lambda_function.admin` →
 `Apply complete! 0 added, 1 changed, 0 destroyed`.
 Admin `source_code_hash W6cqyudl… → 1EPLbycK…`; only `source_code_hash`/`last_modified`
-changed. The other 12 Lambdas were **not** updated (remain `W6cqyudl…`), so W1 intake
-validation stays dormant.
+changed. Because all Lambdas build from one shared backend ZIP, this admin artifact now
+**includes the W3-C1 MANUAL_EXTERNAL adapter and the W3-B provider-neutral payment-domain
+code it imports** — present and reachable only via the admin Lambda's W3-C2 route. The
+other 12 Lambdas were **not** updated (remain `W6cqyudl…`), so **W1 intake validation stays
+undeployed** and that W3-B/W3-C1 path stays dormant on them.
 
 ### Phase C — API route + deployment + stage
 `terraform apply` of the 5 named targets
@@ -76,8 +79,10 @@ apply from the Lambda fleet.
   live with Cognito POST + NONE OPTIONS; integration `AWS_PROXY` →
   `togs-and-dogs-prod-admin`.
 - **Terraform convergence:** targeted `plan` after each phase = **No changes** (zero drift).
-- **Monitoring:** admin Lambda CloudWatch Errors = none, Throttles = none; API prod
-  `5XXError` = none (first hour).
+- **Monitoring:** in the first hour, **no CloudWatch error datapoints were observed** for
+  the admin Lambda (Errors, Throttles) or API prod (`5XXError`) — consistent with a
+  deployed-but-not-yet-exercised route; **not** evidence of functional acceptance
+  (`W3C2_FUNCTIONAL_ACCEPTANCE=PENDING`).
 - `TENANT_RESOLUTION_MODE=multi` unchanged.
 
 ## Hash reconciliation
@@ -108,9 +113,12 @@ apply from the Lambda fleet.
 - **Functional acceptance** (live settlement) — separate owner authorization required;
   controlled non-customer data only. `RYAN_TESTING_AUTHORIZED=NO`; no production test data;
   Stripe sandbox-only.
-- **W1 / W3-B** remain merged-not-deployed (dormant on the 12 non-admin Lambdas); any
-  untargeted apply would activate them — prohibited without separate owner authorization +
-  W1 acceptance.
+- **W1 intake behavior remains undeployed** (the `intake` Lambda is unchanged). W1
+  (PR #26/#27) stays merged-not-deployed and dormant on all 12 non-admin Lambdas. W3-B
+  (PR #29) is likewise undeployed on those 12, though its payment-domain code now ships
+  inside the admin artifact as a W3-C1 dependency (active only via the admin W3-C2 route).
+  Any untargeted apply would activate W1 and promote that path fleet-wide — prohibited
+  without separate owner authorization + W1 acceptance.
 - Future provider adapters (Stripe Connect Direct, W3-D1 UI) not started.
 
 See also: [W3-C1 MANUAL_EXTERNAL adapter](w3c1-manual-external-adapter.md),
