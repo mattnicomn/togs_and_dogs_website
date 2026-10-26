@@ -317,11 +317,22 @@ def _build_event_put_item(event_item, table_name):
 
 
 def _resolve_table_and_name():
-    """Return (low_level_client, table_name) from the repository Table resource.
+    """Return (low_level_client, table_name) for the low-level transaction.
 
     Prefers the authoritative Table-resource name over the environment variable. Fails
     clearly (ManualExternalError) if no table/name is configured — every low-level
     transaction operand requires a valid TableName.
+
+    IMPORTANT (serialization boundary): the operands are **already** AttributeValue-encoded
+    by ``_serialize_item`` (TypeSerializer). We therefore use a GENUINE bare low-level
+    DynamoDB client (``boto3.client("dynamodb")``) rather than the resource's attached
+    client (``resource.Table(...).meta.client``). The resource-attached client carries
+    boto3's high-level DynamoDB attribute-value input transformer, which would serialize
+    the already-serialized operands a SECOND time and raise ``TypeError: unhashable type:
+    'dict'`` at the transaction call. The bare client performs no such transformation, so
+    pre-serialized operands are sent exactly once. AWS configuration (region / endpoint) is
+    copied from the existing resource client so the target is unchanged (incl. test/mocked
+    or local-DynamoDB endpoints).
     """
     from common.db import table as _table
     if _table is None:
@@ -336,7 +347,27 @@ def _resolve_table_and_name():
         raise ManualExternalError(
             "DynamoDB table name is not configured", code=ERR_INFRASTRUCTURE
         )
-    return _table.meta.client, table_name
+    return _lowlevel_dynamodb_client(_table), table_name
+
+
+def _lowlevel_dynamodb_client(table_resource):
+    """Build a bare low-level DynamoDB client matching the resource's AWS config.
+
+    Returns a ``boto3.client("dynamodb")`` configured with the SAME region and endpoint as
+    the repository Table resource's attached client, but WITHOUT the resource's high-level
+    attribute-value transformer. This is the correct partner for the adapter's explicit
+    ``_serialize_item`` encoding (single serialization). If the resource meta cannot be
+    introspected for any reason, fall back to a default-config client (same default
+    resolver the resource itself uses).
+    """
+    import boto3
+    try:
+        src = table_resource.meta.client.meta
+        region = src.region_name
+        endpoint = src.endpoint_url
+        return boto3.client("dynamodb", region_name=region, endpoint_url=endpoint)
+    except Exception:  # noqa: BLE001 - config introspection fallback only
+        return boto3.client("dynamodb")
 
 
 def _serialize_item(mapping):
