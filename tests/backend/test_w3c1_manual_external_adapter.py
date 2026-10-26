@@ -874,3 +874,72 @@ def test_fractional_revision_raises_manual_external_error():
     from decimal import Decimal
     with pytest.raises(mx.ManualExternalError):
         mx._current_summary_revision({"payment_summary_revision": Decimal("1.5")})
+
+
+# ---------------------------------------------------------------------------
+# Post-commit supplementary audit (EXTERNAL_PAYMENT_RECORDED).
+# ---------------------------------------------------------------------------
+# The adapter writes a supplementary AUDIT# entry AFTER the authoritative two-item
+# transaction commits, and ONLY on a freshly-created settlement (result == RECORD_CREATED).
+# It imports common.audit.log_action lazily inside the function, so patching
+# "common.audit.log_action" intercepts the real call. The audit write is non-authoritative:
+# a failure must NOT roll back, re-apply money, bump the revision, or fail the operation.
+
+def test_audit_entry_written_on_created():
+    # On a successful RECORD_CREATED settlement, exactly one EXTERNAL_PAYMENT_RECORDED audit
+    # call is made, carrying the REQUEST identity and the previous/new status.
+    with patch("common.audit.log_action") as audit:
+        out, client = _run(adapter_request=_request(), **_BASE_OP)
+    assert out["result"] == mx.RECORD_CREATED
+    # Exactly one authoritative transaction, and exactly one supplementary audit call.
+    assert len(client.calls) == 1
+    audit.assert_called_once()
+    args, kwargs = audit.call_args
+    # Positional contract: (event, action, target_pk).
+    assert args[1] == "EXTERNAL_PAYMENT_RECORDED"
+    assert args[2] == "REQ#req-1"
+    # Request identity + status metadata.
+    assert kwargs["target_sk"] == "CLIENT#cli-1"
+    assert kwargs["previous_status"] == PaymentStatus.UNPAID
+    assert kwargs["new_status"] == PaymentStatus.PAID
+
+
+def test_audit_failure_is_non_fatal():
+    # A supplementary audit failure must not fail the already-committed settlement, must not
+    # re-apply money, and must not bump the revision. The single payment transaction stands.
+    with patch("common.audit.log_action", side_effect=RuntimeError("audit sink down")) as audit:
+        out, client = _run(adapter_request=_request(), **_BASE_OP)
+    # The audit path was actually reached (so the raised side_effect genuinely exercised
+    # the non-fatal handling, rather than the test passing vacuously because audit was
+    # never called).
+    audit.assert_called_once()
+    # Settlement still reports success with the committed state.
+    assert out["result"] == mx.RECORD_CREATED
+    assert out["resulting_status"] == PaymentStatus.PAID
+    assert out["amount_paid_cents"] == 5000
+    # Exactly one transaction attempted (no retry/second apply) and revision committed once.
+    assert len(client.calls) == 1
+    assert out["payment_summary_revision"] == 1
+
+
+def test_audit_not_written_on_duplicate_replay():
+    # An idempotent duplicate (same event already committed) returns RECORD_DUPLICATE_SAME_EVENT
+    # and must NOT emit another audit event (audit fires only on RECORD_CREATED).
+    existing_evt = _existing_event()
+    paid_request = _request(payment_status=PaymentStatus.PAID, amount_paid_cents=5000,
+                            payment_summary_revision=1,
+                            payment_completed_at="2026-10-23T10:00:00Z")
+
+    def get_side(pk, sk):
+        if sk.startswith("CLIENT#"):
+            return paid_request
+        if sk.startswith("PAYEVENT#"):
+            return existing_evt
+        return None
+
+    with patch("common.audit.log_action") as audit:
+        out, client = _run(get_item_side=get_side, raise_exc=_cond_failed(), **_BASE_OP)
+    assert out["result"] == mx.RECORD_DUPLICATE_SAME_EVENT
+    # No new money applied and, critically, no supplementary audit event for a replay.
+    assert out["amount_paid_cents"] == 5000
+    audit.assert_not_called()
