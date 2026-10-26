@@ -1,10 +1,72 @@
 # Current Project State
 
-**Last Updated:** 2026-10-23 — **W3-C2 production baseline reconciliation** (documentation + read-only AWS audit; no deploy/apply). `main == origin/main == 7787f503f1557357dd0f1ca21dd4d227c39339a8` (PR #33 W3-C2 MANUAL_EXTERNAL API route squash-merged, source only). A read-only AWS audit of account `358604342897` established the authoritative deployed baseline: **all 13 Lambdas uniform on `CodeSha256 W6cqyudlRQF3Zw7uN2V42JzziwYITg8r5mCnsGdDAq4=`** (python3.11, admin + intake Active/Successful, LastModified 2026-10-22); API stage `prod → hhryhc` with **no `external-payment` route**; admin exec-role `togs-and-dogs-prod-dynamodb-access` (v2) grants `GetItem/PutItem/UpdateItem/DeleteItem/Query/Scan` only — **`dynamodb:TransactWriteItems` ABSENT**; `TENANT_RESOLUTION_MODE=multi`. This supersedes the earlier narrative hash `gBjdlXDUn0+0gHHyF/W5aKv35NROe81lsQZbBf4YR6I=` (OPS-3A.3) — production was deployed forward to `W6cqyudl…` (the PR #22 privacy release, `PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`). `W3C2_PROD_BASELINE=W6cqyudl…`, `W3C2_PROD_BASELINE_VERIFIED=YES`, `W3C2_PROD_BASELINE_UNIFORM=YES` (no partial update). W1 (PR #26/#27), W3-B (PR #29), W3-C1 adapter (PR #31), W3-C1 IAM source (PR #32), W3-C2 API (PR #33) are all **merged-not-deployed**. See the W3-C2 baseline-reconciliation section immediately below; the W3-C1 section and earlier history follow it, preserved.
+**Last Updated:** 2026-10-24 — **W3-C2 MANUAL_EXTERNAL payment route TECHNICALLY DEPLOYED to production** via three separately-authorized targeted Terraform applies (Phase A IAM → Phase B admin Lambda → Phase C API route/deployment/stage). `main == origin/main == ef39b178d2ac3b255246174b739952892fd0bea1` (PR #33 route source + PR #34 docs + PR #35 fingerprint/ARN-decoupling, all squash-merged). **TECHNICAL_DEPLOYMENT=COMPLETE; FUNCTIONAL_ACCEPTANCE=PENDING** (no live external-payment settlement has been recorded; no production payment transaction performed). Verified post-deploy state (account `358604342897`, during Phase C with valid SSO): IAM policy `togs-and-dogs-prod-dynamodb-access` default **v3** — now **includes `dynamodb:TransactWriteItems`** (`W3C1_TRANSACTWRITE_IAM_PRESENT=YES`; v2 retained for rollback); admin Lambda `CodeSha256 1EPLbycKQSFOwH58Y7c5xGU+eG/Ht8qNS7pxkoFdBKk=` (carries the W3-C2 route + W3-C1 adapter), Active/Successful; the **other 12 Lambdas remain on `W6cqyudl…`** (W1 intake behavior stays DORMANT — not deployed); API Gateway `a022yxuiue` stage `prod` cut over to new deployment **`n40vai`** (prior `hhryhc` destroyed by create-before-destroy replacement); live route **`POST /admin/requests/{requestId}/external-payment`** present, `authorization=COGNITO_USER_POOLS` (authorizer `r0gk6r`), `AWS_PROXY`→admin, plus unauthenticated `OPTIONS` CORS preflight; `TENANT_RESOLUTION_MODE=multi` unchanged. Targeted Terraform convergence after each phase = **No changes** (zero residual drift); CloudWatch admin Errors/Throttles and API prod 5XXError = none. The current `main` backend artifact builds **`1EPLbycK…`** (this superseded the earlier pre-PR#34/#35 planning estimate `58C9Bl…`, which was never deployed). Historical note: the prior OPS-3A.3 narrative hash `gBjdlXDUn0…` and the pre-W3-C2 deployed baseline `W6cqyudl…` (PR #22 privacy release) are retained below as history. `W3C2_DEPLOYED=YES`; `W3C2_RUNTIME_ENABLED=YES`; `W3C2_FUNCTIONAL_ACCEPTANCE=PENDING`. W1 (PR #26/#27) and W3-B (PR #29) remain **merged-not-deployed** (dormant on the 12 non-admin Lambdas). See the W3-C2 deployment-complete section immediately below; the baseline-reconciliation and W3-C1 sections and earlier history follow it, preserved.
+
+---
+
+## 2026-10-24 — W3-C2 MANUAL_EXTERNAL Payment Route — PRODUCTION DEPLOYMENT COMPLETE (technical), Functional Acceptance PENDING
+
+**Disposition:** `W3C2_TECHNICAL_DEPLOYMENT_COMPLETE_FUNCTIONAL_ACCEPTANCE_PENDING`
+
+`W3C2_DEPLOYED=YES`; `W3C2_RUNTIME_ENABLED=YES`; `W3C2_FUNCTIONAL_ACCEPTANCE=PENDING`;
+`W3C1_TRANSACTWRITE_IAM_PRESENT=YES`; `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`;
+`W1_PRODUCTION_RELEASE_AUTHORIZED=NO`.
+
+W3-C2 was released to production from `main == ef39b178d2ac3b255246174b739952892fd0bea1`
+via **three separately owner-authorized, targeted Terraform applies** (never an untargeted
+apply), each preceded by a plan-only gate and followed by targeted-convergence verification.
+A pre-Phase-B rollback artifact of the deployed admin Lambda was captured and hash-verified
+before any code change.
+
+### Phase A — IAM grant (applied)
+- `terraform apply -target=module.iam.aws_iam_policy.dynamodb_access` → **`Apply complete! 0 added, 1 changed, 0 destroyed`**.
+- Added **exactly** `dynamodb:TransactWriteItems` to `togs-and-dogs-prod-dynamodb-access`; **no Resource/ARN widening**. Policy default version advanced **v2 → v3**; **v2 retained** as the IAM rollback target.
+- Post-apply: default version **v3**, action present; targeted convergence = No changes.
+
+### Phase B — admin Lambda code (applied)
+- Pre-apply: captured the deployed admin package and verified its ZIP SHA-256 (base64) **equals** the live `CodeSha256 W6cqyudl…` — true rollback artifact, retained in a durable, access-restricted, non-repo location plus an independent copy (see `RETENTION-AND-RECOVERY.md`). The admin Lambda has **no published versions** and Terraform cannot regenerate `W6cqyudl…` (current `main` builds `1EPLbycK…`), so this capture is the authoritative restore source.
+- `terraform apply -target=aws_lambda_function.admin` → **`Apply complete! 0 added, 1 changed, 0 destroyed`**. Admin `source_code_hash W6cqyudl… → 1EPLbycK…`; only `source_code_hash`/`last_modified` changed (handler/runtime/role/memory/timeout/env unchanged).
+- **The other 12 Lambdas were NOT updated** (remain `W6cqyudl…`) — W1 intake validation stays dormant.
+
+### Phase C — API route + deployment + stage (applied)
+- `terraform apply` of the 5 named targets (`module.api.aws_api_gateway_resource.admin_external_payment`, `...method.post_admin_external_payment`, `...integration.post_admin_external_payment_lambda`, `...deployment.main`, `...stage.main`) → **`Apply complete! 8 added, 1 changed, 1 destroyed`**.
+- Added: the `external-payment` resource (`/admin/requests/{requestId}/external-payment`, resource id `l47lcy`, parent `admin_request_id`), its **POST method `authorization=COGNITO_USER_POOLS`** (authorizer `r0gk6r`) with **AWS_PROXY** integration → admin invoke ARN, the OPTIONS method (`authorization=NONE`) + MOCK integration + method/integration responses for CORS, and the new deployment. Changed: `aws_api_gateway_stage.main` cut over to the new deployment. Destroyed: the old deployment (create-before-destroy replacement).
+- Zero Lambda updates, zero IAM changes, zero existing-integration URI changes in the Phase C plan/apply (the invoke-ARN decoupling from PR #35 held).
+
+### Verified live post-deployment state (Phase C, valid SSO at deploy time)
+- **IAM:** `togs-and-dogs-prod-dynamodb-access` default **v3**, includes `dynamodb:TransactWriteItems`; **v2 retained**.
+- **Admin Lambda:** `CodeSha256 1EPLbycKQSFOwH58Y7c5xGU+eG/Ht8qNS7pxkoFdBKk=`, Active/Successful.
+- **Other 12 Lambdas:** all still `W6cqyudl…` (intake, review, assign, job, google-auth, pet, cancellation, device, ses-feedback, postmark-webhook, stripe-webhook, platform). **W1 DORMANT.**
+- **API Gateway `a022yxuiue`:** stage `prod` → deployment **`n40vai`**; live `external-payment` resource `l47lcy` with Cognito POST + NONE OPTIONS; integration `AWS_PROXY` → `togs-and-dogs-prod-admin`.
+- **Convergence:** targeted `terraform plan` after each phase = **No changes** (zero residual drift).
+- **Monitoring:** admin Lambda CloudWatch Errors = none, Throttles = none; API prod `5XXError` = none (first hour).
+- `TENANT_RESOLUTION_MODE=multi` unchanged; no Stripe/tenant/Ryan/mobile change; no W1 deploy.
+
+### TECHNICAL DEPLOYMENT COMPLETE vs FUNCTIONAL ACCEPTANCE PENDING
+- **TECHNICAL_DEPLOYMENT=COMPLETE:** the route, its auth, its integration, the IAM grant, and the admin code are all live and Terraform-converged.
+- **FUNCTIONAL_ACCEPTANCE=PENDING:** **no live external-payment settlement has been recorded** and **no production payment transaction has been performed.** First end-to-end exercise remains a separate, explicitly owner-gated step, to be run with controlled non-customer data. `RYAN_TESTING_AUTHORIZED=NO`; no production test data; Stripe sandbox-only.
+
+### Hash reconciliation (historical vs current)
+- `1EPLbycK…` — **current deployed admin artifact** (built from `main` `ef39b178`), live on `aws_lambda_function.admin` only.
+- `W6cqyudl…` — **pre-W3-C2 deployed baseline** (PR #22 privacy release), still live on the other 12 Lambdas; the retained admin rollback artifact.
+- `58C9Bl…` — a **pre-PR#34/#35 planning estimate** of the `main` backend build, recorded in the baseline-reconciliation section below; it was **never deployed** and is superseded by `1EPLbycK…`. (The reference is left intact in the historical section below and clarified here.)
+- `gBjdlXDUn0…` / `QgEdTeYY…` / earlier — historical prior releases, retained below.
+
+### Rollback readiness (post-deployment)
+- **IAM (Phase A):** `set-default-policy-version --version-id v2` restores the pre-grant policy; v2 retained.
+- **Admin Lambda (Phase B):** `update-function-code --zip-file fileb://<durable>\admin-rollback-W6cqyudl.zip` (pre-check base64 SHA == `W6cqyudl…`), then targeted Terraform reconciliation; never untargeted.
+- **API (Phase C):** the prior deployment `hhryhc` was **destroyed** by the replacement and is **not** a stage-repoint target; to remove route exposure, re-cut/redeploy or re-point the stage to a retained prior deployment after confirming behavioral equivalence (see the API rollback investigation note below — retained deployments `72m3x0`/`z6edb6`/`o8ofzg` predate several intervening API releases and are NOT assumed equivalent to the pre-W3-C2 behavior). Preferred recovery is a forward-fix or a fresh targeted redeploy of the corrected config, not repointing to an old deployment.
+
+### Gates preserved (unchanged by this deployment)
+No Stripe live activity, tenant change, Ryan testing, production test data, mobile distribution, or W1 deployment performed. The 12 non-admin Lambdas remain on `W6cqyudl…`; **any untargeted `terraform apply` would still sweep all 13 to `1EPLbycK…` and activate W1 — prohibited without separate owner authorization + W1 acceptance.**
+
+Checkpoint: `main == origin/main == ef39b178d2ac3b255246174b739952892fd0bea1`.
 
 ---
 
 ## 2026-10-23 — W3-C2 Production Baseline Reconciliation (docs + read-only AWS audit; no deploy)
+
+> **Superseded by the 2026-10-24 deployment-complete section above.** This section captured the *pre-deployment* state (route merged-not-deployed; IAM v2 without TransactWriteItems; all 13 Lambdas on `W6cqyudl…`). The `58C9Bl…` hash referenced below was the `main` backend build **estimate at that time** (pre PR #34/#35) and was **never deployed**; the actually-deployed admin artifact is `1EPLbycK…`. Retained unaltered for history.
 
 **Disposition:** `W3C2_PROD_BASELINE_VERIFIED` — documentation reconciled to verified live AWS; no mutation.
 
