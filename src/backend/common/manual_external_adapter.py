@@ -317,11 +317,22 @@ def _build_event_put_item(event_item, table_name):
 
 
 def _resolve_table_and_name():
-    """Return (low_level_client, table_name) from the repository Table resource.
+    """Return (low_level_client, table_name) for the low-level transaction.
 
     Prefers the authoritative Table-resource name over the environment variable. Fails
     clearly (ManualExternalError) if no table/name is configured — every low-level
     transaction operand requires a valid TableName.
+
+    IMPORTANT (serialization boundary): the operands are **already** AttributeValue-encoded
+    by ``_serialize_item`` (TypeSerializer). We therefore use a GENUINE bare low-level
+    DynamoDB client (``boto3.client("dynamodb")``) rather than the resource's attached
+    client (``resource.Table(...).meta.client``). The resource-attached client carries
+    boto3's high-level DynamoDB attribute-value input transformer, which would serialize
+    the already-serialized operands a SECOND time and raise ``TypeError: unhashable type:
+    'dict'`` at the transaction call. The bare client performs no such transformation, so
+    pre-serialized operands are sent exactly once. AWS configuration (region / endpoint) is
+    copied from the existing resource client so the target is unchanged (incl. test/mocked
+    or local-DynamoDB endpoints).
     """
     from common.db import table as _table
     if _table is None:
@@ -336,7 +347,61 @@ def _resolve_table_and_name():
         raise ManualExternalError(
             "DynamoDB table name is not configured", code=ERR_INFRASTRUCTURE
         )
-    return _table.meta.client, table_name
+    return _lowlevel_dynamodb_client(_table), table_name
+
+
+def _lowlevel_dynamodb_client(table_resource):
+    """Build a bare low-level DynamoDB client matching the resource's AWS config.
+
+    Returns a ``boto3.client("dynamodb")`` that preserves the repository Table resource's
+    AWS configuration — region, endpoint URL, botocore client ``Config`` (retries,
+    timeouts, signature, etc.), and the resource's own credential/session resolution — but
+    WITHOUT the resource's high-level attribute-value transformer. This is the correct
+    partner for the adapter's explicit ``_serialize_item`` encoding (single serialization).
+
+    Fail-closed: the configuration is derived from the resource's existing client (so we
+    never silently drop an explicitly-configured endpoint/region/credentials). If that
+    configuration cannot be introspected, raise ``ManualExternalError(ERR_INFRASTRUCTURE)``
+    rather than falling back to an unconfigured default client that could target the wrong
+    endpoint.
+    """
+    import boto3
+    from botocore.config import Config as _BotoConfig
+
+    src_client = getattr(getattr(table_resource, "meta", None), "client", None)
+    src_meta = getattr(src_client, "meta", None)
+    if src_client is None or src_meta is None:
+        raise ManualExternalError(
+            "cannot resolve DynamoDB client configuration for the transaction",
+            code=ERR_INFRASTRUCTURE,
+        )
+
+    region = getattr(src_meta, "region_name", None)
+    endpoint = getattr(src_meta, "endpoint_url", None)
+    src_config = getattr(src_meta, "config", None)
+    if not region or not endpoint or src_config is None:
+        # A properly-constructed boto3 client always resolves these; their absence means
+        # the configuration is not trustworthy. Fail closed rather than guess a default.
+        raise ManualExternalError(
+            "DynamoDB client configuration is incomplete (region/endpoint/config unresolved)",
+            code=ERR_INFRASTRUCTURE,
+        )
+
+    # Reuse the resource client's botocore Config so retries/timeouts/signing are preserved;
+    # drop its injected DynamoDB high-level customizations by using a clean low-level client
+    # that carries no attribute-value transformer. Credentials are resolved from the same
+    # default session/provider chain the resource client used.
+    try:
+        cfg = _BotoConfig(region_name=region)
+        if src_config is not None:
+            cfg = src_config.merge(cfg)
+        return boto3.client("dynamodb", region_name=region, endpoint_url=endpoint, config=cfg)
+    except ManualExternalError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - construction failure is a config/infra error
+        raise ManualExternalError(
+            "failed to construct low-level DynamoDB client", code=ERR_INFRASTRUCTURE
+        ) from exc
 
 
 def _serialize_item(mapping):

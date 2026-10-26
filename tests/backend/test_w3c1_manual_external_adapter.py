@@ -136,6 +136,12 @@ def _patched(adapter_request=None, get_item_side=None, raise_exc=None,
         patches.append(patch("common.db.get_item", side_effect=_default_get))
     patches.append(patch("common.db.table", fake_table))
     patches.append(patch("common.auth.DEFAULT_COMPANY_ID", "tog_and_dogs"))
+    # Serialization-boundary seam: the adapter now runs the transaction through a GENUINE
+    # bare low-level client built by `_lowlevel_dynamodb_client` (NOT `table.meta.client`,
+    # which would double-serialize the already-encoded operands). Patch that seam to return
+    # the capturing fake client so these unit tests assert on the exact operands submitted.
+    patches.append(patch("common.manual_external_adapter._lowlevel_dynamodb_client",
+                         return_value=fake_client))
     return patches, fake_client
 
 
