@@ -20,7 +20,6 @@ no Stripe, no route/UI. Auth/tenant are patched; the DynamoDB layer is the real 
 
 import os
 import sys
-import importlib
 import contextlib
 from decimal import Decimal
 from unittest.mock import patch
@@ -33,6 +32,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src", "b
 
 import boto3  # noqa: E402
 from moto import mock_aws  # noqa: E402
+
+# Stable references to the SHARED application modules. These are imported ONCE and never
+# reloaded; the moto binding is applied via temporary patching (patch.object) that pytest/
+# mock restore at context exit, so no sys.modules or module-global state leaks out of a test.
+import common.db as _db          # noqa: E402
+import common.manual_external_adapter as _mx  # noqa: E402
 
 TABLE_NAME = "w3c2-itest-table"
 
@@ -99,32 +104,41 @@ def _seed_request(table, **over):
 
 @contextlib.contextmanager
 def _moto_adapter(seed=True, company="co-1", **seed_over):
-    """Stand up a real moto table, bind common.db to it, and reload the adapter.
+    """Stand up a real moto table and TEMPORARILY bind common.db to it — no module reloads.
 
     Yields (adapter_module, table). The adapter runs its REAL client path:
     _lowlevel_dynamodb_client builds a bare boto3 client, which moto intercepts.
-    Auth/tenant are patched to a trusted owner; the DynamoDB layer is real (moto).
+
+    Isolation contract (why this does not leak):
+    - NO ``importlib.reload`` of common.db or common.manual_external_adapter. Reloading
+      mutates sys.modules and shared module globals that outlive the ``mock_aws`` context,
+      leaving dangling references to an expired moto Table. We import both modules ONCE at
+      module load and never replace them.
+    - The moto binding is applied with ``patch.object`` on the SHARED ``common.db`` module
+      (``table`` and ``TABLE_NAME``). mock restores the exact original attribute objects on
+      context exit, so after the test ``common.db.table`` is byte-identical to what it was
+      before (no expired-moto-resource reference remains).
+    - The adapter reads ``common.db.table`` / ``common.db.get_item`` lazily at call time, so
+      patching ``common.db`` is sufficient; the adapter needs no reload.
+    - Auth/tenant are patched to a trusted owner; the DynamoDB layer is the real moto engine.
     """
     with mock_aws():
         ddb = boto3.resource("dynamodb", region_name="us-east-1")
         table = _create_table(ddb)
 
-        import common.db as db
-        importlib.reload(db)          # rebind db.dynamodb/db.table under mock_aws
-        db.table = table              # point the module table at the moto resource
-        db.TABLE_NAME = TABLE_NAME
+        with contextlib.ExitStack() as stack:
+            # Temporary, auto-restoring binding of the shared common.db module to moto.
+            stack.enter_context(patch.object(_db, "table", table))
+            stack.enter_context(patch.object(_db, "TABLE_NAME", TABLE_NAME))
+            stack.enter_context(patch("common.auth.require_owner_or_admin", return_value="owner"))
+            stack.enter_context(patch("common.auth.get_current_company_id", return_value=company))
+            stack.enter_context(patch("common.auth.get_claims", return_value={"email": "owner@example.com"}))
+            stack.enter_context(patch("common.auth.DEFAULT_COMPANY_ID", "tog_and_dogs"))
 
-        import common.manual_external_adapter as mx
-        mx = importlib.reload(mx)     # rebind adapter to the live db + domain
+            if seed:
+                _seed_request(table, **seed_over)
 
-        if seed:
-            _seed_request(table, **seed_over)
-
-        with patch("common.auth.require_owner_or_admin", return_value="owner"), \
-             patch("common.auth.get_current_company_id", return_value=company), \
-             patch("common.auth.get_claims", return_value={"email": "owner@example.com"}), \
-             patch("common.auth.DEFAULT_COMPANY_ID", "tog_and_dogs"):
-            yield mx, table
+            yield _mx, table
 
 
 def _op(**over):
@@ -338,3 +352,38 @@ def test_lowlevel_client_fails_closed_when_config_unavailable():
         with pytest.raises(mx.ManualExternalError) as ei:
             mx._lowlevel_dynamodb_client(_NoMetaResource)
         assert ei.value.code == mx.ERR_INFRASTRUCTURE
+
+
+# ---------------------------------------------------------------------------
+# 11. Isolation regression: _moto_adapter must NOT leak shared module state.
+#     After the context exits, common.db.table / TABLE_NAME are the exact original
+#     objects, and the shared modules in sys.modules are the same objects (no reload),
+#     so no dangling reference to the expired moto resource remains.
+# ---------------------------------------------------------------------------
+
+def test_moto_adapter_restores_shared_module_state():
+    import common.db as db_before
+    import common.manual_external_adapter as mx_before
+
+    # Snapshot the pre-context shared state (identity, not just value).
+    table_before = db_before.table
+    table_name_before = db_before.TABLE_NAME
+    db_module_id_before = id(sys.modules["common.db"])
+    mx_module_id_before = id(sys.modules["common.manual_external_adapter"])
+
+    with _moto_adapter() as (mx, table):
+        # Inside the context, common.db is temporarily bound to the moto table.
+        assert db_before.table is table
+        assert db_before.TABLE_NAME == TABLE_NAME
+        mx.record_external_payment(**_op())  # exercise the real path while bound
+
+    # After exit: every binding is restored to the ORIGINAL object (no moto leak).
+    assert db_before.table is table_before
+    assert db_before.TABLE_NAME == table_name_before
+    # The moto table must NOT remain referenced by the shared module.
+    assert db_before.table is not table
+    # No module was reloaded/replaced in sys.modules (identity preserved).
+    assert id(sys.modules["common.db"]) == db_module_id_before
+    assert id(sys.modules["common.manual_external_adapter"]) == mx_module_id_before
+    assert sys.modules["common.manual_external_adapter"] is mx_before
+    assert sys.modules["common.db"] is db_before
