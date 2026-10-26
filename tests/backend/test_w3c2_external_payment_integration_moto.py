@@ -27,19 +27,42 @@ from unittest.mock import patch
 
 import pytest
 
-# Strict synthetic AWS context BEFORE boto3/moto import or any client construction.
-for _k in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_SECURITY_TOKEN"):
-    os.environ[_k] = "testing"
-os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
-os.environ.pop("AWS_PROFILE", None)
-os.environ.setdefault("DATA_TABLE_NAME", "w3c2-itest-table")
-
+# Make src/backend importable. This is an import-path change only; it does NOT mutate
+# process-wide AWS environment state (that is scoped to the restoring fixture below).
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src", "backend"))
 
 import boto3  # noqa: E402
 from moto import mock_aws  # noqa: E402
 
 TABLE_NAME = "w3c2-itest-table"
+
+# Synthetic AWS context applied PER TEST and fully restored afterward (no import-time or
+# process-wide mutation that could leak into unrelated tests).
+_SYNTHETIC_AWS_ENV = {
+    "AWS_ACCESS_KEY_ID": "testing",
+    "AWS_SECRET_ACCESS_KEY": "testing",
+    "AWS_SESSION_TOKEN": "testing",
+    "AWS_SECURITY_TOKEN": "testing",
+    "AWS_DEFAULT_REGION": "us-east-1",
+    "AWS_PROFILE": None,          # must be ABSENT (synthetic creds only, never a real profile)
+    "DATA_TABLE_NAME": TABLE_NAME,
+}
+
+
+@pytest.fixture(autouse=True)
+def _synthetic_aws_env(monkeypatch):
+    """Scope synthetic AWS credentials/region/profile/table to each test and restore after.
+
+    monkeypatch records and reverts every change (set or delete) at test teardown, so this
+    module cannot leak AWS env state, boto3 default-session config, or DATA_TABLE_NAME into
+    unrelated tests. All work remains offline (moto intercepts; synthetic creds only).
+    """
+    for key, value in _SYNTHETIC_AWS_ENV.items():
+        if value is None:
+            monkeypatch.delenv(key, raising=False)
+        else:
+            monkeypatch.setenv(key, value)
+    yield
 
 
 def _create_table(ddb):
@@ -283,3 +306,35 @@ def test_adapter_uses_bare_lowlevel_client_not_resource_client():
         assert client is not table.meta.client
         # And it must be a low-level dynamodb client.
         assert client.meta.service_model.service_name == "dynamodb"
+
+
+# ---------------------------------------------------------------------------
+# 9. Low-level client configuration is PRESERVED from the resource (region/endpoint),
+#    not silently defaulted.
+# ---------------------------------------------------------------------------
+
+def test_lowlevel_client_preserves_region_and_endpoint():
+    with _moto_adapter() as (mx, table):
+        src_meta = table.meta.client.meta
+        bare = mx._lowlevel_dynamodb_client(table)
+        # Region and endpoint must match the resource client's resolved configuration.
+        assert bare.meta.region_name == src_meta.region_name
+        assert bare.meta.endpoint_url == src_meta.endpoint_url
+        # botocore Config is carried (not None) so retries/timeouts/signing are preserved.
+        assert bare.meta.config is not None
+
+
+# ---------------------------------------------------------------------------
+# 10. Fail-closed: if the resource client config cannot be introspected, the adapter
+#     raises ERR_INFRASTRUCTURE rather than silently building a default-endpoint client.
+# ---------------------------------------------------------------------------
+
+def test_lowlevel_client_fails_closed_when_config_unavailable():
+    with _moto_adapter() as (mx, table):
+        class _NoMetaResource:
+            # A resource whose .meta.client is missing -> config cannot be resolved.
+            class meta:
+                client = None
+        with pytest.raises(mx.ManualExternalError) as ei:
+            mx._lowlevel_dynamodb_client(_NoMetaResource)
+        assert ei.value.code == mx.ERR_INFRASTRUCTURE
