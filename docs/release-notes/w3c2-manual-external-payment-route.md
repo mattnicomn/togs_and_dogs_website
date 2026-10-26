@@ -108,6 +108,37 @@ apply from the Lambda fleet.
 - After any emergency out-of-band change, reconcile Terraform state with a **targeted** plan
   and never resolve drift via an untargeted apply.
 
+## Automated-evidence checkpoint (2026-10-26)
+
+This records **LOCAL OFFLINE AUTOMATED TEST EVIDENCE** only (mock-only; no AWS, no network).
+It is **not a new release and not functional acceptance** — the W3-C2 production deployment
+of 2026-10-24 remains the latest technical deployment, and the deployed admin artifact
+(`1EPLbycK…`, stage `n40vai`) is unchanged by this checkpoint.
+
+As of `main == 617b587f0cad3ffe478fdbce9857cc8df833a3b7`, the four offline suites report
+**320 tests passing, 0 failures**:
+
+- W3-C1 MANUAL_EXTERNAL adapter — **60 passed**
+- W3-B provider-neutral payment domain — **174 passed**
+- Quote contract — **50 passed**
+- W3-C2 handler route (`POST /admin/requests/{requestId}/external-payment`) — **36 passed**
+
+PR #38 (squash-merged to `main` as `617b587`) added three tests closing the
+previously-uncovered post-commit audit path on the adapter (W3-C1 suite 57 → 60):
+
+- `test_audit_entry_written_on_created` — exactly one `EXTERNAL_PAYMENT_RECORDED` audit
+  call on a successful `RECORD_CREATED`, with REQUEST identity + previous/new status.
+- `test_audit_failure_is_non_fatal` — an audit-sink failure does not fail the committed
+  settlement, re-apply money, or bump the revision (and the audit path is asserted reached).
+- `test_audit_not_written_on_duplicate_replay` — an idempotent duplicate emits no second
+  audit event.
+
+**`W3C2_FUNCTIONAL_ACCEPTANCE=PENDING` is unchanged.** The following remain UNVERIFIED:
+live external-payment settlement end-to-end; the runtime IAM `dynamodb:TransactWriteItems`
+grant proven by an authorized write; Cognito authorizer edge behavior (401 unauthenticated /
+OPTIONS open); and API Gateway rollback equivalence (prior deployment `hhryhc` was destroyed,
+and retained deployments are not assumed equivalent).
+
 ## Remaining gates
 
 - **Functional acceptance** (live settlement) — separate owner authorization required;
