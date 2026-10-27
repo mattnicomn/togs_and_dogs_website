@@ -21,6 +21,151 @@ from common.db import table, put_item, get_item
 from boto3.dynamodb.conditions import Attr
 
 
+def resolve_owned_pet_ids(raw_pet_ids, client_id, company_id):
+    """
+    Workstream 1 (hardened): Validate caller-supplied existing-pet IDs against
+    the authenticated client's own active pets. Existing-pet association is
+    ALL-OR-NOTHING: if the caller supplied a `pet_ids` field at all, every entry
+    must be a well-formed, owned, active pet under this tenant, or the whole
+    request is invalid.
+
+    This is the canonical ownership gate for the `pet_ids` request contract.
+    The caller MUST pass a server-resolved `client_id` and `company_id` (from
+    resolve_client_identity / get_current_company_id); this function never reads
+    client/company identity from the request body.
+
+    Validity model (the handler maps `ok == False` to a generic, non-disclosing
+    HTTP 400 and does NOT persist the request):
+    - `absent`: the field was not supplied at all (raw_pet_ids is None). Valid —
+      new-pet-only intake. ok=True, empty pet_ids.
+    - `invalid_shape`: the field was supplied but is not a list. ok=False.
+    - `invalid_entry`: the list contains a non-string / empty / blank entry.
+      ok=False.
+    - `not_owned`: a well-formed id is not an active pet owned by this client
+      under this tenant (covers foreign-client, foreign-tenant, inactive,
+      unknown). ok=False.
+    - otherwise ok=True with the validated, de-duplicated, order-preserving ids
+      and their canonical display names (derived from the owned records only).
+
+    The result NEVER tells the caller which id failed or why; `rejected` /
+    `reason` are for server-side logging only and must not be surfaced.
+
+    Returns:
+        dict: {
+            "ok": bool,
+            "supplied": bool,                 # whether a pet_ids field was present
+            "reason": str | None,             # internal: invalid_shape|invalid_entry|not_owned|no_identity
+            "pet_ids": [validated owned IDs in deterministic order],
+            "pet_names": [matching display names, same order],
+            "rejected": [caller entries that were not accepted],  # internal only
+        }
+    """
+    # Field absent entirely → valid new-pet-only intake.
+    if raw_pet_ids is None:
+        return {"ok": True, "supplied": False, "reason": None,
+                "pet_ids": [], "pet_names": [], "rejected": []}
+
+    # Field supplied → it MUST be a list.
+    if not isinstance(raw_pet_ids, list):
+        return {"ok": False, "supplied": True, "reason": "invalid_shape",
+                "pet_ids": [], "pet_names": [], "rejected": [raw_pet_ids]}
+
+    # An empty list is treated as "no existing-pet selection supplied" — valid,
+    # because it carries no invalid identity (new-pet-only intake may send []).
+    if len(raw_pet_ids) == 0:
+        return {"ok": True, "supplied": True, "reason": None,
+                "pet_ids": [], "pet_names": [], "rejected": []}
+
+    if not client_id or not company_id:
+        # No trusted identity → cannot prove ownership of a supplied selection.
+        return {"ok": False, "supplied": True, "reason": "no_identity",
+                "pet_ids": [], "pet_names": [], "rejected": [str(x) for x in raw_pet_ids]}
+
+    # Normalize: every entry must be a non-empty string. Any malformed entry
+    # invalidates the whole selection (no silent omission).
+    seen = set()
+    requested = []
+    for entry in raw_pet_ids:
+        if not isinstance(entry, str):
+            return {"ok": False, "supplied": True, "reason": "invalid_entry",
+                    "pet_ids": [], "pet_names": [], "rejected": [entry]}
+        value = entry.strip()
+        if not value:
+            return {"ok": False, "supplied": True, "reason": "invalid_entry",
+                    "pet_ids": [], "pet_names": [], "rejected": [entry]}
+        if value in seen:
+            continue  # duplicate valid id collapses to one
+        seen.add(value)
+        requested.append(value)
+
+    # Ownership check against the authoritative owned-pet map (same filter as
+    # GET /client/pets). EVERY requested id must be accepted.
+    owned = _owned_pet_map(client_id, company_id)
+    validated_ids = []
+    validated_names = []
+    for pet_id in requested:
+        pet = owned.get(pet_id)
+        if pet is None:
+            # Not owned / foreign / foreign-tenant / inactive / unknown.
+            # Reject the whole request; do NOT disclose which id or why.
+            return {"ok": False, "supplied": True, "reason": "not_owned",
+                    "pet_ids": [], "pet_names": [], "rejected": [pet_id]}
+        validated_ids.append(pet_id)
+        validated_names.append((pet.get('name') or '').strip())
+
+    return {
+        "ok": True,
+        "supplied": True,
+        "reason": None,
+        "pet_ids": validated_ids,
+        "pet_names": [n for n in validated_names if n],
+        "rejected": [],
+    }
+
+
+def _owned_pet_map(client_id, company_id):
+    """
+    Returns {pet_id: pet_record} for the client's active pets under this tenant.
+
+    Validates the client exists under the trusted company, then queries
+    ClientPetIndex (paginated) and filters to active PET records whose
+    company_id matches — identical to the GET /client/pets contract.
+    """
+    result = {}
+    try:
+        client_resp = table.get_item(
+            Key={'PK': f"COMPANY#{company_id}", 'SK': f"CLIENT#{client_id}"}
+        )
+        if 'Item' not in client_resp:
+            return result
+
+        from boto3.dynamodb.conditions import Key
+        query_kwargs = {
+            'IndexName': 'ClientPetIndex',
+            'KeyConditionExpression': Key('client_id').eq(client_id),
+        }
+        while True:
+            resp = table.query(**query_kwargs)
+            for p in resp.get('Items', []):
+                if p.get('entity_type') != 'PET':
+                    continue
+                p_company = p.get('company_id')
+                if not p_company or p_company != company_id:
+                    continue
+                if p.get('is_active') is False:
+                    continue
+                pid = p.get('pet_id')
+                if pid:
+                    result[pid] = p
+            last_key = resp.get('LastEvaluatedKey')
+            if not last_key:
+                break
+            query_kwargs['ExclusiveStartKey'] = last_key
+    except Exception as e:
+        print(f"WARNING: [PetProfile] Failed to build owned-pet map: {e}")
+    return result
+
+
 def create_or_link_pets_from_request(request_item, request_id, client_id, company_id, updated_by='system'):
     """
     Creates or links individual PET# records from a request's pets array.
@@ -39,21 +184,31 @@ def create_or_link_pets_from_request(request_item, request_id, client_id, compan
     """
     now = datetime.now(timezone.utc).isoformat()
 
-    # Idempotency guard: if pet_ids already set, skip
-    existing_pet_ids = request_item.get('pet_ids')
-    if existing_pet_ids and len(existing_pet_ids) > 0:
-        print(f"INFO: [PetProfile] Skipped — pet_ids already exist on REQ#{request_id}: {existing_pet_ids}")
-        return {"pet_ids": existing_pet_ids, "created": 0, "linked": 0, "warnings": []}
+    # Determine the owner client_id for PET# SK
+    # Prefer linked_client_profile_id (from Release 3 auto-profile) for persistent ownership
+    owner_client_id = request_item.get('linked_client_profile_id') or client_id
+
+    # Workstream 1: canonical existing-pet association.
+    # When the REQUEST already carries a canonical `pet_ids` array (the client
+    # selected existing profile pets by ID), those associations are AUTHORITATIVE:
+    # they are never re-created or name-matched. A request may ALSO carry a
+    # structured `pets` array for genuinely-new pets; those still need PET#
+    # records. We therefore process only the new-pet entries that are not already
+    # represented by a canonical existing ID, and append their new IDs — keeping
+    # the whole operation idempotent (re-running with pet_ids present and no
+    # unrepresented new pets is a no-op).
+    canonical_existing_ids = request_item.get('pet_ids')
+    if canonical_existing_ids and isinstance(canonical_existing_ids, list) and len(canonical_existing_ids) > 0:
+        return _link_mixed_existing_and_new(
+            request_item, request_id, client_id, owner_client_id,
+            company_id, now, canonical_existing_ids
+        )
 
     # Also check legacy single pet_id
     legacy_pet_id = request_item.get('pet_id')
     if legacy_pet_id:
         print(f"INFO: [PetProfile] Skipped — legacy pet_id already exists on REQ#{request_id}: {legacy_pet_id}")
         return {"pet_ids": [legacy_pet_id], "created": 0, "linked": 0, "warnings": []}
-
-    # Determine the owner client_id for PET# SK
-    # Prefer linked_client_profile_id (from Release 3 auto-profile) for persistent ownership
-    owner_client_id = request_item.get('linked_client_profile_id') or client_id
 
     # Get the pets array (Release 4 format) or fall back to legacy
     pets_array = request_item.get('pets')
@@ -132,6 +287,127 @@ def create_or_link_pets_from_request(request_item, request_id, client_id, compan
         })
 
     return {"pet_ids": pet_ids, "created": created_count, "linked": linked_count, "warnings": warnings}
+
+
+def _link_mixed_existing_and_new(request_item, request_id, client_id,
+                                 owner_client_id, company_id, now,
+                                 canonical_existing_ids):
+    """
+    Workstream 1 (hardened): honor canonical existing `pet_ids` and create the
+    genuinely-new structured `pets` entries — using IDENTITY/PROVENANCE, never
+    name equality, to decide what is new and to stay idempotent.
+
+    Rules:
+    - Canonical existing IDs are authoritative and preserved in order; never
+      re-created or renamed here.
+    - A structured `pets` entry is an ECHO of a selected existing pet iff it
+      carries a `pet_id` that is one of `canonical_existing_ids`. Echoes are not
+      created again. (Name is irrelevant to this decision.)
+    - Every other structured entry (no canonical `pet_id`) is a NEW-pet intent
+      and MUST be created — it is NEVER suppressed merely because some unrelated
+      owned pet shares its display name. A new pet named the same as a selected
+      existing pet is still created.
+    - Idempotency is REQUEST-SCOPED: pets previously created by THIS request are
+      recognized via `created_from_request_id == request_id` and reused in order,
+      so a retry does not duplicate them. A same-name pet created by a DIFFERENT
+      request (or a pre-existing owned pet) is NOT treated as this request's
+      identity and does NOT suppress creation.
+    """
+    canonical_set = set(canonical_existing_ids)
+
+    # All active owned PET records this request created on any earlier run,
+    # in a stable order so retries reconcile deterministically. CRUCIAL: we keep
+    # these request-created IDs available for reconciliation EVEN WHEN they are
+    # already present in canonical_existing_ids. On a real retry the request's
+    # persisted pet_ids already contains the previously-created new-pet IDs
+    # (e.g. first run appended NEW-MILO), so those IDs ARE in canonical_set; we
+    # must still recognize them as this request's own new-pet provenance to
+    # reconcile the id-less structured new-pet entries, otherwise we would create
+    # duplicates. True client-selected existing IDs are those canonical IDs that
+    # are NOT request-created provenance.
+    owned_pets = _get_client_pets(owner_client_id, company_id)
+    request_created_ids = [
+        p.get('pet_id')
+        for p in sorted(owned_pets, key=lambda x: (x.get('created_at') or '', x.get('pet_id') or ''))
+        if p.get('created_from_request_id') == request_id
+        and p.get('pet_id')
+    ]
+
+    pets_array = request_item.get('pets')
+    created_ids = []       # freshly created on THIS invocation
+    reconciled_ids = []    # matched to this request's prior provenance (reused)
+    created_count = 0
+
+    if pets_array and isinstance(pets_array, list):
+        reuse_index = 0
+        for pet_data in pets_array:
+            if not isinstance(pet_data, dict):
+                continue
+            pet_name = (pet_data.get('name') or '').strip()
+            if not pet_name:
+                continue
+            entry_id = pet_data.get('pet_id')
+            # Echo of a CLIENT-SELECTED existing pet — identified by a canonical
+            # id that is NOT this request's own creation provenance. Not created.
+            if (isinstance(entry_id, str)
+                    and entry_id.strip() in canonical_set
+                    and entry_id.strip() not in request_created_ids):
+                continue
+            # New-pet intent (id-less, or an id that is this request's own
+            # provenance). Reuse this request's previously-created PET in order
+            # (request-scoped idempotency) before creating a fresh one.
+            if reuse_index < len(request_created_ids):
+                reconciled_ids.append(request_created_ids[reuse_index])
+                reuse_index += 1
+                print(f"INFO: [PetProfile] Reconciled request-scoped PET#{request_created_ids[reuse_index - 1]} "
+                      f"(name: {pet_name}) on retry of REQ#{request_id}")
+                continue
+            new_pet_id = _create_new_pet(pet_data, owner_client_id, company_id, request_id, now)
+            created_ids.append(new_pet_id)
+            created_count += 1
+            print(f"INFO: [PetProfile] Created new PET#{new_pet_id} (name: {pet_name}) alongside canonical existing selection")
+
+    # New-pet IDs contributed by this call = reconciled (prior provenance) + fresh.
+    created_ids = reconciled_ids + created_ids
+    warnings = []
+
+    # Final authoritative association: canonical existing IDs (order preserved)
+    # followed by any newly created IDs, de-duplicated.
+    final_ids = []
+    for pid in list(canonical_existing_ids) + created_ids:
+        if pid and pid not in final_ids:
+            final_ids.append(pid)
+
+    if created_ids:
+        try:
+            table.update_item(
+                Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                UpdateExpression="SET pet_ids = :pids, pet_id = :first_pid",
+                ExpressionAttributeValues={
+                    ":pids": final_ids,
+                    ":first_pid": final_ids[0],
+                },
+            )
+        except Exception as e:
+            print(f"WARNING: [PetProfile] Failed to extend pet_ids on REQ#{request_id}: {e}")
+
+    _copy_vet_to_client_profile(request_item, owner_client_id, company_id, now)
+    _rebuild_pet_summary(owner_client_id, company_id)
+
+    if warnings:
+        _append_audit_to_request(request_id, client_id, {
+            "action": "PET_PROFILE_WARNINGS",
+            "timestamp": now,
+            "warnings": warnings,
+            "updated_by": "system_pet_profile",
+        })
+
+    return {
+        "pet_ids": final_ids,
+        "created": created_count,
+        "linked": len(canonical_existing_ids),
+        "warnings": warnings,
+    }
 
 
 def _create_legacy_single_pet(request_item, request_id, client_id, owner_client_id, company_id, now):

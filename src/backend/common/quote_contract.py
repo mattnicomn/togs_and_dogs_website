@@ -179,6 +179,51 @@ def to_cents(value):
     return cents
 
 
+def normalize_stored_cents(value):
+    """Normalize a value ALREADY KNOWN BY CONTRACT to be integer cents.
+
+    Canonical ``*_cents`` fields (e.g. ``quote_amount_cents``,
+    ``deposit_amount_cents``) are stored as integer minor units. DynamoDB returns
+    every stored number as a ``Decimal``, so a canonical ``20000`` round-trips as
+    ``Decimal('20000')``. Unlike the generic :func:`to_cents` — which treats a
+    non-``int`` (Decimal/float/str) as MAJOR units and multiplies by 100 — this
+    helper preserves the already-cents magnitude regardless of the Python numeric
+    wrapper. It therefore MUST be used only for values the contract guarantees are
+    already cents, never for legacy major-unit PET fields (use
+    :func:`legacy_quote_amount_to_cents` for those).
+
+    Rules:
+      - ``None`` -> 0 (matches ``to_cents`` null handling).
+      - ``int`` -> same integer.
+      - ``Decimal``/``float``/``str`` with an INTEGRAL value -> that integer with NO
+        ×100 scaling (``Decimal('20000')`` -> ``20000``).
+      - A non-integral stored cents value (e.g. ``Decimal('200.5')``) is a contract
+        violation and raises ``QuoteContractError`` (cents are whole units).
+      - Negative or non-numeric input raises ``QuoteContractError``.
+    """
+    if value is None:
+        return 0
+    if isinstance(value, bool):  # bool is an int subclass — reject explicitly
+        raise QuoteContractError("amount must be numeric, not boolean")
+    if isinstance(value, int):
+        cents = value
+    elif isinstance(value, (Decimal, float, str)):
+        try:
+            dec = Decimal(str(value))
+        except Exception as exc:  # noqa: BLE001 - normalize to contract error
+            raise QuoteContractError(f"invalid stored cents value: {value!r}") from exc
+        if dec != dec.to_integral_value():
+            raise QuoteContractError(
+                f"stored cents value must be a whole number of cents: {value!r}"
+            )
+        cents = int(dec)
+    else:
+        raise QuoteContractError(f"unsupported money type: {type(value).__name__}")
+    if cents < 0:
+        raise QuoteContractError("amount must not be negative")
+    return cents
+
+
 def legacy_quote_amount_to_cents(legacy_amount):
     """Convert a legacy PET ``quote_amount`` (Decimal MAJOR units) to integer cents.
 
@@ -283,7 +328,9 @@ def resolve_quote_from_record(request_item, legacy_pet_item=None):
     has_canonical = "quote_status" in req and req.get("quote_status") is not None
 
     if has_canonical:
-        amount_cents = to_cents(req.get("quote_amount_cents"))
+        # Canonical ``*_cents`` are already integer cents in storage; normalize as
+        # stored cents (NOT via to_cents, which would ×100 a DynamoDB Decimal).
+        amount_cents = normalize_stored_cents(req.get("quote_amount_cents"))
         quote_status = validate_quote_status_current(req.get("quote_status"))
         payment_requirement = req.get("payment_requirement") or (
             PaymentRequirement.NONE if amount_cents == 0 else PaymentRequirement.FULL
@@ -296,7 +343,7 @@ def resolve_quote_from_record(request_item, legacy_pet_item=None):
             "quote_revision": int(req.get("quote_revision") or 1),
             "quote_amount_cents": amount_cents,
             "currency": req.get("currency") or DEFAULT_CURRENCY,
-            "deposit_amount_cents": to_cents(req.get("deposit_amount_cents")),
+            "deposit_amount_cents": normalize_stored_cents(req.get("deposit_amount_cents")),
             "payment_requirement": payment_requirement,
             "payment_status": payment_status,
             "quote_notes_client": req.get("quote_notes_client"),
@@ -413,9 +460,11 @@ def _snapshot_for_history(req):
     return {
         "quote_status": QuoteStatus.SUPERSEDED,
         "quote_revision": int(req.get("quote_revision") or 1),
-        "quote_amount_cents": to_cents(req.get("quote_amount_cents")),
+        # Prior canonical amounts come from the stored record (DynamoDB Decimal);
+        # snapshot them as stored cents so history is not ×100-corrupted.
+        "quote_amount_cents": normalize_stored_cents(req.get("quote_amount_cents")),
         "currency": req.get("currency") or DEFAULT_CURRENCY,
-        "deposit_amount_cents": to_cents(req.get("deposit_amount_cents")),
+        "deposit_amount_cents": normalize_stored_cents(req.get("deposit_amount_cents")),
         "payment_requirement": req.get("payment_requirement") or PaymentRequirement.NONE,
         "quote_notes_client": req.get("quote_notes_client"),
         "quote_accepted_at": req.get("quote_accepted_at"),
@@ -431,7 +480,10 @@ def _is_commercial_change(current_req, incoming):
             continue
         new_val = incoming[field]
         if field in ("quote_amount_cents", "deposit_amount_cents"):
-            if to_cents(new_val) != to_cents(current_req.get(field)):
+            # incoming is caller/JSON cents (to_cents int path); current is the
+            # stored record value (DynamoDB Decimal) and is already cents, so it
+            # must be read as stored cents or the dirty-check miscompares ×100.
+            if to_cents(new_val) != normalize_stored_cents(current_req.get(field)):
                 return True
         else:
             if new_val != current_req.get(field):
@@ -526,7 +578,8 @@ def apply_quote_send(current_req, now_iso):
     cur_status = cur.get("quote_status") or QuoteStatus.DRAFT
     if cur_status not in (QuoteStatus.DRAFT, QuoteStatus.SENT):
         raise QuoteContractError(f"cannot send a quote in status {cur_status!r}; must be DRAFT")
-    amount_cents = to_cents(cur.get("quote_amount_cents"))
+    # Stored amount (DynamoDB Decimal) is already cents; read as stored cents.
+    amount_cents = normalize_stored_cents(cur.get("quote_amount_cents"))
     if amount_cents <= 0:
         raise QuoteContractError("cannot send a quote with no amount")
     return {

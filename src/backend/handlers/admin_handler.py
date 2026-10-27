@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from common.db import query_by_status, get_item, update_status, table
 from common.notifications.service import notify_event
 from common.google_calendar import sync_calendar_event, delete_event
-from common.response import success, bad_request, internal_error, not_found, error
+from common.response import success, bad_request, internal_error, not_found, error, format_response
 from common.auth import get_effective_role, sanitize_booking_for_role, get_claims
 from common.tenant_read_scope import (
     build_tenant_read_filter, read_confidential_page, PaginationTraversalLimitReached,
@@ -544,8 +544,19 @@ def handler(event, context):
                 response = items_table.scan(**scan_kwargs)
                 items = response.get('Items', [])
                 
-                # Aggressively redact staff notes and pricing metadata
-                items = [sanitize_booking_for_role(item, 'client') for item in items]
+                # Client booking-list privacy: use an EXPLICIT client-safe allowlist
+                # projection rather than the denylist-based sanitizer. A denylist
+                # exposes every REQUEST field by default; the canonical quote lifecycle
+                # writes commercial/internal quote fields (quote_amount_cents,
+                # deposit_amount_cents, payment_requirement, quote_notes_client,
+                # quote_notes_internal, quote_history, revision/timestamps) onto the
+                # REQUEST, which the approved quote contract keeps OUT of the general
+                # booking list (the dedicated GET /client/quotes/{id} projection is the
+                # authoritative commercial view and additionally hides DRAFT). The
+                # explicit allowlist drops all such fields by construction and never
+                # reuses the raw record.
+                from common.auth import project_client_request_list_item
+                items = [project_client_request_list_item(item) for item in items]
                 
                 # Sort newest first based on start_date
                 items.sort(key=lambda x: x.get('start_date', ''), reverse=True)
@@ -691,6 +702,7 @@ def handler(event, context):
                     apply_quote_accept, apply_quote_decline, QuoteStatus,
                     QuoteContractError, evaluate_booking_approval_predicate,
                     to_cents as _to_cents,
+                    normalize_stored_cents as _stored_cents,
                 )
                 now_iso = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
                 try:
@@ -794,7 +806,9 @@ def handler(event, context):
                         merged.get('quote_status'),
                         payment_requirement,
                         payment_status,
-                        quote_amount_cents=_to_cents(merged.get('quote_amount_cents')),
+                        # Canonical stored cents (DynamoDB Decimal) — read as stored
+                        # cents, not via to_cents which would ×100 a Decimal.
+                        quote_amount_cents=_stored_cents(merged.get('quote_amount_cents')),
                         payment_waived=bool(merged.get('payment_waived_by')),
                     )
                     resp_body["booking_ready"] = ready
@@ -2813,6 +2827,164 @@ def handler(event, context):
                 "payment_status": "payment_link_sent"
             }, event)
 
+        elif http_method == 'POST' and '/admin/requests/' in path and path.endswith('/external-payment'):
+            # W3-C2: record a MANUAL_EXTERNAL (cash/check/bank-transfer/external-processor)
+            # payment against a REQUEST. Thin HTTP adapter over the merged W3-C1 service
+            # `common.manual_external_adapter.record_external_payment`, which is the single
+            # source of truth for authorization, tenant/request ownership, canonical-cent
+            # validation, idempotency/conflict classification, the atomic
+            # TransactWriteItems write, the authoritative PAYMENT_EVENT, and the post-commit
+            # audit entry. No business logic is duplicated here, and NO separate audit event
+            # is emitted (the adapter owns the audit trail) to avoid duplicate audit events.
+            #
+            # Boundaries: owner/admin only; server derives tenant/actor/status/paid-total; no
+            # auto-approval/booking/scheduling/notification; no Stripe path touched; client
+            # privacy preserved via non-disclosing ownership errors.
+            from common.manual_external_adapter import (
+                record_external_payment,
+                ManualExternalError,
+                StaleSummaryConflict,
+                RECORD_CREATED,
+                RECORD_DUPLICATE_SAME_EVENT,
+                RECORD_CONFLICTING_IDEMPOTENCY_KEY,
+                ERR_VALIDATION,
+                ERR_NOT_AUTHORIZED,
+                ERR_OWNERSHIP,
+                ERR_NOT_FOUND,
+                ERR_STATE_CONFLICT,
+                ERR_IDEMPOTENCY_CONFLICT,
+                ERR_STALE_CONFLICT,
+                ERR_INFRASTRUCTURE,
+            )
+            from common.payment_domain import PaymentDomainError
+
+            # 1. Role gate (gateway also enforces Cognito; re-check here). Owner/admin only;
+            #    staff/client are rejected with no write.
+            role = get_effective_role(event)
+            if role not in ['owner', 'admin']:
+                return error(403, "Forbidden", event)
+
+            # 2. Parse request_id from the path (never from the body).
+            request_id = path_params.get('request_id') or path_params.get('requestId')
+            if not request_id:
+                parts = [p for p in path.split('/') if p]
+                if (len(parts) >= 4 and parts[0] == 'admin' and parts[1] == 'requests'
+                        and parts[3] == 'external-payment'):
+                    request_id = parts[2]
+            if not request_id:
+                return bad_request("Missing request_id in path", event)
+
+            # 3. Parse body + client_id (clientId query param or client_id in body).
+            try:
+                body = json.loads(event.get('body', '{}')) if event.get('body') else {}
+            except Exception:
+                return bad_request("Invalid JSON body", event)
+            if not isinstance(body, dict):
+                return bad_request("Invalid JSON body", event)
+
+            client_id = query_params.get('clientId') or query_params.get('client_id') or body.get('client_id')
+            if not client_id:
+                return bad_request("Missing required client_id (clientId query param or client_id in body)", event)
+
+            idempotency_key = body.get('idempotency_key')
+            if not idempotency_key or not isinstance(idempotency_key, str) or not idempotency_key.strip():
+                return bad_request("idempotency_key (non-empty string) is required", event)
+
+            # 4. Delegate to the W3-C1 adapter. The caller is NEVER authoritative for
+            #    company/tenant, actor, status, paid total, or payment_completed_at; those
+            #    are all derived server-side inside the adapter. amount_delta_cents is strict
+            #    integer minor units (the adapter rejects non-integral/negative/zero).
+            try:
+                result = record_external_payment(
+                    event,
+                    request_id=request_id,
+                    client_id=client_id,
+                    amount_delta_cents=body.get('amount_delta_cents'),
+                    currency=body.get('currency') or 'USD',
+                    idempotency_key=idempotency_key,
+                    external_reference=body.get('external_reference'),
+                    payment_method_category=body.get('payment_method_category'),
+                    note=body.get('note'),
+                )
+            except ManualExternalError as me:
+                # STABLE error-code mapping (W3-C2 hardening). We map on the adapter's
+                # typed `code` — NEVER on the message text — and never return the raw
+                # adapter message or any internal/DynamoDB detail to the caller. The raw
+                # message is logged server-side only.
+                #
+                # StaleSummaryConflict is a ManualExternalError subclass, so it is handled
+                # here too via its ERR_STALE_CONFLICT code.
+                code = getattr(me, 'code', ERR_VALIDATION)
+                print(f"INFO: external-payment rejected for REQ#{request_id} code={code}: {me}")
+
+                if code == ERR_NOT_AUTHORIZED:
+                    # ROLE/authorization denial (not request-scoped) — a plain 403. This is
+                    # decided before any request lookup, so it cannot be used to probe
+                    # whether a specific request exists.
+                    return error(403, "Forbidden", event)
+                if code in (ERR_NOT_FOUND, ERR_OWNERSHIP):
+                    # Request-scoped access failure. "Does not exist", "belongs to another
+                    # tenant", and "client mismatch" MUST be INDISTINGUISHABLE to the caller
+                    # so a request_id cannot be enumerated across tenants. Both codes return
+                    # one identical generic 404 (same status, same body). The owning tenant
+                    # is never disclosed. (The adapter collapses all of these to ERR_NOT_FOUND;
+                    # ERR_OWNERSHIP is mapped here too as a defensive alias to the SAME
+                    # response so no future path can reintroduce a distinguishing status.)
+                    _claims = get_claims(event) or {}
+                    print(f"SECURITY: external-payment request-access denial by {_claims.get('email')} for REQ#{request_id} code={code}")
+                    return not_found("Request not found", event)
+                if code == ERR_IDEMPOTENCY_CONFLICT:
+                    return error(409, "Conflict: idempotency_key already used with different payment details", event)
+                if code == ERR_STALE_CONFLICT:
+                    return error(409, "Conflict: the payment summary changed concurrently; reload and retry", event)
+                if code == ERR_STATE_CONFLICT:
+                    return error(409, "Conflict: payment cannot be recorded in the request's current state", event)
+                if code == ERR_INFRASTRUCTURE:
+                    # Server/config/transaction failure — generic 500, no internal detail.
+                    print(f"ERROR: external-payment infrastructure failure for REQ#{request_id}: {me}")
+                    return internal_error("Failed to record external payment", event)
+                # ERR_VALIDATION and any unrecognized code -> generic 400 with a FIXED
+                # message (no raw adapter text echoed).
+                return bad_request("External payment request is invalid", event)
+            except PaymentDomainError as pde:
+                # Defense-in-depth: a reused W3-B domain helper could raise a bare
+                # PaymentDomainError (parent of ManualExternalError) without a stable code.
+                # Treat as generic caller-input invalidity (400); never echo the message.
+                print(f"INFO: external-payment domain rejection for REQ#{request_id}: {pde}")
+                return bad_request("External payment request is invalid", event)
+            except Exception as ex:
+                print(f"ERROR: external-payment unexpected failure for REQ#{request_id}: {ex}")
+                return internal_error("Failed to record external payment", event)
+
+            # 5. Map adapter result -> HTTP. Response projection is client-safe (no raw
+            #    metadata, no Stripe fields, no internal provider detail). Booking readiness
+            #    is informational only (no approval/booking performed).
+            outcome = result.get('result')
+            resp_body = {
+                "result": outcome,
+                "request_id": request_id,
+                "client_id": client_id,
+                "previous_status": result.get('previous_status'),
+                "resulting_status": result.get('resulting_status'),
+                "amount_paid_cents": result.get('amount_paid_cents'),
+                "currency": body.get('currency') or 'USD',
+                "payment_completed_at": result.get('payment_completed_at'),
+                "payment_summary_revision": result.get('payment_summary_revision'),
+                "booking_ready": result.get('booking_ready'),
+                "booking_ready_reason": result.get('booking_ready_reason'),
+            }
+
+            if outcome == RECORD_CONFLICTING_IDEMPOTENCY_KEY:
+                # Same idempotency key, different evidence — no write.
+                return error(409, "Conflict: idempotency_key already used with different payment details", event)
+            if outcome == RECORD_CREATED:
+                return format_response(201, resp_body, event)
+            if outcome == RECORD_DUPLICATE_SAME_EVENT:
+                # Idempotent replay — returns the already-persisted state, no re-apply.
+                return success(resp_body, event)
+            # Defensive: unknown result vocabulary should never apply money silently.
+            return internal_error("Unrecognized payment result", event)
+
         elif http_method == 'POST' and '/admin/requests/' in path and path.endswith('/send-payment-email'):
             role = get_effective_role(event)
             if role not in ['owner', 'admin']:
@@ -3025,6 +3197,7 @@ def handler(event, context):
             from common.quote_contract import (
                 apply_quote_update, QuoteStatus, QuoteContractError,
                 to_cents as _to_cents,
+                normalize_stored_cents as _stored_cents,
             )
             incoming = {}
             if 'quote_amount_cents' in body:
@@ -3112,7 +3285,10 @@ def handler(event, context):
                 "request_id": request_id,
                 "quote_status": merged.get('quote_status'),
                 "quote_revision": merged.get('quote_revision'),
-                "quote_amount_cents": _to_cents(merged.get('quote_amount_cents')),
+                # Canonical cents: either inbound int (amount in PATCH) or the stored
+                # DynamoDB Decimal (amount-preserving edit). normalize_stored_cents
+                # preserves both identically; to_cents would ×100 the stored Decimal.
+                "quote_amount_cents": _stored_cents(merged.get('quote_amount_cents')),
                 "currency": merged.get('currency') or 'USD',
                 "status": merged.get('status'),
             }, event)
@@ -3175,6 +3351,7 @@ def handler(event, context):
 
             from common.quote_contract import (
                 apply_quote_send, QuoteStatus, QuoteContractError, to_cents as _to_cents,
+                normalize_stored_cents as _stored_cents,
             )
             now_iso = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
             try:
@@ -3231,7 +3408,9 @@ def handler(event, context):
                 "request_id": request_id,
                 "quote_status": send_fields['quote_status'],
                 "quote_revision": send_fields['quote_revision'],
-                "quote_amount_cents": _to_cents(request_item.get('quote_amount_cents')),
+                # Canonical stored cents (DynamoDB Decimal) — read as stored cents,
+                # not via to_cents which would ×100 a Decimal.
+                "quote_amount_cents": _stored_cents(request_item.get('quote_amount_cents')),
                 "status": 'QUOTE_SENT',
             }, event)
 
@@ -3890,7 +4069,6 @@ def handler(event, context):
             return bad_request(f"Unsupported action: {action}. Please use ARCHIVE, DELETE, PURGE, or a valid terminal status.", event)
             
     except EntitlementDenied as e:
-        from common.response import format_response
         body = {
             "error": "EntitlementDenied",
             "message": str(e)

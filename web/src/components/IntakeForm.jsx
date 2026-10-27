@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { submitRequest, submitClientRequest, getStaffOptions } from '../api/client';
+import { submitRequest, submitClientRequest, getStaffOptions, getClientPets } from '../api/client';
 import { getSession, getEffectiveRole } from '../api/auth';
 import { TERMS_VERSION, PRIVACY_VERSION } from '../constants/policy';
 import { SERVICE_TYPES } from '../generated/contracts';
@@ -17,6 +17,13 @@ const intakeServiceTypes = Object.entries(SERVICE_TYPES.services)
   ));
 
 const initialServiceType = intakeServiceTypes[0]?.[0] || '';
+
+// Workstream 1: a pet's canonical identifier is always an ID (pet_id from the
+// client-safe /client/pets contract; some shapes use id) — never the name.
+const getPetId = (pet) => {
+  const id = pet?.pet_id ?? pet?.id;
+  return typeof id === 'string' && id.trim() ? id : undefined;
+};
 
 const formatCanonicalTime = (value) => {
   if (!value) return '';
@@ -69,6 +76,9 @@ const IntakeForm = () => {
     preferred_sitter_name: '',
     // Release 4: Multi-pet structured data
     pets: [{name: '', species: 'DOG', breed: '', age: '', feeding_notes: '', medication_notes: '', behavior_notes: ''}],
+    // Workstream 1: canonical existing-pet association for authenticated clients.
+    // Selection is keyed by pet_id; names are never the identity authority.
+    selected_pet_ids: [],
     pet_names: '', // Legacy — auto-generated from pets array on submit
     pet_info: '',
     // Release 4: Household-level vet/emergency
@@ -84,6 +94,9 @@ const IntakeForm = () => {
   // Release 2: Staff options for preferred sitter dropdown
   const [staffOptions, setStaffOptions] = useState([]);
   const [staffOptionsLoading, setStaffOptionsLoading] = useState(false);
+  // Workstream 1: authenticated client's existing pets (client-safe endpoint).
+  const [clientPets, setClientPets] = useState([]);
+  const [isClient, setIsClient] = useState(false);
   const selectedService = SERVICE_TYPES.services[formData.service_type];
   const canonicalWindowModel = getCanonicalWindowModel(formData.service_type);
   const usesCheckInSchedule = selectedService?.windowSelectionMode === 'match_visits_per_day';
@@ -95,11 +108,20 @@ const IntakeForm = () => {
   useEffect(() => {
     getSession().then(s => {
       if (s && getEffectiveRole(s) === 'client') {
+        setIsClient(true);
         setFormData(prev => ({
           ...prev,
           client_email: s.idToken.payload.email || '',
           client_name: s.idToken.payload.name || ''
         }));
+        // Workstream 1: load the authenticated client's existing pets ONCE
+        // through the client-safe endpoint (no admin endpoint, no N+1 calls).
+        getClientPets()
+          .then((data) => {
+            const list = Array.isArray(data) ? data : (data?.pets || []);
+            setClientPets(list);
+          })
+          .catch(() => setClientPets([]));
       }
     }).catch(() => {});
     
@@ -145,8 +167,12 @@ const IntakeForm = () => {
     }
     if (currentStep === 3) {
       const pets = formData.pets || [];
-      if (!pets.some(p => p.name && p.name.trim())) {
-        errors.pets = "At least one pet name is required.";
+      const hasTypedPet = pets.some(p => p.name && p.name.trim());
+      // Workstream 1: a client may satisfy the pet requirement by selecting an
+      // existing pet (by id) instead of typing a new one.
+      const hasSelectedExisting = (formData.selected_pet_ids || []).length > 0;
+      if (!hasTypedPet && !hasSelectedExisting) {
+        errors.pets = "Select an existing pet or add at least one new pet.";
       }
     }
     setValidationErrors(errors);
@@ -296,6 +322,29 @@ const IntakeForm = () => {
         payload.end_date = '';
       }
       
+      // Workstream 1: normalize pet association before submit.
+      // - Drop empty structured pet rows (blank name) so an unused "Pet 1"
+      //   placeholder is not sent as a new pet.
+      // - For authenticated clients, promote selected existing-pet IDs to the
+      //   canonical `pet_ids` contract and derive a display `pet_names` string
+      //   from the selected pets + typed new pets. Names are never identity.
+      const typedPets = (payload.pets || []).filter((p) => p && (p.name || '').trim());
+      payload.pets = typedPets;
+
+      const selectedIds = (payload.selected_pet_ids || []).filter(Boolean);
+      delete payload.selected_pet_ids;
+
+      if (s && role === 'client' && selectedIds.length > 0) {
+        payload.pet_ids = selectedIds;
+        const selectedNames = selectedIds
+          .map((id) => (clientPets.find((p) => getPetId(p) === id) || {}).name)
+          .filter(Boolean);
+        const typedNames = typedPets.map((p) => p.name.trim());
+        payload.pet_names = [...selectedNames, ...typedNames].join(', ');
+      } else {
+        delete payload.pet_ids;
+      }
+
       let result;
       if (s && role === 'client') {
         result = await submitClientRequest(payload);
@@ -810,6 +859,52 @@ const IntakeForm = () => {
                   </div>
                 )}
                 
+                {/* Workstream 1: existing-pet picker for authenticated clients.
+                    Selection is keyed by pet_id; duplicate names stay independently
+                    selectable. Submitted as canonical pet_ids. New pets are added
+                    below via the structured entry. */}
+                {isClient && clientPets.length > 0 && (
+                  <div style={{ marginBottom: '24px' }} data-testid="existing-pet-picker">
+                    <h4 style={{ marginBottom: '8px' }}>Your Pets</h4>
+                    <p className="field-hint" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                      Select the pet(s) this request is for. Need a pet we don't have yet? Add it below.
+                    </p>
+                    <div className="pet-select-chip-list" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                      {clientPets.map((pet) => {
+                        const petId = getPetId(pet);
+                        if (!petId) return null;
+                        const isSelected = (formData.selected_pet_ids || []).includes(petId);
+                        const descriptor = pet.breed || pet.species || 'Pet';
+                        return (
+                          <label
+                            key={petId}
+                            className={`selection-chip ${isSelected ? 'selected' : ''}`}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px', border: `1px solid ${isSelected ? 'var(--primary, #2b6cb0)' : 'var(--border)'}`, borderRadius: '999px', cursor: 'pointer' }}
+                          >
+                            <input
+                              className="selection-chip-input"
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {
+                                setFormData((prev) => {
+                                  const current = prev.selected_pet_ids || [];
+                                  const next = current.includes(petId)
+                                    ? current.filter((id) => id !== petId)
+                                    : [...current, petId];
+                                  return { ...prev, selected_pet_ids: next };
+                                });
+                                if (validationErrors.pets) setValidationErrors((prev) => ({ ...prev, pets: null }));
+                              }}
+                              aria-label={`Select pet ${pet.name}`}
+                            />
+                            <span>{isSelected ? '✓ ' : ''}{pet.name} <small style={{ color: 'var(--text-muted)' }}>({descriptor})</small></span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Release 4: Multi-pet repeatable entry */}
                 {(formData.pets || [{name: '', species: 'DOG', breed: '', age: '', feeding_notes: '', medication_notes: '', behavior_notes: ''}]).map((pet, idx) => (
                   <div key={idx} style={{ marginBottom: '24px', padding: '20px', border: validationErrors.pets ? '1px solid var(--accent-red, #f44336)' : '1px solid var(--border)', borderRadius: '12px', position: 'relative' }}>

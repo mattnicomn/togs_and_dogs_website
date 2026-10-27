@@ -420,6 +420,36 @@ def handler(event, context):
             # Public path /requests
             workflow_type = WorkflowType.CUSTOMER_INTAKE
         
+        # Workstream 1: Canonical existing-pet association by pet_id.
+        # For authenticated client submissions, validate any caller-supplied
+        # pet_ids against the client's OWN active pets (server-resolved identity),
+        # and treat the validated set as the canonical REQUEST↔pet association.
+        # pet_names is NEVER the identity authority when pet_ids is present; the
+        # display names for selected existing pets are derived from the owned
+        # pet records. Foreign/invalid IDs are dropped non-disclosingly.
+        # W1 (hardened): existing-pet association is ALL-OR-NOTHING. If an
+        # authenticated client supplied a `pet_ids` field, every entry must be a
+        # well-formed id for an active pet owned by this client under this tenant.
+        # Any malformed shape/entry or any unowned id rejects the whole request
+        # with a single generic, non-disclosing 400 — we never reveal which id
+        # failed or why, and we never silently drop part of the selection.
+        canonical_pet_ids = None
+        owned_pet_names = []
+        if is_portal_path and role == 'client':
+            from common.pet_profile import resolve_owned_pet_ids
+            ownership = resolve_owned_pet_ids(body.get('pet_ids'), client_id, company_id)
+            if not ownership['ok']:
+                # Generic client-facing message; no rejected ids, no reason leaked.
+                print(f"INFO: [W1] Rejected client request — invalid pet_ids "
+                      f"(reason={ownership.get('reason')})")
+                return bad_request(
+                    "One or more selected pets are invalid. Refresh your pets and try again.",
+                    event,
+                )
+            if ownership['pet_ids']:
+                canonical_pet_ids = ownership['pet_ids']
+                owned_pet_names = ownership['pet_names']
+
         # Basic validation for required fields (non-empty, non-whitespace)
         # Release 4A Hotfix: Generate pet_names from pets[] BEFORE validation.
         # The frontend sends pets[] array instead of pet_names string.
@@ -427,6 +457,33 @@ def handler(event, context):
         pet_names = body.get('pet_names')
         if not pet_names or not pet_names.strip():
             pet_names = _generate_pet_names_string(body)
+
+        # W1: when canonical existing-pet IDs are present, the persisted display
+        # string is derived from the validated owned pets combined with any
+        # structured NEW-pet entries — never from caller-supplied name authority.
+        # A structured entry is a NEW pet iff it carries no canonical selected
+        # pet_id (identity is the id, never the name); so a new pet that happens
+        # to share a selected pet's display name is still listed.
+        if canonical_pet_ids:
+            selected_id_set = set(canonical_pet_ids)
+            new_pet_names = []
+            pets_for_display = body.get('pets')
+            if isinstance(pets_for_display, list):
+                for p in pets_for_display:
+                    if not isinstance(p, dict):
+                        continue
+                    name = (p.get('name') or '').strip()
+                    if not name:
+                        continue
+                    entry_id = p.get('pet_id')
+                    # Skip entries that are echoes of a selected existing pet
+                    # (identified by their canonical id, not by name).
+                    if isinstance(entry_id, str) and entry_id.strip() in selected_id_set:
+                        continue
+                    new_pet_names.append(name)
+            combined = list(owned_pet_names) + new_pet_names
+            if combined:
+                pet_names = ', '.join(combined)
         
         required_fields = {
             'client_name': client_name,
@@ -520,7 +577,11 @@ def handler(event, context):
             # Release 4: Multi-pet structured data.
             # pets array stores per-pet fields. Legacy pet_names auto-generated for backward compat.
             'pets': body.get('pets') or None,
-            'pet_names': pet_names,  # Already generated/normalized before validation
+            # Workstream 1: canonical existing-pet association. Only validated,
+            # owned IDs are persisted; absent when no existing pet was selected
+            # (new-pet-only requests still flow through the pets[] array).
+            'pet_ids': canonical_pet_ids if canonical_pet_ids else None,
+            'pet_names': pet_names,  # Derived display/compat string, not identity authority
             'pet_info': body.get('pet_info'),
             # Release 4: Household-level vet/emergency info.
             'vet_info': body.get('vet_info') or None,

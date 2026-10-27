@@ -1,6 +1,312 @@
 # Current Project State
 
-**Last Updated:** 2026-10-11 — Gate C3c delegated-merge governance policy (documentation-only; `PETCARE_HERO_GATE_C3C_DELEGATED_MERGE_POLICY`). See the Delegated-Merge Policy section immediately below; the GitHub Gate C2/C3a enforcement closeout and the cross-device governance sync closeout follow it; earlier release history is preserved under **Release Checkpoint History**.
+**Last Updated:** 2026-10-27 (acceptance) — **W3-C2 MANUAL_EXTERNAL FUNCTIONAL ACCEPTANCE COMPLETE for the approved single full-settlement scenario.** `W3C2_FUNCTIONAL_ACCEPTANCE=COMPLETE` (single-settlement scenario only). An owner-authorized live production transaction ran against an isolated synthetic REQUEST on internal `test_tenant_alpha` (no customer/Ryan data; no `client_email`): authenticated owner POST → **HTTP 201 RECORD_CREATED**; REQUEST `PAYMENT_LINK_SENT → PAID`, `amount_paid_cents=1000`, `payment_summary_revision=1`, `payment_completed_at=2026-10-27T17:29:36Z`; exactly one `PAYMENT_SETTLED`/`MANUAL_EXTERNAL` PAYMENT_EVENT; one `EXTERNAL_PAYMENT_RECORDED` audit entry; **runtime `dynamodb:TransactWriteItems` succeeded** (atomic two-item commit) — proving the runtime IAM grant and the serialization-boundary fix end-to-end in production; CloudWatch **0 Lambda errors / 0 throttles** over the window. This is the single full-settlement path ONLY — the expanded T1–T7 matrix was **not** run live and remains covered only by offline suites. Cleanup: **two provenance-conditional DeleteItem** ops removed the synthetic PAYMENT_EVENT and REQUEST (`REQ#w3c2accept-20261027` partition now Count=0); the one **immutable `EXTERNAL_PAYMENT_RECORDED` audit entry is retained** (Count=1); the pre-existing Alpha client and tenant metadata were untouched. Rollback baseline `1EPLbycK…` remains retained in two independently hash-verified copies on separate physical disks. Owner gates unchanged and preserved: `RYAN_TESTING_AUTHORIZED=NO`, Stripe live blocked, no tenant changes, `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`, `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`. The 2026-10-27 deployment section and 2026-10-24 route deployment below remain valid history. See the W3-C2 release note `docs/release-notes/w3c2-manual-external-payment-route.md` (2026-10-27 §(c) functional acceptance).
+
+---
+
+**2026-10-27 (deployment):** **W3-C2 TransactWriteItems serialization fix DEPLOYED to the production admin Lambda** (admin-only targeted Terraform apply). `main == origin/main == 263b3e744a2815f0d9da781b2589ce643d2750f6` (PR #40 squash-merged). **TECHNICAL_DEPLOYMENT=COMPLETE; INFRASTRUCTURE_VERIFICATION=COMPLETE; FUNCTIONAL_ACCEPTANCE=PENDING.** The admin Lambda advanced `CodeSha256 1EPLbycKQSFOwH58Y7c5xGU+eG/Ht8qNS7pxkoFdBKk= → GlA3mUtq3O0RJcdc3i2MQjwcbuo8aiv52ACvacQH99o=` via `terraform apply -target=aws_lambda_function.admin` of a reviewed `0 add / 1 change / 0 destroy` plan (only `source_code_hash`/`last_modified` changed). Verified post-apply (account `358604342897`): admin `GlA3…` Active/Successful; the **other 12 Lambdas remain on `W6cqyudl…`** (W1 intake stays DORMANT); IAM `togs-and-dogs-prod-dynamodb-access` default **v3** unchanged (still includes `dynamodb:TransactWriteItems`, Resource scoped to the app table + `/index/*`); API Gateway `a022yxuiue` stage `prod` deployment **`n40vai`** unchanged; targeted convergence plan = **No changes** (`-detailed-exitcode` 0, zero residual drift). Pre-apply, the prior admin artifact `1EPLbycK…` was captured as a rollback baseline into **two independently hash-verified copies on separate physical disks** (abstract labels ROLLBACK-PRIMARY / ROLLBACK-SECONDARY), each with a secure retention manifest and recovery procedure in non-repo, non-OneDrive storage; both reverified immediately before apply. CloudWatch over the recent window showed **0 errors, 0 throttles, 0 invocations** for the admin Lambda — consistent with a deployed-but-not-yet-exercised route and **NOT** evidence of functional acceptance. **`W3C2_FUNCTIONAL_ACCEPTANCE=PENDING`: the runtime `dynamodb:TransactWriteItems` grant has NOT yet been proven by an authorized live transaction** — no live external-payment settlement has been recorded and no production payment transaction performed. Owner gates unchanged and preserved: `RYAN_TESTING_AUTHORIZED=NO`, Stripe live blocked, no tenant changes, `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`, `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES` (any untargeted apply would sweep all 13 Lambdas to `GlA3…` and activate W1 — prohibited). The 2026-10-24 section below records the original W3-C2 route deployment and remains valid history. See the W3-C2 release note `docs/release-notes/w3c2-manual-external-payment-route.md` (2026-10-27 checkpoint).
+
+---
+
+**2026-10-24 (prior):** **W3-C2 MANUAL_EXTERNAL payment route TECHNICALLY DEPLOYED to production** via three separately-authorized targeted Terraform applies (Phase A IAM → Phase B admin Lambda → Phase C API route/deployment/stage). `main == origin/main == ef39b178d2ac3b255246174b739952892fd0bea1` (PR #33 route source + PR #34 docs + PR #35 fingerprint/ARN-decoupling, all squash-merged). **TECHNICAL_DEPLOYMENT=COMPLETE; FUNCTIONAL_ACCEPTANCE=PENDING** (no live external-payment settlement has been recorded; no production payment transaction performed). Verified post-deploy state (account `358604342897`, during Phase C with valid SSO): IAM policy `togs-and-dogs-prod-dynamodb-access` default **v3** — now **includes `dynamodb:TransactWriteItems`** (`W3C1_TRANSACTWRITE_IAM_PRESENT=YES`; v2 retained for rollback); admin Lambda `CodeSha256 1EPLbycKQSFOwH58Y7c5xGU+eG/Ht8qNS7pxkoFdBKk=` (carries the W3-C2 route + W3-C1 adapter), Active/Successful; the **other 12 Lambdas remain on `W6cqyudl…`** (W1 intake behavior stays DORMANT — not deployed); API Gateway `a022yxuiue` stage `prod` cut over to new deployment **`n40vai`** (prior `hhryhc` destroyed by create-before-destroy replacement); live route **`POST /admin/requests/{requestId}/external-payment`** present, `authorization=COGNITO_USER_POOLS` (authorizer `r0gk6r`), `AWS_PROXY`→admin, plus unauthenticated `OPTIONS` CORS preflight; `TENANT_RESOLUTION_MODE=multi` unchanged. Targeted Terraform convergence after each phase = **No changes** (zero residual drift); in the first hour **no CloudWatch error datapoints were observed** (admin Lambda Errors/Throttles and API prod 5XXError) — consistent with a deployed-but-not-yet-exercised route, since `W3C2_FUNCTIONAL_ACCEPTANCE=PENDING`. The current `main` backend artifact builds **`1EPLbycK…`** (this superseded the earlier pre-PR#34/#35 planning estimate `58C9Bl…`, which was never deployed). Because all Lambdas build from one shared backend ZIP, the admin artifact `1EPLbycK…` **includes the W3-C1 adapter and the W3-B payment-domain code it depends on** — these are present and reachable only via the admin Lambda's W3-C2 route; the other 12 Lambdas remain on `W6cqyudl…` and do **not** carry this active path. Historical note: the prior OPS-3A.3 narrative hash `gBjdlXDUn0…` and the pre-W3-C2 deployed baseline `W6cqyudl…` (PR #22 privacy release) are retained below as history. `W3C2_DEPLOYED=YES`; `W3C2_RUNTIME_ENABLED=YES`; `W3C2_FUNCTIONAL_ACCEPTANCE=PENDING`. **W1 intake behavior remains undeployed** (the `intake` Lambda is unchanged). W1 (PR #26/#27) remains **merged-not-deployed** (dormant on all 12 non-admin Lambdas); W3-B (PR #29) is likewise undeployed on those 12, while its domain code now ships inside the admin artifact as a dependency of the W3-C1 adapter. See the W3-C2 deployment-complete section immediately below; the baseline-reconciliation and W3-C1 sections and earlier history follow it, preserved. **Automated-evidence checkpoint (2026-10-26, `main == 617b587f0cad3ffe478fdbce9857cc8df833a3b7`):** PR #38 added three adapter post-commit audit tests (W3-C1 suite 57 → 60); **LOCAL OFFLINE AUTOMATED TEST EVIDENCE** = **320 tests pass, 0 failures** (W3-C1 60 / W3-B 174 / quote-contract 50 / W3-C2 handler 36). This is test-only — **PR #38 is not a new release**, W3-C2 (2026-10-24) remains the latest technical deployment, the deployed artifact is unchanged, and `W3C2_FUNCTIONAL_ACCEPTANCE=PENDING` with live settlement, runtime IAM grant, Cognito edge behavior, and API rollback equivalence still UNVERIFIED.
+
+---
+
+## 2026-10-24 — W3-C2 MANUAL_EXTERNAL Payment Route — PRODUCTION DEPLOYMENT COMPLETE (technical), Functional Acceptance PENDING
+
+**Disposition:** `W3C2_TECHNICAL_DEPLOYMENT_COMPLETE_FUNCTIONAL_ACCEPTANCE_PENDING`
+
+`W3C2_DEPLOYED=YES`; `W3C2_RUNTIME_ENABLED=YES`; `W3C2_FUNCTIONAL_ACCEPTANCE=PENDING`;
+`W3C1_TRANSACTWRITE_IAM_PRESENT=YES`; `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`;
+`W1_PRODUCTION_RELEASE_AUTHORIZED=NO`.
+
+W3-C2 was released to production from `main == ef39b178d2ac3b255246174b739952892fd0bea1`
+via **three separately owner-authorized, targeted Terraform applies** (never an untargeted
+apply), each preceded by a plan-only gate and followed by targeted-convergence verification.
+A pre-Phase-B rollback artifact of the deployed admin Lambda was captured and hash-verified
+before any code change.
+
+### Phase A — IAM grant (applied)
+- `terraform apply -target=module.iam.aws_iam_policy.dynamodb_access` → **`Apply complete! 0 added, 1 changed, 0 destroyed`**.
+- Added **exactly** `dynamodb:TransactWriteItems` to `togs-and-dogs-prod-dynamodb-access`; **no Resource/ARN widening**. Policy default version advanced **v2 → v3**; **v2 retained** as the IAM rollback target.
+- Post-apply: default version **v3**, action present; targeted convergence = No changes.
+
+### Phase B — admin Lambda code (applied)
+- Pre-apply: captured the deployed admin package and verified its ZIP SHA-256 (base64) **equals** the live `CodeSha256 W6cqyudl…` — true rollback artifact, retained in a durable, access-restricted, non-repo location plus an independent copy (see `RETENTION-AND-RECOVERY.md`). The admin Lambda has **no published versions** and Terraform cannot regenerate `W6cqyudl…` (current `main` builds `1EPLbycK…`), so this capture is the authoritative restore source.
+- `terraform apply -target=aws_lambda_function.admin` → **`Apply complete! 0 added, 1 changed, 0 destroyed`**. Admin `source_code_hash W6cqyudl… → 1EPLbycK…`; only `source_code_hash`/`last_modified` changed (handler/runtime/role/memory/timeout/env unchanged).
+- **The other 12 Lambdas were NOT updated** (remain `W6cqyudl…`) — W1 intake validation stays dormant.
+
+### Phase C — API route + deployment + stage (applied)
+- `terraform apply` of the 5 named targets (`module.api.aws_api_gateway_resource.admin_external_payment`, `...method.post_admin_external_payment`, `...integration.post_admin_external_payment_lambda`, `...deployment.main`, `...stage.main`) → **`Apply complete! 8 added, 1 changed, 1 destroyed`**.
+- Added: the `external-payment` resource (`/admin/requests/{requestId}/external-payment`, resource id `l47lcy`, parent `admin_request_id`), its **POST method `authorization=COGNITO_USER_POOLS`** (authorizer `r0gk6r`) with **AWS_PROXY** integration → admin invoke ARN, the OPTIONS method (`authorization=NONE`) + MOCK integration + method/integration responses for CORS, and the new deployment. Changed: `aws_api_gateway_stage.main` cut over to the new deployment. Destroyed: the old deployment (create-before-destroy replacement).
+- Zero Lambda updates, zero IAM changes, zero existing-integration URI changes in the Phase C plan/apply (the invoke-ARN decoupling from PR #35 held).
+
+### Verified live post-deployment state (Phase C, valid SSO at deploy time)
+- **IAM:** `togs-and-dogs-prod-dynamodb-access` default **v3**, includes `dynamodb:TransactWriteItems`; **v2 retained**.
+- **Admin Lambda:** `CodeSha256 1EPLbycKQSFOwH58Y7c5xGU+eG/Ht8qNS7pxkoFdBKk=`, Active/Successful.
+- **Other 12 Lambdas:** all still `W6cqyudl…` (intake, review, assign, job, google-auth, pet, cancellation, device, ses-feedback, postmark-webhook, stripe-webhook, platform). **W1 DORMANT.**
+- **API Gateway `a022yxuiue`:** stage `prod` → deployment **`n40vai`**; live `external-payment` resource `l47lcy` with Cognito POST + NONE OPTIONS; integration `AWS_PROXY` → `togs-and-dogs-prod-admin`.
+- **Convergence:** targeted `terraform plan` after each phase = **No changes** (zero residual drift).
+- **Monitoring:** in the first hour after deployment, **no CloudWatch error datapoints were observed** for the admin Lambda (Errors, Throttles) or for API prod (`5XXError`). This reflects a deployed-but-not-yet-exercised route (no live external-payment call has been made); it is **not** evidence of functional acceptance, which remains PENDING.
+- `TENANT_RESOLUTION_MODE=multi` unchanged; no Stripe/tenant/Ryan/mobile change; no W1 deploy.
+
+### TECHNICAL DEPLOYMENT COMPLETE vs FUNCTIONAL ACCEPTANCE PENDING
+- **TECHNICAL_DEPLOYMENT=COMPLETE:** the route, its auth, its integration, the IAM grant, and the admin code are all live and Terraform-converged.
+- **FUNCTIONAL_ACCEPTANCE=PENDING:** **no live external-payment settlement has been recorded** and **no production payment transaction has been performed.** First end-to-end exercise remains a separate, explicitly owner-gated step, to be run with controlled non-customer data. `RYAN_TESTING_AUTHORIZED=NO`; no production test data; Stripe sandbox-only.
+- **Automated evidence (updated 2026-10-26, `main == 617b587f0cad3ffe478fdbce9857cc8df833a3b7`):** this is **LOCAL OFFLINE AUTOMATED TEST EVIDENCE** (mock-only; no AWS, no network) — **not** a new release and **not** functional acceptance; W3-C2 (the 2026-10-24 deployment) remains the latest technical deployment and the deployed artifact is unchanged. PR #38 (squash `617b587`) added three adapter post-commit audit tests (`test_audit_entry_written_on_created`, `test_audit_failure_is_non_fatal`, `test_audit_not_written_on_duplicate_replay`), raising the W3-C1 adapter suite 57 → 60. **320 tests pass, 0 failures** across the four offline suites: W3-C1 adapter **60**, W3-B payment-domain **174**, quote-contract **50**, W3-C2 handler route **36**. Covers authorization, tenant/ownership isolation (missing vs cross-tenant indistinguishable), idempotency/conflict classification, canonical cents, state transitions, atomic `TransactWriteItems` shape + concurrency guards, safe error-code→HTTP mapping, and the post-commit audit path. **Still UNVERIFIED (live):** end-to-end settlement, the runtime IAM `TransactWriteItems` grant proven by an authorized write, Cognito authorizer edge behavior (401 unauthenticated / OPTIONS open), and API Gateway rollback equivalence (`hhryhc` destroyed; retained deployments not assumed equivalent).
+
+### Hash reconciliation (historical vs current)
+- `1EPLbycK…` — **current deployed admin artifact** (built from `main` `ef39b178`), live on `aws_lambda_function.admin` only.
+- `W6cqyudl…` — **pre-W3-C2 deployed baseline** (PR #22 privacy release), still live on the other 12 Lambdas; the retained admin rollback artifact.
+- `58C9Bl…` — a **pre-PR#34/#35 planning estimate** of the `main` backend build, recorded in the baseline-reconciliation section below; it was **never deployed** and is superseded by `1EPLbycK…`. (The reference is left intact in the historical section below and clarified here.)
+- `gBjdlXDUn0…` / `QgEdTeYY…` / earlier — historical prior releases, retained below.
+
+### Rollback readiness (post-deployment)
+- **IAM (Phase A):** `set-default-policy-version --version-id v2` restores the pre-grant policy; v2 retained.
+- **Admin Lambda (Phase B):** `update-function-code --zip-file fileb://<durable>\admin-rollback-W6cqyudl.zip` (pre-check base64 SHA == `W6cqyudl…`), then targeted Terraform reconciliation; never untargeted.
+- **API (Phase C):** the prior deployment `hhryhc` was **destroyed** by the replacement and is **not** a stage-repoint target; to remove route exposure, re-cut/redeploy or re-point the stage to a retained prior deployment after confirming behavioral equivalence (see the API rollback investigation note below — retained deployments `72m3x0`/`z6edb6`/`o8ofzg` predate several intervening API releases and are NOT assumed equivalent to the pre-W3-C2 behavior). Preferred recovery is a forward-fix or a fresh targeted redeploy of the corrected config, not repointing to an old deployment.
+
+### Gates preserved (unchanged by this deployment)
+No Stripe live activity, tenant change, Ryan testing, production test data, mobile distribution, or W1 deployment performed. **W1 intake behavior remains undeployed** — only `aws_lambda_function.admin` was updated, and W1's intake validation lives in the unchanged `intake` Lambda. The admin artifact `1EPLbycK…` does carry the W3-C1 adapter and the W3-B payment-domain code it imports (reachable only via the W3-C2 admin route); the other 12 non-admin Lambdas remain on `W6cqyudl…` with W1 and that W3-B/W3-C1 path dormant. **Any untargeted `terraform apply` would still sweep all 13 to `1EPLbycK…` and activate W1 (and promote the W3-B/W3-C1 path onto the other Lambdas) — prohibited without separate owner authorization + W1 acceptance.**
+
+Checkpoint: `main == origin/main == ef39b178d2ac3b255246174b739952892fd0bea1`.
+
+---
+
+## 2026-10-23 — W3-C2 Production Baseline Reconciliation (docs + read-only AWS audit; no deploy)
+
+> **Superseded by the 2026-10-24 deployment-complete section above.** This section captured the *pre-deployment* state (route merged-not-deployed; IAM v2 without TransactWriteItems; all 13 Lambdas on `W6cqyudl…`). The `58C9Bl…` hash referenced below was the `main` backend build **estimate at that time** (pre PR #34/#35) and was **never deployed**; the actually-deployed admin artifact is `1EPLbycK…`. Retained unaltered for history.
+
+**Disposition:** `W3C2_PROD_BASELINE_VERIFIED` — documentation reconciled to verified live AWS; no mutation.
+
+`W3C2_API_MERGED_NOT_DEPLOYED=YES`; `W3C2_RUNTIME_ENABLED=NO`; `W3C2_DEPLOYMENT_AUTHORIZED=NO`; `W3C1_TERRAFORM_APPLY_AUTHORIZED=NO`.
+
+### Verified production baseline (account 358604342897, profile usmissionhero-website-prod, read-only)
+
+- **13 Lambdas — uniform `CodeSha256 W6cqyudlRQF3Zw7uN2V42JzziwYITg8r5mCnsGdDAq4=`**, runtime python3.11: admin, intake, review, assign, job, google-auth, pet, cancellation, device, ses-feedback, postmark-webhook, stripe-webhook, platform. No partial update, no mixed hashes, no in-progress updates. admin + intake spot-checked `State=Active` / `LastUpdateStatus=Successful` / `LastModified=2026-10-22`.
+- **API Gateway** `a022yxuiue`, stage `prod`, deployment `hhryhc`; **no `external-payment` resource** present (W3-C2 route absent).
+- **Admin exec-role DynamoDB policy** `togs-and-dogs-prod-dynamodb-access` default version **v2**: actions `GetItem, PutItem, UpdateItem, DeleteItem, Query, Scan`; Resource = `table/togs-and-dogs-prod-data` + `/index/*`. **`dynamodb:TransactWriteItems` NOT present.**
+- **`TENANT_RESOLUTION_MODE=multi`** (admin Lambda) — unchanged.
+
+### Reconciliation outcome
+
+- The authoritative deployed backend artifact is **`W6cqyudl…`** (PR #22 privacy release). The prior continuity narrative referencing `gBjdlXDUn0…` (OPS-3A.3, 2026-10-08) is **STALE** and is corrected here; production advanced to `W6cqyudl…` on 2026-10-22. This is a documentation correction only — no production mismatch.
+- The verified baseline exactly matches the `W6cqyudl…` value observed in the W3-C1/W3-C2 Terraform plans, confirming those plans ran against the true live state.
+
+### W3-C2 admin-only release strategy (planning record; NOT authorized to execute)
+
+Investigation (`infra/prod/main.tf`) confirmed all 13 Lambdas load **one shared ZIP** (`data.archive_file.backend_zip` from `src/backend/`) but are **separate functions with distinct handler entry points** (`admin` → `handlers.admin_handler.handler`; `intake` → `handlers.intake_handler.handler`). Therefore W3-C2 can be released by updating **only `aws_lambda_function.admin`**, leaving the other 12 on `W6cqyudl…`.
+
+- `admin_handler.py`'s only behavioral change vs the deployed baseline is the W3-C2 `external-payment` route (3 diff hunks; no `pet_profile` reference) — so an admin-only update activates **only W3-C2**.
+- **W1 intake behavior stays dormant** because the `intake` Lambda is not updated. (W1's unconditional `pet_ids` validation lives in `intake_handler.py`/`pet_profile.resolve_owned_pet_ids`, reached only via the `intake` Lambda.)
+- The API deployment fingerprint (`modules/api/deployment-fingerprint`) hashes API semantic config only — **not** Lambda code — so adding the route triggers exactly one API redeploy and Lambda code updates do not perturb it. A targeted IAM + admin-Lambda + API-route apply is cleanly scoped.
+- Runtime dependency order: the IAM `dynamodb:TransactWriteItems` grant must be applied **before/with** the route+Lambda, else the route returns 500 (AccessDenied).
+- **Feasible, but NOT yet plan-verified.** This strategy is architecturally sound, but an admin-only release still **requires its own exact, non-applying targeted Terraform plan** — `terraform plan -target=aws_lambda_function.admin` plus the W3-C2 API Gateway resources (and the API deployment) — to confirm the scope is exactly `aws_lambda_function.admin` + the `external-payment` route/redeploy and nothing else, before any apply is authorized. `W3C2_ADMIN_ONLY_RELEASE_FEASIBLE=YES`; `W3C2_ADMIN_ONLY_TARGETED_PLAN=NOT_RUN`. (The IAM-only plan below is complete and is a *separate* targeted plan; it does not cover the admin Lambda or the API route.)
+
+### Phase A — IAM-only PLAN-ONLY: COMPLETED (not applied)
+
+`W3C1_TERRAFORM_VALIDATE=PASS`; `W3C1_TARGETED_IAM_PLAN=PASS`;
+`W3C1_TARGETED_IAM_PLAN_COUNTS=0_ADD_1_CHANGE_0_DESTROY`;
+`W3C1_TARGETED_IAM_PLAN_RESOURCE=module.iam.aws_iam_policy.dynamodb_access`;
+`W3C1_TERRAFORM_APPLY_AUTHORIZED=NO`.
+
+A credentialed, **non-applying** targeted plan was executed against the verified live
+baseline: `terraform plan -target=module.iam.aws_iam_policy.dynamodb_access` →
+**`Plan: 0 to add, 1 to change, 0 to destroy`**. The sole change is the in-place addition
+of `dynamodb:TransactWriteItems` to `module.iam.aws_iam_policy.dynamodb_access`; **no ARN
+widening** (Resource unchanged) and **no Lambda or other resource** appears in the plan.
+`terraform validate` passed. No apply was performed and none is authorized. This is the
+IAM grant W3-C2 requires at runtime; it is now plan-verified and awaiting a separate
+apply-authorization gate.
+
+### Lambda update scope: intentionally deferred vs external drift (distinct)
+
+Two different things must not be conflated:
+
+- **Intentionally deferred (by design):** an admin-only W3-C2 release would update **only**
+  `aws_lambda_function.admin` and **deliberately NOT update the other 12 Lambdas** (incl.
+  `intake`). Those 12 are *intended* to stay on the current production artifact
+  `W6cqyudl…`. `W3C2_ADMIN_ONLY_RELEASE_DEFERS_12_LAMBDAS=YES`. This is a chosen release
+  scope, not an anomaly.
+- **Resulting Terraform state condition (a consequence of the deferral, NOT external
+  drift):** because `main` builds `58C9Bl…` but the 12 functions remain on `W6cqyudl…`,
+  Terraform would show those 12 as pending in-place code updates on any **untargeted**
+  plan. This is an *expected, self-inflicted* pending-change set produced by the targeted
+  release — it is **distinct from external/out-of-band drift** (i.e., changes made to AWS
+  outside Terraform). The read-only audit found **no external drift**: all 13 functions are
+  uniform on the exact `W6cqyudl…` artifact Terraform last applied, with no manual/console
+  mutation. `W3C2_EXTERNAL_DRIFT_OBSERVED=NO`.
+
+**Future-apply safeguard:** because of the deferral, a future **untargeted `terraform
+apply`** by anyone would sweep all 13 Lambdas to `58C9Bl…` and **silently activate W1**
+(and deploy the otherwise-dormant W3-B domain + W3-C1 adapter). This MUST be explicitly
+gated: any untargeted apply requires its own owner authorization with W1 acceptance.
+`W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`; `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`.
+
+### Gates preserved
+
+No apply, deploy, Lambda update, API change, IAM modification, Stripe, tenant change, Ryan
+testing, or production data write performed. Latest completed production backend release
+remains `PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`. The IAM-only targeted plan is COMPLETE
+(above); the next separately-authorized gates are (a) the **IAM-only apply** of the
+plan-verified `0/1/0` change, and (b) an **admin-only W3-C2 targeted plan** (admin Lambda +
+API route) before its own apply.
+
+Checkpoint: `main == origin/main == 7787f503f1557357dd0f1ca21dd4d227c39339a8`.
+
+---
+
+## 2026-10-23 — Workstream 3-C1: MANUAL_EXTERNAL Payment Adapter — Implemented + Hardened (Local), Draft PR #31, Not Deployed
+
+**Disposition:** `W3C1_MANUAL_EXTERNAL_ADAPTER_HARDENED_READY_FOR_FINAL_REVIEW`
+
+`W3C1_LOCAL_IMPLEMENTATION_AUTHORIZED=YES`; `W3C1_MANUAL_EXTERNAL_ADAPTER_IMPLEMENTED_LOCAL_NOT_DEPLOYED`; `W3C1_RUNTIME_ENABLED=NO`; `W3C1_IMPLEMENTATION_RECONCILIATION=PASS`.
+
+- Owner-authorized **local** implementation of the first selected provider adapter (W3 Option D: MANUAL_EXTERNAL). Server-only `src/backend/common/manual_external_adapter.py` with `record_external_payment(event, request_id, client_id, amount_delta_cents, currency, idempotency_key, external_reference?, payment_method_category?, note?)`; authored on branch `feat/w3c1-manual-external-adapter` from `main == origin/main == 0eccf1a2f88adf6ae2daefcade2b828d28686757`. Delivered as one Draft PR; not merged, not deployed.
+- **Scope (exact):** new adapter module; new `tests/backend/test_w3c1_manual_external_adapter.py` (57 tests, incl. an autouse test-isolation guard); new `docs/release-notes/w3c1-manual-external-adapter.md`; doc updates to this file and `release-notes/index.md`. No handlers/routes/API/UI/Terraform/IAM/Stripe files.
+- **Authorization** (`W3C1_AUTHORIZATION_BOUNDARY=PASS`): owner/admin only (`require_owner_or_admin`); staff/client rejected with no write; tenant/actor/status/amount/`payment_completed_at` all server-derived (no `payment_status`/`company_id` parameter).
+- **Money/state:** `W3C1_CANONICAL_CENTS=PASS` (strict minor units, no ×100, delta > 0); `W3C1_PARTIAL_PAYMENT_STATUS_RECONCILIATION=BELOW_DEPOSIT_RECORDS_PARTIALLY_PAID` (any recorded positive amount < full → PARTIALLY_PAID, never UNPAID-with-money; = full → PAID; NONE rejected; overpayment rejected); transitions validated by the W3-B machine; `PAYMENT_LINK_SENT → PARTIALLY_PAID/PAID` allowed; NOT_REQUIRED/PAID/REFUNDED reject settlement.
+- **Atomicity/idempotency:** `W3C1_PAYMENT_WRITE_ATOMICITY_DESIGN=DYNAMODB_TRANSACTWRITEITEMS_CONDITIONAL_EVENT_PUT_PLUS_CONDITIONAL_REQUEST_UPDATE` (two-item all-or-nothing; not the W3-B single-item primitive); `W3C1_PAYMENT_SUMMARY_REVISION=PASS` (absent→0 guard, +1 per settlement, no bump on replay/conflict/stale); `W3C1_IDEMPOTENCY=PASS` + `W3C1_TRANSACTION_CONFLICT_CLASSIFICATION=PASS` (CREATED / DUPLICATE_SAME_EVENT no-reapply / CONFLICTING_IDEMPOTENCY_KEY no-write / StaleSummaryConflict no-write).
+- **Hardening:** `W3C1_DYNAMODB_TRANSACTION_SERIALIZATION=PASS` (both operands marshalled through `boto3.dynamodb.types.TypeSerializer` to AttributeValue form — `Item`/`Key`/`ExpressionAttributeValues` encoded, names + expressions plain — executed via `table.meta.client.transact_write_items`); `W3C1_TRANSACTION_TABLE_NAME=PASS` (name resolved from live `common.db.table.name`, `DATA_TABLE_NAME` env fallback, else `ManualExternalError` before any write; both operands carry an explicit `TableName`); `W3C1_IDEMPOTENCY_EVIDENCE_BINDING=PASS` (replay = DUPLICATE only when the stored event matches the full current-request evidence: tenant/client/amount delta/currency/provider ref/method category/sanitized metadata+note; any divergence → CONFLICTING no-write); `W3C1_LEGACY_CONCURRENCY_GUARD=PASS` (summary `Update` condition pins `attribute_exists(PK)` + revision + RAW pre-read `payment_status` and `amount_paid_cents`; malformed/fractional revision normalized to `ManualExternalError`).
+- **Evidence/audit:** `W3C1_EXTERNAL_EVIDENCE_SAFETY=PASS` (method-category enum, opaque reference, sanitized note; no PAN/CVC/account/routing/credential/raw payload); one immutable PAYMENT_EVENT per settlement (`PAYMENT_SETTLED`/`PAYMENT_PARTIALLY_SETTLED`, provider MANUAL_EXTERNAL, server actor); supplementary `AUDIT#` after commit (failure non-fatal). Informational `is_booking_payment_ready` only — no APPROVED/JOB/schedule/notify.
+- **IAM boundary:** `W3C1_TRANSACTWRITE_IAM_PRESENT=NO`, `W3C1_RUNTIME_IAM_CHANGE_REQUIRED=YES`, `W3C1_NEW_AWS_RESOURCE_REQUIRED=NO`, `W3C1_LOCAL_CODE_CAN_BE_IMPLEMENTED_WITHOUT_INFRA_MUTATION=YES`, `W3C1_RUNTIME_ENABLEMENT_REQUIRES_IAM_CHANGE=YES`, `W3C1_INCREMENTAL_RESOURCE_COST_EXPECTATION=NEGLIGIBLE_WITHIN_EXISTING_ARCHITECTURE`. `modules/iam/main.tf` NOT edited; adding `dynamodb:TransactWriteItems` is a future, separately-authorized change. Tests use a mocked transaction client (no live AWS).
+- **Tests:** focused W3-C1 57 PASS; `test_w3b_payment_domain.py` 174 + `test_quote_contract.py` 50 = 224 PASS. `W3C1_TEST_ISOLATION=PASS` — root cause of the earlier 6 intermittent "failures" was `test_w3b_payment_domain.py` calling `importlib.reload(common.payment_domain)` (two coupling tests), which rebinds the `PaymentDomainError` class; the W3-C1 file's import-time `DomainReject = PaymentDomainError` alias was left stale so `pytest.raises(DomainReject)` no longer matched the post-reload exception (pure cross-test state bleed, invisible in isolation). Fixed test-file-locally with an autouse fixture that re-resolves the live exception classes before each test (no product-code change; `W3C1_SCOPE_EXPANSION_REQUIRES_OWNER_REVIEW` not triggered). Order independence: isolated 57, w3b+w3c1 together 231, three `-k w3c1_manual_external` runs 57 each. `W3C1_NEW_REGRESSIONS=0` — full-suite feature-vs-baseline JUnit node-ID diff: feature (`FEATURE_W3C1.xml`) 2081 tests/90 failures, baseline at `0eccf1a` (`BASELINE_W3C1.xml`) 2024 tests/90 failures, exact set difference `NEW_FAILING_NODE_IDS=NONE`, 0 W3-C1 nodes failing; the 90 are the identical pre-existing environmental set (absent `.tf` static-analysis, public-intake tenant-resolution, phase24a contract, Google Calendar tenant isolation, Stripe/Postmark, entitlement DB, rbac/purge, terms-acceptance, intake). Baseline detached worktree removed afterward (no `git worktree prune`).
+- **Boundary/gates:** no API route (W3-C2), UI (W3-D1), Stripe/Connect/OAuth/Checkout/PaymentIntent/webhook/secret, refunds (deferred), Terraform/IAM/AWS/deploy, production mutation/test data, second tenant, tenant-resolution change, Ryan testing, scheduling, mobile distribution, or auto-approval. `SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`; `SCHEDULING_PR_MERGE_AUTHORIZED=NO`; Stripe sandbox-only; `RYAN_TESTING_AUTHORIZED=NO`; no worktree prune/repair. W3-C2 not started.
+- See [W3-C1 MANUAL_EXTERNAL adapter record](../release-notes/w3c1-manual-external-adapter.md) and the [W3-C plan](../planning/petcare-hero-w3c-manual-external-adapter.md).
+
+---
+
+## 2026-10-23 — Workstream 3-B: Provider-Neutral Payment Domain — Merged, Not Deployed
+
+**Disposition:** `W3B_PROVIDER_NEUTRAL_PAYMENT_DOMAIN_MERGED_NOT_DEPLOYED` (`W3_B_IMPLEMENTATION_STATUS=MERGED_NOT_DEPLOYED`)
+
+> **Merge closeout (2026-10-23):** PR #29 squash-merged into `main`; pre-merge base `f1c49fe99e31ce29ca3914fd41e425b9dac212e6` → `main == origin/main == 2813451e7182eb0f1b9ee0b85e26f3247eef9889` (single-parent squash, merged diff = exactly the 6 authorized W3-B files). W3-B is merged code, NOT deployed; latest completed production backend release remains `PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`. The pre-hardening review disposition `W3B_PROVIDER_NEUTRAL_PAYMENT_DOMAIN_HARDENED_READY_FOR_FINAL_REVIEW` is retained below as the state at review time. Next planned phase: **W3-C1** (MANUAL_EXTERNAL backend adapter/service, planning only — see [W3-C MANUAL_EXTERNAL adapter plan](../planning/petcare-hero-w3c-manual-external-adapter.md)); `W3_C_IMPLEMENTATION_AUTHORIZED=NO`.
+
+`W3_B_IMPLEMENTATION_AUTHORIZED=YES`; `W3_B_PROVIDER_NEUTRAL_PAYMENT_DOMAIN_IMPLEMENTED_LOCAL_NOT_DEPLOYED`; `W3_B_DEPLOYED=NO`; `W3B_SCOPE_REVIEW=PASS`.
+
+- Owner-authorized implementation of the W3 Option D provider-neutral payment **domain** (`PROVIDER_ABSTRACTION + MANUAL_EXTERNAL` first; `STRIPE_CONNECT_DIRECT` long-term, adapter NOT built here). Pure backend domain module + tests only, built **alongside** the existing deployed Stripe booking-payment path; no runtime execution switch. Authored on branch `feat/w3b-provider-neutral-payment-domain` from `main == origin/main == f1c49fe99e31ce29ca3914fd41e425b9dac212e6`. Delivered as one PR (#29) and **squash-merged into `main`** at `2813451e7182eb0f1b9ee0b85e26f3247eef9889`; merged, not deployed.
+- **Scope (exact):** new `src/backend/common/payment_domain.py`; new `tests/backend/test_w3b_payment_domain.py` (174 tests after PR #29 hardening); new `docs/release-notes/w3b-provider-neutral-payment-domain.md`; doc updates to `docs/release-notes/index.md`, this file, and `docs/planning/petcare-hero-tenant-customer-payment-architecture.md`. No other files.
+- **PR #29 hardening (2026-10-23):** (1) canonical-cents magnitude fix — all `*_cents` go through strict `canonical_cents`/`normalize_stored_cents` (int/Decimal/str integral preserved; `Decimal('50.5')`/negative/bool rejected; no ×100; `to_cents` global behavior unchanged) → `W3B_CANONICAL_CENTS_MAGNITUDE_PRESERVED=PASS`; (2) real append-only persistence `persist_payment_event` — conditional `attribute_not_exists(PK) AND attribute_not_exists(SK)` put, result contract `CREATED`/`DUPLICATE_SAME_EVENT`/`CONFLICTING_IDEMPOTENCY_KEY`, never overwrites → `W3B_PAYMENT_EVENT_PERSISTENCE=PASS`, `W3B_PAYMENT_EVENT_IDEMPOTENCY=PASS` (conditional-write tests); (3) fail-closed tenant/request ownership `load_owned_request` (load REQUEST by key, existence + trusted `company_id`/`client_id` match, spoofed event body cannot widen) → `W3B_PAYMENT_TENANT_ISOLATION=PASS`; (4) provider known-vs-active split (`validate_known_provider` vs `validate_active_provider`; active paths reject Stripe Connect Direct/Marketplace) → `W3B_PROVIDER_EXECUTION_BOUNDARY=PASS`; (5) recursive allowlist audit-metadata sanitizer (nested sensitive keys/raw payloads/bytes rejected, depth/size caps) → `W3B_PAYMENT_EVENT_METADATA_SAFETY=PASS`. Persistence imports `common.db`/`botocore` lazily inside the function; module top level stays import-clean (AST-verified).
+- **Reuse, not re-definition:** canonical `PaymentRequirement`/`PaymentStatus`/`QuoteStatus` + `to_cents`/`normalize_stored_cents`/`normalize_legacy_payment_status` are imported from `common/quote_contract.py`. `W3B_EXISTING_DOMAIN_RECONCILIATION=PASS`.
+- **Status set unchanged** — exactly the existing six values; no `PENDING`/`FAILED`/`PARTIALLY_REFUNDED`. Failures recorded as `PAYMENT_EVENT` metadata (`PAYMENT_FAILED`), not a new status. `W3B_PAYMENT_STATUS_SET` = 6.
+- **Behaviors:** `normalize_payment_status` (canonical/lowercase-live/legacy → canonical, missing → NOT_REQUIRED, unknown → `UNKNOWN` fail-safe); deterministic state machine (`NOT_REQUIRED`/`REFUNDED` terminal; no backward/fabricated-money transitions; idempotent same-status replay); integer-cent amount invariants (non-negative, currency when required, no overpayment); provider abstraction (`MANUAL_EXTERNAL` only supported; `STRIPE_CONNECT_DIRECT` long-term; `STRIPE_CONNECT_MARKETPLACE` label only); amount-aware `is_booking_payment_ready` (pure `(ready, reason)`; preserves *accepted ≠ paid ≠ APPROVED*, never approves/books/schedules); hybrid REQUEST summary + append-only `PAYMENT_EVENT`.
+- **PAYMENT_EVENT storage:** existing single table, REQUEST item collection (`PK=REQ#{request_id}`, `SK=PAYEVENT#{idempotency_key}`), conditional `attribute_not_exists` put → duplicate-safe. `W3B_PAYMENT_EVENT_STORAGE_INFRA_CHANGE_REQUIRED=NO`; `W3B_PAYMENT_EVENT_IDEMPOTENCY=PASS`.
+- **MANUAL_EXTERNAL / privacy / isolation:** opaque `provider_txn_ref` + `actor` only; no client self-assert PAID; forbidden-metadata keys rejected (no PAN/CVC/secret/token); trusted `company_id` required per event. `W3B_MANUAL_EXTERNAL_BOUNDARY=PASS`; `W3B_CLIENT_PAYMENT_PRIVACY_BOUNDARY=PASS`; `W3B_PAYMENT_TENANT_ISOLATION=PASS`. No `stripe`/`requests`/`urllib`/`boto3` import (AST-verified in tests).
+- **Flags:** `W3B_PAYMENT_STATUS_NORMALIZATION=PASS`; `W3B_PAYMENT_STATE_MACHINE=PASS`; `W3B_PAYMENT_AMOUNT_INVARIANTS=PASS`; `W3B_PROVIDER_ABSTRACTION=PASS`; `W3B_PAYMENT_ENTITY_MODEL=HYBRID_REQUEST_SUMMARY_PLUS_PAYMENT_EVENT`; `W3B_BOOKING_READINESS_PREDICATE=PASS`; `W3B_AUTO_APPROVAL_ADDED=NO`; `W3B_LEGACY_PAYMENT_COMPATIBILITY=PASS`.
+- **Tests:** focused W3-B 174 PASS; `test_quote_contract.py` 50 PASS; full backend suite 1934 passed / 90 failed on the branch vs 1760 passed / 90 failed on clean baseline `f1c49fe` (throwaway worktree created then removed with `git worktree remove --force`, no prune; a leftover temp directory could not be deleted due to a lingering file handle but its git worktree registration WAS removed and no `git worktree prune` was run). Failing node-ID sets identical (`new=0 gone=0`) → `W3B_NEW_REGRESSIONS=0`; the +174 passing delta is exactly the W3-B tests. The 90 pre-existing failures are environmental (Terraform/IAM static analysis, Google Calendar tenant resolution, Stripe/Postmark, entitlement DB, rbac/purge, terms-acceptance, intake).
+- **Boundary:** `W3_B_DEPLOYED=NO`; no Stripe API/secret/Connect/OAuth/Checkout/PaymentIntent/webhook; no Terraform/AWS/API-Gateway/deploy; no runtime switch of the existing Stripe path; no UI mutation; no auto-approval; no client `mark-paid`. W3-C (Stripe Connect Direct adapter) NOT started; requires separate explicit authorization.
+- **Gates preserved:** `SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`; `SCHEDULING_PR_MERGE_AUTHORIZED=NO`; Stripe sandbox-only; `RYAN_TESTING_AUTHORIZED=NO`; no second tenant; no production test data; no production quote mutation; no backend/web deployment; no mobile distribution; no worktree prune/repair.
+- See [W3-B provider-neutral payment domain record](../release-notes/w3b-provider-neutral-payment-domain.md).
+
+---
+
+## 2026-10-23 — Workstream 3: Tenant Customer Payment Architecture — Option D SELECTED (decision; implementation not yet authorized)
+
+**Disposition:** `W3_OPTION_D_SELECTED_ARCHITECTURE_READY_FOR_FINAL_REVIEW`
+
+`W3_ARCHITECTURE_DECISION_PHASE_AUTHORIZED=YES`; `W3_ARCHITECTURE_DECISION_COMPLETE=YES`; `W3_PAYMENT_MODEL_SELECTED=YES`; `W3_PLANE_B_MODEL_SELECTED=OPTION_D`; `W3_OPTION_D_OWNER_APPROVED=YES`; `W3_SELECTED_MVP_MODEL=PROVIDER_ABSTRACTION + MANUAL_EXTERNAL`; `W3_SELECTED_LONG_TERM_MODEL=PROVIDER_ABSTRACTION + STRIPE_CONNECT_DIRECT_CHARGES`; `W3_B_IMPLEMENTATION_READY_FOR_OWNER_AUTHORIZATION=YES`; `W3_B_IMPLEMENTATION_AUTHORIZED=NO`; `W3_PAYMENT_IMPLEMENTATION_AUTHORIZED=NO`.
+
+- **Owner decision recorded:** Matthew approved **Option D** — provider abstraction with a `MANUAL_EXTERNAL` first adapter (PetCare Hero does not move tenant customer money; tenant collects externally; PetCare Hero records provider-neutral state; no PAN/CVC; no tenant customer charge on the USMISSIONHERO Stripe account; Plane A/B separated) and a long-term `STRIPE_CONNECT_DIRECT_CHARGES` adapter (connected tenant account, direct-charge/SaaS funds flow, charge on the tenant-connected account). Marketplace/indirect Connect (destination/separate charges, platform-first funds flow) was **NOT** selected and remains a future change requiring explicit approval.
+- **Selection only, not implementation:** this turn records the architecture choice; it does not begin W3-B. A separate explicit owner authorization is required before any payment-domain code / Stripe-Connect work / deployment.
+- **Planned next phase (W3-B, not authorized here):** provider-neutral payment domain — canonical `PaymentStatus` normalization/transitions, provider-neutral summary + append-only `PAYMENT_EVENT` records, booking-readiness predicate, amount/currency invariants, tenant isolation, idempotency primitives, the `MANUAL_EXTERNAL` adapter boundary, tests. W3-B non-goals: no Stripe API/Connect/OAuth/Checkout/PaymentIntent/webhook/Terraform/live-Stripe/production-mutation/money-moving UI.
+- Builds on the W3-A decision package (Plane A/B separation, current-source audit, options A–D, hardened Connect funds-flow taxonomy, decision matrix, provider-neutral domain + entity + readiness + webhook + isolation + security + legacy-deprecation + roadmap). See [W3 tenant customer payment architecture](../planning/petcare-hero-tenant-customer-payment-architecture.md).
+- **Boundary:** no payment implementation, no Stripe Connect/OAuth/Checkout/PaymentIntent/webhook/Terraform/secret/UI; Stripe sandbox-only; no deploy.
+- **Gates preserved:** `SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`; `SCHEDULING_PR_MERGE_AUTHORIZED=NO`; Stripe sandbox-only; `RYAN_TESTING_AUTHORIZED=NO`; no second tenant; no production test data; no production quote mutation; no backend/web deployment; no mobile distribution; no worktree prune/repair.
+
+- Planning/decision-only package authored from `main == c6e514e`: Plane A (SaaS billing, USMISSIONHERO→tenant) vs Plane B (tenant customer payments, pet owner→tenant) architecture, current-source payment audit, options A–D, decision matrix, recommendation, Matthew decision block, provider-neutral payment-domain + entity + booking-readiness + webhook + tenant-config + isolation + security + legacy-deprecation + roadmap. See [W3 tenant customer payment architecture](../planning/petcare-hero-tenant-customer-payment-architecture.md).
+- **Key finding:** current source conflates Plane A and Plane B — the booking-payment path (`admin create-payment-session` → `stripe_client.create_checkout_session` → shared `stripe_webhook_handler` `payment_type==booking`) uses USMISSIONHERO's single platform Stripe account/secret, so tenant customer money would settle to the platform. `W3_LEGACY_PLATFORM_STRIPE_CONFLATION_RISK=YES`; sandbox-only today (no real money has flowed). `W3_CURRENT_PAYMENT_STATE_MACHINE_EXISTS=PARTIAL` (canonical `PaymentStatus`/`PaymentRequirement` vocabulary exists in `quote_contract.py`; no enforced state machine / payment entity / refunds).
+- **Recommendation (not a selection; re-derived after taxonomy hardening):** `W3_RECOMMENDED_MVP_MODEL=PROVIDER_ABSTRACTION + MANUAL_EXTERNAL` (Option D wrapping A), `W3_RECOMMENDED_LONG_TERM_MODEL=PROVIDER_ABSTRACTION + STRIPE_CONNECT_DIRECT_CHARGES` (Stripe Connect **direct charges** on the connected tenant account; marketplace/indirect **not** recommended for the current SaaS model), `W3_RECOMMENDATION_CONFIDENCE=MEDIUM`. Taxonomy corrected: programmatic integration with a tenant-owned Stripe account **is** Stripe Connect; the real axis is funds flow/responsibility (direct vs indirect charges), evaluated against current Accounts v2/controller responsibility config, not legacy Standard/Express/Custom labels. "Stripe Connect" is not automatically high-risk. PCI wording precise (minimizes scope; not "entirely out of PCI"; legal/business-of-record conclusions require formal confirmation). `W3_PAYMENT_ENTITY_RECOMMENDATION=hybrid (summary-on-REQUEST + PAYMENT_EVENT records)`; `W3_BOOKING_READINESS_CONTRACT_PROPOSED=YES`; `W3_PAYMENT_TENANT_ISOLATION_DESIGN=PASS`; `W3_PAYMENT_SECURITY_ARCHITECTURE_REVIEW=PASS`.
+- **Boundary:** no payment implementation, no Stripe Connect/OAuth/Checkout/PaymentIntent/webhook/Terraform/secret/UI; no model chosen on Matthew's behalf; Stripe sandbox-only; no deploy. Implementation (W3-B+) blocked until Matthew selects the Plane-B model.
+- **Gates preserved:** `SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`; `SCHEDULING_PR_MERGE_AUTHORIZED=NO`; Stripe sandbox-only; `RYAN_TESTING_AUTHORIZED=NO`; no second tenant; no production test data; no production quote mutation; no backend/web deployment; no mobile distribution; no worktree prune/repair.
+
+---
+
+## 2026-10-23 — Workstream 1: Existing Pet Selection (canonical request↔pet association) — Merged, Not Deployed
+
+**Disposition:** `W1_CANONICAL_PET_ASSOCIATION_MERGED_NOT_DEPLOYED`
+
+`W1_IMPLEMENTATION_STATUS=MERGED_NOT_DEPLOYED`; `W1_DEPLOYED=NO`. PR #26 squash-merged into `main`: pre-merge `066a260af3b3c95af2e36a4dbf945f8234ac099f` → authorized head `251dcad857f3923a6ca9e7c22779bb863acff163` → resulting `main == origin/main == 429f3b901d61004ff8ea6f92fd957cbeefaec592`; exactly the reviewed 12 files; no deployment. Merging PR #26 changed repository `main`, not production.
+
+> **Naming boundary:** this is *Workflow & Payment Architecture — Workstream 1 (Existing Pet Selection)*, NOT the historical *Ryan W1 20-Minute Walk canonical scheduling windows* (untouched).
+
+> **Naming boundary:** this is *Workflow & Payment Architecture — Workstream 1 (Existing Pet Selection)*, NOT the historical *Ryan W1 20-Minute Walk canonical scheduling windows* (untouched).
+
+- Canonical request↔pet association is now `CANONICAL_REQUEST_PET_ASSOCIATION=pet_ids: string[]` for existing profile pets; `pet_names` is a derived display/legacy-compat value, never the identity authority when `pet_ids` is present. Authored from `main == 066a260af3b3c95af2e36a4dbf945f8234ac099f`; frontend + intake/pet-association backend only; **not deployed**.
+- **Mobile** (`IntakeScreen.tsx`): selection keyed by `pet_id` (not name); pre-select/toggle/deselect by id; duplicate names independently selectable; submits canonical `pet_ids`; derived display names; eliminated the legacy name→id lookup + comma-joined `pet_names`-as-identity producer for existing pets.
+- **Web client** (`IntakeForm.jsx`): added a first-class authenticated-client existing-pet picker (`W1_WEB_CLIENT_PARITY_REQUIRED=YES`) loading pets once via the client-safe `GET /client/pets`, selecting by `pet_id`, submitting canonical `pet_ids`; add-new path preserved; no admin endpoint; no N+1. Public path unchanged.
+- **Backend**: `common/pet_profile.resolve_owned_pet_ids` validates caller `pet_ids` against the server-resolved client/tenant's active owned pets (non-disclosing drop of foreign/invalid ids; fail-closed); `intake_handler` persists validated canonical `pet_ids` + derived names on the client-portal write path (never trusting body identity/names); `create_or_link_pets_from_request` treats existing `pet_ids` as authoritative and creates only genuinely-new `pets[]` entries, idempotently.
+- **Hardening (PR #26 follow-up):** invalid supplied existing-pet ids now REJECT the whole client request generically (HTTP 400, nothing persisted) instead of silent-drop; `pet_ids` shape validated at the API boundary; new-pet identity decided by absence of canonical `pet_id` (never name); mixed-new-pet idempotency is request-scoped (`created_from_request_id`).
+- **Flags:** `W1_PET_OWNERSHIP_ENFORCEMENT=PASS`; `W1_INVALID_PET_ID_REQUEST_REJECTION=PASS`; `W1_PET_IDS_INPUT_VALIDATION=PASS`; `W1_NAME_IS_NOT_IDENTITY=PASS`; `W1_MIXED_NEW_PET_IDEMPOTENCY=PASS`; `W1_NEW_REQUESTS_CANONICAL_PET_IDS=PASS`; `W1_LEGACY_READ_COMPATIBILITY=PASS`; `W1_CLIENT_REQUEST_PRIVACY_BOUNDARY=PASS` (PR #22 `/client/requests` projection untouched); `W1_N_PLUS_ONE_PET_FETCHES_ADDED=NO`; `W1_SECURITY_REVIEW=PASS`; `W1_SCOPE_REVIEW=PASS`; `W1_NEW_PET_CREATION_ARCHITECTURE_CONFLICT_FOUND` NOT triggered.
+- **Tests:** backend `test_w1_canonical_pet_association.py` 19 PASS; mobile IntakeScreen 35/35 PASS + `tsc` clean; web vitest 29 files / 444 PASS. `W1_NEW_REGRESSIONS=0` (full backend suite identical pre-existing failure set vs clean baseline `066a260`: 90 failed on both; this branch +19 passing = new W1 tests; pre-existing failures are environmental — Google Calendar/tenant/Stripe/Postmark/entitlement — unrelated to pet association).
+- **Admin/scheduling preserved:** admin-created bookings, `APPROVED`/`VISIT_BOOKING`, scheduling/assignment/service windows, Ryan W1 Walk, Overnight O1 unchanged.
+- **Boundary:** `W1_DEPLOYED=NO`; no deploy/Terraform/AWS/API-Gateway/backend deployment. `NEXT_RECOMMENDED_WORKSTREAM=W3` (sequence W2→W4→W1→W3); `W3_IMPLEMENTATION_AUTHORIZED=NO`.
+- **Gates preserved:** `SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`; `SCHEDULING_PR_MERGE_AUTHORIZED=NO`; Stripe sandbox-only; `RYAN_TESTING_AUTHORIZED=NO`; no second tenant; no production test data; no production quote mutation; no mobile distribution; no web deployment.
+- See [W1 canonical request↔pet association record](../release-notes/w1-canonical-request-pet-association.md).
+
+---
+
+## 2026-10-22 — W4 Option A: Client Workflow Status Presentation (frontend-only) — Merged, Not Deployed
+
+**Disposition:** `W4_OPTION_A_MERGED_NOT_DEPLOYED`
+
+`W4_IMPLEMENTATION_STATUS=MERGED_NOT_DEPLOYED`
+
+- Owner-authorized MERGE-ONLY integration of PR #24 (`fix: normalize client workflow status presentation`, head branch `fix/w4-frontend-workflow-summary`). Squash-merged into `main`.
+  - pre-merge main: `e72b479aee0ba4968b15b167a634e3408e6cc0e2`
+  - authorized PR head: `01a3e97b3d831d33c790e411b61feb85ca444902`
+  - resulting main: `main == origin/main == 853b73ac399a6ff47bd37f5059c1c1e99b02949d`
+  - scope: exactly the approved 9 files (`docs/release-notes/w4-client-workflow-status-presentation.md`, `mobile/__tests__/BookingsScreen.test.tsx`, `mobile/__tests__/ClientRequestDetailScreen.test.tsx`, `mobile/__tests__/workflowStatus.test.ts`, `mobile/src/screens/BookingsScreen.tsx`, `mobile/src/screens/ClientRequestDetailScreen.tsx`, `mobile/src/utils/workflowStatus.ts`, `web/src/components/ClientPortal.jsx`, `web/tests/RequestStatusDisplayCompatibility.test.jsx`); **frontend-only**; no backend/API/infra change.
+- **W4 semantics (as merged):** request-list `RequestStatus` is a non-commercial workflow summary — `QUOTE_NEEDED`/`QUOTE_SENT`/`QUOTED` → neutral `In Review`; unknown `RequestStatus` → neutral `In Review`; request-level `DECLINED` → `Declined`; `CANCELLATION_REQUESTED` → `Cancellation Pending`; `CANCELLATION_DENIED` → `Cancellation Denied`. Canonical commercial quote state remains detail-only (`GET /client/quotes/{requestId}`); unknown canonical quote state != `NOT_REQUIRED`; no N+1 quote fetches added; PR #22 client-request privacy boundary preserved.
+- **Validation (completed before merge; not re-run for this docs closeout):** focused mobile 53 tests PASS; mobile broad 33 suites / 290 tests PASS; web 28 files / 438 tests PASS; mobile typecheck clean; zero new regressions; only pre-existing web eslint baseline issues remain.
+- **Deployment boundary:** `W4_DEPLOYED=NO`. Merging PR #24 did NOT change production. Production remains on the existing deployed backend/web/mobile state; latest completed production backend release remains `PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`. No web deploy, no mobile build/distribution, no Terraform, no AWS mutation.
+- **Next workstream (approved sequence W2 → W4 → W1 → W3):** `NEXT_RECOMMENDED_WORKSTREAM=W1`; `W1_IMPLEMENTATION_AUTHORIZED=NO` until Matthew separately approves it. W1 NOT started.
+- **Gates preserved:** `SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`; `SCHEDULING_PR_MERGE_AUTHORIZED=NO`; Stripe sandbox-only; `RYAN_TESTING_AUTHORIZED=NO`; no second tenant; no production test data; no production quote mutation; no mobile distribution authorization; no web deployment authorization.
+- See [W4 Option A client workflow status presentation record](../release-notes/w4-client-workflow-status-presentation.md).
+
+---
+
+## 2026-10-22 — PR #22: Client-Request Quote-Field Privacy Projection — Production Deployment Verified
+
+**Disposition:** `PR22_PRIVACY_PRODUCTION_DEPLOYED_VERIFIED`
+
+- Owner-approved production deployment of merged PR #22 as a code-only, 13-Lambda in-place update in account `358604342897`. Authoritative source checkpoint `main == origin/main == fd60a760b8f60e34cec7a698fa1771bf3f8a8a99` (PR #22 squash merge).
+- **Privacy remediation:** `GET /client/requests` now uses an explicit client-safe allowlist projection (`common.auth.project_client_request_list_item`) instead of raw REQUEST pass-through through the denylist sanitizer. Prevents incidental exposure of quote/commercial/internal REQUEST fields (`quote_status`, `quote_revision`, `quote_amount_cents`, `currency`, `deposit_amount_cents`, `payment_requirement`, `payment_status`, `quote_notes_client`, `quote_notes_internal`, `internal_pricing_notes`, `quote_history`, quote lifecycle timestamps/revisions, decline reason, audit/admin/internal/staff fields, raw PK/SK). Known mobile/web client-list consumers source-audited; required fields preserved. Fails closed on non-dict input. Dedicated `GET /client/quotes/{requestId}` unchanged and still hides DRAFT.
+- **Precise characterization (NOT a confirmed incident):** source-level exposure *path* proven; **no production customer/business records were inspected**; actual historical exposure remains unknown; this was a privacy-hardening correction. `CLIENT_REQUEST_LIST_QUOTE_STATUS_CONTRACTUALLY_EXPOSED=NO`; `CLIENT_REQUEST_LIST_QUOTE_STATUS_CAN_PASS_THROUGH_INCIDENTALLY=NO`.
+- **Deployment:** saved-plan SHA-256 `1E707B846999C2B1352BB77334BFB6DCA2F15681D594D6569A1B3D9DA6EBB170`; `terraform apply pr22-privacy.tfplan` → **`Apply complete! Resources: 0 added, 13 changed, 0 destroyed`**. All 13 Lambdas moved `CodeSha256 QgEdTeYYMYF3k+b4f22NoHv2I7GEowtO1ynQ7ISafVk=` → **`W6cqyudlRQF3Zw7uN2V42JzziwYITg8r5mCnsGdDAq4=`**, Active/Successful. API `a022yxuiue` / prod stage `hhryhc` unchanged; `TENANT_RESOLUTION_MODE=multi` unchanged; **AC-9 excluded** (`AC9_DEPLOYED_BY_PR22_RC=NO`). Deployment RC `release/pr22-client-request-privacy-rc @ b94455a` = PR #19 production baseline `d082517` + cherry-pick of PR #22 squash `fd60a76`; runtime delta = exactly `common/auth.py` + `handlers/admin_handler.py`.
+- **Terraform convergence:** Matthew manually ran `terraform plan -detailed-exitcode` (fresh session) → **`No changes. Your infrastructure matches the configuration.`**, exit code `0` → `PR22_TERRAFORM_CONVERGENCE=PASS`.
+- **Rollback (preserved, not executed):** PR #19 baseline `d082517` + previous package `QgEdTeYYMYF3k+b4f22NoHv2I7GEowtO1ynQ7ISafVk=`; historical RC worktrees untouched.
+- **Acceptance boundary:** infrastructure/package verification + convergence only; no production business/customer records inspected; no functional quote mutation (Send/Accept/Decline) performed.
+- **W4 next state:** privacy deployment gate now closed. `W4_CAN_PROCEED_INDEPENDENTLY=YES`; `W4_IMPLEMENTATION_STATUS=READY_FOR_OWNER_APPROVED_IMPLEMENTATION` (selected architecture `W4_OPTION_A_FRONTEND_WORKFLOW_SUMMARY`; separate future phase; not implemented here).
+- **Gates preserved:** scheduling parked (`SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`, `SCHEDULING_PR_MERGE_AUTHORIZED=NO`); Stripe sandbox-only; `RYAN_TESTING_AUTHORIZED=NO`; no second tenant; no mobile distribution; no production test data.
+- See [PR #22 client-request privacy production deployment record](../release-notes/pr22-client-request-privacy-production-deployment.md).
+
+---
+
+## 2026-10-21 — M4-C: One Controlled Client Decline Acceptance
+
+**Disposition:** `M4_C_DECLINE_ACCEPTANCE_PASS`
+
+- Owner-authorized, one-time client **Decline** (`SENT → DECLINED`) of the established safe M4 production test quote, performed by Matthew in the mobile app. Exactly one Decline; no Accept, no Send/Resend, no second Decline. Authoritative checkpoint `main == origin/main == e5366df02905d89b9e612c62aa1fbb9fe9765348`.
+- **Accepted via owner-supplied mobile (on-device) evidence.** UI-observed results: quote now DECLINED (`M4_C_DECLINE_TRANSITION=PASS`); amount still `$200.00`; payment requirement NONE; declined state renders, no crash (`M4_C_MOBILE_DECLINED_STATE=PASS`); Accept/Decline no longer valid second actions (first-action-wins reflected); no booking→APPROVED, no payment/Stripe mutation, no unexpected notification side effect observed. **`M4_C_RESULT=PASS`.**
+- **Evidence limitation (explicit):** record-level `quote_revision` unchanged and `quote_declined_at`/`quote_accepted_at` fields are contract-expected (per `apply_quote_decline`: SENT→DECLINED, revision not incremented, acceptance fields unset) but were NOT independently read/verified by the agent — no backend record, request PK/SK, client ID, or auth token was requested, provided, or used.
+- **`M4_C_DECLINE_AUTHORIZED=CONSUMED`** — the single approved Decline is used; no further client mutation is authorized. No Accept performed.
+- **Gates preserved:** `M4_B_RESULT=PASS`; scheduling parked (`SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`, `SCHEDULING_PR_MERGE_AUTHORIZED=NO`); Stripe sandbox-only; Ryan NO; no second tenant; no tenant-resolution change; no mobile distribution; no production test data; no Terraform/Lambda/API deployment. Production backend remains the PR #19 release (`QgEdTeYYMYF3k+b4f22NoHv2I7GEowtO1ynQ7ISafVk=`); rollback (`ce6b724` + `gBjdlXDUn0…`) preserved.
+- See [M4-C client decline acceptance record](../release-notes/m4c-client-decline-acceptance.md).
+
+---
+
+## 2026-10-20 — PR #19: Canonical Quote Cents Read Fix — Production Deployment + M4-B Verification
+
+**Disposition:** `PR19_PRODUCTION_DEPLOYED_M4B_VERIFIED_PHASE_COMPLETE`
+
+- Owner-approved production deployment of the merged PR #19 backend canonical-quote-cents read fix. Code-only, 13-Lambda in-place update: `terraform apply pr19-cents.tfplan` → **`Apply complete! Resources: 0 added, 13 changed, 0 destroyed`** in account `358604342897`.
+- All 13 Lambdas moved from `CodeSha256 gBjdlXDUn0+0gHHyF/W5aKv35NROe81lsQZbBf4YR6I=` to **`QgEdTeYYMYF3k+b4f22NoHv2I7GEowtO1ynQ7ISafVk=`**, Active/Successful, `python3.11`. API Gateway `a022yxuiue` / prod stage `hhryhc` unchanged; `TENANT_RESOLUTION_MODE=multi` unchanged; AC-9 excluded; zero env/config/IAM/API/DynamoDB/Cognito/SNS/SES/Stripe/tenant change.
+- Deployment RC `release/pr19-canonical-cents-rc @ d082517` = OPS-3A.3 clean baseline `ce6b724` + clean cherry-pick of PR #19 squash `9a269ac`; runtime delta = exactly `src/backend/common/quote_contract.py` + `src/backend/handlers/admin_handler.py`. Saved-plan SHA-256 `1DCC0491…104040`.
+- **M4-B VERIFIED (`M4_B_RESULT=PASS`)** — Android Pixel 8 emulator (owner screenshot): quote renders, total `$200.00` (prior `$20,000.00` ×100 defect resolved), "No payment required"/"Not required", Accept + Decline visible, no crash. Quote-visibility / amount-display / payment-requirement / accept-visibility / decline-visibility / crash-regression all PASS. No Accept/Decline/Send performed.
+- **Rollback preserved (not executed):** baseline `ce6b724` + previous package `gBjdlXDUn0…`; retained `backend.zip`/`ops3a3-production.tfplan` intact in the historical OPS-3A.3 RC worktree.
+- **Gates preserved:** `M4_C_DECLINE_AUTHORIZED=NO` (the single mobile Decline remains a separate explicit owner decision); scheduling parked (`SCHEDULING_WORKSTREAM_STATUS=DRAFT_PR_DELIVERY_CHECKPOINT`, `SCHEDULING_PR_MERGE_AUTHORIZED=NO`); Stripe sandbox-only; Ryan testing NO; no second tenant; no production test data.
+- See [PR #19 production deployment record](../release-notes/pr19-canonical-quote-cents-production-deployment.md).
+- **Next owner decision:** `M4_C_DECLINE_AUTHORIZED=NO — OWNER DECISION REQUIRED`.
 
 ---
 

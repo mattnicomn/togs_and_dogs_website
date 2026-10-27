@@ -59,6 +59,14 @@ const formatServiceDuration = (minutes: number) => (
 const TERMS_VERSION = '1.0';
 const PRIVACY_VERSION = '1.0';
 
+// Workstream 1: resolve a pet's stable canonical identifier. The client-safe
+// GET /client/pets contract returns `pet_id`; some fixtures/payloads use `id`.
+// Identity is ALWAYS an ID — never the display name.
+const getPetId = (pet: any): string | undefined => {
+  const id = pet?.pet_id ?? pet?.id;
+  return typeof id === 'string' && id.trim() ? id : undefined;
+};
+
 export const IntakeScreen = () => {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
@@ -82,7 +90,9 @@ export const IntakeScreen = () => {
   // Pet & Care State
   const [availablePets, setAvailablePets] = useState<any[]>([]);
   const [petsLoading, setPetsLoading] = useState(false);
-  const [selectedPetNames, setSelectedPetNames] = useState<string[]>([]);
+  // Workstream 1: existing-pet selection is keyed by canonical pet_id, never by
+  // name. Duplicate pet names therefore remain independently selectable.
+  const [selectedPetIds, setSelectedPetIds] = useState<string[]>([]);
   const [fallbackPetName, setFallbackPetName] = useState('');
   const [feedingNotes, setFeedingNotes] = useState('');
   const [medicationNotes, setMedicationNotes] = useState('');
@@ -139,9 +149,10 @@ export const IntakeScreen = () => {
         if (isMounted) {
           const petsList = Array.isArray(data) ? data : data?.pets || [];
           setAvailablePets(petsList);
-          // Pre-select first pet if available
-          if (petsList.length > 0 && petsList[0]?.name) {
-            setSelectedPetNames([petsList[0].name]);
+          // Pre-select the first pet by its canonical id (never by name).
+          const firstId = petsList.length > 0 ? getPetId(petsList[0]) : undefined;
+          if (firstId) {
+            setSelectedPetIds([firstId]);
           }
         }
       })
@@ -242,11 +253,11 @@ export const IntakeScreen = () => {
     setError(null);
   };
 
-  const togglePetSelection = (petName: string) => {
-    if (selectedPetNames.includes(petName)) {
-      setSelectedPetNames(selectedPetNames.filter((p) => p !== petName));
+  const togglePetSelection = (petId: string) => {
+    if (selectedPetIds.includes(petId)) {
+      setSelectedPetIds(selectedPetIds.filter((id) => id !== petId));
     } else {
-      setSelectedPetNames([...selectedPetNames, petName]);
+      setSelectedPetIds([...selectedPetIds, petId]);
     }
   };
 
@@ -276,7 +287,7 @@ export const IntakeScreen = () => {
   };
 
   const validateStep2 = () => {
-    const hasSelectedPets = selectedPetNames.length > 0;
+    const hasSelectedPets = selectedPetIds.length > 0;
     const hasFallbackPet = fallbackPetName.trim().length > 0;
     if (!hasSelectedPets && !hasFallbackPet) {
       setError('Please select or specify at least one pet name.');
@@ -313,29 +324,48 @@ export const IntakeScreen = () => {
       const startDate = sortedDates[0] || '';
       const endDate = sortedDates.length > 1 ? sortedDates[sortedDates.length - 1] : '';
 
-      // Construct pets payload array
-      const petsPayload = selectedPetNames.map((name) => {
-        const found = availablePets.find((p) => p.name === name);
-        return {
-          name,
-          species: found?.species || 'DOG',
-          breed: found?.breed || '',
-          age: found?.age || '',
-          feeding_notes: feedingNotes,
-          medication_notes: medicationNotes,
-        };
-      });
+      // Workstream 1: resolve selected existing pets by canonical id (identity),
+      // preserving selection order. Display names/metadata are derived from the
+      // ID-backed pet objects — no name→ID lookup occurs here.
+      const selectedPets = selectedPetIds
+        .map((id) => availablePets.find((p) => getPetId(p) === id))
+        .filter((p): p is any => Boolean(p));
 
-      if (petsPayload.length === 0 && fallbackPetName.trim()) {
-        petsPayload.push({
-          name: fallbackPetName.trim(),
-          species: 'DOG',
-          breed: '',
-          age: '',
-          feeding_notes: feedingNotes,
-          medication_notes: medicationNotes,
-        });
-      }
+      // Canonical existing-pet association: the array of validated selection IDs.
+      const canonicalPetIds = selectedPets
+        .map((p) => getPetId(p))
+        .filter((id): id is string => Boolean(id));
+
+      // Structured pet entries for the existing selections (per-pet care notes),
+      // carrying the canonical pet_id so the backend/downstream never has to
+      // reconstruct identity from the name.
+      const existingPetsPayload = selectedPets.map((p) => ({
+        pet_id: getPetId(p),
+        name: p.name,
+        species: p.species || 'DOG',
+        breed: p.breed || '',
+        age: p.age || '',
+        feeding_notes: feedingNotes,
+        medication_notes: medicationNotes,
+      }));
+
+      // A typed-in fallback name represents a genuinely NEW pet (no id yet).
+      const newPetsPayload = fallbackPetName.trim()
+        ? [{
+            name: fallbackPetName.trim(),
+            species: 'DOG',
+            breed: '',
+            age: '',
+            feeding_notes: feedingNotes,
+            medication_notes: medicationNotes,
+          }]
+        : [];
+
+      const petsPayload = [...existingPetsPayload, ...newPetsPayload];
+
+      // Derived display string: selected existing pet names followed by the new
+      // pet name. This is display/compat only — never the identity authority.
+      const derivedPetNames = petsPayload.map((p) => p.name).join(', ');
 
       const canonicalWindowPayload = usesCanonicalVisitWindows ? {
         visit_windows: allowedVisitWindows.filter((window) => visitWindows.includes(window)),
@@ -356,7 +386,10 @@ export const IntakeScreen = () => {
         timing_notes: timingNotes.substring(0, 500),
         preferred_sitter: preferredSitter,
         pets: petsPayload,
-        pet_names: petsPayload.map((p) => p.name).join(', '),
+        // Workstream 1: canonical existing-pet association. Present only when at
+        // least one existing pet was selected; the server re-validates ownership.
+        ...(canonicalPetIds.length > 0 ? { pet_ids: canonicalPetIds } : {}),
+        pet_names: derivedPetNames,
         vet_info: vetClinic ? { clinic_name: vetClinic, phone: vetPhone } : {},
         emergency_contact: emergencyName ? { name: emergencyName, phone: emergencyPhone } : {},
         accepted_terms: true,
@@ -718,12 +751,14 @@ export const IntakeScreen = () => {
             ) : availablePets.length > 0 ? (
               <View style={styles.petsChipContainer}>
                 {availablePets.map((pet) => {
-                  const isSelected = selectedPetNames.includes(pet.name);
+                  const petId = getPetId(pet);
+                  const isSelected = petId ? selectedPetIds.includes(petId) : false;
                   return (
                     <TouchableOpacity
-                      key={pet.id || pet.name}
+                      key={petId || pet.name}
                       style={[styles.petChip, isSelected && styles.petChipSelected]}
-                      onPress={() => togglePetSelection(pet.name)}
+                      onPress={() => petId && togglePetSelection(petId)}
+                      disabled={!petId}
                       accessibilityRole="button"
                       accessibilityState={{ selected: isSelected }}
                     >
@@ -854,7 +889,15 @@ export const IntakeScreen = () => {
               <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Pets:</Text>
                 <Text style={styles.reviewVal}>
-                  {selectedPetNames.length > 0 ? selectedPetNames.join(', ') : fallbackPetName || 'Not specified'}
+                  {(() => {
+                    // Review display derives human-friendly names from the
+                    // ID-backed selected pets, plus any typed new pet name.
+                    const names = selectedPetIds
+                      .map((id) => availablePets.find((p) => getPetId(p) === id)?.name)
+                      .filter((n): n is string => Boolean(n));
+                    if (fallbackPetName.trim()) names.push(fallbackPetName.trim());
+                    return names.length > 0 ? names.join(', ') : 'Not specified';
+                  })()}
                 </Text>
               </View>
 
