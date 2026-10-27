@@ -190,12 +190,37 @@ change the API route, IAM, or any other Lambda, and it is **not** functional acc
 - CloudWatch (recent window): admin Lambda **0 errors, 0 throttles, 0 invocations** — the
   route has not been exercised; zero invocations is **not** proof of functionality.
 
-### (c) Functional acceptance — PENDING
-- `W3C2_FUNCTIONAL_ACCEPTANCE=PENDING`. **The runtime `dynamodb:TransactWriteItems`
-  permission remains UNPROVEN by an authorized live transaction.** No live external-payment
-  settlement has been recorded and no production payment transaction performed. The first
-  end-to-end exercise remains a separate, owner-gated step with controlled non-customer
-  data. `RYAN_TESTING_AUTHORIZED=NO`; Stripe sandbox-only.
+### (c) Functional acceptance — COMPLETE (single-settlement scenario), 2026-10-27
+- `W3C2_FUNCTIONAL_ACCEPTANCE=COMPLETE` **for the approved single MANUAL_EXTERNAL
+  full-settlement scenario only.** On 2026-10-27 an owner-authorized live production
+  transaction was executed against an **isolated synthetic REQUEST** on the internal
+  `test_tenant_alpha` tenant (no customer/Ryan data; `client_email` absent so no
+  notification path). Evidence:
+  - Authenticated owner POST `→ HTTP 201 RECORD_CREATED`.
+  - REQUEST advanced `PAYMENT_LINK_SENT → PAID`; `amount_paid_cents=1000`;
+    `payment_summary_revision=1`; `payment_completed_at=2026-10-27T17:29:36Z`.
+  - Exactly one `PAYMENT_SETTLED` / `MANUAL_EXTERNAL` PAYMENT_EVENT (correct
+    tenant/request/client/amount/currency/transition/idempotency key).
+  - One `EXTERNAL_PAYMENT_RECORDED` audit entry (`PAYMENT_LINK_SENT → PAID`).
+  - **Runtime `dynamodb:TransactWriteItems` succeeded** — the atomic two-item transaction
+    committed, proving the runtime IAM grant AND the serialization-boundary fix end-to-end
+    in production (the previously-UNPROVEN gap is now closed).
+  - CloudWatch over the settlement window: **0 Lambda errors, 0 throttles**, and a small
+    positive admin-Lambda invocation count. (Per-attempt attribution is not asserted: a
+    gateway-level Cognito 401 is rejected before the Lambda is invoked, so invocation
+    counts do not map one-to-one to HTTP attempts.)
+- **Scope limit — live evidence vs offline:** this proves the **single full-settlement
+  path** only. It is **NOT** a claim that the expanded T1–T7 matrix (unauth 401, non-admin
+  403, idempotent replay, conflicting-key 409, partial-then-full, cross-tenant 404) was
+  executed live — those remain covered only by the offline suites. The earlier automated
+  (moto/unit) evidence remains offline-only and distinct from this one live transaction.
+- **Cleanup:** the two synthetic records were removed by **two provenance-conditional
+  DeleteItem** operations (PAYMENT_EVENT then REQUEST); the `REQ#w3c2accept-20261027`
+  partition is now empty (Count=0). The one **immutable `EXTERNAL_PAYMENT_RECORDED` audit
+  entry is intentionally retained** (`AUDIT#…` Count=1) as the append-only record of the
+  accepted settlement. The pre-existing Alpha client and tenant metadata were untouched.
+- Gates unchanged: `RYAN_TESTING_AUTHORIZED=NO`; Stripe live blocked (sandbox-only); no
+  tenant changes; `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`.
 
 ### Rollback readiness
 - The prior admin artifact `1EPLbycK…` was captured before apply as the immediate rollback
