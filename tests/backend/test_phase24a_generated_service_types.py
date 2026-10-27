@@ -17,6 +17,11 @@ EXPECTED_FIELDS = (
     "labelLong",
     "durationMinutes",
     "durationStatus",
+    "legacyDurationMinutes",
+    "scheduleMode",
+    "fixedStartTime",
+    "fixedEndTime",
+    "crossesMidnight",
     "availableInIntake",
     "supportedOnMobile",
     "lifecycle",
@@ -58,6 +63,14 @@ def test_generated_service_types_exactly_equal_canonical_contract():
         assert type(metadata["durationMinutes"]) is int
         assert metadata["durationMinutes"] > 0
         assert type(metadata["durationStatus"]) is str
+        # Phase 24A scheduling fields: legacyDurationMinutes is an int fallback
+        # (or null when no legacy divergence); the fixed-schedule descriptors are
+        # strings only for fixed-mode services and null otherwise.
+        assert metadata["legacyDurationMinutes"] is None or type(metadata["legacyDurationMinutes"]) is int
+        assert type(metadata["scheduleMode"]) is str
+        assert metadata["fixedStartTime"] is None or type(metadata["fixedStartTime"]) is str
+        assert metadata["fixedEndTime"] is None or type(metadata["fixedEndTime"]) is str
+        assert type(metadata["crossesMidnight"]) is bool
         assert type(metadata["availableInIntake"]) is bool
         assert type(metadata["supportedOnMobile"]) is bool
         assert type(metadata["lifecycle"]) is str
