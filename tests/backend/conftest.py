@@ -31,3 +31,35 @@ def primary_google_binding(monkeypatch):
         'Name': name, 'Tags': [{'Key': 'CompanyId', 'Value': 'tog_and_dogs'}]})
     monkeypatch.setattr(google_calendar.secrets, 'describe_secret', describe)
     return get, describe
+
+
+# --- Gate C3b: credential-free CI real-AWS-call guard -----------------------
+# Session-scoped, autouse. Installs a botocore guard that blocks any real
+# *.amazonaws.com call that is not served by moto, failing loudly BEFORE
+# network egress. Opt-in: only active when CI_AWS_CALL_GUARD is truthy (CI
+# sets it), so normal local test runs are unchanged. See tests/backend/_aws_guard.py.
+import pytest as _pytest  # noqa: E402  (pytest already imported above)
+
+# Import the guard module from this conftest's own directory, independent of
+# whether `tests`/`tests.backend` is an importable package. The directory of
+# this file is reliably present on sys.path during pytest collection.
+_here = os.path.dirname(os.path.abspath(__file__))
+if _here not in sys.path:
+    sys.path.insert(0, _here)
+import _aws_guard  # noqa: E402
+
+
+@_pytest.fixture(scope="session", autouse=True)
+def _ci_block_real_aws_calls():
+    """Block real AWS calls for the whole backend session when CI-activated.
+
+    No-op unless CI_AWS_CALL_GUARD is truthy, so local development/test behavior
+    is unchanged. When active, an unmocked real AWS call raises
+    RealAWSCallBlocked (loud failure), and moto-served calls pass through.
+    """
+    installed = _aws_guard.install()
+    try:
+        yield
+    finally:
+        if installed:
+            _aws_guard.uninstall()

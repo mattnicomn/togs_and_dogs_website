@@ -74,18 +74,22 @@ jobs:
     name: backend (pytest)
     runs-on: ubuntu-latest
     # Non-production, non-secret environment so botocore can construct clients.
-    # The backend suite is hermetic: conftest.py mocks boto3 and the single
-    # moto test uses in-memory mock_aws — no real AWS endpoint is contacted.
-    # A region is required only to build client/resource objects at import time
-    # (src/backend/common/db.py). Placeholder credentials and metadata-disabled
-    # prevent any IMDS probe or real credential/endpoint resolution. These are
-    # dummy values, never real credentials or GitHub secrets.
+    # Isolation: conftest.py installs a session-scoped guard
+    # (tests/backend/_aws_guard.py) that BLOCKS any real *.amazonaws.com call
+    # not served by moto, failing loudly BEFORE network egress; the moto-based
+    # tests use in-memory mock_aws. A region is required only to build
+    # client/resource objects at import time (src/backend/common/db.py).
+    # Placeholder credentials and metadata-disabled prevent any IMDS probe or
+    # real credential/endpoint resolution. These are dummy values, never real
+    # credentials or GitHub secrets. CI_AWS_CALL_GUARD activates the guard (it
+    # is a no-op unless set, so local dev/test behavior is unchanged).
     env:
       AWS_DEFAULT_REGION: us-east-1
       AWS_REGION: us-east-1
       AWS_EC2_METADATA_DISABLED: 'true'
       AWS_ACCESS_KEY_ID: testing
       AWS_SECRET_ACCESS_KEY: testing
+      CI_AWS_CALL_GUARD: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
