@@ -205,8 +205,10 @@ change the API route, IAM, or any other Lambda, and it is **not** functional acc
   - **Runtime `dynamodb:TransactWriteItems` succeeded** — the atomic two-item transaction
     committed, proving the runtime IAM grant AND the serialization-boundary fix end-to-end
     in production (the previously-UNPROVEN gap is now closed).
-  - CloudWatch over the settlement window: **0 Lambda errors, 0 throttles**; invocations
-    reflected the auth-iteration attempts (401→400→201).
+  - CloudWatch over the settlement window: **0 Lambda errors, 0 throttles**, and a small
+    positive admin-Lambda invocation count. (Per-attempt attribution is not asserted: a
+    gateway-level Cognito 401 is rejected before the Lambda is invoked, so invocation
+    counts do not map one-to-one to HTTP attempts.)
 - **Scope limit — live evidence vs offline:** this proves the **single full-settlement
   path** only. It is **NOT** a claim that the expanded T1–T7 matrix (unauth 401, non-admin
   403, idempotent replay, conflicting-key 409, partial-then-full, cross-tenant 404) was
