@@ -33,11 +33,21 @@ _PRE_GUARD_CLIENT = boto3.client(
 def _force_guard(monkeypatch):
     # Activate regardless of the CI env gate, so this regression always runs.
     monkeypatch.setenv(_aws_guard.ACTIVATION_ENV, "1")
+    # Ownership: the session-scoped conftest fixture may already own an
+    # installed guard. This function-scoped fixture must only undo its OWN
+    # installation. If the guard was already installed (by the session fixture
+    # or an outer scope), leave it installed on teardown so later tests in the
+    # session stay guarded. Tearing it down unconditionally would disable the
+    # session guard for every subsequent test.
+    was_installed = _aws_guard._STATE["installed"]
     _aws_guard.install()
     try:
         yield
     finally:
-        _aws_guard.uninstall()
+        # Only uninstall if THIS fixture transitioned the guard from
+        # not-installed to installed. If it was already installed, preserve it.
+        if not was_installed:
+            _aws_guard.uninstall()
 
 
 def test_pre_existing_client_is_blocked():
@@ -116,3 +126,80 @@ def test_guard_fails_closed_when_moto_signal_unavailable(monkeypatch):
                      aws_access_key_id="x", aws_secret_access_key="y")
     with pytest.raises(_aws_guard.RealAWSCallBlocked):
         c.get_item(TableName="t", Key={"PK": {"S": "a"}})
+
+
+# --- Guard-ownership regression (Gate C3b) -----------------------------------
+# These tests pin the fixture-ownership contract that previously regressed:
+# the function-scoped `_force_guard` fixture must NOT tear down a guard that was
+# already installed by the session-scoped conftest fixture. If it does, every
+# test scheduled AFTER the guard tests runs unguarded and a missing mock
+# silently egresses to real AWS instead of failing.
+
+
+@pytest.fixture
+def _guard_state_sandbox():
+    """Snapshot the global guard install-state and the live _make_api_call, and
+    fully restore both on exit. Lets a regression test drive install/uninstall
+    directly without corrupting the session guard that the surrounding
+    autouse fixtures depend on."""
+    import botocore.client
+    saved_installed = _aws_guard._STATE["installed"]
+    saved_method = botocore.client.BaseClient._make_api_call
+    try:
+        yield
+    finally:
+        botocore.client.BaseClient._make_api_call = saved_method
+        _aws_guard._STATE["installed"] = saved_installed
+
+
+def _run_force_guard_cycle(monkeypatch):
+    """Drive the function-scoped _force_guard fixture body through one full
+    setup/teardown cycle, returning nothing. Uses an isolated MonkeyPatch whose
+    finalizers are flushed here so env changes don't leak."""
+    from _pytest.monkeypatch import MonkeyPatch
+    mp = MonkeyPatch()
+    try:
+        gen = _force_guard.__wrapped__(mp)
+        next(gen)  # setup
+        assert _aws_guard.assert_installed(), "guard not installed during test body"
+        with pytest.raises(StopIteration):
+            next(gen)  # teardown
+    finally:
+        mp.undo()
+
+
+def test_force_guard_preserves_already_installed_session_guard(
+    monkeypatch, _guard_state_sandbox
+):
+    """When the guard is already installed on entry, _force_guard must leave it
+    installed after teardown (it only undoes its own installation)."""
+    monkeypatch.setenv(_aws_guard.ACTIVATION_ENV, "1")
+
+    # Simulate the session-scoped conftest fixture having installed the guard.
+    _aws_guard.install()
+    assert _aws_guard.assert_installed(), "precondition: session guard installed"
+
+    _run_force_guard_cycle(monkeypatch)
+
+    assert _aws_guard.assert_installed(), (
+        "session guard was torn down by function-scoped fixture; later tests "
+        "would run unguarded"
+    )
+
+
+def test_force_guard_undoes_only_its_own_installation(
+    monkeypatch, _guard_state_sandbox
+):
+    """When the guard is NOT installed on entry, _force_guard installs it for
+    the test and uninstalls it on teardown (restores the prior state)."""
+    monkeypatch.setenv(_aws_guard.ACTIVATION_ENV, "1")
+
+    # Establish a not-installed baseline on entry.
+    _aws_guard.uninstall()
+    assert not _aws_guard.assert_installed(), "precondition: guard not installed"
+
+    _run_force_guard_cycle(monkeypatch)
+
+    assert not _aws_guard.assert_installed(), (
+        "fixture failed to restore the not-installed baseline it inherited"
+    )
