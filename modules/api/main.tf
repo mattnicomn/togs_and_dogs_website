@@ -1241,6 +1241,7 @@ locals {
     "admin_request_id" : aws_api_gateway_resource.admin_request_id.id,
     "admin_payment_session" : aws_api_gateway_resource.admin_payment_session.id,
     "admin_send_payment_email" : aws_api_gateway_resource.admin_send_payment_email.id,
+    "admin_external_payment" : aws_api_gateway_resource.admin_external_payment.id,
     "admin_quote" : aws_api_gateway_resource.admin_quote.id,
     "admin_quote_send" : aws_api_gateway_resource.admin_quote_send.id,
     "platform" : aws_api_gateway_resource.platform.id,
@@ -1433,6 +1434,7 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.post_admin_clients_onboard_lambda,
     aws_api_gateway_integration.post_admin_job_complete_lambda,
     aws_api_gateway_integration.post_admin_job_start_lambda,
+    aws_api_gateway_integration.post_admin_external_payment_lambda,
     aws_api_gateway_integration.post_admin_payment_session_lambda,
     aws_api_gateway_integration.post_admin_quote_send_lambda,
     aws_api_gateway_integration.post_admin_requests_lambda,
@@ -1603,6 +1605,33 @@ resource "aws_api_gateway_integration" "post_admin_send_payment_email_lambda" {
   rest_api_id = aws_api_gateway_rest_api.main.id
   resource_id = aws_api_gateway_resource.admin_send_payment_email.id
   http_method = aws_api_gateway_method.post_admin_send_payment_email.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.admin_handler_invoke_arn
+}
+
+# --- W3-C2: Admin MANUAL_EXTERNAL payment recording ---
+# POST /admin/requests/{requestId}/external-payment (owner/admin; records a
+# cash/check/bank-transfer/external-processor settlement via the W3-C1 adapter).
+resource "aws_api_gateway_resource" "admin_external_payment" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_request_id.id
+  path_part   = "external-payment"
+}
+
+resource "aws_api_gateway_method" "post_admin_external_payment" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_external_payment.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "post_admin_external_payment_lambda" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_external_payment.id
+  http_method = aws_api_gateway_method.post_admin_external_payment.http_method
 
   integration_http_method = "POST"
   type                    = "AWS_PROXY"

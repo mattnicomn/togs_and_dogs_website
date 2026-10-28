@@ -15,7 +15,7 @@ import { getClientRequests } from '../api/client';
 import { COLORS } from '../theme/colors';
 import { PetRequest } from '../types';
 import { getServiceTypeLabel } from '../utils/serviceLabels';
-import { REQUEST_STATUSES } from '../contracts/generatedContracts';
+import { getWorkflowStatusPresentation } from '../utils/workflowStatus';
 
 const formatDate = (dateStr: string) => {
   if (!dateStr) return '';
@@ -23,23 +23,10 @@ const formatDate = (dateStr: string) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  PENDING_REVIEW: REQUEST_STATUSES.statuses.PENDING_REVIEW?.label || 'Pending Review',
-  APPROVED: REQUEST_STATUSES.statuses.APPROVED?.label || 'Approved',
-  ASSIGNED: 'Scheduled',
-  JOB_CREATED: 'Scheduled',
-  COMPLETED: REQUEST_STATUSES.statuses.COMPLETED?.label || 'Completed',
-  CANCELLED: REQUEST_STATUSES.statuses.CANCELLED?.label || 'Cancelled',
-};
-
-const STATUS_COLOR: Record<string, string> = {
-  PENDING_REVIEW: '#f59e0b',
-  APPROVED: '#3b82f6',
-  ASSIGNED: '#10b981',
-  JOB_CREATED: '#10b981',
-  COMPLETED: '#6b7280',
-  CANCELLED: '#ef4444',
-};
+// W4 Option A: list badges are non-commercial workflow summaries derived from
+// RequestStatus via a centralized helper. Raw enums (incl. quote-phase
+// QUOTE_NEEDED/QUOTE_SENT/QUOTED) never render; unknown values fall back to neutral
+// wording. Canonical commercial quote state is detail-only and never shown here.
 
 export const BookingsScreen = () => {
   const navigation = useNavigation<any>();
@@ -107,8 +94,7 @@ export const BookingsScreen = () => {
   const handleRefresh = () => fetchBookings(true);
 
   const renderItem = ({ item }: { item: PetRequest }) => {
-    const statusLabel = STATUS_LABEL[item.status] ?? item.status;
-    const statusColor = STATUS_COLOR[item.status] ?? COLORS.textMuted;
+    const { label: statusLabel, color: statusColor } = getWorkflowStatusPresentation(item.status);
     const dates = item.selected_dates?.length
       ? item.selected_dates.map(formatDate).join(', ')
       : 'Date TBD';

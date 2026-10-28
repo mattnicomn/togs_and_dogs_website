@@ -104,4 +104,70 @@ describe('BookingsScreen', () => {
     fireEvent.press(card);
     expect(mockNavigate).toHaveBeenCalledWith('ClientRequestDetail', { requestId: 'req-42' });
   });
+
+  // ---- W4 Option A: workflow-summary badge regression ----
+  describe('W4 workflow-summary status badges', () => {
+    const renderWithStatus = async (status: string) => {
+      mockGetClientRequests.mockResolvedValue([
+        {
+          request_id: `req-${status}`,
+          pet_name: 'Rex',
+          service_type: 'PET_SITTING',
+          status,
+          selected_dates: ['2026-10-10'],
+          created_at: '2026-10-01',
+        },
+      ]);
+      await render(<BookingsScreen />);
+      await screen.findByText(/Rex/);
+    };
+
+    it.each(['QUOTE_NEEDED', 'QUOTE_SENT', 'QUOTED'])(
+      'does not render raw %s enum on the card badge',
+      async (status) => {
+        await renderWithStatus(status);
+        expect(screen.queryByText(status)).toBeNull();
+        expect(screen.queryByText(/QUOTE/)).toBeNull();
+        // Collapses to neutral workflow-summary wording.
+        expect(screen.getByText('In Review')).toBeTruthy();
+      }
+    );
+
+    it('does not synthesize commercial quote wording from RequestStatus', async () => {
+      await renderWithStatus('QUOTE_SENT');
+      expect(screen.queryByText(/quote/i)).toBeNull();
+      expect(screen.queryByText(/payment/i)).toBeNull();
+      expect(screen.queryByText(/accepted/i)).toBeNull();
+      expect(screen.queryByText(/declined/i)).toBeNull();
+    });
+
+    it('known non-quote status still renders a sensible label', async () => {
+      await renderWithStatus('APPROVED');
+      expect(screen.getByText('Approved')).toBeTruthy();
+    });
+
+    it('terminal DECLINED request renders "Declined", not the neutral "In Review"', async () => {
+      await renderWithStatus('DECLINED');
+      expect(screen.getByText('Declined')).toBeTruthy();
+      expect(screen.queryByText('In Review')).toBeNull();
+      // Request-oriented wording only: no commercial quote claim on the list card.
+      expect(screen.queryByText(/quote/i)).toBeNull();
+    });
+
+    it('unknown status does not render raw enum text', async () => {
+      await renderWithStatus('SOME_FUTURE_STATUS');
+      expect(screen.queryByText('SOME_FUTURE_STATUS')).toBeNull();
+      expect(screen.getByText('In Review')).toBeTruthy();
+    });
+
+    it('does NOT fetch per-row canonical quote data for the list', async () => {
+      // The quote-detail endpoint module is not imported/mocked here; the bookings
+      // screen must rely solely on getClientRequests. Assert no quote fetch helper
+      // was wired into the list path.
+      await renderWithStatus('QUOTE_SENT');
+      expect(mockGetClientRequests).toHaveBeenCalledTimes(1);
+      // getClientRequests is the ONLY client API the screen imports; there is no
+      // getClientQuote call per row (the detail screen owns that fetch).
+    });
+  });
 });

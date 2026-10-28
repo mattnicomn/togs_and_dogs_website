@@ -2,7 +2,7 @@
  * Phase 24A-6: IntakeScreen Mobile Booking Intake Tests (RNTL v14)
  */
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
 import {
   StyleSheet,
   View,
@@ -861,5 +861,181 @@ describe('IntakeScreen - Phase 24A-9C.1 Keyboard Structure', () => {
     expect(keyboardView.props.behavior).not.toBe('height');
     expect(scrollView.props.keyboardShouldPersistTaps).toBe('handled');
     expect(StyleSheet.flatten(scrollView.props.contentContainerStyle).paddingBottom).toBe(120);
+  });
+});
+
+describe('IntakeScreen - Workstream 1 canonical pet selection (by pet_id)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetClientPets.mockResolvedValue([]);
+    mockGetStaffOptions.mockResolvedValue({ staff_options: [] });
+    mockSubmitClientRequest.mockResolvedValue({ request_id: 'REQ-W1' });
+  });
+
+  // Press within an awaited act() so async effects (getClientPets/getStaffOptions)
+  // and the resulting state updates flush deterministically, avoiding the
+  // "overlapping act()" batching that otherwise drops a subsequent toggle.
+  const pressAndSettle = async (element: any) => {
+    await act(async () => {
+      fireEvent.press(element);
+    });
+  };
+
+  const advanceToPetsStep = async () => {
+    await render(<IntakeScreen />);
+    const walkWindow = await screen.findByLabelText('Morning, 6:30 AM to 9:30 AM');
+    await pressAndSettle(walkWindow);
+    const dateChips = await screen.findAllByLabelText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
+    await pressAndSettle(dateChips[0]);
+    await waitFor(() => expect(screen.getByText(/Selected \(1\)/)).toBeTruthy());
+    await pressAndSettle(screen.getByLabelText('Continue →'));
+    await waitFor(() => expect(screen.getByText('Select Pets')).toBeTruthy());
+  };
+
+  const submitFromReview = async () => {
+    await pressAndSettle(screen.getByLabelText('Continue →'));
+    await screen.findByText('Review Booking Request');
+    await pressAndSettle(screen.getByLabelText('Accept Tog & Dogs Terms of Service and Privacy Policy'));
+    await waitFor(() => expect(
+      screen.getByLabelText('Accept Tog & Dogs Terms of Service and Privacy Policy')
+        .props.accessibilityState.checked,
+    ).toBe(true));
+    await pressAndSettle(screen.getByLabelText('Submit Booking Request'));
+    await waitFor(() => expect(mockSubmitClientRequest).toHaveBeenCalledTimes(1));
+    await screen.findByText('Request Received!');
+    return mockSubmitClientRequest.mock.calls[0][0];
+  };
+
+  test('W1: one selected existing pet submits a single canonical pet_id', async () => {
+    // Only one pet on file so the pre-selected first pet (PET-1) is the selection.
+    mockGetClientPets.mockResolvedValue([
+      { pet_id: 'PET-1', name: 'Buster', species: 'DOG', breed: 'Golden Retriever' },
+    ]);
+    mockSubmitClientRequest.mockResolvedValue({ request_id: 'REQ-W1-1' });
+
+    await advanceToPetsStep();
+    const payload = await submitFromReview();
+
+    expect(payload.pet_ids).toEqual(['PET-1']);
+    // Display names are derived, never the identity.
+    expect(payload.pet_names).toBe('Buster');
+    // The structured pets entry carries the canonical id.
+    expect(payload.pets[0].pet_id).toBe('PET-1');
+  });
+
+  test('W1: selecting a second pet sends both canonical pet_ids', async () => {
+    mockGetClientPets.mockResolvedValue([
+      { pet_id: 'PET-1', name: 'Buster', species: 'DOG' },
+      { pet_id: 'PET-2', name: 'Luna', species: 'CAT' },
+    ]);
+    mockSubmitClientRequest.mockResolvedValue({ request_id: 'REQ-W1-2' });
+
+    await advanceToPetsStep();
+    // PET-1 is pre-selected; add PET-2 by pressing its chip.
+    await pressAndSettle(screen.getByText(/Luna/));
+    const payload = await submitFromReview();
+
+    expect(payload.pet_ids).toEqual(['PET-1', 'PET-2']);
+    expect(payload.pet_names).toBe('Buster, Luna');
+  });
+
+  test('W1: duplicate pet names with distinct ids are independently selectable', async () => {
+    mockGetClientPets.mockResolvedValue([
+      { pet_id: 'PET-A', name: 'Max', species: 'DOG' },
+      { pet_id: 'PET-B', name: 'Max', species: 'DOG' },
+    ]);
+    mockSubmitClientRequest.mockResolvedValue({ request_id: 'REQ-W1-3' });
+
+    await advanceToPetsStep();
+    // Both chips render as "Max"; press both. PET-A is pre-selected, so pressing
+    // the two "Max" chips toggles PET-A off then on patterns — instead select by
+    // adding the second and keeping the first.
+    const maxChips = screen.getAllByText(/Max/);
+    // Ensure both ids end up selected regardless of pre-selection:
+    // press the second chip to add PET-B.
+    await pressAndSettle(maxChips[1]);
+    const payload = await submitFromReview();
+
+    // Order and identity are by id; duplicate names do not collide.
+    expect(payload.pet_ids).toEqual(expect.arrayContaining(['PET-A', 'PET-B']));
+    expect(payload.pet_ids.length).toBe(2);
+  });
+
+  test('W1: deselecting then reselecting restores the correct id', async () => {
+    mockGetClientPets.mockResolvedValue([
+      { pet_id: 'PET-1', name: 'Buster', species: 'DOG' },
+      { pet_id: 'PET-2', name: 'Luna', species: 'CAT' },
+    ]);
+    mockSubmitClientRequest.mockResolvedValue({ request_id: 'REQ-W1-4' });
+
+    await advanceToPetsStep();
+    // Deselect pre-selected PET-1, then select PET-2 only.
+    await pressAndSettle(screen.getByText(/Buster/));
+    await pressAndSettle(screen.getByText(/Luna/));
+    const payload = await submitFromReview();
+
+    expect(payload.pet_ids).toEqual(['PET-2']);
+    expect(payload.pet_names).toBe('Luna');
+  });
+
+  test('W1: a typed-in new pet is a new entry with no pet_id and no canonical id', async () => {
+    // No pets on file → no pre-selection; type a brand-new pet name.
+    mockGetClientPets.mockResolvedValue([]);
+    mockSubmitClientRequest.mockResolvedValue({ request_id: 'REQ-W1-5' });
+
+    await advanceToPetsStep();
+    await act(async () => {
+      fireEvent.changeText(screen.getByPlaceholderText('e.g. Buster'), 'NewPup');
+    });
+    await waitFor(() => expect(screen.getByDisplayValue('NewPup')).toBeTruthy());
+    const payload = await submitFromReview();
+
+    // New-pet-only submission carries no canonical pet_ids.
+    expect(payload.pet_ids).toBeUndefined();
+    expect(payload.pet_names).toBe('NewPup');
+    expect(payload.pets[0].name).toBe('NewPup');
+    expect(payload.pets[0].pet_id).toBeUndefined();
+  });
+
+  test('W1: existing selection plus a typed new pet sends ids + new entry', async () => {
+    mockGetClientPets.mockResolvedValue([
+      { pet_id: 'PET-1', name: 'Buster', species: 'DOG' },
+    ]);
+    mockSubmitClientRequest.mockResolvedValue({ request_id: 'REQ-W1-6' });
+
+    await advanceToPetsStep();
+    // PET-1 pre-selected; add a brand-new pet via the fallback field.
+    await act(async () => {
+      fireEvent.changeText(screen.getByPlaceholderText('e.g. Buster'), 'Milo');
+    });
+    await waitFor(() => expect(screen.getByDisplayValue('Milo')).toBeTruthy());
+    const payload = await submitFromReview();
+
+    expect(payload.pet_ids).toEqual(['PET-1']);
+    // Display string combines existing + new; new entry has no pet_id.
+    expect(payload.pet_names).toBe('Buster, Milo');
+    const newEntry = payload.pets.find((p: any) => p.name === 'Milo');
+    expect(newEntry).toBeTruthy();
+    expect(newEntry.pet_id).toBeUndefined();
+  });
+
+  test('W1: submit does not look up pets by name (no name->id reconstruction)', async () => {
+    // Two pets share the display name; identity must come from the pressed id,
+    // never a name match that would be ambiguous.
+    mockGetClientPets.mockResolvedValue([
+      { pet_id: 'PET-A', name: 'Max', species: 'DOG' },
+      { pet_id: 'PET-B', name: 'Max', species: 'DOG' },
+    ]);
+    mockSubmitClientRequest.mockResolvedValue({ request_id: 'REQ-W1-7' });
+
+    await advanceToPetsStep();
+    // Deselect pre-selected first, then select exactly the SECOND "Max".
+    const maxChips = screen.getAllByText(/Max/);
+    await pressAndSettle(maxChips[0]); // deselect PET-A (pre-selected)
+    await pressAndSettle(maxChips[1]); // select PET-B
+    const payload = await submitFromReview();
+
+    // Exactly one id, and it is the second pet's id — unambiguous despite dup name.
+    expect(payload.pet_ids).toEqual(['PET-B']);
   });
 });

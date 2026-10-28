@@ -526,21 +526,26 @@ resource "aws_lambda_permission" "api_device" {
 # ------------------------------------------------------------------------------
 
 module "api" {
-  source                              = "../../modules/api"
-  name_prefix                         = local.name_prefix
-  environment                         = var.environment
-  user_pool_arn                       = module.auth.user_pool_arn
-  intake_handler_invoke_arn           = aws_lambda_function.intake.invoke_arn
-  admin_handler_invoke_arn            = aws_lambda_function.admin.invoke_arn
-  review_handler_invoke_arn           = aws_lambda_function.review.invoke_arn
-  assign_handler_invoke_arn           = aws_lambda_function.assign.invoke_arn
-  google_auth_handler_invoke_arn      = aws_lambda_function.google_auth.invoke_arn
-  pet_handler_invoke_arn              = aws_lambda_function.pet.invoke_arn
-  cancellation_handler_invoke_arn     = aws_lambda_function.cancellation.invoke_arn
-  postmark_webhook_handler_invoke_arn = aws_lambda_function.postmark_webhook.invoke_arn
-  stripe_webhook_handler_invoke_arn   = aws_lambda_function.stripe_webhook.invoke_arn
-  device_handler_invoke_arn           = aws_lambda_function.device.invoke_arn
-  platform_handler_invoke_arn         = aws_lambda_function.platform.invoke_arn
+  source        = "../../modules/api"
+  name_prefix   = local.name_prefix
+  environment   = var.environment
+  user_pool_arn = module.auth.user_pool_arn
+  # W3-C2 isolation: invoke ARNs are reconstructed in local.lambda_invoke_arns
+  # (see lambda-invoke-arns.tf) instead of referencing aws_lambda_function.<fn>.
+  # This severs the API -> Lambda dependency edge so a targeted route/deployment
+  # plan no longer pulls in the 12 API-wired Lambdas. Values are byte-identical to
+  # aws_lambda_function.<fn>.invoke_arn.
+  intake_handler_invoke_arn           = local.lambda_invoke_arns["intake"]
+  admin_handler_invoke_arn            = local.lambda_invoke_arns["admin"]
+  review_handler_invoke_arn           = local.lambda_invoke_arns["review"]
+  assign_handler_invoke_arn           = local.lambda_invoke_arns["assign"]
+  google_auth_handler_invoke_arn      = local.lambda_invoke_arns["google_auth"]
+  pet_handler_invoke_arn              = local.lambda_invoke_arns["pet"]
+  cancellation_handler_invoke_arn     = local.lambda_invoke_arns["cancellation"]
+  postmark_webhook_handler_invoke_arn = local.lambda_invoke_arns["postmark_webhook"]
+  stripe_webhook_handler_invoke_arn   = local.lambda_invoke_arns["stripe_webhook"]
+  device_handler_invoke_arn           = local.lambda_invoke_arns["device"]
+  platform_handler_invoke_arn         = local.lambda_invoke_arns["platform"]
   # OPS-3A.1D hygiene: platform-preview / tenant-onboarding is implemented but
   # intentionally NOT deployed. Its Terraform lives under
   # infra/deferred/platform-preview/ and the onboarding routes were removed from

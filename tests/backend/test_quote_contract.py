@@ -22,6 +22,7 @@ from common.quote_contract import (
     CLIENT_QUOTE_ALLOWLIST,
     CLIENT_QUOTE_FORBIDDEN,
     to_cents,
+    normalize_stored_cents,
     legacy_quote_amount_to_cents,
     cents_to_major_string,
     validate_quote_status_current,
@@ -441,3 +442,140 @@ def test_negative_deposit_rejected():
     with pytest.raises(QuoteContractError):
         apply_quote_update({"quote_status": QuoteStatus.DRAFT},
                            {"deposit_amount_cents": -500}, NOW)
+
+
+# ---------------------------------------------------------------------------
+# M4-B1 — canonical stored-cents read normalization (DynamoDB Decimal defect)
+# ---------------------------------------------------------------------------
+#
+# Root cause of the Android "$20,000.00" (expected "$200.00") defect: canonical
+# ``*_cents`` fields are stored as integer cents, but DynamoDB returns every stored
+# number as a Decimal. The canonical read path fed that Decimal through the generic
+# ``to_cents`` (which treats a non-int as MAJOR units and multiplies ×100), so a
+# stored ``Decimal('20000')`` became ``2_000_000`` and the correct ÷100 mobile
+# formatter rendered "$20,000.00". ``normalize_stored_cents`` preserves already-cents
+# magnitude for both int and Decimal, while the generic ``to_cents`` (used for inbound
+# caller values) and ``legacy_quote_amount_to_cents`` (used for legacy MAJOR-unit PET
+# fields) keep their distinct semantics.
+
+
+def test_normalize_stored_cents_int_and_decimal_are_identical():
+    # The core proof: int cents and DynamoDB-style Decimal cents normalize the SAME,
+    # with NO ×100 scaling of the Decimal.
+    assert normalize_stored_cents(20000) == 20000
+    assert normalize_stored_cents(Decimal("20000")) == 20000
+    assert normalize_stored_cents(20000) == normalize_stored_cents(Decimal("20000"))
+    assert normalize_stored_cents(0) == 0
+    assert normalize_stored_cents(Decimal("0")) == 0
+    assert normalize_stored_cents(None) == 0
+
+
+def test_normalize_stored_cents_rejects_non_integral_and_bad_input():
+    # Cents are whole units; a fractional stored "cents" value is a contract breach.
+    with pytest.raises(QuoteContractError):
+        normalize_stored_cents(Decimal("200.5"))
+    with pytest.raises(QuoteContractError):
+        normalize_stored_cents(-1)
+    with pytest.raises(QuoteContractError):
+        normalize_stored_cents(Decimal("-1"))
+    with pytest.raises(QuoteContractError):
+        normalize_stored_cents(True)
+    with pytest.raises(QuoteContractError):
+        normalize_stored_cents("not-money")
+
+
+def test_generic_to_cents_major_unit_semantics_are_unchanged():
+    # Guard: the generic to_cents must STILL treat a non-int as MAJOR units (×100).
+    # This is what makes a GLOBAL to_cents change unsafe, so the two helpers must
+    # remain distinct.
+    assert to_cents(Decimal("12.34")) == 1234      # major units -> cents
+    assert to_cents(20000) == 20000                # bare int already cents
+    assert to_cents(Decimal("20000")) == 2000000   # major units ×100 (unchanged)
+
+
+def test_legacy_major_unit_compatibility_preserved():
+    # LEGACY_MAJOR_UNIT_COMPATIBILITY: the explicit legacy converter still turns
+    # MAJOR-unit Decimal/str into cents (×100), untouched by the M4-B1 fix.
+    assert legacy_quote_amount_to_cents(Decimal("200.00")) == 20000
+    assert legacy_quote_amount_to_cents("12.50") == 1250
+    assert legacy_quote_amount_to_cents(Decimal("45.00")) == 4500
+    assert legacy_quote_amount_to_cents(None) == 0
+
+
+def test_resolve_canonical_decimal_amount_not_scaled():
+    # Canonical SENT record whose amounts arrive as DynamoDB Decimals must resolve to
+    # the SAME integer cents as plain-int input — not ×100.
+    req_decimal = {
+        "request_id": "r1", "quote_status": QuoteStatus.SENT, "quote_revision": 1,
+        "quote_amount_cents": Decimal("20000"), "currency": "USD",
+        "deposit_amount_cents": Decimal("5000"),
+        "payment_requirement": PaymentRequirement.NONE,
+    }
+    resolved = resolve_quote_from_record(req_decimal)
+    assert resolved["quote_amount_cents"] == 20000      # $200.00, NOT 2_000_000
+    assert resolved["quote_amount_cents"] != 2000000
+    assert resolved["deposit_amount_cents"] == 5000     # $50.00, NOT 500_000
+
+    # Int-typed canonical record resolves identically.
+    req_int = dict(req_decimal, quote_amount_cents=20000, deposit_amount_cents=5000)
+    resolved_int = resolve_quote_from_record(req_int)
+    assert resolved_int["quote_amount_cents"] == resolved["quote_amount_cents"]
+    assert resolved_int["deposit_amount_cents"] == resolved["deposit_amount_cents"]
+
+
+def test_client_projection_decimal_amount_renders_as_200_dollars_worth_of_cents():
+    # Projection-level regression at the exact layer the M4-B defect occurred: the
+    # client-safe projection of a canonical SENT quote stored as Decimal('20000')
+    # must expose quote_amount_cents == 20000 (mobile ÷100 -> $200.00), never
+    # 2_000_000 (which rendered $20,000.00).
+    req = {
+        "request_id": "req-m4", "quote_status": QuoteStatus.SENT, "quote_revision": 1,
+        "quote_amount_cents": Decimal("20000"), "currency": "USD",
+        "deposit_amount_cents": Decimal("0"),
+        "payment_requirement": PaymentRequirement.NONE,
+        "service_type": "WALK_20MIN", "pet_names": "Rex",
+    }
+    projection = build_client_quote_projection(req)
+    assert projection["quote_amount_cents"] == 20000
+    assert projection["quote_amount_cents"] != 2000000
+    assert projection["currency"] == "USD"
+    assert projection["payment_required"] is False
+
+
+def test_history_snapshot_decimal_amount_not_scaled():
+    # A commercial change to a SENT quote stored as Decimal snapshots the PRIOR amount
+    # into quote_history; that snapshot must keep stored-cents magnitude (not ×100).
+    current = {
+        "quote_status": QuoteStatus.SENT, "quote_revision": 1,
+        "quote_amount_cents": Decimal("20000"), "currency": "USD",
+    }
+    result = apply_quote_update(current, {"quote_amount_cents": 25000}, NOW)
+    assert result["quote_revision"] == 2
+    assert result["quote_history"][0]["quote_amount_cents"] == 20000  # not 2_000_000
+    assert result["quote_amount_cents"] == 25000  # inbound int stays cents
+
+
+def test_dirty_check_no_false_commercial_change_on_decimal_roundtrip():
+    # Re-submitting the SAME amount a client already has (stored Decimal vs inbound
+    # int, same value) must NOT be seen as a commercial change (which would wrongly
+    # bump the revision and reset acceptance). Pre-fix, to_cents(Decimal) ×100 made
+    # every edit look changed.
+    current = {
+        "quote_status": QuoteStatus.ACCEPTED, "quote_revision": 3,
+        "quote_amount_cents": Decimal("20000"), "currency": "USD",
+        "quote_accepted_at": "2026-10-06T00:00:00Z", "quote_accepted_revision": 3,
+    }
+    # Only an internal-note change; amount resubmitted identically as int cents.
+    result = apply_quote_update(
+        current, {"quote_amount_cents": 20000, "quote_notes_internal": "n"}, NOW)
+    assert "quote_revision" not in result       # no bump
+    assert "quote_history" not in result        # nothing superseded
+    assert "quote_accepted_at" not in result    # acceptance preserved
+
+
+def test_apply_quote_send_decimal_amount_allowed():
+    # A DRAFT whose stored amount is a Decimal must be sendable (amount read as
+    # stored cents, > 0).
+    result = apply_quote_send(
+        {"quote_status": QuoteStatus.DRAFT, "quote_amount_cents": Decimal("20000")}, NOW)
+    assert result["quote_status"] == QuoteStatus.SENT

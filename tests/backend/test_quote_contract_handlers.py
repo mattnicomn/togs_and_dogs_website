@@ -18,6 +18,7 @@ fake and auth helpers are patched at their source module.
 import sys
 import os
 import json
+from decimal import Decimal
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -816,3 +817,128 @@ class TestLegacyQuoteReadVisibilityGuard:
         assert resp['statusCode'] == 200
         body = json.loads(resp['body'])
         assert body['quote_status'] == 'NOT_REQUIRED'
+
+
+# ===========================================================================
+# PR #19 completion — admin response canonical stored-cents normalization
+# ===========================================================================
+#
+# The independent PR #19 review proved three admin_handler sites read a stored
+# canonical ``quote_amount_cents`` (DynamoDB returns it as a Decimal) and passed it
+# through the generic ``to_cents`` — which treats a non-int as MAJOR units and
+# multiplies ×100 — so a stored Decimal('20000') ($200.00) became 2_000_000
+# ($20,000.00) in the response. These tests feed stored Decimal cents (exactly as
+# DynamoDB would return) and prove the admin responses now echo 20000, not 2_000_000.
+# The fix reuses the single normalize_stored_cents helper introduced in PR #19.
+
+
+class TestAdminResponseCanonicalCentsNormalization:
+
+    def _invoke(self, event, table):
+        orig = ah.table
+        try:
+            ah.table = table
+            return admin_handler(event, None)
+        finally:
+            ah.table = orig
+
+    def test_send_response_decimal_amount_not_scaled(self, patched_auth, monkeypatch):
+        # Site A: Send response echoes request_item['quote_amount_cents'] (stored
+        # DynamoDB Decimal). Must be 20000 ($200.00), never 2_000_000.
+        req = make_request_record(
+            quote_status='DRAFT', quote_amount_cents=Decimal('20000'),
+            quote_revision=1, status='QUOTE_NEEDED',
+        )
+        table = FakeTable()
+        monkeypatch.setattr(ah, 'get_item', MagicMock(return_value=req))
+        event = make_event(
+            'POST', '/admin/requests/req-001/quote/send',
+            body={}, path_params={'requestId': 'req-001'},
+            query_params={'clientId': 'client-001'},
+        )
+        resp = self._invoke(event, table)
+        assert resp['statusCode'] == 200
+        body = json.loads(resp['body'])
+        assert body['quote_amount_cents'] == 20000
+        assert body['quote_amount_cents'] != 2000000
+
+    def test_patch_amount_preserving_edit_response_decimal_not_scaled(self, patched_auth, monkeypatch):
+        # Site B: a PATCH that changes only a non-amount field leaves the stored
+        # Decimal amount in `merged`; the echo must preserve 20000, not ×100 it.
+        req = make_request_record(
+            quote_status='DRAFT', quote_amount_cents=Decimal('20000'),
+            quote_revision=1, currency='USD', status='QUOTE_NEEDED',
+        )
+        table = FakeTable()
+        monkeypatch.setattr(ah, 'get_item', MagicMock(return_value=req))
+        event = make_event(
+            'PATCH', '/admin/requests/req-001/quote',
+            body={'quote_notes_client': 'see you then'},  # no quote_amount_cents
+            path_params={'requestId': 'req-001'},
+            query_params={'clientId': 'client-001'},
+        )
+        resp = self._invoke(event, table)
+        assert resp['statusCode'] == 200
+        body = json.loads(resp['body'])
+        assert body['quote_amount_cents'] == 20000
+        assert body['quote_amount_cents'] != 2000000
+
+    def test_patch_with_inbound_int_amount_still_correct(self, patched_auth, monkeypatch):
+        # Regression guard: when the PATCH DOES carry an inbound int amount, the same
+        # normalizer must preserve it identically (int cents in -> same int out).
+        req = make_request_record(
+            quote_status='DRAFT', quote_amount_cents=Decimal('20000'),
+            quote_revision=1, status='QUOTE_NEEDED',
+        )
+        table = FakeTable()
+        monkeypatch.setattr(ah, 'get_item', MagicMock(return_value=req))
+        event = make_event(
+            'PATCH', '/admin/requests/req-001/quote',
+            body={'quote_amount_cents': 30000},  # inbound int cents
+            path_params={'requestId': 'req-001'},
+            query_params={'clientId': 'client-001'},
+        )
+        resp = self._invoke(event, table)
+        assert resp['statusCode'] == 200
+        body = json.loads(resp['body'])
+        assert body['quote_amount_cents'] == 30000
+
+    def test_accept_readiness_receives_canonical_cents_not_scaled(self, patched_auth, monkeypatch):
+        # Site C: the Accept readiness predicate receives the stored Decimal amount.
+        # The amount is not surfaced in the response, so capture the exact magnitude
+        # passed into evaluate_booking_approval_predicate (narrowest meaningful
+        # assertion) and prove it is 20000, not 2_000_000.
+        patched_auth['role'].return_value = 'client'
+        patched_auth['resolve'].return_value = 'client-001'
+        req = make_request_record(
+            quote_status='SENT', quote_amount_cents=Decimal('20000'), quote_revision=1,
+            payment_requirement='NONE', payment_status='UNPAID',
+        )
+        table = FakeTable()
+        monkeypatch.setattr(ah, 'get_item', MagicMock(return_value=req))
+
+        captured = {}
+        import common.quote_contract as qc
+        real_predicate = qc.evaluate_booking_approval_predicate
+
+        def _capturing_predicate(quote_status, payment_requirement, payment_status,
+                                 quote_amount_cents=0, payment_waived=False):
+            captured['quote_amount_cents'] = quote_amount_cents
+            return real_predicate(
+                quote_status, payment_requirement, payment_status,
+                quote_amount_cents=quote_amount_cents, payment_waived=payment_waived,
+            )
+
+        # The handler imports evaluate_booking_approval_predicate from the source
+        # module at call time, so patch it there.
+        monkeypatch.setattr(qc, 'evaluate_booking_approval_predicate', _capturing_predicate)
+
+        event = make_event(
+            'POST', '/client/quotes/req-001/accept',
+            body={'expected_revision': 1}, path_params={'requestId': 'req-001'},
+            role='client',
+        )
+        resp = self._invoke(event, table)
+        assert resp['statusCode'] == 200
+        assert captured.get('quote_amount_cents') == 20000
+        assert captured.get('quote_amount_cents') != 2000000
