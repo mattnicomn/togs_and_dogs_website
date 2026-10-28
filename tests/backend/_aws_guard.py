@@ -39,7 +39,31 @@ import os
 import botocore.client
 
 _REAL_MAKE_API_CALL = botocore.client.BaseClient._make_api_call
-_STATE = {"installed": False}
+_STATE = {"installed": False, "blocks": 0}
+
+# --- DIAGNOSTIC (Gate C3b, temporary; removed before merge) ------------------
+# Emits fixed-marker, non-sensitive state lines to stderr so a CI run reveals
+# the guard's activation/installation lifecycle. NEVER logs credentials, env
+# values, raw identifiers, request params, headers, payloads, or full URLs.
+import sys as _sys
+
+
+def assert_installed():
+    """Return True iff the live _make_api_call is our guarded wrapper."""
+    return botocore.client.BaseClient._make_api_call is _guarded_make_api_call
+
+
+def diag(marker):
+    """Print a safe one-line GUARD_DIAG state marker (booleans/counters only)."""
+    try:
+        _sys.stderr.write(
+            "GUARD_DIAG %s active=%s installed=%s state_flag=%s blocks=%d\n"
+            % (marker, is_active(), assert_installed(), _STATE["installed"], _STATE["blocks"])
+        )
+        _sys.stderr.flush()
+    except Exception:
+        pass
+# -----------------------------------------------------------------------------
 
 #: Opt-in activation. The guard only installs when this env var is truthy, so
 #: normal local development/test runs are unchanged unless CI (or a developer)
@@ -76,6 +100,7 @@ def _endpoint_host(client):
 def _guarded_make_api_call(self, operation_name, api_params):
     host = _endpoint_host(self)
     if "amazonaws.com" in host and not _moto_active():
+        _STATE["blocks"] += 1  # DIAGNOSTIC counter only; behavior unchanged
         svc_model = getattr(getattr(self, "meta", None), "service_model", None)
         svc_name = getattr(svc_model, "service_name", "unknown") if svc_model else "unknown"
         raise RealAWSCallBlocked(
@@ -96,6 +121,7 @@ def install():
     if not _STATE["installed"]:
         botocore.client.BaseClient._make_api_call = _guarded_make_api_call
         _STATE["installed"] = True
+    diag("install")  # DIAGNOSTIC (temporary)
     return True
 
 
