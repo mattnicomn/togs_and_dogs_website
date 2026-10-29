@@ -9,6 +9,7 @@ import { useAuth } from '../auth/useAuth';
 import { COLORS } from '../theme/colors';
 import { StaffPickerSheet } from './StaffPickerSheet';
 import { getServiceTypeLabel } from '../utils/serviceLabels';
+import { approvalConfirmation, bookingPetLabel } from '../utils/bookingWorkflow';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -285,7 +286,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
       <ConfirmationModal
         visible={showConfirmModal}
         title="Approve Pet Booking?"
-        message={`This will update ${request.pet_name}'s status to APPROVED. This triggers production calendar syncs and notification emails. Are you sure you want to proceed?`}
+        message={approvalConfirmation(request)}
         onConfirm={handleApprove}
         onCancel={() => setShowConfirmModal(false)}
         isLoading={isMutating}
@@ -305,7 +306,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
       <ConfirmationModal
         visible={showAssignConfirmModal}
         title={request.worker_id ? "Change Staff Assignment?" : "Assign Staff Member?"}
-        message={`Are you sure you want to assign ${selectedStaff?.displayName} to care for ${request.pet_name}? This triggers production calendar syncs and staff notifications.`}
+        message={`Submit assignment of ${selectedStaff?.displayName || 'the selected staff member'} for ${bookingPetLabel(request)}? If accepted by the server, calendar updates and staff notifications may follow.`}
         onConfirm={handleConfirmAssignment}
         onCancel={() => setShowAssignConfirmModal(false)}
         isLoading={isMutating}

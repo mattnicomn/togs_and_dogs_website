@@ -20,7 +20,8 @@ import { useAuth } from '../auth/useAuth';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { StaffPickerSheet } from '../components/StaffPickerSheet';
 import { getServiceTypeLabel } from '../utils/serviceLabels';
-import { resolveActionJobId } from '../utils/occurrences';
+import { projectOccurrences, resolveActionJobId } from '../utils/occurrences';
+import { approvalConfirmation, bookingNextStep, bookingPetLabel, canOfferApproval, canReviewBooking } from '../utils/bookingWorkflow';
 
 export const RequestDetailScreen = ({ route, navigation }: any) => {
   const { logout, role } = useAuth();
@@ -43,6 +44,11 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   const [isMutating, setIsMutating] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [visitNotes, setVisitNotes] = useState('');
+  const [requiresMeetGreetVerification, setRequiresMeetGreetVerification] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [visitsLoaded, setVisitsLoaded] = useState(false);
+  const refreshLockRef = useRef(false);
   const visitMutationLockRef = useRef(false);
   const mountedRef = useRef(true);
   const requestSequenceRef = useRef(0);
@@ -64,7 +70,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
 
   const handleStart = async () => {
     const resolution = resolveActionJobId(request, occurrence, jobId);
-    if (visitMutationLockRef.current) return;
+    if (visitMutationLockRef.current || refreshLockRef.current) return;
     if (!resolution.jobId) {
       setMutationError(resolution.error);
       return;
@@ -107,6 +113,36 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
     }
   };
 
+  // Refresh is read-only; never retry a mutation or guess a child identity.
+  const refreshBooking = async () => {
+    if (refreshLockRef.current || visitMutationLockRef.current || isMutating) return;
+    refreshLockRef.current = true;
+    setIsRefreshing(true);
+    setRefreshError(null);
+    const sequence = ++requestSequenceRef.current;
+    try {
+      const fresh = await getAdminRequest(request.request_id, request.client_id);
+      if (fresh.request_id !== request.request_id || fresh.client_id !== request.client_id) throw new Error('Booking identity changed. Reopen the booking before continuing.');
+      if (!mountedRef.current || sequence !== requestSequenceRef.current) return;
+      setRequest(fresh);
+      if (initialOccurrence || jobId) {
+        const exactId = occurrence?.job_id || jobId;
+        const exact = projectOccurrences(fresh).find(item => item.job_id === exactId && !item.actionBlocked);
+        setOccurrence(exact || { job_id: '', request_id: fresh.request_id, actionBlocked: true, legacy: true });
+      } else setOccurrence(null);
+      setVisitsLoaded(true);
+    } catch (error: any) {
+      if (mountedRef.current && sequence === requestSequenceRef.current) {
+        setVisitsLoaded(false);
+        setOccurrence({ job_id: '', request_id: request.request_id, actionBlocked: true, legacy: true });
+        setRefreshError(error.message || 'Could not refresh booking. Retry when connected.');
+      }
+    } finally {
+      refreshLockRef.current = false;
+      if (mountedRef.current && sequence === requestSequenceRef.current) setIsRefreshing(false);
+    }
+  };
+
   const handleApprove = async () => {
     setMutationError(null);
     setIsMutating(true);
@@ -119,10 +155,12 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
       };
       setRequest(updated);
     } catch (error: any) {
+      setShowConfirmModal(false);
       const msg = error.message || '';
       if (msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('expired')) {
         await logout();
       } else {
+        if (msg.includes('Meet & Greet must be marked completed')) setRequiresMeetGreetVerification(true);
         setMutationError(msg || 'An error occurred during approval.');
       }
     } finally {
@@ -166,6 +204,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
       // The response does not echo the new request status; reflect the backend's
       // MG_COMPLETED transition locally so the action hides and state updates.
       setRequest({ ...request, status: 'MG_COMPLETED' });
+      setRequiresMeetGreetVerification(false);
     } catch (error: any) {
       const msg = error.message || '';
       if (msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('expired')) {
@@ -235,7 +274,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
 
   const handleMarkCompleted = async () => {
     const resolution = resolveActionJobId(request, occurrence, jobId);
-    if (visitMutationLockRef.current) return;
+    if (visitMutationLockRef.current || refreshLockRef.current) return;
     if (!resolution.jobId) {
       setShowCompleteConfirmModal(false);
       setMutationError(resolution.error);
@@ -363,9 +402,8 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   const hasVetInfo = vetInfo && (vetInfo.vet_name || vetInfo.clinic_name || vetInfo.clinic_phone || vetInfo.clinic_address);
 
   const getCompleteModalMessage = () => {
-    const pet = request.pet_name || 'Buddy';
-    const client = request.client_name || 'Jane Smith';
-    const isMultiDay = request.selected_dates && request.selected_dates.length > 1;
+    const pet = bookingPetLabel(request);
+    const client = request.client_name || 'the client';
     
     let dateInfo = '';
     if (selectedDate) {
@@ -374,20 +412,11 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
       dateInfo = `Booking Range: ${formatDateRange(request.selected_dates)}`;
     }
 
-    let warning = '';
-    if (isMultiDay) {
-      if (jobId) {
-        warning = `\n\nNote: This will mark ONLY the visit on ${selectedDate} as completed. Other visits in this booking will remain active.`;
-      } else {
-        warning = `\n\n⚠️ WARNING: This is a multi-day booking. Completing this will mark ALL dates in the booking completed.`;
-      }
-    }
-
-    return `Confirm you've completed the care visit for ${pet} (${client}).\n\n${dateInfo}${warning}`;
+    return `Confirm completion of the selected care visit for ${pet} (${client}).\n\n${dateInfo}\n\nOnly the exact selected visit is submitted. Other visits are not completed by this action; the booking completes only when all visits are complete.`;
   };
 
   const isPending = request.status === 'PENDING_REVIEW';
-  const isMeetGreetPending = request.status === 'MEET_GREET_REQUIRED' || request.status === 'MG_SCHEDULED';
+  const isMeetGreetPending = request.status === 'MEET_GREET_REQUIRED' || request.status === 'MG_SCHEDULED' || (isPending && requiresMeetGreetVerification);
   const isApproved = request.status === 'APPROVED';
   const childStatus = occurrence?.status || request.status;
   const isAssigned = childStatus === 'ASSIGNED';
@@ -399,8 +428,13 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   // sensitive transitions. Use an explicit owner/admin allowlist rather than
   // `role !== 'staff'`: the runtime role domain also includes 'client', 'unknown',
   // and null (during bootstrap), for which a negative gate would fail open.
-  const canManage = role === 'owner' || role === 'admin';
-  const showFooter = (canManage && (isPending || isMeetGreetPending || isApproved || isAssigned)) || (role === 'staff' && isAssigned);
+  const canManage = canReviewBooking(role);
+  const canApprove = canManage && canOfferApproval(request.status);
+  const nextStep = canManage ? bookingNextStep(request.status) : null;
+  const canReadVisits = canManage || role === 'staff';
+  const parentVisitView = !initialOccurrence && !jobId;
+  const visits = visitsLoaded ? projectOccurrences(request) : [];
+  const showFooter = (canManage && (canApprove || isPending || isMeetGreetPending || isApproved || isAssigned)) || (role === 'staff' && isAssigned);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -410,6 +444,36 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
           contentContainerStyle={[styles.scrollContent, { paddingBottom: showFooter ? 110 : 24 }]}
         >
           
+          {canManage && (
+            <View style={styles.card}>
+              <Text style={styles.sectionHeader}>Next step</Text>
+              <Text>{nextStep || 'Review the booking details. Use web client management for profile, account-linking and invitation steps not available here.'}</Text>
+              <TouchableOpacity accessibilityRole="button" onPress={refreshBooking} disabled={isRefreshing || isMutating}>
+                <Text>{isRefreshing ? 'Refreshing booking…' : 'Refresh booking'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {canReadVisits && (request.status === 'ASSIGNED' || isApproved || visitsLoaded) && (
+            <View style={styles.card}>
+              <Text style={styles.sectionHeader}>Visits in this booking</Text>
+              <Text>Select an exact visit to view its details. Start and Complete remain staff actions; Change Staff changes assignment, not visit progress.</Text>
+              <TouchableOpacity accessibilityRole="button" onPress={refreshBooking} disabled={isRefreshing || isMutating}>
+                <Text>{isRefreshing ? 'Loading visits…' : 'Load / refresh visits'}</Text>
+              </TouchableOpacity>
+              {visitsLoaded && visits.length === 0 && <Text>No visits returned yet. Refresh after job setup finishes.</Text>}
+              {parentVisitView && visits.map((item, index) => {
+                const resolution = resolveActionJobId(request, item);
+                const blocked = !resolution.jobId || Boolean(item.actionBlocked);
+                return <TouchableOpacity key={item.job_id || 'blocked-' + index} accessibilityRole="button" disabled={blocked || isRefreshing || isMutating}
+                  onPress={() => { setOccurrence(item); setMutationError(null); }}>
+                  <Text>{`Visit ${index + 1}: ${item.occurrence_date || 'Date unavailable'} · ${item.occurrence_window || item.start_time || 'Legacy window'} · ${item.status}`}</Text>
+                  {blocked && <Text>Refresh required: exact visit identity unavailable.</Text>}
+                </TouchableOpacity>;
+              })}
+              {occurrence && <Text>Selected visit: {occurrence.occurrence_date || 'Date unavailable'} · {occurrence.occurrence_window || occurrence.start_time || 'Legacy window'} · {occurrence.status}</Text>}
+            </View>
+          )}
+          {refreshError && <Text accessibilityRole="alert" style={styles.errorText}>{refreshError}</Text>}
           {/* Core Status Summary */}
           <View style={styles.card}>
             {selectedDate && (
@@ -420,7 +484,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
             )}
             {isStarted && <Text style={styles.datesSubText}>Started {new Date(occurrence.started_at).toLocaleString()}</Text>}
             <View style={styles.rowBetween}>
-              <Text style={styles.petTitle}>🐾 {request.pet_name}</Text>
+              <Text style={styles.petTitle}>🐾 {bookingPetLabel(request)}</Text>
               <StatusBadge status={request.status} />
             </View>
             
@@ -715,11 +779,11 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
               </View>
             )}
 
-            {isPending && canManage && (
+            {canApprove && (
               <TouchableOpacity
                 style={styles.approveBtn}
                 onPress={() => setShowConfirmModal(true)}
-                disabled={isMutating}
+                disabled={isMutating || isRefreshing}
                 activeOpacity={0.8}
               >
                 <Text style={styles.approveBtnText}>Approve Booking</Text>
@@ -730,7 +794,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
               <TouchableOpacity
                 style={styles.declineBtn}
                 onPress={() => setShowDeclineConfirmModal(true)}
-                disabled={isMutating}
+                disabled={isMutating || isRefreshing}
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel="Decline Booking"
@@ -744,7 +808,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
               <TouchableOpacity
                 style={styles.verifyMgBtn}
                 onPress={() => setShowVerifyMgConfirmModal(true)}
-                disabled={isMutating}
+                disabled={isMutating || isRefreshing}
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel="Verify Meet & Greet"
@@ -758,7 +822,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
               <TouchableOpacity
                 style={styles.assignBtn}
                 onPress={handleAssignPress}
-                disabled={isMutating}
+                disabled={isMutating || isRefreshing}
                 activeOpacity={0.8}
               >
                 <Text style={styles.assignBtnText}>Assign Staff</Text>
@@ -769,7 +833,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
               <TouchableOpacity
                 style={styles.changeBtn}
                 onPress={handleAssignPress}
-                disabled={isMutating}
+                disabled={isMutating || isRefreshing}
                 activeOpacity={0.8}
               >
                 <Text style={styles.changeBtnText}>Change Staff</Text>
@@ -777,7 +841,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
             )}
 
             {isAssigned && role === 'staff' && hasExactJob && !isStarted && !occurrence?.legacy && (
-              <TouchableOpacity style={styles.completeBtn} onPress={handleStart} disabled={isMutating || !hasExactJob}>
+              <TouchableOpacity style={styles.completeBtn} onPress={handleStart} disabled={isMutating || isRefreshing || !hasExactJob}>
                 <Text style={styles.completeBtnText}>Start Visit</Text>
               </TouchableOpacity>
             )}
@@ -786,7 +850,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
               <TouchableOpacity
                 style={styles.completeBtn}
                 onPress={() => setShowCompleteConfirmModal(true)}
-                disabled={isMutating}
+                disabled={isMutating || isRefreshing}
                 activeOpacity={0.8}
               >
                 <Text style={styles.completeBtnText}>Complete Visit</Text>
@@ -800,7 +864,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
       <ConfirmationModal
         visible={showConfirmModal}
         title="Approve Pet Booking?"
-        message={`This will update ${request.pet_name}'s status to APPROVED. This triggers production calendar syncs and notification emails. Are you sure you want to proceed?`}
+        message={approvalConfirmation(request)}
         onConfirm={handleApprove}
         onCancel={() => setShowConfirmModal(false)}
         isLoading={isMutating}
@@ -809,7 +873,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
       <ConfirmationModal
         visible={showDeclineConfirmModal}
         title="Decline Pet Booking?"
-        message={`This will mark ${request.pet_name}'s request as DECLINED.${declineReason.trim() ? `\n\nReason: ${declineReason.trim()}` : ''}\n\nThe business record is retained in history. Are you sure you want to decline?`}
+        message={`Submit a decline for ${bookingPetLabel(request)}? If accepted by the server, the request becomes DECLINED.${declineReason.trim() ? `\n\nReason: ${declineReason.trim()}` : ''}\n\nThe business record is retained in history. Are you sure you want to decline?`}
         onConfirm={handleDecline}
         onCancel={() => setShowDeclineConfirmModal(false)}
         isLoading={isMutating}
@@ -818,7 +882,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
       <ConfirmationModal
         visible={showVerifyMgConfirmModal}
         title="Verify Meet & Greet?"
-        message={`This marks the Meet & Greet for ${request.pet_name} as completed and advances the request to Meet & Greet Completed. Confirm the Meet & Greet has taken place.`}
+        message={`Record a completed Meet & Greet for ${bookingPetLabel(request)}? Confirm it has actually taken place. If accepted by the server, the request advances to Meet & Greet Completed; approval remains a separate action.`}
         onConfirm={handleVerifyMeetGreet}
         onCancel={() => setShowVerifyMgConfirmModal(false)}
         isLoading={isMutating}
@@ -847,7 +911,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
       <ConfirmationModal
         visible={showAssignConfirmModal}
         title={request.worker_id ? "Change Staff Assignment?" : "Assign Staff Member?"}
-        message={`Are you sure you want to assign ${selectedStaff?.displayName} to care for ${request.pet_name}? This triggers production calendar syncs and staff notifications.`}
+        message={`Submit assignment of ${selectedStaff?.displayName || 'the selected staff member'} for ${bookingPetLabel(request)}? If accepted by the server, calendar updates and staff notifications may follow.`}
         onConfirm={handleConfirmAssignment}
         onCancel={() => setShowAssignConfirmModal(false)}
         isLoading={isMutating}
