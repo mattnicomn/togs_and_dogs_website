@@ -1314,7 +1314,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                         setIsAssigning(true);
                         try {
                           await onAssign(pet._originItem, e.target.value);
-                        } catch(err) {
+                        } catch {
                           // Error handled by parent
                         } finally {
                           setIsAssigning(false);

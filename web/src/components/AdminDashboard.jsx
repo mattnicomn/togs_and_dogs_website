@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { signIn, forgotPassword, confirmForgotPassword, getSession, getEffectiveRole } from '../api/auth';
 
-import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData, createAdminBooking, listAdminClientPets, getTenantInfo } from '../api/client';
+import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData, createAdminBooking, listAdminClientPets, getTenantInfo } from '../api/client';
 import { SERVICE_TYPES } from '../generated/contracts';
 import * as XLSX from 'xlsx';
 
-import { accountStatusLabel, accountStatusClass, profileStatusLabel, profileStatusClass, getVisibleClients, CLIENT_FILTERS } from '../utils/clientManagement';
+import { getVisibleClients, CLIENT_FILTERS } from '../utils/clientManagement';
 import { describeGuidedWorkflowAction, GUIDED_ACTION_SEMANTICS, resolveGuidedWorkflowAction } from '../utils/workflowActions';
 import { bootstrapTenantSession, TENANT_ACCESS_ERROR } from '../utils/tenantContext';
 import { deriveTenantPresentation, updateDocumentTitle, DEFAULT_BRANDING } from '../utils/tenantPresentation';
@@ -749,10 +749,6 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
     // deleted_at alone does NOT qualify — prevents zombie records (active status + deleted_at)
     // from appearing in Trash. Such records are treated as data integrity issues instead.
     return s === 'DELETED' || s === 'TRASH' || s === 'DELETE';
-  };
-  const isCancellationPendingRecord = (item) => {
-    const s = (item.status || "").toUpperCase();
-    return s === 'CANCELLATION_REQUESTED';
   };
   const isCancelledRecord = (item) => {
     const s = (item.status || "").toUpperCase();
@@ -2834,7 +2830,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
         setLoading(true);
         // Release 5A Hotfix 1: Fetch all PET# records with reliable fallback.
         // If a fetch fails, include a placeholder with the pet_id so tabs still render.
-        const petPromises = petIds.map((pid, idx) => 
+        const petPromises = petIds.map((pid) =>
           getPet(pid, item.linked_client_profile_id || item.client_id).catch(err => {
             console.warn(`Failed to load PET#${pid}:`, err.message);
             // Return a minimal fallback so the pet tab still appears
@@ -5694,7 +5690,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
                 const staff = staffList.find(s => (s.email || s.display_name) === workerId);
                 const updatedOrigin = {...originItem, worker_id: workerId, worker_name: staff?.display_name || workerId, status: 'ASSIGNED'};
                 await handleSelectPet(updatedOrigin);
-              } catch(e) { /* CareCard refresh failed — list is still updated */ }
+              } catch { /* CareCard refresh failed — list is still updated */ }
             }
           }}
           onAddPet={async (clientId, petData) => {
@@ -5715,7 +5711,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
               
               // Re-fetch all PET# records using the updated ID list
               if (allPetIds.length > 0) {
-                const petPromises = allPetIds.map((pid, idx) =>
+                const petPromises = allPetIds.map((pid) =>
                   getPet(pid, clientId).catch(() => ({ pet_id: pid, name: "Deleted/Unavailable pet record", _fetchFailed: true }))
                 );
                 const petResults = await Promise.all(petPromises);
