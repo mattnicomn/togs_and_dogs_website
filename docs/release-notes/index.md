@@ -4,6 +4,8 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 
 ## 🌟 Featured / Recent
 
+- [**Canonical Worker Identity — Slice 2A INACTIVE**](canonical-worker-identity-inactive-foundation.md) (2026-10-29) — Dependent on corrected PR47; strict record adapters, conditional request construction and synthetic tests. No handler wiring, transaction invocation, enrollment, policy adoption or release.
+
 - [**Canonical Worker Identity — Slice 1 OFFLINE ONLY**](canonical-worker-identity-offline-contracts.md) (2026-10-29) — Pure owner identity/assignment predicates, synthetic race contracts and explicit pending policy decisions. No backend/runtime integration, schema migration, owner execution activation or mobile release.
 
 > PTM0-S1/F01 is complete. S2A.3 and S2D.1 are deployed, not fully

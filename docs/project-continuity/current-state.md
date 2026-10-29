@@ -1,5 +1,7 @@
 # Current Project State
 
+**2026-10-29 worker identity Slice 2A:** `WORKER_IDENTITY_SLICE2A_INACTIVE_NOT_INTEGRATED`. Dependent on corrected PR47 `2913f70c955ba6cbc58eaae3df07e974b8a4be30`; pure backend record adapters/request builders and synthetic tests only. No handler imports, transaction invocation, enrollment or owner execution. All policy/integration blockers remain pending. See [inactive foundation acceptance and writer inventory](../release-notes/canonical-worker-identity-inactive-foundation.md). Existing deployment history, PR46 dependency and canonical CI/RC gates are unchanged.
+
 **2026-10-29 canonical worker identity Slice 1:** `WORKER_IDENTITY_SLICE1_OFFLINE_ONLY_NOT_INTEGRATED`. Owner execution requires exact child assignment to verified canonical worker identity; email cannot qualify. This local test/documentation Draft specifies immutable tenant linkage, explicit denials and deterministic revision/race models only. No live handler, schema, assignment, RBAC or data change; staff behavior is delegated unchanged. Replay, enrollment, reassignment-after-Start and owner Complete-without-Start decisions remain pending. PR46 remains a separate unmerged dependency for future mobile work. See [the contract/test record and Slice 2 gates](../release-notes/canonical-worker-identity-offline-contracts.md). All historical deployment outcomes and canonical integration/RC gates remain unchanged.
 
 ---
