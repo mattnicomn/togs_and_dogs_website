@@ -85,6 +85,10 @@ When AG becomes available again, return to the normal operating model.
   PR/MR Integration section of `docs/project-continuity/guardrails.md`.
 - Preserve the saved Phase 1B.5C-A plan unless Matthew explicitly approves replacing it.
 
+## C3b proposal status — NOT ACTIVE
+
+The canonical [C3b advisory-baseline and historical-impairment proposal](../../docs/project-continuity/guardrails.md#c3b-advisory-baseline-and-historical-impairment-proposal--not-active) grants no current exception or merge authority. It proposes exact-head/base/diff/run-bound owner acceptance only for documented non-required baseline CI failures, with passing required/security checks. RC integrity is independent; historical PR19 source-only acceptance is not acceptance or recovery of MISSING artifacts. New/current RCs and designated current rollback evidence must remain intact. Existing structured MERGE AUTHORIZATION, independent-review disclosure and all other safeguards remain mandatory. The proposal cannot authorize its own merge; existing CLEAN and RC-intact gates control pending separately valid adoption. No runtime or production action is authorized.
+
 ## Email Provider Guardrail
 
 - Postmark is the approved production transactional email provider.
