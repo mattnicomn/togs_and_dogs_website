@@ -13,7 +13,7 @@ jest.mock('../src/components/StaffPickerSheet', () => ({ StaffPickerSheet: () =>
 jest.mock('../src/components/ContentContainer', () => ({ ContentContainer: ({ children }: any) => children }));
 jest.mock('../src/components/ConfirmationModal', () => {
   const React = require('react'); const { Text, TouchableOpacity } = require('react-native');
-  return { ConfirmationModal: ({ visible, title, message, onConfirm }: any) => visible ? <><Text>{message}</Text><TouchableOpacity onPress={onConfirm}><Text>{`Confirm ${title}`}</Text></TouchableOpacity></> : null };
+  return { ConfirmationModal: ({ visible, title, message, onConfirm, onCancel }: any) => visible ? <><Text>{message}</Text><TouchableOpacity onPress={onConfirm}><Text>{`Confirm ${title}`}</Text></TouchableOpacity><TouchableOpacity onPress={onCancel}><Text>{`Cancel ${title}`}</Text></TouchableOpacity></> : null };
 });
 import { RequestDetailScreen } from '../src/screens/RequestDetailScreen';
 const booking = (extra: any = {}) => ({ request_id: 'req-test', client_id: 'client-test', status: 'ASSIGNED', service_type: 'DROPIN_1HR', selected_dates: ['2026-10-29', '2026-10-30'], pet_names: ['Test Pet'], ...extra });
@@ -21,6 +21,19 @@ const child = (id: string, extra: any = {}) => ({ job_id: id, request_id: 'req-t
 const screen = (request: any, extra: any = {}) => render(<RequestDetailScreen route={{ params: { request, ...extra } }} navigation={{ goBack: jest.fn() }} />);
 beforeEach(() => { jest.clearAllMocks(); mockRole = 'owner'; mockReview.mockReset().mockResolvedValue({}); mockRead.mockReset(); mockStart.mockReset().mockResolvedValue({ started_at: '2026-10-29T10:00:00Z' }); mockComplete.mockReset().mockResolvedValue({}); });
 
+const hydratedVisits = async (started: boolean, role: string | null = 'staff') => {
+  mockRole = role;
+  mockRead.mockResolvedValue(booking({ job_ids: ['a', 'b'], job_completion_summary: { jobs: [
+    child('a', started ? { started_at: '2026-10-29T09:00:00Z' } : {}),
+    child('b', { occurrence_date: '2026-10-30', ...(started ? { started_at: '2026-10-29T09:00:00Z' } : {}) }),
+  ] } }));
+  const v = await screen(booking({ job_ids: ['a', 'b'] }));
+  if (role === 'staff' || role === 'owner' || role === 'admin') {
+    await fireEvent.press(v.getByText('Load / refresh visits'));
+    await waitFor(() => expect(v.getByText(/^Visit 1:/)).toBeTruthy());
+  }
+  return v;
+};
 describe('Android booking workflow remediation', () => {
   it('continues verified M&G through a separate approval, with no automatic mutation', async () => {
     const v = await screen(booking({ status: 'MEET_GREET_REQUIRED' }));
@@ -146,5 +159,110 @@ describe('Android booking workflow remediation', () => {
     await fireEvent.press(v.getByText('Load / refresh visits'));
     expect(await v.findByText(/Booking identity changed/)).toBeTruthy();
     expect(mockReview).not.toHaveBeenCalled();
+  });
+  it.each([[1, 2], [2, 1]])('isolates drafts when switching Visit %s to Visit %s and back', async (from, to) => {
+    const v = await hydratedVisits(true);
+    await fireEvent.press(v.getByText(new RegExp(`^Visit ${from}:`)));
+    await fireEvent.changeText(v.getByPlaceholderText('How did the visit go? Any observations...'), `Draft ${from}`);
+    await fireEvent.press(v.getByText(new RegExp(`^Visit ${to}:`)));
+    expect(v.getByPlaceholderText('How did the visit go? Any observations...').props.value).toBe('');
+    await fireEvent.changeText(v.getByPlaceholderText('How did the visit go? Any observations...'), `Draft ${to}`);
+    await fireEvent.press(v.getByText(new RegExp(`^Visit ${from}:`)));
+    expect(v.getByPlaceholderText('How did the visit go? Any observations...').props.value).toBe(`Draft ${from}`);
+    await fireEvent.press(v.getByText(new RegExp(`^Visit ${to}:`)));
+    await fireEvent.press(v.getByText('Complete Visit'));
+    expect(v.getByText(new RegExp(`Selected Visit Date: 2026-10-${to === 1 ? '29' : '30'}`))).toBeTruthy();
+    expect(v.getByText(/Selected Window: ANYTIME/)).toBeTruthy();
+    await fireEvent.press(v.getByText('Confirm Mark Visit Completed?'));
+    await waitFor(() => expect(mockComplete).toHaveBeenCalledWith(to === 1 ? 'a' : 'b', 'req-test', `Draft ${to}`));
+  });
+  it('preserves per-child drafts across successful and failed refresh without moving them', async () => {
+    const v = await hydratedVisits(true);
+    await fireEvent.press(v.getByText(/^Visit 1:/));
+    await fireEvent.changeText(v.getByPlaceholderText('How did the visit go? Any observations...'), 'Only A');
+    mockRead.mockRejectedValueOnce(new Error('Offline'));
+    await fireEvent.press(v.getByText('Load / refresh visits'));
+    expect(await v.findByText('Offline')).toBeTruthy();
+    expect(v.getByPlaceholderText('How did the visit go? Any observations...').props.editable).toBe(false);
+    await fireEvent.press(v.getByText('Load / refresh visits'));
+    await fireEvent.press(await v.findByText(/^Visit 2:/));
+    expect(v.getByPlaceholderText('How did the visit go? Any observations...').props.value).toBe('');
+    await fireEvent.press(v.getByText(/^Visit 1:/));
+    expect(v.getByPlaceholderText('How did the visit go? Any observations...').props.value).toBe('Only A');
+  });
+  it('keeps a failed completion draft on A and never submits it for B', async () => {
+    const v = await hydratedVisits(true);
+    mockComplete.mockRejectedValueOnce(new Error('Completion unavailable'));
+    await fireEvent.press(v.getByText(/^Visit 1:/));
+    await fireEvent.changeText(v.getByPlaceholderText('How did the visit go? Any observations...'), 'A retained');
+    await fireEvent.press(v.getByText('Complete Visit'));
+    await fireEvent.press(v.getByText('Confirm Mark Visit Completed?'));
+    await waitFor(() => expect(v.getByText(/Completion unavailable/)).toBeTruthy());
+    await fireEvent.press(v.getByText('Cancel Mark Visit Completed?'));
+    expect(v.getByPlaceholderText('How did the visit go? Any observations...').props.value).toBe('A retained');
+    await fireEvent.press(v.getByText(/^Visit 2:/));
+    expect(v.getByPlaceholderText('How did the visit go? Any observations...').props.value).toBe('');
+    await fireEvent.press(v.getByText('Complete Visit'));
+    await fireEvent.press(v.getByText('Confirm Mark Visit Completed?'));
+    await waitFor(() => expect(mockComplete.mock.calls).toEqual([['a', 'req-test', 'A retained'], ['b', 'req-test', '']]));
+  });
+  it('does not retain an unmounted screen draft in another visit screen', async () => {
+    const v = await hydratedVisits(true);
+    await fireEvent.press(v.getByText(/^Visit 1:/));
+    await fireEvent.changeText(v.getByPlaceholderText('How did the visit go? Any observations...'), 'Discard on leave');
+    await v.unmount();
+    const next = await screen(booking({ job_ids: ['a', 'b'] }), { occurrence: child('b', { started_at: '2026-10-29T10:00:00Z' }) });
+    expect(next.getByPlaceholderText('How did the visit go? Any observations...').props.value).toBe('');
+    expect(mockComplete).not.toHaveBeenCalled();
+  });
+  it('keeps authoritative Start state when reselecting A across multiple children', async () => {
+    const v = await hydratedVisits(false);
+    await fireEvent.press(v.getByText(/^Visit 1:/));
+    await fireEvent.press(v.getByText('Start Visit'));
+    await waitFor(() => expect(v.getByText('Complete Visit')).toBeTruthy());
+    await fireEvent.press(v.getByText(/^Visit 1:/));
+    expect(v.getByText('Complete Visit')).toBeTruthy();
+    expect(v.queryByText('Start Visit')).toBeNull();
+    await fireEvent.press(v.getByText(/^Visit 2:/));
+    expect(v.getByText('Start Visit')).toBeTruthy();
+    await fireEvent.press(v.getByText(/^Visit 1:/));
+    expect(v.getByText('Complete Visit')).toBeTruthy();
+    expect(v.queryByText('Start Visit')).toBeNull();
+    expect(mockStart.mock.calls).toEqual([['a', 'req-test']]);
+    expect(v.getByText(/Started .*2026/)).toBeTruthy();
+  });
+  it('blocks refresh during an active visit mutation, including immediate handler calls', async () => {
+    const v = await hydratedVisits(false);
+    await fireEvent.press(v.getByText(/^Visit 1:/));
+    const handler = (text: string) => {
+      let fiber = v.getByText(text).unstable_fiber;
+      while (fiber && typeof fiber.memoizedProps?.onPress !== 'function') fiber = fiber.return;
+      if (!fiber) throw new Error('Missing handler');
+      return fiber.memoizedProps.onPress;
+    };
+    const refresh = handler('Load / refresh visits');
+    const start = handler('Start Visit');
+    let finish!: (value: any) => void;
+    mockStart.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    let pending!: Promise<void>;
+    await act(async () => { pending = start(); await refresh(); });
+    expect(mockRead).toHaveBeenCalledTimes(1);
+    await act(async () => { finish({ started_at: '2026-10-29T10:00:00Z', status: 'ASSIGNED' }); await pending; });
+    expect(v.getByText('Complete Visit')).toBeTruthy();
+    expect(mockRead).toHaveBeenCalledTimes(1);
+  });
+  it('offers READY_FOR_APPROVAL as a separate owner action and keeps server validation', async () => {
+    const v = await screen(booking({ status: 'READY_FOR_APPROVAL' }));
+    await fireEvent.press(v.getByText('Approve Booking'));
+    expect(mockReview).not.toHaveBeenCalled();
+    await fireEvent.press(v.getByText('Confirm Approve Pet Booking?'));
+    await waitFor(() => expect(mockReview).toHaveBeenCalledWith('req-test', 'client-test', 'APPROVED'));
+  });
+  it.each(['owner', 'admin', 'client', 'unknown', null])('never exposes staff execution to %s after child selection', async role => {
+    const v = await hydratedVisits(true, role);
+    if (role === 'owner' || role === 'admin') await fireEvent.press(v.getByText(/^Visit 1:/));
+    expect(v.queryByText('Start Visit')).toBeNull();
+    expect(v.queryByText('Complete Visit')).toBeNull();
+    expect(mockStart).not.toHaveBeenCalled(); expect(mockComplete).not.toHaveBeenCalled();
   });
 });

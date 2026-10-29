@@ -45,7 +45,7 @@ Staff, client, unknown and bootstrap/null roles cannot gain owner approval/verif
 
 | Acceptance gate | Status |
 | --- | --- |
-| Local automated behavior/roles/compatibility | PASS: TypeScript; 321 tests / 35 suites; 49 shared validator checks |
+| Local automated behavior/roles/compatibility | Corrective checkpoint PASS: TypeScript; 334 tests / 35 suites; 49 shared validator checks |
 | Android emulator/physical device acceptance | NOT RUN; separately authorized testing/build needed |
 | Exact Ryan installed build and role | UNKNOWN; owner confirmation needed without private records |
 | Owner/admin visit-execution UX | DEFERRED product decision; staff-only preserved |
@@ -62,6 +62,25 @@ Staff, client, unknown and bootstrap/null roles cannot gain owner approval/verif
 4. Approve an exact mobile release candidate and production-backend compatibility review. Current main includes merged-but-undeployed work; do not deploy/build indiscriminately or activate W1/intake behavior.
 5. Separately authorize Android build, sanitized device acceptance, internal distribution and Ryan testing. Current DEV selection fails closed; no DEV backend is created here.
 6. Scope future owner quote/cancellation parity and actual profile/onboarding diagnosis separately. Production payment, Stripe live, tenant changes, AWS/Terraform/account migration and mobile distribution remain gated.
+
+## PR46 corrective review checkpoint — 2026-10-29
+
+The fresh author-agent review of initial head `c519aacf36bd728acc3c84433c3df3f176413732` found two confirmed defects not covered by its passing 321-test suite: shared unsaved notes could cross from child A to B, and reselecting a started child restored its stale pre-Start snapshot. That initial validation is historical evidence, not independent reviewer approval or proof those cases passed.
+
+Corrective implementation:
+
+- Unsaved drafts are held in memory under the exact request/client/child-job tuple. Selecting A/B restores only that child's draft. Ambiguous identity disables editing. Successful completion clears only the submitted child's draft; failure retains it. Refresh does not remap notes, and leaving the screen discards its unsaved in-memory drafts. No persistent storage or cross-screen draft transfer is added.
+- Confirmed Start results update both the selected occurrence and the parent's selectable child collection. Server-returned status/timestamps are preserved; reselecting A and switching A→B→A no longer restores stale Start. Existing replay, failed-Start reconciliation, unmount guards and exact-child resolver remain in force.
+- Completion confirmation identifies the selected visit date and window. Missing date information is labeled unavailable rather than inferred from the first date of a multi-day booking.
+- Staff-only execution remains unchanged. Owner-as-sitter and owner quote management remain separate product proposals; no backend, RBAC, quote/payment or service/window changes.
+
+Corrective regressions add **13 passing cases**: A→B and B→A notes, draft retention across failed/successful refresh, failed completion without cross-child submission, unmount isolation, Start/reselection across children, immediate refresh during active Start, READY_FOR_APPROVAL positive confirmation, and five denied/non-staff execution roles. The existing race/replay/legacy suites remain passing.
+
+Validation: isolated Node 22.23.4; `npm run typecheck --prefix mobile` PASS; full `npm run test:ci --prefix mobile -- --runInBand` **334/334 PASS across 35 suites**, up from 321 at the initial head, zero failing tests. Shared tokens/constants/adapters/contract-adapters **9/24/7/9 PASS**. The known Windows generator CRLF/LF idempotence issue recurred on the first adapter checks; repeat checks passed, generated content matched HEAD and original checkout line endings were reinstated. No generated files, dependencies or lockfiles are included. Existing React act/open-handle notices persist; no suppression or timeout increase.
+
+The corrected immutable head, actual CI run and baseline reconciliation are recorded in PR46's delivery record. This checkpoint does not claim independent approval, Android device acceptance, build, distribution, deployment, Ryan testing or integration readiness. PR43/44/45 and retained release evidence remain unchanged.
+
+Device acceptance still requires separate authorization. Add explicit checks for A→B→A draft isolation, failure/retry, leaving the screen with unsaved notes, Start→reselect, selected date/window confirmation, and denied roles to the original acceptance matrix.
 
 ## Resume checkpoint
 

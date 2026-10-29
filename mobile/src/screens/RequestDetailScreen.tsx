@@ -43,7 +43,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   const [selectedStaff, setSelectedStaff] = useState<{ emailOrDisplayName: string; displayName: string } | null>(null);
   const [isMutating, setIsMutating] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
-  const [visitNotes, setVisitNotes] = useState('');
+  const [visitNoteDrafts, setVisitNoteDrafts] = useState<Record<string, string>>({});
   const [requiresMeetGreetVerification, setRequiresMeetGreetVerification] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
@@ -60,6 +60,23 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
       requestSequenceRef.current += 1;
     };
   }, []);
+
+  const visitNoteKey = (exactJobId: string) => JSON.stringify([request.request_id, request.client_id, exactJobId]);
+
+  const rememberConfirmedOccurrence = (confirmed: any) => {
+    setRequest((previous: any) => {
+      const jobs = projectOccurrences(previous);
+      const found = jobs.some(item => item.job_id === confirmed.job_id);
+      return {
+        ...previous,
+        job_completion_summary: {
+          ...previous.job_completion_summary,
+          jobs: found ? jobs.map(item => item.job_id === confirmed.job_id ? { ...item, ...confirmed } : item) : [...jobs, confirmed],
+        },
+      };
+    });
+    setOccurrence(confirmed);
+  };
 
   const fetchOccurrence = async (actionJobId: string) => {
     const fresh = await getAdminRequest(request.request_id, request.client_id);
@@ -82,7 +99,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
     try {
       const result = await startJob(resolution.jobId, request.request_id);
       if (mountedRef.current && sequence === requestSequenceRef.current) {
-        setOccurrence({ ...(occurrence || {}), job_id: resolution.jobId, request_id: request.request_id, status: occurrence?.status || 'ASSIGNED', started_at: result.started_at, started_by: result.started_by });
+        rememberConfirmedOccurrence({ ...(occurrence || {}), job_id: resolution.jobId, request_id: request.request_id, status: result.status || occurrence?.status || 'ASSIGNED', started_at: result.started_at, started_by: result.started_by });
       }
     } catch (error: any) {
       try {
@@ -286,9 +303,11 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
     setIsMutating(true);
     try {
       const exactJobId = resolution.jobId;
-        await completeJob(exactJobId, request.request_id, visitNotes.trim());
+        const submittedNoteKey = visitNoteKey(exactJobId);
+        await completeJob(exactJobId, request.request_id, (visitNoteDrafts[submittedNoteKey] || '').trim());
         if (!mountedRef.current || sequence !== requestSequenceRef.current) return;
         setShowCompleteConfirmModal(false);
+        setVisitNoteDrafts(previous => { const next = { ...previous }; delete next[submittedNoteKey]; return next; });
         const completedJobs = request.completed_job_ids ? [...request.completed_job_ids] : [];
         if (!completedJobs.includes(exactJobId)) {
           completedJobs.push(exactJobId);
@@ -405,12 +424,9 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
     const pet = bookingPetLabel(request);
     const client = request.client_name || 'the client';
     
-    let dateInfo = '';
-    if (selectedDate) {
-      dateInfo = `Selected Visit Date: ${selectedDate}\nFull Booking Range: ${formatDateRange(request.selected_dates)}`;
-    } else {
-      dateInfo = `Booking Range: ${formatDateRange(request.selected_dates)}`;
-    }
+    const visitDate = occurrence?.occurrence_date || selectedDate || (request.selected_dates?.length === 1 ? request.selected_dates[0] : 'Date unavailable');
+    const visitWindow = occurrence?.occurrence_window || occurrence?.start_time || request.timeframe || 'Legacy window';
+    const dateInfo = `Selected Visit Date: ${visitDate}\nSelected Window: ${visitWindow}`;
 
     return `Confirm completion of the selected care visit for ${pet} (${client}).\n\n${dateInfo}\n\nOnly the exact selected visit is submitted. Other visits are not completed by this action; the booking completes only when all visits are complete.`;
   };
@@ -422,6 +438,11 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   const isAssigned = childStatus === 'ASSIGNED';
   const actionResolution = resolveActionJobId(request, occurrence, jobId);
   const hasExactJob = Boolean(actionResolution.jobId);
+  const selectedNoteKey = actionResolution.jobId ? visitNoteKey(actionResolution.jobId) : null;
+  const visitNotes = selectedNoteKey ? visitNoteDrafts[selectedNoteKey] || '' : '';
+  const setVisitNotes = (value: string) => {
+    if (selectedNoteKey) setVisitNoteDrafts(previous => ({ ...previous, [selectedNoteKey]: value }));
+  };
   const isStarted = Boolean(occurrence?.started_at);
   const canComplete = isStarted || Boolean(occurrence?.legacy);
   // Backend RBAC is authoritative: Approve/Decline/Assign are owner/admin-only
@@ -731,6 +752,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
           {isAssigned && role === 'staff' && (
             <View style={styles.card}>
               <Text style={styles.sectionHeader}>Visit Notes (optional)</Text>
+              <Text>Unsaved notes stay with this visit while this screen is open. Select an exact visit before writing.</Text>
               <TextInput
                 style={styles.notesInput}
                 placeholder="How did the visit go? Any observations..."
@@ -738,6 +760,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
                 multiline={true}
                 numberOfLines={4}
                 maxLength={500}
+                editable={hasExactJob && !isMutating && !isRefreshing}
                 value={visitNotes}
                 onChangeText={setVisitNotes}
               />
