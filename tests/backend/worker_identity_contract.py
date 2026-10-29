@@ -6,6 +6,7 @@ The existing staff path is deliberately delegated, not reimplemented.
 """
 from dataclasses import dataclass, replace
 from enum import Enum
+from decimal import Decimal
 import re
 from typing import FrozenSet, Optional
 
@@ -67,6 +68,7 @@ class Visit:
     status: str = "ASSIGNED"
     started: bool = False
     started_assignment_revision: Optional[int] = None
+    execution_revision: int = 1
     legacy_worker_reference: Optional[str] = None  # display/compatibility ONLY
 
 
@@ -85,6 +87,9 @@ class Operation:
     request_id: str
     job_id: str
     expected_assignment_revision: int
+    operation_id: str
+    payload_digest: str
+    expected_execution_revision: int
 
 
 def deny(reason: str) -> Decision:
@@ -95,8 +100,32 @@ def pending(reason: str) -> Decision:
     return Decision(Outcome.PENDING, reason)
 
 
+MAX_REVISION = 2**63 - 1  # Explicit storage contract bound, not coercion.
+
+
 def valid_revision(value: int) -> bool:
-    return type(value) is int and value >= 1
+    return type(value) is int and 1 <= value <= MAX_REVISION
+
+
+def parse_dynamo_revision(value) -> int:
+    """Explicit DB-boundary conversion; domain records accept exact ints only."""
+    if type(value) is Decimal:
+        if not value.is_finite() or value != value.to_integral_value() or not 1 <= value <= MAX_REVISION:
+            raise ValueError("INVALID_REVISION")
+        value = int(value)
+    if not valid_revision(value):
+        raise ValueError("INVALID_REVISION")
+    return value
+
+
+def valid_operation(operation: Operation) -> bool:
+    return (operation.action in {"START", "COMPLETE"}
+            and isinstance(operation.operation_id, str)
+            and re.fullmatch(r"op_[0-9a-f]{32}", operation.operation_id) is not None
+            and isinstance(operation.payload_digest, str)
+            and re.fullmatch(r"[0-9a-f]{64}", operation.payload_digest) is not None
+            and valid_revision(operation.expected_assignment_revision)
+            and valid_revision(operation.expected_execution_revision))
 
 
 def assess_owner(snapshot: Snapshot, operation: Operation) -> Decision:
@@ -112,6 +141,8 @@ def assess_owner(snapshot: Snapshot, operation: Operation) -> Decision:
         return deny("ROLE_NOT_OWNER")
     if operation.action not in {"START", "COMPLETE"}:
         return deny("UNSUPPORTED_ACTION")
+    if not valid_operation(operation):
+        return deny("INVALID_OPERATION_BINDING")
     if visit.request_id != operation.request_id or visit.job_id != operation.job_id:
         return deny("WRONG_CHILD_OR_PARENT")
     if visit.tenant != caller.tenant:
@@ -144,11 +175,16 @@ def assess_owner(snapshot: Snapshot, operation: Operation) -> Decision:
         return deny("RECIPROCAL_LINK_MISMATCH")
     if worker.worker_id != visit.assigned_worker_id:
         return deny("ASSIGNED_WORKER_MISMATCH")
-    revisions = (worker.version, link.version, visit.assignment_revision, operation.expected_assignment_revision)
+    revisions = (worker.version, link.version, visit.assignment_revision, operation.expected_assignment_revision,
+                 visit.execution_revision, operation.expected_execution_revision)
     if not all(valid_revision(value) for value in revisions):
         return deny("INVALID_REVISION")
     if visit.assignment_revision != operation.expected_assignment_revision:
         return deny("STALE_ASSIGNMENT_REVISION")
+    if visit.execution_revision != operation.expected_execution_revision:
+        return deny("STALE_EXECUTION_REVISION")
+    if visit.started and not valid_revision(visit.started_assignment_revision):
+        return deny("INVALID_EXECUTION_PROVENANCE")
     if type(visit.started) is not bool:
         return deny("INVALID_EXECUTION_PROVENANCE")
     if visit.status == "COMPLETED" or (operation.action == "START" and visit.started):
@@ -172,17 +208,28 @@ class CommitFence:
     worker_version: int
     assignment_revision: int
     parent_revision: int
+    execution_revision: int
+    operation_binding: tuple
 
 
-def capture_fence(snapshot: Snapshot, parent_revision: int) -> CommitFence:
+def capture_fence(snapshot: Snapshot, operation: Operation, parent_revision: int) -> CommitFence:
     if snapshot.worker is None or snapshot.link is None or not valid_revision(parent_revision):
         raise ValueError("Cannot fence missing linkage or parent revision")
+    if not valid_operation(operation) or not all(valid_revision(v) for v in (
+            snapshot.link.version, snapshot.worker.version, snapshot.visit.assignment_revision,
+            snapshot.visit.execution_revision)):
+        raise ValueError("INVALID_FENCE")
+    if (operation.job_id, operation.request_id, operation.expected_assignment_revision,
+            operation.expected_execution_revision) != (snapshot.visit.job_id, snapshot.visit.request_id,
+            snapshot.visit.assignment_revision, snapshot.visit.execution_revision):
+        raise ValueError("STALE_OPERATION")
     return CommitFence(
         (snapshot.caller.issuer, snapshot.caller.subject, snapshot.caller.tenant),
         (snapshot.worker.worker_id, snapshot.worker.staff_id),
         (snapshot.visit.job_id, snapshot.visit.request_id, snapshot.visit.tenant),
         snapshot.link.version, snapshot.worker.version,
-        snapshot.visit.assignment_revision, parent_revision,
+        snapshot.visit.assignment_revision, parent_revision, snapshot.visit.execution_revision,
+        (operation.action, operation.operation_id, operation.payload_digest),
     )
 
 
@@ -193,14 +240,18 @@ def assess_atomic_fence(current: Snapshot, operation: Operation, expected: Commi
         return decision
     if not valid_revision(current_parent_revision):
         return deny("INVALID_PARENT_REVISION")
-    if capture_fence(current, current_parent_revision) != expected:
+    if not isinstance(expected, CommitFence) or not all(valid_revision(v) for v in (
+            expected.link_version, expected.worker_version, expected.assignment_revision,
+            expected.parent_revision, expected.execution_revision)):
+        return deny("INVALID_FENCE")
+    if capture_fence(current, operation, current_parent_revision) != expected:
         return deny("COMMIT_FENCE_CHANGED")
     return decision
 
 
 def legacy_assignment_invalidation(visit: Visit, expected_revision: int) -> Visit:
     """Synthetic postcondition of an ALREADY-authorized legacy writer, not permission."""
-    if not valid_revision(expected_revision) or not valid_revision(visit.assignment_revision) or visit.assignment_revision != expected_revision:
+    if not valid_revision(expected_revision) or not valid_revision(visit.assignment_revision) or visit.assignment_revision >= MAX_REVISION or visit.assignment_revision != expected_revision:
         raise ValueError("STALE_ASSIGNMENT_REVISION")
     return replace(visit, canonical=False, assignment_contract_version=0, assigned_worker_id=None,
                    assignment_revision=visit.assignment_revision + 1)
@@ -220,6 +271,8 @@ def completion_rollup_cas(parent: ParentModel, job_id: str, expected_revision: i
     """Pure model of parent CAS AFTER eligibility; no child update or external effect."""
     if not valid_revision(expected_revision) or not valid_revision(parent.revision) or parent.revision != expected_revision:
         raise ValueError("STALE_PARENT_REVISION")
+    if parent.revision >= MAX_REVISION:
+        raise ValueError("INVALID_PARENT_REVISION")
     if not parent.completed <= parent.children or job_id not in parent.children:
         raise ValueError("WRONG_CHILD_OR_CORRUPT_PARENT")
     if job_id in parent.completed:
