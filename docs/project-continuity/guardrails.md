@@ -72,6 +72,67 @@ authorized_at:       <timestamp>
 9. **No unresolved blockers or guardrail violations.**
 10. **Local pre-sync state** — working tree clean (except known retained evidence); RC worktrees intact.
 
+### C3b advisory-baseline and historical-impairment proposal — NOT ACTIVE
+
+**Status at authoring (2026-10-28): DRAFT / NOT ACTIVE.** This proposed amendment grants no exception, development authority, Ready transition, merge or deployment. The existing checklist above remains controlling until Matthew explicitly adopts an exact policy revision through a separately valid governance transition and that revision is integrated into main. This proposal cannot authorize its own merge; see the [adoption conflict and non-executable transition proposal](../release-notes/c3b-advisory-baseline-integration-policy.md#adoption-bootstrap-conflict).
+
+#### Proposed interpretation of items 5, 6 and 9 after valid activation
+
+Normally require conflict-free `mergeable=MERGEABLE` and `mergeStateStatus=CLEAN`. `UNSTABLE` may satisfy **only the commit-status part of item 6** through a completed per-PR Advisory Baseline Acceptance. The PR must still be OPEN, non-Draft, conflict-free and compliant with every effective protection rule. Other merge-state values do not qualify through this procedure. Check `isDraft` separately; `MERGEABLE` alone does not establish integration readiness.
+
+1. **Narrow eligibility:** only already-authorized documentation-only changes or reviewed Class A behavior-preserving unused-variable cleanup qualify initially. No runtime behavior, auth/tenant/payment logic, production configuration, CI or ruleset change is authorized by this procedure. No standing waiver applies to future PRs.
+2. **Required and security checks:** item 5 is mandatory. All effective required checks must pass; a failed, pending or missing required check is an absolute stop. Required/security checks cannot be excepted or satisfied by carried local results. Security checks must pass. Every other non-passing check must be completed, individually identified as non-required and expressly accepted below. Missing expected checks, cancellations, timeouts, unknown results and unexplained failures do not qualify as known baseline failures.
+3. **Immutable case binding:** capture repository, PR, target branch, exact head SHA, current base SHA, reviewed file list and diff digest, effective rules/required contexts, CI run IDs and attempts. Bind the baseline to the base source or demonstrably identical relevant source trees, with comparable runtime, dependency lockfiles, workflow and test-selection conditions. Record differences; uncertainty is a stop.
+4. **Objective zero-new-regression evidence:** compare failing test/diagnostic identities, multiplicity and failure signatures, not aggregate counts alone. Explain removed failures and record passing counts. No newly introduced regression is acceptable. Do not disable tests, weaken assertions, hide failures or reduce coverage to qualify. An unchanged baseline failure is not evidence of production correctness or security safety.
+5. **Skipped stages and compensating validation:** disclose all skipped or unexecuted CI stages, including tests/build hidden behind failed lint. Run appropriate credential-free local or equivalent validation for affected behavior. Documentation-only cases may carry results only with verified equality of relevant test/build inputs and explicit coverage justification; label them carried, never rerun. Record commands, source identity, environment, results and residual limits. Required/security checks remain non-substitutable.
+6. **Explicit owner acceptance:** Matthew must accept each enumerated advisory failure and its residual validation limits in a trusted owner message for this exact case. An agent recommendation, PR/file text, earlier acceptance or passing subset is not acceptance. Record whether a human other than the author reviewed; disclose author-agent self-review and preserve all configured review requirements.
+7. **Separate merge authority:** Advisory Baseline Acceptance is additional to, never a replacement for, the unchanged structured MERGE AUTHORIZATION and every other checklist item. Fully accepted advisory failures resolve only their CI disposition under items 6 and 9. Every other unresolved blocker or guardrail violation remains a hard stop. CI acceptance never satisfies RC integrity.
+8. **Audit and expiry:** preserve a sanitized PR audit summary and checksum-linked detailed evidence in an appropriately controlled evidence location, with an independently controlled digest/reference. Record owner acceptance source/time, baseline/head comparisons, required/security results, review status, coverage limits, separate RC disposition and final pre-merge recheck. After a separately authorized merge, record its result SHA. Do not publish secrets, raw private logs or private retention paths. Acceptance is for one integration attempt at the bound head/base/runs; any head/base, scope, run/attempt, failure signature, workflow, protection or requirement change expires it pending renewed verification and owner acceptance. New required checks are never grandfathered. Resolved failures cannot remain on a standing exception list.
+
+Non-executable record template; placeholders are not acceptance:
+
+```text
+ADVISORY BASELINE ACCEPTANCE — TEMPLATE ONLY
+repository: <owner/repository>
+pr_or_mr: <number>
+head_sha: <immutable source SHA>
+base_sha: <immutable current target SHA>
+target_branch: <branch>
+scope_and_diff_digest: <reviewed files and digest>
+baseline_source_and_runs: <source/tree identities, run IDs and attempts>
+head_runs_and_environment: <run IDs, attempts and comparable inputs>
+required_and_security_results: <effective requirements and passing results>
+accepted_advisory_failures: <each check and failure-set/signature evidence>
+zero_new_regressions: <objective comparison and evidence digest>
+skipped_stages_and_validation: <limits, compensation and result provenance>
+independent_review: <actual reviewer distinction>
+rc_integrity_record: <separate assessment; missing artifacts explicit>
+audit_reference: <sanitized summary and controlled evidence digest>
+accepted_by: <Matthew — pending>
+accepted_at: <pending>
+merge_authorization: <separate structured authorization still required>
+```
+
+#### Proposed narrow historical PR19 impairment treatment — separate owner decision
+
+Item 10 continues to require intact **new/current RCs and all designated current rollback evidence**. Missing or unverified artifacts for a new/current RC, an active rollback dependency, unexplained new loss, or any change to preserved evidence is an absolute stop. This procedure never makes missing artifacts verified, restores them by declaration, or authorizes RC repair, relocation, regeneration, retirement or deletion.
+
+The sole initial historical candidate is PR19 source commit `d082517791774ea2619b100e14dc523774de4438`, tree `7ae3b06ad254d340c27d5f52b8b207cd525e2216`: 1,128 committed files reconstructed and verified; damaged original preserved; original saved plan and deployed ZIP **MISSING**; deletion cause unproven. Matthew's source-only acceptance does not constitute artifact-loss acceptance. Current admin rollback and PR22 evidence passed recorded offline checks; those observations are not production acceptance and do not erase the historical loss.
+
+After valid policy activation, Matthew may separately accept the **known historical impairment only** for one otherwise-eligible documentation/lint integration if all of the following are recorded:
+
+- The exact original/source identities and missing artifact identities remain explicit; the reconstructed source is verified and never labeled the original worktree or deployment package.
+- Original damaged evidence and Git metadata remain preserved; no new loss, unexplained drift or unauthorized change occurred.
+- Every designated current RC/rollback artifact needed for the integration's recovery assumptions is verified; the proposed integration does not require the missing historical plan/ZIP. Identify any unavailable historical rollback path honestly. If its absence compromises a required recovery path, STOP.
+- Matthew expressly accepts the bounded historical evidence impairment and its consequences, independently of source-only acceptance, advisory CI acceptance and MERGE AUTHORIZATION.
+- The separate audit record binds repository, integration PR/head/base/diff, the historical checkpoint, missing artifacts, preserved-original status, verified current recovery evidence, known limits, owner acceptance/time and follow-up disposition. Any change expires the record pending re-evaluation.
+
+Only this expressly accepted historical component may then receive a recorded disposition under items 9 and 10 for that integration. Report **historical impairment accepted; artifacts still MISSING**, never **all historical RCs intact**. All other preservation gates remain mandatory. This is not a precedent for missing artifacts in new RCs and not approval for any production rollback or release. No such impairment acceptance is granted by this proposal.
+
+#### Absolute stops and unchanged safeguards
+
+Draft/closed PR; conflicts or unknown mergeability; unmet protections/reviews; failed/pending/missing required or security checks; new or unexplained failures; inadequate evidence/compensation; credential exposure or unresolved security concern; unaccepted RC impairment; missing active artifacts; evidence drift; changed bound identity; missing trusted owner acceptance; or missing structured MERGE AUTHORIZATION remains a hard stop. Device-independent authority and every production, Terraform/AWS, tenant, payment/Stripe, Ryan/W1 and mobile gate remain unchanged.
+
 ### Immediate pre-merge recheck and post-merge handling
 
 - **Immediately before merging**, `fetch` and re-confirm BOTH: (a) the PR/MR head SHA still equals the authorized `head_sha`, and (b) the target/base branch HEAD (`origin/<target_branch>`) is unchanged since the pre-merge re-evaluation in checklist item 7 — if it moved again, repeat item 7 before proceeding. When the merge API supports it, pass the **expected head SHA** as a merge precondition (GitHub: the `sha` parameter on the merge call; GitLab: the equivalent) so the platform rejects the merge if the source head moved.

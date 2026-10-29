@@ -108,6 +108,8 @@ This section makes the role model explicitly device-independent and defines how 
 - A PR/MR is a proposal for integration review, not an authorization to deploy; **merge authorization is integration-only and never authorizes deployment, `terraform apply`, Stripe, tenant, production-test, Ryan-test, or mobile-distribution actions**, which remain separately gated.
 - Any changed head SHA, **target/base branch movement since approval that alters the effective merge diff, required checks, or mergeability**, unexpected file/diff scope, failing or pending required check, or changed approval scope is a hard stop requiring renewed owner approval. The agent must verify the current target-branch HEAD and re-evaluate per the guardrails checklist when the base has advanced.
 
+**C3b proposal (2026-10-28; NOT ACTIVE):** the [canonical proposed advisory-baseline procedure](guardrails.md#c3b-advisory-baseline-and-historical-impairment-proposal--not-active) defines prospective, per-PR owner acceptance for non-required baseline failures, with passing required/security checks and unchanged merge authorization/review safeguards. Its historical PR19 impairment treatment requires a distinct owner record, preserves MISSING artifact dispositions and never waives new/current RC integrity. Neither procedure authorizes its own adoption or any current PR merge. Until valid adoption, existing CLEAN and RC-intact gates control. See the [separate bootstrap proposal](../release-notes/c3b-advisory-baseline-integration-policy.md#adoption-bootstrap-conflict).
+
 ### (d) Task-status tracking convention
 
 - Track task status by reusing the existing **resume-block format** already defined in the steering file's Task Completion Protocol. For each tracked task record:

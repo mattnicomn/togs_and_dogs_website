@@ -4,6 +4,8 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 
 ## 🌟 Featured / Recent
 
+- [**C3b Advisory Baseline Integration Policy — DRAFT / NOT ACTIVE**](c3b-advisory-baseline-integration-policy.md) (2026-10-28) — Prospective per-PR owner acceptance proposal; required/security checks and all other merge safeguards remain mandatory. Separate historical PR19 impairment treatment retains original plan/ZIP **MISSING** and intact-new/current-RC requirements. No policy activation, exception, Ready transition or merge authorized. Existing adoption blockers and a non-executable transition proposal are explicit.
+
 > PTM0-S1/F01 is complete. S2A.3 and S2D.1 are deployed, not fully
 > production-accepted. S2 acceptance is PARTIAL / PRELIMINARY — P1 only;
 > P2–P5 are deferred, not failed or passed. F02 and PTM-0 remain incomplete.
