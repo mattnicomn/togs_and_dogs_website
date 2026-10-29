@@ -4,6 +4,8 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 
 ## 🌟 Featured / Recent
 
+- [**Canonical Worker Identity — Slice 1 OFFLINE ONLY**](canonical-worker-identity-offline-contracts.md) (2026-10-29) — Pure owner identity/assignment predicates, synthetic race contracts and explicit pending policy decisions. No backend/runtime integration, schema migration, owner execution activation or mobile release.
+
 > PTM0-S1/F01 is complete. S2A.3 and S2D.1 are deployed, not fully
 > production-accepted. S2 acceptance is PARTIAL / PRELIMINARY — P1 only;
 > P2–P5 are deferred, not failed or passed. F02 and PTM-0 remain incomplete.
