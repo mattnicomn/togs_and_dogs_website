@@ -4,6 +4,8 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 
 ## 🌟 Featured / Recent
 
+- [**PR19 Historical RC — Accepted Source-Only Reconstruction**](pr19-historical-rc-source-reconstruction.md) (2026-10-28) — **`PR19_SOURCE_ONLY_RECOVERY_ACCEPTED_HISTORICAL_ARTIFACTS_MISSING`**. Matthew accepts the verified 1,128-file source reconstruction; original plan and deployed ZIP remain **MISSING**, damaged original preserved. Offline rollback/PR22 checks passed; cause unproven; documentation/evidence maintenance only, no deployment or new production acceptance. ACL/Temp retention follow-ups and PR #43 governance remain separate.
+
 > PTM0-S1/F01 is complete. S2A.3 and S2D.1 are deployed, not fully
 > production-accepted. S2 acceptance is PARTIAL / PRELIMINARY — P1 only;
 > P2–P5 are deferred, not failed or passed. F02 and PTM-0 remain incomplete.

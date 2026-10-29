@@ -6,6 +6,7 @@
 
 | Lesson | Context |
 |--------|---------|
+| **Distinguish reconstructed source from original deployment evidence** | PR19 source-only reconstruction was accepted on 2026-10-28 after 1,128 files were verified, while its original saved plan/ZIP remained MISSING. Git can recover committed source, not gitignored artifact bytes. The damaged RC was under a temporary directory; deletion cause is unproven. Durable preservation, ACL review and retention-standard adoption remain separately scoped follow-ups. See [the recovery closeout](../release-notes/pr19-historical-rc-source-reconstruction.md). |
 | **Do not rely on long chat history** | Context is lost between sessions. Use docs/project-continuity/ instead. |
 | **Keep plan and apply separated** | Planning is safe to commit. Apply requires explicit Matthew approval. |
 | **Always remove .tfplan files from git** | Several were accidentally tracked; cleaned up in 18L hygiene. |

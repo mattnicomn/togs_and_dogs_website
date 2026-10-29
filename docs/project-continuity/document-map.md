@@ -15,6 +15,7 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 
 | Topic | Location |
 |-------|----------|
+| PR19 historical RC source-only reconstruction (owner-accepted source; original saved plan/ZIP MISSING; original preserved; offline rollback checks only; no production change) | `docs/release-notes/pr19-historical-rc-source-reconstruction.md` |
 | Release notes index | `docs/release-notes/index.md` |
 | Individual release notes | `docs/release-notes/release-*.md` |
 | W4 Option A client workflow status presentation (frontend-only; PR #24 squash-merged into `main`, not deployed — `W4_OPTION_A_MERGED_NOT_DEPLOYED` / `W4_DEPLOYED=NO`) | `docs/release-notes/w4-client-workflow-status-presentation.md` |

@@ -82,3 +82,11 @@ failures and no cents-fix regression (pre-existing `ce6b724`-lineage baseline fa
 ## Next owner decision
 
 `M4_C_DECLINE_AUTHORIZED=NO — OWNER DECISION REQUIRED` (the single mobile Decline of the M4 test quote).
+
+---
+
+## 2026-10-28 — Historical retention qualification: accepted source-only reconstruction
+
+The deployment and M4-B outcomes above remain the historical record. A later retention investigation found the original PR19 worktree's tracked files, saved plan and deployment ZIP absent. Matthew now accepts a separate, verified reconstruction of source commit `d082517791774ea2619b100e14dc523774de4438` as **source-only evidence** (1,128 committed files; tree `7ae3b06ad254d340c27d5f52b8b207cd525e2216`). The original damaged worktree and Git metadata were preserved without repair.
+
+The original saved plan and deployment ZIP remain **MISSING**. Neither was regenerated or restored, and deletion cause remains unproven. Offline current-admin-rollback and PR22 checksum checks passed, but those observations do not recover the historical PR19 artifacts or establish current production acceptance. No production operations occurred. This qualification does not newly attest to every historical rollback artifact's continued availability. See [the source-only recovery closeout](pr19-historical-rc-source-reconstruction.md) for evidence limits and separately scoped follow-ups.
