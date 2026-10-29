@@ -100,3 +100,11 @@ functional quote mutation (Send/Accept/Decline) was performed.
   `SCHEDULING_PR_MERGE_AUTHORIZED=NO`.
 - Stripe sandbox-only; `RYAN_TESTING_AUTHORIZED=NO`; no second tenant; no mobile
   distribution; no production test data.
+
+---
+
+## 2026-10-28 — Historical PR19 rollback-evidence qualification
+
+The deployment and convergence outcomes above remain the historical record. The earlier statement that historical RC worktrees/artifacts were preserved describes that deployment-time checkpoint. A later investigation found the PR19 original saved plan and deployed ZIP **MISSING**; the original damaged worktree was preserved without repair. Matthew accepts verified reconstructed PR19 source as **source-only evidence**, not recovery of the original `QgEdTeYYMYF3k+b4f22NoHv2I7GEowtO1ynQ7ISafVk=` package bytes.
+
+The PR22 RC backend ZIP and saved plan, and the documented current admin rollback copies, passed offline checksum verification during the recovery checkpoint. This does not restore the missing PR19 rollback package, prove every historical rollback remains available, or constitute current production acceptance. No production operations occurred; deletion cause remains unproven. See [the source-only recovery closeout](pr19-historical-rc-source-reconstruction.md) for the precise integrity and retention status.
