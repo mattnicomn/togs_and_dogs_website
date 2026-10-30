@@ -155,6 +155,7 @@ class BookingAccess:
     current: bool = False
     tenant_active: bool = False
     booking_allowed: bool = False
+    read_id: str = ""
 
 
 def authorize(submission, access, snapshot):
@@ -247,16 +248,96 @@ def prepare(submission,access,snapshot,now,assumption=None):
     return Plan(submission,access,snapshot,assumption,receipt)
 
 
-def replay(submission,access,current_snapshot,receipt,lifetime=None):
-    """Current trusted booking access is required; replay never reapplies mutation."""
-    authorize(submission,access,current_snapshot)
-    need(type(receipt) is Receipt, "RECEIPT_SHAPE")
+@dataclass(frozen=True)
+class CurrentBookingEvidence:
+    """Trusted adapter observation, not a client input schema or auth verifier."""
+    snapshot: Snapshot
+    identity_fields: tuple
+    read_id: str
+    verified: bool = False
+    authoritative: bool = False
+    current: bool = False
+
+
+@dataclass(frozen=True)
+class StoredReceiptEvidence:
+    """Immutable canonical stored item from the same authoritative read context.
+
+    A prepared Receipt is deliberately not this type. Flags attest a trusted
+    persistence adapter's observation; this module cannot authenticate storage.
+    No function here promotes a prepared Receipt into authoritative evidence.
+    """
+    item_json: str
+    read_id: str
+    verified: bool = False
+    authoritative: bool = False
+    current: bool = False
+
+
+@dataclass(frozen=True)
+class RefusalEvidence:
+    binding: str
+    read_id: str
+    verified: bool = False
+    authoritative: bool = False
+    operation_not_committed: bool = False
+    attempts_quiescent: bool = False
+
+
+def current_booking(submission, access, evidence):
+    need(type(evidence) is CurrentBookingEvidence, "CURRENT_BOOKING_EVIDENCE_REQUIRED")
+    need(evidence.verified is True and evidence.authoritative is True and evidence.current is True,
+         "CURRENT_BOOKING_EVIDENCE_UNVERIFIED")
+    identifier(evidence.read_id)
+    need(type(evidence.snapshot) is Snapshot, "CURRENT_BOOKING_SHAPE")
+    authorize(submission,access,evidence.snapshot)
+    need(type(access.read_id) is str and access.read_id==evidence.read_id, "STALE_ACCESS_READ")
+    need(type(evidence.identity_fields) is tuple, "PERSISTED_IDENTITY_SHAPE")
+    actual={}
+    for pair in evidence.identity_fields:
+        need(type(pair) is tuple and len(pair)==2, "PERSISTED_IDENTITY_SHAPE")
+        field,value=pair
+        need(type(field) is str and field in {"client_email","linked_client_profile_id","cognito_sub"}
+             and field not in actual, "PERSISTED_IDENTITY_SHAPE")
+        actual[field]=value
+    for field,expected in access.bindings:
+        need(field in actual and type(actual[field]) is str and bool(actual[field]) and actual[field]==expected,
+             "PERSISTED_IDENTITY_MISMATCH")
+    return evidence.snapshot
+
+
+def stored_operation(submission, snapshot, evidence, read_id):
+    need(type(evidence) is StoredReceiptEvidence, "STORED_OPERATION_EVIDENCE_REQUIRED")
+    need(evidence.verified is True and evidence.authoritative is True and evidence.current is True,
+         "STORED_OPERATION_EVIDENCE_UNVERIFIED")
+    need(type(evidence.read_id) is str and evidence.read_id==read_id, "INCOHERENT_OPERATION_READ")
+    need(type(evidence.item_json) is str, "STORED_RECEIPT_SHAPE")
+    try: item=json.loads(evidence.item_json)
+    except ValueError: raise SubmissionError("STORED_RECEIPT_SHAPE") from None
+    need(type(item) is dict and encoded(item)==evidence.item_json, "STORED_RECEIPT_SHAPE")
+    fields=set(Receipt.__dataclass_fields__)
+    need(set(item)==fields|{"PK","SK","commit_state","committed_revision","receipt_digest"}, "STORED_RECEIPT_SHAPE")
+    need(item["PK"]=="CANCEL_SUBMISSION#"+submission.tenant+"#"+submission.operation
+         and item["SK"]=="RECEIPT" and item["commit_state"]=="COMMITTED", "STORED_RECEIPT_LOCATION")
+    receipt=Receipt(**{k:item[k] for k in fields})
     receipt.validate(submission)
+    need(type(receipt.source_revision) is int, "STORED_RECEIPT_SHAPE")
+    committed=revision(item["committed_revision"])
+    need(type(item["committed_revision"]) is int and committed==receipt.source_revision+1
+         and snapshot.revision>=committed and snapshot.revision>receipt.source_revision, "INCOHERENT_COMMIT_REVISION")
+    need(item["receipt_digest"]==digest(receipt.__dict__), "STORED_RECEIPT_DIGEST")
+    need(receipt.incarnation==snapshot.incarnation, "LIFETIME_CONFLICT")
+    return receipt
+
+
+def replay(submission,access,booking_evidence,operation_evidence,lifetime=None):
+    """No mutation: revalidate current booking identity and authoritative commit evidence."""
+    snapshot=current_booking(submission,access,booking_evidence)
+    receipt=stored_operation(submission,snapshot,operation_evidence,booking_evidence.read_id)
     need(type(lifetime) is dict and lifetime.get("PK")=="LIFETIME#"+submission.token()
-         and lifetime.get("SK")=="PERMANENT" and lifetime.get("incarnation")==current_snapshot.incarnation
+         and lifetime.get("SK")=="PERMANENT" and lifetime.get("incarnation")==snapshot.incarnation
          and lifetime.get("retired") is False and "ttl" not in lifetime and "expires_at" not in lifetime, "LIFETIME_CONFLICT")
-    need(receipt.incarnation==current_snapshot.incarnation, "LIFETIME_CONFLICT")
-    return receipt.response()  # Original result, not a promise about current booking status.
+    return receipt.response()  # Original submission result, not current booking status.
 
 
 def av(value):
@@ -300,21 +381,28 @@ def transaction(plan,table_name):
     lifetime={"TableName":table_name,"Key":attrs({"PK":"LIFETIME#"+sub.token(),"SK":"PERMANENT"}),
         "ConditionExpression":"incarnation = :inc AND retired = :no AND attribute_type(retired, :bool_type) AND attribute_not_exists(#ttl) AND attribute_not_exists(#expires)",
         "ExpressionAttributeNames":{"#ttl":"ttl","#expires":"expires_at"},"ExpressionAttributeValues":attrs({":inc":snap.incarnation,":no":False,":bool_type":"BOOL"})}
-    saved={"PK":"CANCEL_SUBMISSION#"+sub.tenant+"#"+sub.operation,"SK":"RECEIPT",**receipt.__dict__}
+    saved={"PK":"CANCEL_SUBMISSION#"+sub.tenant+"#"+sub.operation,"SK":"RECEIPT",**receipt.__dict__,
+           "commit_state":"COMMITTED","committed_revision":snap.revision+1,"receipt_digest":digest(receipt.__dict__)}
     receipt_put={"TableName":table_name,"Item":attrs(saved),"ConditionExpression":"attribute_not_exists(PK)"}
     request={"TransactItems":[{"Update":update},{"ConditionCheck":reservation},{"ConditionCheck":lifetime},{"Put":receipt_put}]}
     need(len(update["ConditionExpression"].encode())<=4096 and len(encoded(request).encode())*2+4096<300*1024,"OVERSIZE_REFUSED")
     return request
 
 
-def persistence_outcome(submission,access,snapshot,receipt=None,confirmed_refusal=False,lifetime=None):
-    """No receipt after timeout is ambiguous, never proof of non-commit/quiescence."""
-    authorize(submission,access,snapshot)
-    need(type(confirmed_refusal) is bool,"OUTCOME_SHAPE")
-    if receipt is not None:
-        need(not confirmed_refusal,"OUTCOME_CONFLICT")
-        return {"state":"REPLAY_CONFIRMED","response":replay(submission,access,snapshot,receipt,lifetime)}
-    return {"state":"REFUSED" if confirmed_refusal else "UNKNOWN_NO_BLIND_RETRY"}
+def persistence_outcome(submission,access,booking_evidence,operation_evidence=None,confirmed_refusal=False,lifetime=None):
+    """Missing receipt remains UNKNOWN; neither raw metadata nor a bool proves outcome."""
+    current_booking(submission,access,booking_evidence)
+    if operation_evidence is not None:
+        need(confirmed_refusal is False, "OUTCOME_CONFLICT")
+        return {"state":"REPLAY_CONFIRMED","response":replay(submission,access,booking_evidence,operation_evidence,lifetime)}
+    if confirmed_refusal is not False:
+        need(type(confirmed_refusal) is RefusalEvidence, "AUTHORITATIVE_REFUSAL_REQUIRED")
+        proof=confirmed_refusal
+        need(proof.verified is True and proof.authoritative is True and proof.operation_not_committed is True
+             and proof.attempts_quiescent is True, "AUTHORITATIVE_REFUSAL_REQUIRED")
+        need(proof.binding==submission.binding() and proof.read_id==booking_evidence.read_id, "REFUSAL_BINDING")
+        return {"state":"REFUSED"}
+    return {"state":"UNKNOWN_NO_BLIND_RETRY"}
 
 
 def operator_recovery(*_args,**_kwargs):

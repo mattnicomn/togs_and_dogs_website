@@ -1,5 +1,6 @@
 """Synthetic conditions and real in-memory UpdateExpression evaluation; no clients."""
 import ast
+import json
 from copy import deepcopy
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,7 @@ from moto.dynamodb.parsing.executors import UpdateExpressionExecutor
 from test_worker_identity_expression_behavior import evaluates
 from common.cancellation_submission_contract import (
     SubmissionError, Submission, BookingAccess, StatusAssumption, Receipt, Plan, MARKERS, STATUSES,
+    CurrentBookingEvidence, StoredReceiptEvidence, RefusalEvidence, encoded, digest, revision,
     parse_snapshot, source_status_matrix, prepare, replay, warning, transaction, persistence_outcome, operator_recovery,
 )
 
@@ -64,20 +66,38 @@ class MemoryStore:
 
     def current(self,sub):return parse_snapshot(self.rows[(sub.key()["PK"],sub.key()["SK"])],sub)
 
+    def current_evidence(self,sub):
+        item=self.rows[(sub.key()["PK"],sub.key()["SK"])]
+        snapshot=self.current(sub)
+        fields=tuple((k,item[k]) for k in ("client_email","linked_client_profile_id","cognito_sub") if k in item)
+        read_id="read-"+digest([snapshot.__dict__,fields])[:32]
+        return CurrentBookingEvidence(snapshot,fields,read_id,True,True,True)
+
     def current_access(self,plan):
-        s=self.current(plan.submission)
-        return replace(plan.access,revision=s.revision,incarnation=s.incarnation)
+        evidence=self.current_evidence(plan.submission)
+        # This fake refreshes observation identity, NOT the actor's booking binding.
+        # Changed persisted identity must therefore be refused by the core guard.
+        return replace(plan.access,revision=evidence.snapshot.revision,incarnation=evidence.snapshot.incarnation,read_id=evidence.read_id)
 
     def receipt(self,sub):
         item=self.rows.get(("CANCEL_SUBMISSION#"+sub.tenant+"#"+sub.operation,"RECEIPT"))
-        return None if item is None else Receipt(**{k:v for k,v in item.items() if k not in {"PK","SK"}})
+        return None if item is None else Receipt(**{k:item[k] for k in Receipt.__dataclass_fields__})
+
+    def operation_evidence(self,sub):
+        item=deepcopy(self.rows.get(("CANCEL_SUBMISSION#"+sub.tenant+"#"+sub.operation,"RECEIPT")))
+        if item is None:return None
+        # Trusted test adapter observes only published rows, never Plan.receipt.
+        # Real DB-boundary normalization must be strict, not bool/float coercion.
+        for field in ("source_revision","committed_revision"):
+            item[field]=revision(item[field])
+        return StoredReceiptEvidence(encoded(item),self.current_evidence(sub).read_id,True,True,True)
 
     def lifetime(self,sub):return self.rows.get(("LIFETIME#"+sub.token(),"PERMANENT"))
 
     def submit(self,plan,access=None,conflict=False,timeout=None,receipt_race=False):
         sub=plan.submission
         receipt=self.receipt(sub)
-        if receipt is not None:return replay(sub,access or plan.access,self.current(sub),receipt,self.lifetime(sub))
+        if receipt is not None:return replay(sub,access or plan.access,self.current_evidence(sub),self.operation_evidence(sub),self.lifetime(sub))
         request=transaction(plan,"offline-submissions")
         if timeout=="before":raise TimeoutError("UNKNOWN")
         if receipt_race:
@@ -172,7 +192,7 @@ class CancellationSubmissionTests(unittest.TestCase):
         p,item=plan_fixture();s=MemoryStore(p,item);s.submit(p)
         for delta in ({"reason":"changed"},{"actor":"actor-b"}):
             sub=replace(p.submission,**delta);access=replace(s.current_access(p),actor=sub.actor);before=deepcopy(s.rows)
-            with self.assertRaises(SubmissionError):replay(sub,access,s.current(sub),s.receipt(sub))
+            with self.assertRaises(SubmissionError):replay(sub,access,s.current_evidence(sub),s.operation_evidence(sub),s.lifetime(sub))
             self.assertEqual(s.rows,before)
 
     def test_replay_requires_fresh_access_and_same_lifetime(self):
@@ -180,7 +200,7 @@ class CancellationSubmissionTests(unittest.TestCase):
         with self.assertRaises(SubmissionError):s.submit(p)
         with self.assertRaises(SubmissionError):s.submit(p,access=replace(s.current_access(p),current=False))
         snap=replace(s.current(p.submission),incarnation="new-life")
-        with self.assertRaises(SubmissionError):replay(p.submission,replace(s.current_access(p),incarnation="new-life"),snap,s.receipt(p.submission))
+        with self.assertRaises(SubmissionError):replay(p.submission,replace(s.current_access(p),incarnation="new-life"),replace(s.current_evidence(p.submission),snapshot=snap),s.operation_evidence(p.submission),s.lifetime(p.submission))
 
     def test_replay_after_admin_decision_does_not_reopen_request(self):
         p,item=plan_fixture();s=MemoryStore(p,item);response=s.submit(p)
@@ -290,24 +310,24 @@ class CancellationSubmissionTests(unittest.TestCase):
         p,item=plan_fixture();s=MemoryStore(p,item);before=deepcopy(s.rows)
         with self.assertRaises(SubmissionError):s.submit(p,conflict=True)
         self.assertEqual(s.rows,before)
-        self.assertEqual(persistence_outcome(p.submission,p.access,p.snapshot,confirmed_refusal=True),{"state":"REFUSED"})
+        self.assertEqual(persistence_outcome(p.submission,s.current_access(p),s.current_evidence(p.submission),confirmed_refusal=RefusalEvidence(p.submission.binding(),s.current_evidence(p.submission).read_id,True,True,True,True)),{"state":"REFUSED"})
 
     def test_timeout_before_commit_is_unknown_not_automatic_retry(self):
         p,item=plan_fixture();s=MemoryStore(p,item);before=deepcopy(s.rows)
         with self.assertRaises(TimeoutError):s.submit(p,timeout="before")
         self.assertEqual(s.rows,before)
-        self.assertEqual(persistence_outcome(p.submission,p.access,p.snapshot),{"state":"UNKNOWN_NO_BLIND_RETRY"})
+        self.assertEqual(persistence_outcome(p.submission,s.current_access(p),s.current_evidence(p.submission)),{"state":"UNKNOWN_NO_BLIND_RETRY"})
 
     def test_timeout_after_commit_reconciles_receipt_once(self):
         p,item=plan_fixture();s=MemoryStore(p,item)
         with self.assertRaises(TimeoutError):s.submit(p,timeout="after")
-        result=persistence_outcome(p.submission,s.current_access(p),s.current(p.submission),s.receipt(p.submission),lifetime=s.lifetime(p.submission))
+        result=persistence_outcome(p.submission,s.current_access(p),s.current_evidence(p.submission),s.operation_evidence(p.submission),lifetime=s.lifetime(p.submission))
         self.assertEqual(result["state"],"REPLAY_CONFIRMED");self.assertEqual(result["response"],p.receipt.response())
         self.assertEqual(len(s.rows[(item["PK"],item["SK"])]["audit_log"]),2)
 
     def test_receipt_and_refusal_cannot_both_be_claimed(self):
-        p,item=plan_fixture()
-        with self.assertRaises(SubmissionError):persistence_outcome(p.submission,p.access,p.snapshot,p.receipt,True)
+        p,item=plan_fixture();s=MemoryStore(p,item);s.submit(p)
+        with self.assertRaises(SubmissionError):persistence_outcome(p.submission,s.current_access(p),s.current_evidence(p.submission),s.operation_evidence(p.submission),True)
 
     def test_date_only_midnight_utc_and_exact_24_hours(self):
         self.assertTrue(warning("2026-10-31",NOW))
@@ -398,7 +418,7 @@ class CancellationSubmissionTests(unittest.TestCase):
 
 
     def test_replay_rejects_missing_retired_expiring_or_wrong_lifetime(self):
-        p,item=plan_fixture();s=MemoryStore(p,item);s.submit(p);context=s.current_access(p);snap=s.current(p.submission);receipt=s.receipt(p.submission)
+        p,item=plan_fixture();s=MemoryStore(p,item);s.submit(p);context=s.current_access(p);snap=s.current_evidence(p.submission);receipt=s.operation_evidence(p.submission)
         live=s.lifetime(p.submission)
         for value in (None,live|{"retired":True},live|{"retired":0},live|{"ttl":None},live|{"incarnation":"other-life"},live|{"PK":"LIFETIME#wrong"}):
             with self.assertRaises(SubmissionError):replay(p.submission,context,snap,receipt,value)
@@ -416,3 +436,157 @@ class CancellationSubmissionTests(unittest.TestCase):
         self.assertEqual(s.rows[key],before)
         self.assertEqual(len(s.rows[key]["audit_log"]),1)
         self.assertIsNotNone(s.receipt(p.submission))
+
+
+class CorrectiveReplayEvidenceTests(unittest.TestCase):
+    def committed(self):
+        plan,item=plan_fixture();store=MemoryStore(plan,item);store.submit(plan)
+        return plan,store
+
+    def assert_refused(self,plan,store,booking=None,operation=None,access=None):
+        before=deepcopy(store.rows)
+        with self.assertRaises(SubmissionError):
+            replay(plan.submission,access or store.current_access(plan),
+                   booking if booking is not None else store.current_evidence(plan.submission),
+                   operation if operation is not None else store.operation_evidence(plan.submission),
+                   store.lifetime(plan.submission))
+        self.assertEqual(store.rows,before)
+
+    def tampered_operation(self,store,sub,**delta):
+        evidence=store.operation_evidence(sub);item=json.loads(evidence.item_json);item.update(delta)
+        if any(k in Receipt.__dataclass_fields__ for k in delta):
+            item["receipt_digest"]=digest({k:item[k] for k in Receipt.__dataclass_fields__})
+        return replace(evidence,item_json=encoded(item))
+
+    def test_prepared_uncommitted_receipt_never_confirms(self):
+        p,item=plan_fixture();s=MemoryStore(p,item);before=deepcopy(s.rows)
+        with self.assertRaisesRegex(SubmissionError,"STORED_OPERATION_EVIDENCE_REQUIRED"):
+            persistence_outcome(p.submission,s.current_access(p),s.current_evidence(p.submission),p.receipt,lifetime=s.lifetime(p.submission))
+        self.assertIsNone(s.operation_evidence(p.submission));self.assertEqual(s.rows,before)
+        self.assertEqual(s.rows[(item["PK"],item["SK"])]["status"],"ASSIGNED")
+
+    def test_wrapping_prepared_metadata_is_not_stored_evidence(self):
+        p,item=plan_fixture();s=MemoryStore(p,item);b=s.current_evidence(p.submission)
+        wrapped=StoredReceiptEvidence(encoded(p.receipt.__dict__),b.read_id,True,True,True)
+        self.assert_refused(p,s,operation=wrapped)
+
+    def test_independent_revision_advance_without_receipt_stays_unknown(self):
+        p,item=plan_fixture();s=MemoryStore(p,item);s.rows[(item["PK"],item["SK"])]["legacy_write_revision"]=2
+        result=persistence_outcome(p.submission,s.current_access(p),s.current_evidence(p.submission),s.operation_evidence(p.submission))
+        self.assertEqual(result,{"state":"UNKNOWN_NO_BLIND_RETRY"})
+        self.assert_refused(p,s,operation=p.receipt)
+        # Even a complete planned Put plus revision progression has no provenance.
+        spec=transaction(p,"offline-submissions")["TransactItems"][-1]["Put"]
+        planned={k:TypeDeserializer().deserialize(v) for k,v in spec["Item"].items()}
+        for field in ("source_revision","committed_revision"):planned[field]=revision(planned[field])
+        unverified=StoredReceiptEvidence(encoded(planned),s.current_evidence(p.submission).read_id)
+        self.assert_refused(p,s,operation=unverified)
+
+    def test_equal_and_future_source_revision_refuse_even_with_matching_digest(self):
+        p,s=self.committed();current=s.current(p.submission).revision
+        for source in (current,current+100):
+            evidence=self.tampered_operation(s,p.submission,source_revision=source,committed_revision=source+1)
+            self.assert_refused(p,s,operation=evidence)
+
+    def test_committed_revision_must_be_exact_source_plus_one(self):
+        p,s=self.committed()
+        for value in (1,3,True,2.0,"2",None):
+            self.assert_refused(p,s,operation=self.tampered_operation(s,p.submission,committed_revision=value))
+
+    def test_wrong_stored_operation_target_actor_issuer_payload_and_incarnation_refuse(self):
+        p,s=self.committed()
+        for delta in ({"operation":"other-op"},{"tenant":"tenant_b"},{"client_id":"client-b"},
+                      {"request_id":"request-b"},{"actor":"actor-b"},{"issuer":"https://other.example.invalid"},
+                      {"binding":"0"*64},{"incarnation":"other-life"}):
+            self.assert_refused(p,s,operation=self.tampered_operation(s,p.submission,**delta))
+
+    def test_wrong_storage_location_state_or_receipt_digest_refuse(self):
+        p,s=self.committed()
+        for delta in ({"PK":"CANCEL_SUBMISSION#tenant_a#other-op"},{"SK":"PREPARED"},
+                      {"commit_state":"PREPARED"},{"receipt_digest":"0"*64}):
+            self.assert_refused(p,s,operation=self.tampered_operation(s,p.submission,**delta))
+
+    def test_stored_evidence_flags_and_coherent_read_are_required(self):
+        p,s=self.committed();e=s.operation_evidence(p.submission)
+        for field in ("verified","authoritative","current"):
+            for value in (False,1,"true",None):self.assert_refused(p,s,operation=replace(e,**{field:value}))
+        self.assert_refused(p,s,operation=replace(e,read_id="other-read"))
+        self.assert_refused(p,s,operation=json.loads(e.item_json))
+
+    def test_incomplete_extra_and_noncanonical_stored_items_refuse(self):
+        p,s=self.committed();e=s.operation_evidence(p.submission);item=json.loads(e.item_json)
+        for value in (encoded({k:v for k,v in item.items() if k!="committed_revision"}),
+                      encoded(item|{"ttl":None}),json.dumps(item,indent=2),"not-json"):
+            self.assert_refused(p,s,operation=replace(e,item_json=value))
+
+    def test_timeout_before_commit_remains_unknown_with_no_receipt_evidence(self):
+        p,item=plan_fixture();s=MemoryStore(p,item)
+        with self.assertRaises(TimeoutError):s.submit(p,timeout="before")
+        self.assertEqual(persistence_outcome(p.submission,s.current_access(p),s.current_evidence(p.submission)),{"state":"UNKNOWN_NO_BLIND_RETRY"})
+
+    def test_timeout_after_commit_requires_stored_observation_not_prepared_receipt(self):
+        p,item=plan_fixture();s=MemoryStore(p,item)
+        with self.assertRaises(TimeoutError):s.submit(p,timeout="after")
+        self.assert_refused(p,s,operation=p.receipt)
+        result=persistence_outcome(p.submission,s.current_access(p),s.current_evidence(p.submission),s.operation_evidence(p.submission),lifetime=s.lifetime(p.submission))
+        self.assertEqual(result,{"state":"REPLAY_CONFIRMED","response":p.receipt.response()})
+
+    def test_changed_removed_null_and_malformed_current_identity_refuse(self):
+        for value in ("changed","",None,False,1,[],{},"REMOVED"):
+            p,s=self.committed();key=(p.submission.key()["PK"],p.submission.key()["SK"])
+            if value=="REMOVED":del s.rows[key]["client_email"]
+            else:s.rows[key]["client_email"]=value
+            self.assert_refused(p,s)
+
+    def test_every_relied_identity_field_is_compared_to_persisted_value(self):
+        for field in ("client_email","linked_client_profile_id","cognito_sub"):
+            sub,item,access,snapshot,policy=fixture();item[field]="actor-binding"
+            access=replace(access,bindings=((field,"actor-binding"),))
+            p=prepare(sub,access,parse_snapshot(item,sub),NOW,policy);s=MemoryStore(p,item);s.submit(p)
+            s.rows[(item["PK"],item["SK"])][field]="someone-else"
+            self.assert_refused(p,s)
+
+    def test_stale_read_or_revision_context_after_identity_change_refuses(self):
+        p,s=self.committed();access=s.current_access(p);key=(p.submission.key()["PK"],p.submission.key()["SK"])
+        s.rows[key]["client_email"]="changed"
+        self.assert_refused(p,s,access=access)
+        p,s=self.committed();access=s.current_access(p);s.rows[key]["legacy_write_revision"]=3
+        self.assert_refused(p,s,access=access)
+
+    def test_booking_evidence_flags_shape_and_binding_fields_fail_closed(self):
+        p,s=self.committed();e=s.current_evidence(p.submission)
+        for field in ("verified","authoritative","current"):
+            for value in (False,1,"true",None):self.assert_refused(p,s,booking=replace(e,**{field:value}))
+        for fields in ((),(("client_email",None),),(("display_name","opaque-booking-binding"),),
+                       (("client_email","opaque-booking-binding"),("client_email","opaque-booking-binding"))):
+            self.assert_refused(p,s,booking=replace(e,identity_fields=fields))
+        self.assert_refused(p,s,booking=e.snapshot)
+
+    def test_wrong_current_role_actor_issuer_target_and_tenant_refuse(self):
+        p,s=self.committed();access=s.current_access(p)
+        for delta in ({"role":"unknown"},{"actor":"actor-b"},{"issuer":"https://other.example.invalid"},
+                      {"tenant":"tenant_b"},{"client_id":"client-b"},{"request_id":"request-b"},
+                      {"verified":False},{"current":False},{"tenant_active":False},{"booking_allowed":False}):
+            self.assert_refused(p,s,access=replace(access,**delta))
+
+    def test_valid_replay_preserves_original_result_audit_and_unrelated_fields(self):
+        p,s=self.committed();key=(p.submission.key()["PK"],p.submission.key()["SK"])
+        s.rows[key]["unknown_after_commit"]={"preserve":[1,2]};before=deepcopy(s.rows)
+        for _ in range(3):self.assertEqual(s.submit(p,access=s.current_access(p)),p.receipt.response())
+        self.assertEqual(s.rows,before);self.assertEqual(len(s.rows[key]["audit_log"]),2)
+
+    def test_boolean_or_unverified_refusal_is_not_authoritative_outcome(self):
+        p,item=plan_fixture();s=MemoryStore(p,item);access=s.current_access(p);booking=s.current_evidence(p.submission)
+        proof=RefusalEvidence(p.submission.binding(),booking.read_id,True,True,True,True)
+        for value in (True,None,{},replace(proof,verified=False),replace(proof,authoritative=False),
+                      replace(proof,operation_not_committed=False),replace(proof,attempts_quiescent=False),
+                      replace(proof,binding="0"*64),replace(proof,read_id="other-read")):
+            before=deepcopy(s.rows)
+            with self.assertRaises(SubmissionError):persistence_outcome(p.submission,access,booking,confirmed_refusal=value)
+            self.assertEqual(s.rows,before)
+
+    def test_corrected_reconciliation_uses_no_network_or_mutation(self):
+        p,s=self.committed();before=deepcopy(s.rows)
+        with patch.object(socket.socket,"connect",side_effect=AssertionError("NETWORK_FORBIDDEN")):
+            result=persistence_outcome(p.submission,s.current_access(p),s.current_evidence(p.submission),s.operation_evidence(p.submission),lifetime=s.lifetime(p.submission))
+        self.assertEqual(result["state"],"REPLAY_CONFIRMED");self.assertEqual(s.rows,before)
