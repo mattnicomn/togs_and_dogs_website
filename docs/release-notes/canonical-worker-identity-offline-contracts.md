@@ -110,7 +110,7 @@ Additive readers/fields precede writers; historical email data stays readable. N
 
 PR43/44/45/46, worktrees, original/rollback evidence and historical release outcomes remain unchanged. Canonical CLEAN/RC integration gates and separate MERGE AUTHORIZATION still apply; inactive PR45 cannot approve an exception. No merge, Ready, policy activation, runtime integration, migration, AWS/Terraform, production, tenant, quote/payment, mobile build/distribution or Ryan action is performed.
 
-## Corrective offline checkpoint — 2026-10-29
+## Corrective offline checkpoint â€” 2026-10-29
 
 The original 57-test result above is historical. Readiness review found coercive equality for started assignment provenance and operation-unbound snapshot fences. The correction validates every domain revision as an exact positive integer bounded by 2**63-1; explicit DB-boundary parsing accepts finite integral Decimal values only, never floats, booleans or strings. Unsupported contract versions remain denied. This bound is a representation limit, not an adopted business policy.
 
