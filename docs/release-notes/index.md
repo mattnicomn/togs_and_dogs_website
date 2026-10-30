@@ -4,6 +4,8 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 
 ## 🌟 Featured / Recent
 
+- [**Slice 2B-C atomic workflow contract — INACTIVE**](slice-2bc-atomic-workflow-contract.md) (2026-10-30) — PR49-dependent pure REQUEST/JOB/PET persistence and outbox recovery model; synthetic tests only. No writer/API integration or activation.
+
 - [**STAFF onboarding staging/recovery — MOCKED CONTRACT ONLY**](staff-onboarding-staging-recovery-contract.md) (2026-10-30) — Write-first internal lifecycle, ownership-bound reconciliation and invitation duplicate-suppression models; dated persisted-proof and recovery-authorization corrections (193 focused passes). No handler/client wiring, live operations or execution activation.
 
 - [**Canonical Worker Identity — Slice 2A INACTIVE**](canonical-worker-identity-inactive-foundation.md) (2026-10-29) — Dependent on corrected PR47; strict record adapters, conditional request construction and synthetic tests. No handler wiring, transaction invocation, enrollment, policy adoption or release.
