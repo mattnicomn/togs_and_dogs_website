@@ -6,6 +6,7 @@ Production persistence, identity proof and invitation providers are not implemen
 from dataclasses import dataclass, replace
 from enum import Enum
 import re
+from urllib.parse import urlsplit
 
 
 class ProvisioningError(ValueError):
@@ -142,15 +143,24 @@ class Proof:
     payload_hash: str
     identity_handle: str
     verified: bool = False
+    evidence_revision: int = 1
 
 
 def validate_proof(request, proof, allowed_issuer):
+    validate_request(request)
     ensure(type(proof) is Proof and proof.verified is True, "OWNERSHIP_UNVERIFIED")
-    ensure(type(allowed_issuer) is str and allowed_issuer.startswith("https://"), "UNTRUSTED_ISSUER")
+    ensure(type(allowed_issuer) is str, "UNTRUSTED_ISSUER")
+    try:
+        issuer = urlsplit(allowed_issuer)
+    except ValueError:
+        raise ProvisioningError("UNTRUSTED_ISSUER") from None
+    ensure(issuer.scheme == "https" and bool(issuer.hostname) and not issuer.username
+           and not issuer.password and not issuer.query and not issuer.fragment, "UNTRUSTED_ISSUER")
     ensure(proof.issuer == allowed_issuer, "WRONG_ISSUER")
     ensure((proof.tenant, proof.operation, proof.staff_id, proof.incarnation, proof.payload_hash, proof.identity_handle)
            == (request.tenant, request.operation, request.staff_id, request.incarnation, request.payload_hash, request.identity_handle), "OWNERSHIP_BINDING_MISMATCH")
     identifier(proof.subject)
+    revision(proof.evidence_revision)
     if request.expected_subject is not None:
         ensure(proof.subject == request.expected_subject, "OWNERSHIP_BINDING_MISMATCH")
     return proof
@@ -169,6 +179,33 @@ class Profile:
     is_active: bool = False
     is_assignable: bool = False
     invitation: str = "NONE"
+    confirmed_subject: object = None
+    proof_revision: int = 0
+    group_subject: object = None
+    group_role: object = None
+    group_proof_revision: int = 0
+
+
+def validate_persisted_proof(profile, allowed_issuer):
+    ensure(type(profile) is Profile, "MALFORMED_PROFILE")
+    proof = validate_proof(profile.request, profile.proof, allowed_issuer)
+    identifier(profile.confirmed_subject)
+    ensure(proof.subject == profile.confirmed_subject, "PERSISTED_SUBJECT_MISMATCH")
+    ensure(proof.evidence_revision == revision(profile.proof_revision), "STALE_PROOF")
+    return proof
+
+
+def validate_group_proof(profile):
+    ensure(profile.group_confirmed is True and profile.group_subject == profile.confirmed_subject
+           and profile.group_role == profile.request.target_role
+           and revision(profile.group_proof_revision) == profile.proof_revision, "STALE_GROUP_PROOF")
+
+
+def validate_active_profile(profile, allowed_issuer):
+    ensure(type(profile) is Profile and profile.state == State.ACTIVE and profile.is_active is True
+           and profile.revoked is False and type(profile.is_assignable) is bool, "INVALID_ACTIVE_PROFILE")
+    validate_persisted_proof(profile, allowed_issuer)
+    validate_group_proof(profile)
 
 
 def fence(profile, expected):
@@ -184,7 +221,7 @@ def stage(request, admission):
     return Profile(request)
 
 
-def claim_effect(profile, expected, effect):
+def claim_effect(profile, expected, effect, allowed_issuer=None):
     fence(profile, expected)
     ensure(profile.intent == "NONE", "RECONCILIATION_REQUIRED")
     ensure(effect in {"CREATE", "LINK", "GROUP"}, "INVALID_EFFECT")
@@ -192,40 +229,90 @@ def claim_effect(profile, expected, effect):
         ensure(profile.proof is None, "IDENTITY_ALREADY_KNOWN")
         ensure((effect == "LINK") == (profile.request.mode == "LINK_EXISTING" or profile.request.expected_subject is not None), "MODE_MISMATCH")
     else:
-        ensure(type(profile.proof) is Proof and not profile.group_confirmed, "IDENTITY_PROOF_REQUIRED")
+        validate_persisted_proof(profile, allowed_issuer)
+        ensure(profile.group_confirmed is False, "IDENTITY_PROOF_REQUIRED")
     return replace(profile, state=State.IDENTITY, version=next_revision(profile.version), intent=effect)
 
 
 def confirm_identity(profile, expected, proof, allowed_issuer):
     fence(profile, expected)
     ensure(profile.intent in {"CREATE", "LINK"}, "NO_IDENTITY_INTENT")
+    ensure(profile.proof is None and profile.confirmed_subject is None and profile.proof_revision == 0,
+           "IDENTITY_ALREADY_KNOWN")
     validate_proof(profile.request, proof, allowed_issuer)
-    return replace(profile, version=next_revision(profile.version), proof=proof, intent="NONE")
+    return replace(profile, version=next_revision(profile.version), proof=proof, intent="NONE",
+                   confirmed_subject=proof.subject, proof_revision=proof.evidence_revision)
 
 
-def confirm_group(profile, expected, subject, group):
+def confirm_group(profile, expected, subject, group, allowed_issuer=None):
     fence(profile, expected)
-    ensure(profile.intent == "GROUP" and type(profile.proof) is Proof, "NO_GROUP_INTENT")
+    validate_persisted_proof(profile, allowed_issuer)
+    ensure(profile.intent == "GROUP", "NO_GROUP_INTENT")
     ensure(subject == profile.proof.subject and group == profile.request.target_role, "GROUP_BINDING_MISMATCH")
-    return replace(profile, version=next_revision(profile.version), group_confirmed=True, intent="NONE")
+    return replace(profile, version=next_revision(profile.version), group_confirmed=True, intent="NONE",
+                   group_subject=subject, group_role=group, group_proof_revision=profile.proof_revision)
 
 
-def activate(profile, expected):
+def activate(profile, expected, allowed_issuer=None):
     fence(profile, expected)
     ensure(type(profile.proof) is Proof and profile.group_confirmed is True and profile.intent == "NONE", "INCOMPLETE_PROVISIONING")
+    validate_persisted_proof(profile, allowed_issuer)
+    validate_group_proof(profile)
     return replace(profile, state=State.ACTIVE, version=next_revision(profile.version),
                    is_active=True, is_assignable=profile.request.assignable, invitation="PENDING")
 
 
-def fail(profile, expected, reason):
+def fail(profile, expected, reason, request=None, authorization=None, initiating_subject=None):
     ensure(type(profile) is Profile and revision(expected) == revision(profile.version), "STALE_PROFILE")
     ensure(reason in {"OWNERSHIP_UNVERIFIED", "EXTERNAL_FAILURE", "ABANDONED", "REVOKED"}, "INVALID_FAILURE")
+    if reason in {"ABANDONED", "REVOKED"}:
+        authorize_recovery(profile, request, authorization, initiating_subject,
+                           "ABANDON" if reason == "ABANDONED" else "REVOKE")
     return replace(profile, state=State.FAILED, version=next_revision(profile.version),
                    failure=reason, is_active=False, is_assignable=False,
                    revoked=profile.revoked or reason == "REVOKED", invitation="CANCELLED")
 
 
-def retry_failed(profile, expected):
+def authorize_resume(profile, admission, initiating_subject, allowed_issuer):
+    ensure(type(profile) is Profile, "MALFORMED_PROFILE")
+    validate_admission(profile.request, admission)
+    ensure(admission.actor_subject == initiating_subject, "ACTOR_MISMATCH")
+    if profile.proof is not None:
+        validate_persisted_proof(profile, allowed_issuer)
+
+
+@dataclass(frozen=True)
+class RecoveryAuthorization:
+    tenant: str
+    staff_id: str
+    operation: str
+    incarnation: str
+    expected_version: int
+    actor_subject: str
+    actor_role: str
+    action: str
+    verified: bool = False
+    current: bool = False
+    protected_target: bool = True
+
+
+def authorize_recovery(profile, request, authorization, initiating_subject, action):
+    ensure(type(profile) is Profile and type(authorization) is RecoveryAuthorization, "TRUSTED_RECOVERY_REQUIRED")
+    validate_request(request)
+    ensure(authorization.verified is True and authorization.current is True, "UNAUTHORIZED_RECOVERY")
+    ensure(authorization.protected_target is False, "PROTECTED_TARGET")
+    ensure(type(authorization.actor_role) is str and authorization.actor_role in {"owner", "admin"}, "DENIED_ROLE")
+    identifier(authorization.actor_subject)
+    ensure(authorization.actor_subject == initiating_subject, "DELEGATED_RECOVERY_POLICY_PENDING")
+    ensure(action in {"ABANDON", "REVOKE"} and authorization.action == action, "RECOVERY_ACTION_MISMATCH")
+    ensure(request == profile.request, "RECOVERY_TARGET_MISMATCH")
+    ensure((authorization.tenant, authorization.staff_id, authorization.operation, authorization.incarnation)
+           == (request.tenant, request.staff_id, request.operation, request.incarnation), "RECOVERY_TARGET_MISMATCH")
+    ensure(revision(authorization.expected_version) == revision(profile.version), "STALE_RECOVERY")
+
+
+def retry_failed(profile, expected, admission=None, initiating_subject=None, allowed_issuer=None):
+    authorize_resume(profile, admission, initiating_subject, allowed_issuer)
     ensure(type(profile) is Profile and revision(expected) == revision(profile.version), "STALE_PROFILE")
     ensure(profile.state == State.FAILED and profile.failure == "EXTERNAL_FAILURE"
            and profile.revoked is False, "MANUAL_RECOVERY_REQUIRED")
@@ -233,12 +320,14 @@ def retry_failed(profile, expected):
     return replace(profile, state=State.IDENTITY, version=next_revision(profile.version), failure="NONE", invitation="NONE")
 
 
-def assignment_disposition(record):
+def assignment_disposition(record, allowed_issuer=None):
     if type(record) is dict:
         return "LEGACY_PATH_REQUIRED" if "provisioning_state" not in record else "PROVISIONING_CONTRACT_REQUIRED"
     ensure(type(record) is Profile, "MALFORMED_PROFILE")
-    return "PROFILE_READY_ONLY" if (record.state == State.ACTIVE and record.is_active is True
-        and record.is_assignable is True and record.revoked is False) else "DENIED_INCOMPLETE"
+    if record.state == State.ACTIVE:
+        validate_active_profile(record, allowed_issuer)
+        return "PROFILE_READY_ONLY" if record.is_assignable is True else "DENIED_INCOMPLETE"
+    return "DENIED_INCOMPLETE"
 
 
 def owner_execution_eligible(_record):

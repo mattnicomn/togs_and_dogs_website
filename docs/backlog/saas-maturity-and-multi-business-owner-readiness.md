@@ -408,3 +408,5 @@ The dated update log below is historical chronology. Statements such as “stric
 
 
 **2026-10-30 STAFF onboarding recovery:** [Local contract/acceptance record](../release-notes/staff-onboarding-staging-recovery-contract.md), dependent on PR48. Mocked write-first staging, conditional quota/uniqueness, ownership-bound recovery and invitation suppression only; current live handlers unchanged. Slice 2B resume requires acceptance and separate scoped integration; real provider ownership, claim release, privileged roles, invitation recovery and writer/CI/RC gates remain open. No deployment, enrollment or owner execution.
+
+**2026-10-30 PR49 correction:** [Persisted-proof and exact-version recovery checkpoint](../release-notes/staff-onboarding-staging-recovery-contract.md#corrective-maintenance-checkpoint--2026-10-30) records 193 focused passes and unchanged guarded baseline failures. Runtime provenance, delegated recovery, onboarding integration and Slice 2B writer closure remain gated; no live permission or eligibility is enabled.

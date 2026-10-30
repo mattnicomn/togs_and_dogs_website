@@ -4,12 +4,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src" / "backend"))
 import ast
 import socket
+from copy import deepcopy
 import unittest
 from dataclasses import replace
 from unittest.mock import patch
 from common.staff_provisioning_contract import (
-    Request, Admission, Profile, Proof, State, ProvisioningError, validate_request,
-    stage, reservation_for, claim_effect, confirm_identity, confirm_group, activate,
+    Request, Admission, Profile, Proof, State, RecoveryAuthorization, ProvisioningError, validate_request,
+    stage, reservation_for, claim_effect, confirm_identity, confirm_group, activate, fail, retry_failed,
     assignment_disposition, owner_execution_eligible,
 )
 from staff_provisioning_fakes import (
@@ -26,6 +27,13 @@ def request(**changes):
 def admission(**changes):
     return replace(Admission("tenant_a", "actor-a", "owner", 1, 2, 0,
                              verified=True, current=True, protected_target=False), **changes)
+
+
+def recovery(store, req, recovery_action, **changes):
+    profile = store.data.rows[store.key(req)]
+    context = RecoveryAuthorization(req.tenant, req.staff_id, req.operation, req.incarnation,
+        profile.version, "actor-a", "owner", recovery_action, verified=True, current=True, protected_target=False)
+    return replace(context, **changes)
 
 
 class ProvisioningContractTests(unittest.TestCase):
@@ -268,14 +276,14 @@ class ProvisioningContractTests(unittest.TestCase):
         self.assertFalse(self.store.data.rows[self.store.key(self.req)].is_active)
 
     def test_revocation_during_identity_never_activates_or_invites(self):
-        self.identity.after_create = lambda: self.store.revoke(self.req)
+        self.identity.after_create = lambda: self.store.revoke(self.req, recovery(self.store,self.req,"REVOKE"))
         with self.assertRaises(ProvisioningError):
             self.run_flow()
         self.assertFalse(self.store.data.rows[self.store.key(self.req)].is_active)
         self.assertEqual(self.store.data.outbox,{})
 
     def test_revocation_after_group_never_finalizes(self):
-        self.identity.after_group = lambda: self.store.revoke(self.req)
+        self.identity.after_group = lambda: self.store.revoke(self.req, recovery(self.store,self.req,"REVOKE"))
         with self.assertRaises(ProvisioningError):
             self.run_flow()
         self.assertEqual(self.store.data.rows[self.store.key(self.req)].state, State.FAILED)
@@ -293,7 +301,7 @@ class ProvisioningContractTests(unittest.TestCase):
         with self.assertRaises(PersistenceRefused):
             self.run_flow()
         before=dict(self.identity.identities)
-        self.store.abandon(self.req)
+        self.store.abandon(self.req, recovery(self.store,self.req,"ABANDON"))
         self.assertEqual(self.identity.identities,before)
         self.assertIn(self.store.key(self.req),self.store.data.reservations)
         self.assertFalse(self.store.data.rows[self.store.key(self.req)].is_assignable)
@@ -331,7 +339,7 @@ class ProvisioningContractTests(unittest.TestCase):
 
     def test_revocation_before_invitation_claim_refuses(self):
         self.run_flow()
-        self.store.revoke(self.req)
+        self.store.revoke(self.req, recovery(self.store,self.req,"REVOKE"))
         with self.assertRaises(ProvisioningError):
             dispatch_invitation(self.store,self.invites,self.req)
         self.assertEqual(self.invites.attempts,[])
@@ -354,7 +362,7 @@ class ProvisioningContractTests(unittest.TestCase):
         root=Path(__file__).resolve().parents[2]
         source=root/"src/backend/common/staff_provisioning_contract.py"
         tree=ast.parse(source.read_text(encoding="utf-8"))
-        allowed={"dataclasses","enum","re","common"}
+        allowed={"dataclasses","enum","re","urllib"}
         for node in ast.walk(tree):
             if isinstance(node,ast.Import):self.assertTrue(all(x.name.split(".")[0] in allowed for x in node.names))
             if isinstance(node,ast.ImportFrom):self.assertIn(node.module.split(".")[0],allowed)
@@ -404,3 +412,200 @@ class ProvisioningContractTests(unittest.TestCase):
         pending=stage(self.req,self.actor)
         with self.assertRaises(ProvisioningError):
             claim_effect(pending,True,"CREATE")
+
+
+class CorrectiveProofAndRecoveryTests(unittest.TestCase):
+    def setup_profile(self, before_group=False):
+        store, identity = Store(), Identity()
+        req, actor = request(), admission()
+        store.refuse.add("group-intent" if before_group else "finalize")
+        with self.assertRaises(PersistenceRefused):
+            provision(store,identity,req,actor)
+        store.refuse.clear()
+        identity.calls.clear()
+        return store,identity,req,actor,store.data.rows[store.key(req)]
+
+    def bad_proofs(self, proof):
+        for field,value in (("verified",False),("verified","true"),("tenant","tenant_b"),
+                            ("operation","op_"+"2"*32),("staff_id","staff-b"),
+                            ("incarnation","inc_"+"2"*32),("payload_hash","b"*64),
+                            ("identity_handle","handle-b"),("subject","other-subject"),
+                            ("issuer","https://other.example.invalid"),("evidence_revision",2),
+                            ("evidence_revision",True),("evidence_revision",0)):
+            yield field,value,replace(proof,**{field:value})
+
+    def test_reloaded_invalid_proof_never_groups_or_activates(self):
+        for field,value,_ in self.bad_proofs(Identity().proof(request())):
+            with self.subTest(field=field,value=value):
+                store,identity,req,actor,profile=self.setup_profile(before_group=True)
+                bad=replace(profile,proof=replace(profile.proof,**{field:value}))
+                store.data.rows[store.key(req)]=bad
+                before=deepcopy(store.data)
+                with self.assertRaises(ProvisioningError):
+                    provision(store,identity,req,actor)
+                self.assertEqual(identity.calls,[])
+                self.assertEqual(store.data,before)
+                self.assertFalse(store.data.rows[store.key(req)].is_active)
+                self.assertEqual(store.data.outbox,{})
+
+    def test_activation_revalidates_every_persisted_binding(self):
+        store,identity,req,actor,profile=self.setup_profile()
+        for field,value,bad_proof in self.bad_proofs(profile.proof):
+            with self.subTest(field=field,value=value), self.assertRaises(ProvisioningError):
+                activate(replace(profile,proof=bad_proof),profile.version,ISSUER)
+        self.assertEqual(identity.calls,[])
+        self.assertEqual(store.data.outbox,{})
+
+    def test_group_claim_and_confirmation_revalidate_proof(self):
+        store,identity,req,actor,profile=self.setup_profile(before_group=True)
+        bad=replace(profile,proof=replace(profile.proof,verified=False))
+        with self.assertRaises(ProvisioningError):
+            claim_effect(bad,bad.version,"GROUP",ISSUER)
+        intent=claim_effect(profile,profile.version,"GROUP",ISSUER)
+        with self.assertRaises(ProvisioningError):
+            confirm_group(replace(intent,proof=replace(intent.proof,tenant="tenant_b")),intent.version,intent.proof.subject,"staff",ISSUER)
+        self.assertEqual(identity.calls,[])
+
+    def test_no_implicit_trusted_issuer_on_resume_or_activation(self):
+        store,identity,req,actor,profile=self.setup_profile()
+        for issuer in (None,"http://issuer.example.invalid","https://user:password@issuer.example.invalid", "https://[invalid"):
+            with self.assertRaises(ProvisioningError):
+                activate(profile,profile.version,issuer)
+        self.assertFalse(profile.is_active)
+
+    def test_stale_subject_and_proof_revision_snapshots_refuse(self):
+        store,identity,req,actor,profile=self.setup_profile()
+        for delta in ({"confirmed_subject":"other-subject"},{"confirmed_subject":None},
+                      {"proof_revision":2},{"proof_revision":True},{"proof_revision":0}):
+            with self.assertRaises(ProvisioningError):
+                activate(replace(profile,**delta),profile.version,ISSUER)
+
+    def test_group_confirmation_is_bound_to_evidence_revision(self):
+        store,identity,req,actor,profile=self.setup_profile()
+        refreshed=replace(profile,proof=replace(profile.proof,evidence_revision=2),proof_revision=2)
+        with self.assertRaisesRegex(ProvisioningError,"STALE_GROUP_PROOF"):
+            activate(refreshed,refreshed.version,ISSUER)
+        for delta in ({"group_subject":"other-subject"},{"group_role":"owner"},{"group_proof_revision":True}):
+            with self.assertRaises(ProvisioningError):
+                activate(replace(profile,**delta),profile.version,ISSUER)
+
+    def test_valid_reload_finalizes_without_new_identity_effects(self):
+        store,identity,req,actor,profile=self.setup_profile()
+        active=provision(Store(store.data),identity,req,actor)
+        self.assertEqual(active.state,State.ACTIVE)
+        self.assertEqual(identity.calls,[])
+        self.assertEqual(assignment_disposition(active,ISSUER),"PROFILE_READY_ONLY")
+        self.assertFalse(owner_execution_eligible(active))
+
+    def test_corrupt_active_proof_cannot_resume_or_invite(self):
+        store,identity=Store(),Identity()
+        req,actor=request(),admission()
+        active=provision(store,identity,req,actor)
+        store.data.rows[store.key(req)]=replace(active,proof=replace(active.proof,verified=False))
+        before=deepcopy(store.data)
+        invites=Invitations()
+        with self.assertRaises(ProvisioningError):
+            dispatch_invitation(store,invites,req)
+        with self.assertRaises(ProvisioningError):
+            assignment_disposition(store.data.rows[store.key(req)],ISSUER)
+        self.assertEqual(invites.attempts,[])
+        self.assertEqual(store.data,before)
+
+    def recovery_fixture(self):
+        store,identity=Store(),Identity()
+        req,actor=request(),admission()
+        provision(store,identity,req,actor)
+        other=request(tenant="tenant_b",staff_id="staff-b",operation="op_"+"2"*32)
+        provision(store,identity,other,admission(tenant="tenant_b"))
+        return store,identity,req,actor
+
+    def test_recovery_without_trusted_context_changes_nothing(self):
+        for action in ("ABANDON","REVOKE"):
+            store,identity,req,actor=self.recovery_fixture()
+            before=deepcopy(store.data)
+            with self.assertRaisesRegex(ProvisioningError,"TRUSTED_RECOVERY_REQUIRED"):
+                getattr(store,action.lower())(req)
+            self.assertEqual(store.data,before)
+
+    def test_recovery_context_rejects_every_wrong_binding_without_changes(self):
+        for action in ("ABANDON","REVOKE"):
+            for field,value in (("tenant","tenant_b"),("staff_id","staff-b"),("operation","op_"+"2"*32),
+                                ("incarnation","inc_"+"2"*32),("expected_version",1),("expected_version",True),
+                                ("actor_subject","other-actor"),("actor_role","staff"),("actor_role","client"),
+                                ("verified",False),("verified","true"),("current",False),("protected_target",True),
+                                ("action","REVOKE" if action=="ABANDON" else "ABANDON")):
+                with self.subTest(action=action,field=field,value=value):
+                    store,identity,req,actor=self.recovery_fixture()
+                    context=recovery(store,req,action,**{field:value})
+                    before=deepcopy(store.data)
+                    with self.assertRaises(ProvisioningError):
+                        getattr(store,action.lower())(req,context)
+                    self.assertEqual(store.data,before)
+
+    def test_recovery_request_mismatch_cannot_target_same_staff(self):
+        for action in ("ABANDON","REVOKE"):
+            for delta in ({"operation":"op_"+"2"*32},{"incarnation":"inc_"+"2"*32},
+                          {"payload_hash":"b"*64},{"identity_handle":"handle-b"}):
+                store,identity,req,actor=self.recovery_fixture()
+                before=deepcopy(store.data)
+                with self.assertRaises(ProvisioningError):
+                    getattr(store,action.lower())(replace(req,**delta),recovery(store,req,action))
+                self.assertEqual(store.data,before)
+
+    def test_recovery_wrong_key_or_tenant_leaves_all_profiles_intact(self):
+        store,identity,req,actor=self.recovery_fixture()
+        before=deepcopy(store.data)
+        for target in (replace(req,tenant="tenant_b",staff_id="staff-b"), replace(req,staff_id="missing")):
+            with self.assertRaises(ProvisioningError):
+                store.abandon(target,recovery(store,req,"ABANDON"))
+            self.assertEqual(store.data,before)
+
+    def test_authorized_recovery_keeps_reservations_claims_and_unrelated_outbox(self):
+        for action in ("ABANDON","REVOKE"):
+            store,identity,req,actor=self.recovery_fixture()
+            before=deepcopy(store.data)
+            key=store.key(req); other=("tenant_b","staff-b")
+            getattr(store,action.lower())(req,recovery(store,req,action))
+            self.assertEqual(store.data.rows[key].state,State.FAILED)
+            self.assertFalse(store.data.rows[key].is_active or store.data.rows[key].is_assignable)
+            self.assertEqual(store.data.rows[other],before.rows[other])
+            self.assertEqual(store.data.reservations,before.reservations)
+            self.assertEqual(store.data.claims,before.claims)
+            self.assertEqual(store.data.receipts,before.receipts)
+            self.assertEqual(store.data.outbox[other],before.outbox[other])
+            self.assertEqual(store.data.outbox[key]["state"],"CANCELLED")
+
+    def test_stale_recovery_replay_does_not_change_failed_record(self):
+        store,identity,req,actor=self.recovery_fixture()
+        context=recovery(store,req,"ABANDON")
+        store.abandon(req,context)
+        before=deepcopy(store.data)
+        with self.assertRaisesRegex(ProvisioningError,"STALE_RECOVERY"):
+            store.abandon(req,context)
+        self.assertEqual(store.data,before)
+
+    def test_recovery_core_cannot_be_called_without_authority(self):
+        store,identity,req,actor=self.recovery_fixture()
+        profile=store.data.rows[store.key(req)]
+        for reason in ("ABANDONED","REVOKED"):
+            with self.assertRaisesRegex(ProvisioningError,"TRUSTED_RECOVERY_REQUIRED"):
+                fail(profile,profile.version,reason)
+
+    def test_retry_failed_requires_current_initiating_context_and_valid_proof(self):
+        store,identity,req,actor,profile=self.setup_profile(before_group=True)
+        failed=fail(profile,profile.version,"EXTERNAL_FAILURE")
+        for context in (None,replace(actor,current=False),replace(actor,actor_subject="other-actor"),replace(actor,tenant="tenant_b")):
+            with self.assertRaises(ProvisioningError):
+                retry_failed(failed,failed.version,context,"actor-a",ISSUER)
+        with self.assertRaises(ProvisioningError):
+            retry_failed(replace(failed,proof=replace(failed.proof,verified=False)),failed.version,actor,"actor-a",ISSUER)
+
+    def test_malformed_reservation_does_not_pass_boolean_equality(self):
+        store,identity,req,actor,profile=self.setup_profile()
+        key=store.key(req)
+        store.data.reservations[key]=replace(store.data.reservations[key],retired=0)
+        before=deepcopy(store.data)
+        with self.assertRaisesRegex(ProvisioningError,"RESERVATION_CONFLICT"):
+            store.revoke(req,recovery(store,req,"REVOKE"))
+        self.assertEqual(store.data,before)
+        self.assertEqual(identity.calls,[])

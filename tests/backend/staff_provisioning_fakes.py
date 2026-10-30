@@ -5,7 +5,8 @@ production database. No SDK, network, credentials, secrets or real identities.
 """
 from dataclasses import dataclass, field, replace
 from common.staff_provisioning_contract import (
-    State, Proof, ProvisioningError, ensure, stage, reservation_for,
+    State, Proof, Reservation, ProvisioningError, ensure, stage, reservation_for,
+    validate_persisted_proof, validate_active_profile, authorize_recovery, authorize_resume,
     claim_effect, confirm_identity, confirm_group, activate, fail, retry_failed,
 )
 
@@ -54,7 +55,12 @@ class Store:
         ensure(key not in self.data.markers, "CANONICAL_MARKER_CONFLICT")
         ensure(key not in self.data.revoked, "REVOKED")
         reservation = self.data.reservations.get(key)
-        ensure(reservation == reservation_for(profile.request) and not reservation.retired, "RESERVATION_CONFLICT")
+        ensure(type(reservation) is Reservation and reservation.retired is False
+               and reservation == reservation_for(profile.request), "RESERVATION_CONFLICT")
+        if profile.proof is not None:
+            validate_persisted_proof(profile, ISSUER)
+        if profile.state == State.ACTIVE:
+            validate_active_profile(profile, ISSUER)
 
     def begin(self, request, admission):
         candidate = stage(request, admission)
@@ -114,19 +120,26 @@ class Store:
         entry["state"] = "INFLIGHT"  # Simulated atomic profile/outbox CAS.
         return entry["key"]
 
-    def revoke(self, request):
+    def recover(self, request, authorization, action):
         key = self.key(request)
+        ensure(key in self.data.rows, "RECOVERY_TARGET_MISSING")
         old = self.data.rows[key]
-        self.data.rows[key] = fail(old, old.version, "REVOKED")
-        self.data.revoked.add(key)
+        authorize_recovery(old, request, authorization, self.data.actors[key], action)
+        self.guard(old)  # All checks precede the single simulated recovery commit.
+        updated = fail(old, old.version, "REVOKED" if action == "REVOKE" else "ABANDONED",
+                       request, authorization, self.data.actors[key])
+        self.data.rows[key] = updated
+        if action == "REVOKE":
+            self.data.revoked.add(key)
         if key in self.data.outbox:
             self.data.outbox[key]["state"] = "CANCELLED"
 
-    def abandon(self, request):
-        key = self.key(request)
-        old = self.data.rows[key]
-        self.data.rows[key] = fail(old, old.version, "ABANDONED")
-        # Keep all claims, receipts and reservation; no identity deletion or reuse.
+    def revoke(self, request, authorization=None):
+        return self.recover(request, authorization, "REVOKE")
+
+    def abandon(self, request, authorization=None):
+        return self.recover(request, authorization, "ABANDON")
+
 
 
 class Identity:
@@ -202,7 +215,8 @@ def provision(store, identity, request, admission):
     if profile.state == State.ACTIVE:
         return profile
     if profile.state == State.FAILED:
-        profile = store.save(profile, retry_failed(profile, profile.version), "retry")
+        profile = store.save(profile, retry_failed(profile, profile.version, admission, store.data.actors[store.key(request)], ISSUER), "retry")
+    authorize_resume(profile, admission, store.data.actors[store.key(request)], ISSUER)
     try:
         if profile.proof is None:
             store.guard(profile)
@@ -216,12 +230,12 @@ def provision(store, identity, request, admission):
         if not profile.group_confirmed:
             store.guard(profile)
             if profile.intent == "NONE":
-                profile = store.save(profile, claim_effect(profile, profile.version, "GROUP"), "group-intent")
+                profile = store.save(profile, claim_effect(profile, profile.version, "GROUP", ISSUER), "group-intent")
                 identity.ensure_group(profile)
             elif not identity.group_present(profile):
                 identity.ensure_group(profile)  # Mock contract: authoritative absence + idempotent ensure.
-            profile = store.save(profile, confirm_group(profile, profile.version, profile.proof.subject, request.target_role), "group-confirmed")
-        return store.save(profile, activate(profile, profile.version), "finalize")
+            profile = store.save(profile, confirm_group(profile, profile.version, profile.proof.subject, request.target_role, ISSUER), "group-confirmed")
+        return store.save(profile, activate(profile, profile.version, ISSUER), "finalize")
     except KnownExternalFailure:
         store.save(profile, fail(profile, profile.version, "EXTERNAL_FAILURE"), "failed")
         raise
