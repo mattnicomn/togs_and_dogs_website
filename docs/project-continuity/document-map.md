@@ -15,6 +15,7 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 
 | Topic | Location |
 |-------|----------|
+| Canonical worker identity Slice 1 (offline contracts/synthetic tests only; pending policies and backend integration gates) | `docs/release-notes/canonical-worker-identity-offline-contracts.md` |
 | Release notes index | `docs/release-notes/index.md` |
 | Individual release notes | `docs/release-notes/release-*.md` |
 | W4 Option A client workflow status presentation (frontend-only; PR #24 squash-merged into `main`, not deployed — `W4_OPTION_A_MERGED_NOT_DEPLOYED` / `W4_DEPLOYED=NO`) | `docs/release-notes/w4-client-workflow-status-presentation.md` |
