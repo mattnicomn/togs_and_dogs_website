@@ -396,3 +396,6 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 
 ## 🗄️ Archive
 Historical notes, branding updates, and superseded documentation can be found in the [**Archive Folder**](archive/).
+
+
+- [**PR47/48 corrective maintenance checkpoint**](canonical-worker-identity-inactive-foundation.md#corrective-maintenance-checkpoint--2026-10-29) (2026-10-29) — Encoding-only PR47 repair, non-rewriting dependency reconciliation, LIST/NULL expression corrections and 129 focused passes. Delete/recreate ABA and unversioned legacy writers remain activation hard stops; no Slice 2B or deployment.

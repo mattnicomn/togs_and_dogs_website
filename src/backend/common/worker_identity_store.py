@@ -116,7 +116,7 @@ def build_assignment_request(table_name, tenant, request_id, job_id, worker, sta
                     ":op": operation, ":digest": payload_hash}
     parent_values = {":tenant": tenant, ":rid": request_id, ":cid": j["client_id"],
                      ":rev": p["workflow_revision"], ":next": next_revision(p["workflow_revision"]),
-                     ":status": p["status"], ":jid": job_id}
+                     ":status": p["status"], ":jid": job_id, ":listtype": "L"}
     if j["assigned_worker_id"] is None:
         old_assignment_condition = "attribute_type(assigned_worker_id, :nulltype)"
         child_values[":nulltype"] = "NULL"
@@ -137,7 +137,7 @@ def build_assignment_request(table_name, tenant, request_id, job_id, worker, sta
                     "ExpressionAttributeNames": {"#status": "status"}, "ExpressionAttributeValues": encoded(child_values)}},
         {"Update": {"TableName": table_name, "Key": key(p),
                     "UpdateExpression": "SET workflow_revision = :next",
-                    "ConditionExpression": "attribute_exists(PK) AND company_id = :tenant AND request_id = :rid AND client_id = :cid AND workflow_revision = :rev AND #status = :status AND contains(job_ids, :jid)",
+                    "ConditionExpression": "attribute_exists(PK) AND company_id = :tenant AND request_id = :rid AND client_id = :cid AND workflow_revision = :rev AND #status = :status AND attribute_type(job_ids, :listtype) AND contains(job_ids, :jid)",
                     "ExpressionAttributeNames": {"#status": "status"}, "ExpressionAttributeValues": encoded(parent_values)}},
     ]
     return checked_plan(table_name, actions, (

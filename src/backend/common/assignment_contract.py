@@ -25,7 +25,8 @@ def parse_assignment(record, tenant, request_id, job_id):
                   execution_revision=revision(record["execution_revision"]))
     result["assigned_worker_id"] = (None if record["assigned_worker_id"] is None
                                     else worker_id(record["assigned_worker_id"]))
-    if record.get("started_at") is not None:
+    if "started_at" in record:
+        require(record["started_at"] is not None)
         require(type(record["started_at"]) is str and bool(record["started_at"]))
         shape(record, {"started_worker_id", "started_assignment_revision"})
         result.update(started_at=record["started_at"], started_worker_id=worker_id(record["started_worker_id"]),

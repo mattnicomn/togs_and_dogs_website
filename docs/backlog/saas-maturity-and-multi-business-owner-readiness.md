@@ -402,3 +402,6 @@ The dated update log below is historical chronology. Statements such as “stric
 
 
 **2026-10-29 worker identity Slice 2A:** [Inactive backend foundation and writer inventory](../release-notes/canonical-worker-identity-inactive-foundation.md), dependent on corrected PR47. Parsing/transaction shapes and synthetic tests only; no writer integration or execution grant. Enrollment/cardinality, replay/admin/recovery policies, all-writer coverage, rollout/rollback, mobile PR46 dependency and canonical integration/RC gates remain unresolved. No production or distribution authority.
+
+
+**2026-10-29 corrective follow-up:** [PR47/48 maintenance evidence](../release-notes/canonical-worker-identity-inactive-foundation.md#corrective-maintenance-checkpoint--2026-10-29) records encoding repair, LIST/NULL boundary corrections and complete-expression tests. Slice 2B remains gated on durable identity non-reuse, legacy-writer invalidation and pending product/security policies; no handler integration or activation.
