@@ -1,5 +1,7 @@
 # Current Project State
 
+**2026-10-30 cancellation submission:** `CANCELLATION_SUBMISSION_CONTRACT_INACTIVE_NOT_INTEGRATED`. PR50-dependent pure REQUEST Update/receipt contract plus synthetic tests only; no handler/API integration. Preserves unrelated fields and models replay/lifetime/timeout guards; source-status assumptions, identity/legacy adapters, recovery/retention and all-writer gates remain pending. See [submission acceptance and API proposals](../release-notes/cancellation-submission-contract.md).
+
 **2026-10-30 Slice 2B-C:** `ATOMIC_WORKFLOW_CONTRACT_INACTIVE_NOT_INTEGRATED`. Separate PR49-dependent pure aggregate/transaction/outbox model and synthetic tests only; no handler, API or provider integration. Complete-set CAS and post-commit recovery are modeled; legacy partial-success decisions, unfenced-writer ABA/field-loss gaps and all rollout gates remain open. See [contract, inventory and acceptance](../release-notes/slice-2bc-atomic-workflow-contract.md).
 
 **2026-10-30 PR49 corrective maintenance:** Persisted identity/group proof is revalidated before resumed effects and activation; abandon/revoke now require exact-version trusted initiating-actor recovery context. 193 focused tests pass; guarded backend 77 failed / 2257 passed with the same 77 failure signatures as original PR49. Unwired mock-only contract, no live auth/provider changes; delegated recovery and runtime integration remain gated. See [the corrective checkpoint](../release-notes/staff-onboarding-staging-recovery-contract.md#corrective-maintenance-checkpoint--2026-10-30).

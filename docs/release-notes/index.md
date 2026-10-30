@@ -4,6 +4,8 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 
 ## 🌟 Featured / Recent
 
+- [**Cancellation-request submission - INACTIVE**](cancellation-submission-contract.md) (2026-10-30) - PR50-dependent field-preserving REQUEST/receipt contract and synthetic compatibility tests; no final cancellation, handler integration or activation.
+
 - [**Slice 2B-C atomic workflow contract — INACTIVE**](slice-2bc-atomic-workflow-contract.md) (2026-10-30) — PR49-dependent pure REQUEST/JOB/PET persistence and outbox recovery model; synthetic tests only. No writer/API integration or activation.
 
 - [**STAFF onboarding staging/recovery — MOCKED CONTRACT ONLY**](staff-onboarding-staging-recovery-contract.md) (2026-10-30) — Write-first internal lifecycle, ownership-bound reconciliation and invitation duplicate-suppression models; dated persisted-proof and recovery-authorization corrections (193 focused passes). No handler/client wiring, live operations or execution activation.
