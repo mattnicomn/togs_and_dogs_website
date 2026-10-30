@@ -405,3 +405,6 @@ The dated update log below is historical chronology. Statements such as “stric
 
 
 **2026-10-29 corrective follow-up:** [PR47/48 maintenance evidence](../release-notes/canonical-worker-identity-inactive-foundation.md#corrective-maintenance-checkpoint--2026-10-29) records encoding repair, LIST/NULL boundary corrections and complete-expression tests. Slice 2B remains gated on durable identity non-reuse, legacy-writer invalidation and pending product/security policies; no handler integration or activation.
+
+
+**2026-10-30 STAFF onboarding recovery:** [Local contract/acceptance record](../release-notes/staff-onboarding-staging-recovery-contract.md), dependent on PR48. Mocked write-first staging, conditional quota/uniqueness, ownership-bound recovery and invitation suppression only; current live handlers unchanged. Slice 2B resume requires acceptance and separate scoped integration; real provider ownership, claim release, privileged roles, invitation recovery and writer/CI/RC gates remain open. No deployment, enrollment or owner execution.

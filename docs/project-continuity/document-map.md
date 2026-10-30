@@ -15,6 +15,7 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 
 | Topic | Location |
 |-------|----------|
+| STAFF onboarding staging/recovery (mocked contract only; no live handler integration; Slice 2B dependency) | `docs/release-notes/staff-onboarding-staging-recovery-contract.md` |
 | Canonical worker identity Slice 2A (inactive; corrective LIST/NULL expression tests; dependent PR47; unresolved ABA/legacy writer blockers) | `docs/release-notes/canonical-worker-identity-inactive-foundation.md` |
 | Canonical worker identity Slice 1 (offline contracts/synthetic tests only; pending policies and backend integration gates) | `docs/release-notes/canonical-worker-identity-offline-contracts.md` |
 | Release notes index | `docs/release-notes/index.md` |
