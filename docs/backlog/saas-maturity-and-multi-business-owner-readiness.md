@@ -416,3 +416,8 @@ The dated update log below is historical chronology. Statements such as “stric
 **2026-10-30 cancellation submission:** [Inactive submission/receipt acceptance](../release-notes/cancellation-submission-contract.md), dependent on PR50. Field-preserving REQUEST Update, replay, lifetime and timeout model only. Source-status/API/role, trusted access, legacy/writer coverage and retention/recovery decisions remain pending; no runtime wiring or production authorization.
 
 **2026-10-30 PR51 corrective checkpoint:** [Authoritative replay and current identity evidence](../release-notes/cancellation-submission-contract.md#corrective-replay-checkpoint---2026-10-30) replaces prepared-receipt authority with bound stored/current observations; 312 focused tests pass. Status/API/retention/recovery, trusted adapters and all-writer/lifetime prerequisites remain pending. No handler or production activation.
+
+**2026-10-31 cancellation adapter foundation:** [Inactive ports/classification/writer acceptance](../release-notes/cancellation-adapter-compatibility-foundation.md), dependent on corrected PR51. 374 focused tests pass; trusted real adapters, legacy adoption, all-writer/mixed-version closure, policy/API/retention and rollout remain pending. No handler, migration, production or owner-execution activation.
+
+
+**2026-10-31 PR52 correction:** [Five-finding corrective acceptance](../release-notes/cancellation-adapter-compatibility-foundation.md#corrective-maintenance-checkpoint---2026-10-31); 403 focused passes. Attempt/quiescence, replay freshness, numeric binding, ownership classification and review-writer inventory corrected offline. Real adapters, all-writer/lifetime, policy/API, migration/IAM/retention and rollout remain blocked; no runtime activation.
