@@ -17,6 +17,10 @@ class AdapterError(ValueError):
     pass
 
 
+class RefusalUnresolved(AdapterError):
+    """Trusted verifier cannot currently prove non-commit AND quiescence."""
+
+
 def require(value, reason):
     if not value: raise AdapterError(reason)
 
@@ -32,6 +36,12 @@ def revision(value):
         value=int(value)
     require(type(value) is int and 1<=value<2**63,"REVISION")
     return value
+
+
+def canonical_revision(value):
+    """Internal evidence uses exact integers; DB Decimal parsing belongs in revision."""
+    require(type(value) is int,"CANONICAL_REVISION")
+    return revision(value)
 
 
 @dataclass(frozen=True)
@@ -191,9 +201,14 @@ def classify_legacy(query, request, lifetime, reservation=None):
     if type(status) is not str or status not in STATUSES:
         note("LEGACY_POLICY_REQUIRED" if status in (None,"BOOKED","SCHEDULED","JOB_CREATED") else "MANUAL_INVESTIGATION_REQUIRED","STATUS_VARIANT")
     if "audit_log" in request and type(request["audit_log"]) is not list:note("MANUAL_INVESTIGATION_REQUIRED","AUDIT_SHAPE")
-    linked=request.get("linked_client_profile_id")
-    if linked is not None and (type(linked) is not str or not linked):note("MANUAL_INVESTIGATION_REQUIRED","LINK_SHAPE")
-    elif linked is not None and linked!=query.client_id:note("LEGACY_POLICY_REQUIRED","LINKED_OWNER_DIFFERS")
+    for field in IDENTITY_FIELDS:
+        if field in request:
+            value=request[field]
+            if value is None:note("MANUAL_INVESTIGATION_REQUIRED","NULL_"+field)
+            elif type(value) is not str or not value.strip():
+                note("MANUAL_INVESTIGATION_REQUIRED","MALFORMED_"+field)
+            elif field=="linked_client_profile_id" and value!=query.client_id:
+                note("LEGACY_POLICY_REQUIRED","LINKED_OWNER_DIFFERS")
     if lifetime is None:note("STAGED_ADOPTION_REQUIRED","MISSING_LIFETIME")
     elif type(lifetime) is not dict:note("PROTECTED_REFUSAL","LIFETIME_SHAPE")
     elif (lifetime.get("PK"),lifetime.get("SK"),lifetime.get("incarnation"),lifetime.get("retired"))!=("LIFETIME#"+query.token(),"PERMANENT",incarnation,False) or lifetime.get("retired") is not False or "ttl" in lifetime or "expires_at" in lifetime:
@@ -221,7 +236,7 @@ def validate_observation(query, observation, verifier, now):
     require(observation.coherence=="COHERENT_SNAPSHOT" and observation.binding==query.binding(),"INCOHERENT_OBSERVATION")
     p=observation.principal
     require((p.issuer,p.subject,p.tenant,p.role)==(query.issuer,query.subject,query.tenant,query.role),"PRINCIPAL_BINDING")
-    for epoch in (p.principal_epoch,p.tenant_epoch,p.revocation_epoch):revision(epoch)
+    for epoch in (p.principal_epoch,p.tenant_epoch,p.revocation_epoch):canonical_revision(epoch)
     require(p.tenant_active is True and p.revoked is False,"INACTIVE_OR_REVOKED")
     require(type(p.identity_bindings) is FrozenMap,"IDENTITY_BINDING_SHAPE")
     require(all(value is None or type(value) is FrozenMap for value in
@@ -229,8 +244,9 @@ def validate_observation(query, observation, verifier, now):
     require(verifier is not None and callable(getattr(verifier,"verify_observation",None)),"VERIFIER_REQUIRED")
     proof=verifier.verify_observation(query,observation,now)
     require(type(proof) is ObservationAttestation,"ATTESTATION_REQUIRED")
-    require(proof==ObservationAttestation(fingerprint(query),fingerprint(observation),observation.observation_id,
-                p.principal_epoch,p.tenant_epoch,p.revocation_epoch),"ATTESTATION_BINDING")
+    for epoch in (proof.principal_epoch,proof.tenant_epoch,proof.revocation_epoch):canonical_revision(epoch)
+    require(fingerprint(proof)==fingerprint(ObservationAttestation(fingerprint(query),fingerprint(observation),observation.observation_id,
+                p.principal_epoch,p.tenant_epoch,p.revocation_epoch)),"ATTESTATION_BINDING")
     request=thaw(observation.request)
     require(type(request) is dict,"MISSING_REQUEST")
     for field,expected in (("PK",query.key()[0]),("SK",query.key()[1]),("company_id",query.tenant),
@@ -298,9 +314,10 @@ def prepare_commit(query, observation, verifier, now, submitted_at, assumed_stat
 
 def validate_command(command, verifier, now):
     require(type(command) is CommitCommand,"COMMAND_REQUIRED")
+    canonical_revision(command.expected_revision)
     expected=prepare_commit(command.query,command.observation,verifier,now,datetime.fromisoformat(command.submitted_at),
                             command.assumed_status,command.assumption_reference)
-    require(command==expected,"COMMAND_BINDING")
+    require(fingerprint(command)==fingerprint(expected),"COMMAND_BINDING")
 
 
 def replay_response(query, observation, verifier, now):
@@ -332,6 +349,8 @@ class CommitReport:
     observation: object=None
     non_commit_proven: bool=False
     attempts_quiescent: bool=False
+    attempt_id: str=""
+    journal_generation: int=0
 
 
 @dataclass(frozen=True)
@@ -339,6 +358,8 @@ class OutcomeAttestation:
     binding: str
     command_fingerprint: str
     report_fingerprint: str
+    attempt_id: str=""
+    journal_generation: int=0
 
 
 class ConditionalCommitPort(Protocol):
@@ -347,10 +368,18 @@ class ConditionalCommitPort(Protocol):
 
 def commit_outcome(command, report, verifier, now):
     require(type(command) is CommitCommand and type(report) is CommitReport,"OUTCOME_SHAPE")
+    canonical_revision(command.expected_revision)
+    identifier(report.attempt_id);canonical_revision(report.journal_generation)
     require(report.binding==command.query.binding() and report.command_fingerprint==fingerprint(command),"OUTCOME_BINDING")
     require(verifier is not None and callable(getattr(verifier,"verify_outcome",None)),"VERIFIER_REQUIRED")
-    proof=verifier.verify_outcome(command,report,now)
-    require(type(proof) is OutcomeAttestation and proof==OutcomeAttestation(report.binding,fingerprint(command),fingerprint(report)),"OUTCOME_ATTESTATION")
+    try:proof=verifier.verify_outcome(command,report,now)
+    except RefusalUnresolved:
+        require(report.state=="REFUSED","OUTCOME_ATTESTATION")
+        return ("UNKNOWN",None)  # Lost non-commit/quiescence proof is never a retry grant.
+    require(type(proof) is OutcomeAttestation,"OUTCOME_ATTESTATION")
+    identifier(proof.attempt_id);canonical_revision(proof.journal_generation)
+    require(fingerprint(proof)==fingerprint(OutcomeAttestation(report.binding,fingerprint(command),fingerprint(report),
+            report.attempt_id,report.journal_generation)),"OUTCOME_ATTESTATION")
     require(report.state in ("COMMITTED","REFUSED","UNKNOWN"),"OUTCOME_SHAPE")
     if report.state=="COMMITTED":
         return ("COMMITTED",replay_response(command.query,report.observation,verifier,now))

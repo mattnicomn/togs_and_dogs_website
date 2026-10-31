@@ -5,6 +5,7 @@ from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 import socket
+import re
 import sys
 import unittest
 from unittest.mock import patch
@@ -262,16 +263,16 @@ class CommitPortTests(unittest.TestCase):
         self.assertIn("ALL_WRITERS_PENDING",cmd.blockers)
 
     def test_forged_commit_and_refusal_reports_are_not_authoritative(self):
-        q,s,a,p,o=setup();cmd=command(q,o,a)
-        for report in (CommitReport(q.binding(),fingerprint(cmd),"COMMITTED",o),
-                       CommitReport(q.binding(),fingerprint(cmd),"REFUSED",non_commit_proven=True,attempts_quiescent=True)):
-            with self.assertRaises(AdapterError):commit_outcome(cmd,report,a,a.now)
+        q,s,a,p,o=setup();cmd=command(q,o,a);genuine=p.commit(cmd,"conflict")
+        for report in (replace(genuine,state="COMMITTED",observation=o),
+                       replace(genuine,attempt_id="unissued-attempt")):
+            with self.assertRaisesRegex(AdapterError,"FORGED_OUTCOME"):commit_outcome(cmd,report,a,a.now)
 
     def test_refusal_requires_verified_non_commit_and_quiescence(self):
-        q,s,a,p,o=setup();cmd=command(q,o,a)
-        for report in (CommitReport(q.binding(),fingerprint(cmd),"REFUSED"),CommitReport(q.binding(),fingerprint(cmd),"REFUSED",non_commit_proven=True)):
+        q,s,a,p,o=setup();cmd=command(q,o,a);genuine=p.commit(cmd,"conflict")
+        for report in (replace(genuine,non_commit_proven=False),replace(genuine,attempts_quiescent=False)):
             a.reports[fingerprint(report)]=(q.binding(),fingerprint(cmd))
-            with self.assertRaises(AdapterError):commit_outcome(cmd,report,a,a.now)
+            with self.assertRaisesRegex(AdapterError,"NON_COMMIT_PROOF_REQUIRED"):commit_outcome(cmd,report,a,a.now)
 
     def test_outcome_binding_and_boolean_attestation_fail_closed(self):
         q,s,a,p,o=setup();cmd=command(q,o,a);report=p.commit(cmd)
@@ -418,3 +419,277 @@ class SecurityRestartRegressionTests(unittest.TestCase):
         self.assertTrue(restarted.revoked);self.assertEqual(restarted.revocation_epoch,2)
         with self.assertRaises(AdapterError):validate_observation(q,restarted.observe(q),restarted,restarted.now)
         self.assertEqual(s.rows,before)
+
+
+class RefusalJournalCorrectionTests(unittest.TestCase):
+    def refusal(self):
+        q,s,a,p,o=setup();cmd=command(q,o,a);report=p.commit(cmd,"conflict")
+        return q,s,a,p,cmd,report
+
+    def test_current_quiescent_refusal_is_valid_without_row_or_effect_changes(self):
+        q,s,a,p,o=setup();cmd=command(q,o,a);before=deepcopy(s.rows)
+        report=p.commit(cmd,"conflict")
+        self.assertEqual(commit_outcome(cmd,report,a,a.now),("REFUSED",None))
+        self.assertEqual(s.rows,before);self.assertEqual(s.effects,[])
+        self.assertEqual(report.attempt_id,s.journal[(q.tenant,q.operation)]["attempt_id"])
+
+    def test_refusal_then_success_cannot_report_non_commit(self):
+        q,s,a,p,cmd,report=self.refusal();p.commit(cmd);before=deepcopy(s.rows)
+        self.assertEqual(commit_outcome(cmd,report,a,a.now),("UNKNOWN",None))
+        self.assertEqual(replay_response(q,a.observe(q),a,a.now)["message"],"Cancellation request submitted for review.")
+        self.assertEqual(s.rows,before);self.assertEqual(len(s.rows[q.key()]["audit_log"]),2)
+
+    def test_refusal_then_ambiguous_attempts_invalidate_non_commit_and_block_retry(self):
+        for mode in ("timeout_before","timeout_after"):
+            with self.subTest(mode=mode):
+                q,s,a,p,cmd,old=self.refusal();report=p.commit(cmd,mode);before=deepcopy(s.rows)
+                self.assertEqual(commit_outcome(cmd,report,a,a.now),("UNKNOWN",None))
+                self.assertEqual(commit_outcome(cmd,old,a,a.now),("UNKNOWN",None))
+                with self.assertRaisesRegex(AdapterError,"NO_BLIND_RETRY"):p.commit(cmd)
+                self.assertEqual(s.rows,before)
+
+    def test_refusal_then_pending_attempt_is_not_quiescent(self):
+        q,s,a,p,cmd,old=self.refusal();pending=p.commit(cmd,"pending");before=deepcopy(s.rows)
+        self.assertEqual(s.journal[(q.tenant,q.operation)]["state"],"PENDING")
+        self.assertEqual(commit_outcome(cmd,pending,a,a.now),("UNKNOWN",None))
+        self.assertEqual(commit_outcome(cmd,old,a,a.now),("UNKNOWN",None))
+        with self.assertRaisesRegex(AdapterError,"NO_BLIND_RETRY"):p.commit(cmd)
+        self.assertEqual(s.rows,before)
+
+    def test_unknown_same_operation_cannot_retry_with_changed_payload_or_coordinator(self):
+        for mode in ("pending","timeout_before"):
+            q,s,a,p,cmd,old=self.refusal();p.commit(cmd,mode)
+            changed=replace(q,reason="changed-payload")
+            other=command(changed,a.observe(changed),a);before=deepcopy(s.rows)
+            with self.assertRaisesRegex(AdapterError,"NO_BLIND_RETRY"):FakeCommitPort(s,a).commit(other)
+            self.assertEqual(s.rows,before)
+            self.assertEqual(commit_outcome(cmd,old,a,a.now),("UNKNOWN",None))
+
+    def test_forged_attempt_generation_and_wrong_operation_refuse(self):
+        q,s,a,p,cmd,old=self.refusal();before=deepcopy(s.rows)
+        for delta in ({"attempt_id":"other-attempt"},{"journal_generation":old.journal_generation+1},
+                      {"binding":"other-operation"}):
+            with self.assertRaises(AdapterError):commit_outcome(cmd,replace(old,**delta),a,a.now)
+        other=replace(cmd,query=replace(q,operation="other-operation"))
+        with self.assertRaises(AdapterError):commit_outcome(other,old,a,a.now)
+        self.assertEqual(s.rows,before)
+
+    def test_registered_but_stale_generation_does_not_become_authority(self):
+        q,s,a,p,cmd,old=self.refusal();forged=replace(old,journal_generation=old.journal_generation+1)
+        a.reports[fingerprint(forged)]=(q.binding(),fingerprint(cmd))
+        self.assertEqual(commit_outcome(cmd,forged,a,a.now),("UNKNOWN",None))
+
+    def test_refusal_rechecks_receipt_absence_and_commit_journal(self):
+        for mode in ("unproven-row","commit-journal"):
+            q,s,a,p,cmd,old=self.refusal()
+            if mode=="unproven-row":
+                s.rows[("CANCEL_SUBMISSION#"+q.tenant+"#"+q.operation,"RECEIPT")]=cmd.stored_receipt.mapping()
+            else:s.committed[q.binding()]=fingerprint(cmd.stored_receipt)
+            before=deepcopy(s.rows)
+            self.assertEqual(commit_outcome(cmd,old,a,a.now),("UNKNOWN",None))
+            self.assertEqual(s.rows,before)
+
+    def test_refusal_after_coordinator_restart_is_bound_to_shared_attempt_journal(self):
+        q,s,a,p,cmd,old=self.refusal();s.begin_attempt(q)
+        self.assertEqual(commit_outcome(cmd,old,a,a.now),("UNKNOWN",None))
+        restarted=FakeAuthority(s)
+        with self.assertRaises(AdapterError):commit_outcome(cmd,old,restarted,restarted.now)
+
+
+class ReplayFreshnessCorrectionTests(unittest.TestCase):
+    def committed(self):
+        q,s,a,p,o=setup();cmd=command(q,o,a);p.commit(cmd)
+        return q,s,a,p,a.observe(q)
+
+    def test_retained_replay_refuses_changed_removed_null_and_malformed_identity(self):
+        for field in ("client_email","cognito_sub","linked_client_profile_id"):
+            for value in ("changed",None,{},[],False,42,"ABSENT"):
+                with self.subTest(field=field,value=value):
+                    q,s,a,p,o=setup()
+                    s.rows[q.key()][field]=q.client_id if field=="linked_client_profile_id" else "opaque-binding"
+                    a.bindings={field:s.rows[q.key()][field]};p.commit(command(q,a.observe(q),a));old=a.observe(q)
+                    if value=="ABSENT":del s.rows[q.key()][field]
+                    else:s.rows[q.key()][field]=value
+                    before=deepcopy(s.rows)
+                    with self.assertRaisesRegex(AdapterError,"STALE_PERSISTED"):replay_response(q,old,a,a.now)
+                    self.assertEqual(s.rows,before);self.assertEqual(s.effects,[])
+
+    def test_retained_replay_refuses_revision_advance_inside_lease(self):
+        q,s,a,p,old=self.committed();s.rows[q.key()]["legacy_write_revision"]=3
+        self.assertLessEqual(a.now,old.valid_until)
+        with self.assertRaisesRegex(AdapterError,"STALE_PERSISTED"):replay_response(q,old,a,a.now)
+        before=deepcopy(s.rows);replay_response(q,a.observe(q),a,a.now);self.assertEqual(s.rows,before)
+
+    def test_retained_replay_rechecks_lifetime_presence_retirement_and_contents(self):
+        for delta in (None,{"retired":True},{"incarnation":"different"},{"ttl":None}):
+            q,s,a,p,old=self.committed();key=("LIFETIME#"+q.token(),"PERMANENT")
+            if delta is None:del s.rows[key]
+            else:s.rows[key].update(delta)
+            before=deepcopy(s.rows)
+            with self.assertRaisesRegex(AdapterError,"STALE_PERSISTED"):replay_response(q,old,a,a.now)
+            self.assertEqual(s.rows,before)
+
+    def test_retained_replay_rechecks_reservation_and_partial_markers(self):
+        for mode in ("reservation","marker"):
+            q,s,a,p,old=self.committed()
+            if mode=="reservation":s.rows[("RESERVATION#"+q.token(),"PERMANENT")]={"PK":"RESERVATION#"+q.token(),"SK":"PERMANENT"}
+            else:s.rows[q.key()]["assigned_worker_id"]=None
+            with self.assertRaisesRegex(AdapterError,"STALE_PERSISTED"):replay_response(q,old,a,a.now)
+            with self.assertRaises(AdapterError):replay_response(q,a.observe(q),a,a.now)
+
+    def test_fresh_authorized_historical_replay_preserves_rows_and_single_audit(self):
+        q,s,a,p,old=self.committed();s.rows[q.key()].update(status="CANCELLED",legacy_write_revision=3)
+        with self.assertRaises(AdapterError):replay_response(q,old,a,a.now)
+        before=deepcopy(s.rows);fresh=a.observe(q)
+        self.assertEqual(replay_response(q,fresh,a,a.now)["urgent_warning"],True)
+        self.assertEqual(replay_response(q,fresh,a,a.now)["urgent_warning"],True)
+        self.assertEqual(s.rows,before);self.assertEqual(len(s.rows[q.key()]["audit_log"]),2)
+
+    def test_current_observation_validation_refuses_stale_precommit_identity(self):
+        q,s,a,p,old=setup();s.rows[q.key()]["client_email"]="changed"
+        with self.assertRaisesRegex(AdapterError,"STALE_PERSISTED"):validate_observation(q,old,a,a.now)
+        # A previously prepared write is still protected by actual PR51 conditions.
+        q,s,a,p,old=setup();cmd=command(q,old,a);s.rows[q.key()]["client_email"]="changed"
+        before=deepcopy(s.rows);report=p.commit(cmd)
+        self.assertEqual(commit_outcome(cmd,report,a,a.now),("REFUSED",None));self.assertEqual(s.rows,before)
+
+    def test_freshness_does_not_replace_current_revocation_checks(self):
+        for field,value in (("revoked",True),("active",False),("principal_epoch",2),("tenant_epoch",2),("revocation_epoch",2)):
+            q,s,a,p,old=self.committed();setattr(a,field,value)
+            with self.assertRaises(AdapterError):replay_response(q,old,a,a.now)
+
+
+class NumericBindingCorrectionTests(unittest.TestCase):
+    def test_internal_command_revision_rejects_boolean_float_and_decimal(self):
+        q,s,a,p,o=setup();cmd=command(q,o,a);before=deepcopy(s.rows)
+        for value in (True,1.0,Decimal("1"),Decimal("1.5"),Decimal("NaN"),Decimal("Infinity"),"1",0,-1):
+            with self.assertRaises(AdapterError):validate_command(replace(cmd,expected_revision=value),a,a.now)
+        validate_command(cmd,a,a.now);self.assertEqual(s.rows,before)
+
+    def test_observation_attestation_epochs_are_exact_canonical_integers(self):
+        q,s,a,p,o=setup()
+        class BadVerifier:
+            def verify_observation(self,q,o,now):return replace(a.verify_observation(q,o,now),**delta)
+        for field in ("principal_epoch","tenant_epoch","revocation_epoch"):
+            for value in (True,1.0,Decimal("1"),Decimal("NaN"),"1",0,-1):
+                delta={field:value}
+                with self.assertRaises(AdapterError):validate_observation(q,o,BadVerifier(),a.now)
+        self.assertEqual(validate_observation(q,o,a,a.now)["legacy_write_revision"],1)
+
+    def test_outcome_attestation_and_report_generation_reject_numeric_equivalence(self):
+        q,s,a,p,o=setup();cmd=command(q,o,a);report=p.commit(cmd,"conflict")
+        class BadVerifier:
+            def verify_outcome(self,cmd,report,now):return replace(a.verify_outcome(cmd,report,now),journal_generation=value)
+        for value in (True,float(report.journal_generation),Decimal(report.journal_generation),Decimal("NaN"),0,-1):
+            with self.assertRaises(AdapterError):commit_outcome(cmd,report,BadVerifier(),a.now)
+            with self.assertRaises(AdapterError):commit_outcome(cmd,replace(report,journal_generation=value),a,a.now)
+        self.assertEqual(commit_outcome(cmd,report,a,a.now),("REFUSED",None))
+
+    def test_raw_security_epochs_cannot_normalize_through_python_equality(self):
+        for field in ("principal_epoch","tenant_epoch","revocation_epoch"):
+            for value in (True,1.0,Decimal("1")):
+                q,s,a,p,o=setup();setattr(a,field,value)
+                with self.assertRaises(AdapterError):validate_observation(q,o,a,a.now)
+                with self.assertRaises(AdapterError):validate_observation(q,a.observe(q),a,a.now)
+
+    def test_integral_finite_db_revision_normalizes_before_command_and_receipt(self):
+        q,s,a,p,o=setup();s.rows[q.key()]["legacy_write_revision"]=Decimal("1")
+        cmd=command(q,a.observe(q),a)
+        self.assertIs(type(cmd.expected_revision),int);validate_command(cmd,a,a.now)
+        report=p.commit(cmd);self.assertEqual(commit_outcome(cmd,report,a,a.now)[0],"COMMITTED")
+        self.assertIs(type(cmd.stored_receipt.mapping()["source_revision"]),int)
+
+    def test_invalid_db_decimals_never_prepare_or_commit(self):
+        for value in (Decimal("1.5"),Decimal("NaN"),Decimal("Infinity"),Decimal("-1"),Decimal("0")):
+            q,s,a,p,o=setup();s.rows[q.key()]["legacy_write_revision"]=value
+            self.assertEqual(classify_legacy(q,s.rows[q.key()],thaw(o.lifetime)).disposition,"MANUAL_INVESTIGATION_REQUIRED")
+            with self.assertRaises(AdapterError):command(q,a.observe(q),a)
+            self.assertEqual(p.calls,0);self.assertEqual(s.effects,[])
+
+    def test_command_binding_uses_typed_fingerprint_not_dataclass_equality(self):
+        q,s,a,p,o=setup();cmd=command(q,o,a);before=deepcopy(s.rows)
+        patch=cmd.patch.mapping();patch["set"]["legacy_write_revision"]=Decimal("2")
+        receipt=cmd.stored_receipt.mapping();receipt["source_revision"]=True
+        for changed in (replace(cmd,patch=freeze(patch)),replace(cmd,stored_receipt=freeze(receipt))):
+            self.assertEqual(changed,cmd)  # Python's value equality would accept both.
+            with self.assertRaisesRegex(AdapterError,"COMMAND_BINDING"):validate_command(changed,a,a.now)
+        self.assertEqual(s.rows,before)
+
+
+
+class OwnershipClassificationCorrectionTests(unittest.TestCase):
+    def test_absent_optional_ownership_fields_are_not_invented(self):
+        q,row,life=fixture()
+        for field in ("client_email","cognito_sub","linked_client_profile_id"):row.pop(field,None)
+        before=deepcopy(row);result=classify_legacy(q,row,life)
+        self.assertEqual(result.disposition,"PROTECTED_PATH_CANDIDATE");self.assertEqual(row,before)
+        # Classification is not booking authorization; a client still needs concrete verified bindings.
+        q,s,a,p,o=setup();a.bindings={}
+        with self.assertRaises(AdapterError):command(q,a.observe(q),a)
+
+    def test_explicit_null_and_invalid_optional_ownership_values_are_not_candidates(self):
+        for field in ("client_email","cognito_sub","linked_client_profile_id"):
+            for value in (None,"","   ",{},[],False,True,1,1.0,Decimal("1")):
+                q,row,life=fixture();row[field]=value;before=deepcopy(row)
+                result=classify_legacy(q,row,life)
+                self.assertEqual(result.disposition,"MANUAL_INVESTIGATION_REQUIRED")
+                self.assertIn(("NULL_" if value is None else "MALFORMED_")+field,result.reasons)
+                self.assertEqual(row,before)
+
+    def test_nonempty_opaque_ownership_fields_are_structural_not_email_identity_proof(self):
+        q,row,life=fixture();row.update(client_email="opaque-owned-binding",cognito_sub="opaque-subject",linked_client_profile_id=q.client_id)
+        self.assertEqual(classify_legacy(q,row,life).disposition,"PROTECTED_PATH_CANDIDATE")
+        row["linked_client_profile_id"]="other-client"
+        self.assertEqual(classify_legacy(q,row,life).disposition,"LEGACY_POLICY_REQUIRED")
+
+    def test_mixed_ownership_and_legacy_defects_keep_most_restrictive_disposition(self):
+        q,row,life=fixture();del row["company_id"];row.update(client_email=None,cognito_sub={},linked_client_profile_id="other")
+        result=classify_legacy(q,row,None)
+        self.assertEqual(result.disposition,"MANUAL_INVESTIGATION_REQUIRED")
+        self.assertTrue({"NULL_client_email","MALFORMED_cognito_sub","LINKED_OWNER_DIFFERS","MISSING_company_id","MISSING_LIFETIME"}<=set(result.reasons))
+        row["assigned_worker_id"]=None
+        self.assertEqual(classify_legacy(q,row,None).disposition,"PROTECTED_REFUSAL")
+
+
+class ReviewInventoryCorrectionTests(unittest.TestCase):
+    def test_review_request_fields_match_all_literal_and_constructed_write_branches(self):
+        root=Path(__file__).resolve().parents[2];tree=ast.parse((root/"src/backend/handlers/review_handler.py").read_text(encoding="utf-8"))
+        expressions=[];calls=[]
+        for node in ast.walk(tree):
+            if not isinstance(node,ast.Call) or not isinstance(node.func,ast.Attribute) or node.func.attr!="update_item":continue
+            kw={x.arg:x.value for x in node.keywords}
+            key=kw.get("Key")
+            if not isinstance(key,ast.Dict):continue
+            pk=next((v for k,v in zip(key.keys,key.values) if isinstance(k,ast.Constant) and k.value=="PK"),None)
+            if not isinstance(pk,ast.JoinedStr) or not any(isinstance(v,ast.Constant) and v.value=="REQ#" for v in pk.values):continue
+            calls.append(node.lineno);expr=kw["UpdateExpression"]
+            if isinstance(expr,ast.Constant):expressions.append(expr.value)
+            elif isinstance(expr,ast.Name):
+                for assignment in ast.walk(tree):
+                    if isinstance(assignment,ast.Assign):targets=assignment.targets
+                    elif isinstance(assignment,ast.AugAssign):targets=[assignment.target]
+                    else:continue
+                    if assignment.lineno<node.lineno and any(isinstance(t,ast.Name) and t.id==expr.id for t in targets):
+                        self.assertIsInstance(assignment.value,ast.Constant)
+                        expressions.append(assignment.value.value)
+            else:self.fail("Uncharacterized REQUEST expression construction")
+        fields=set()
+        for expression in expressions:
+            fields.update(re.findall(r"(?:\bSET\s+|,\s*)([#A-Za-z_]\w*)\s*=",expression))
+            removed=expression.split(" REMOVE ",1)
+            if len(removed)==2:fields.update(x.strip() for x in removed[1].split(','))
+            elif expression.startswith("REMOVE "):fields.update(x.strip() for x in expression[7:].split(','))
+        fields={"status" if field=="#stat" else field for field in fields}
+        writer=next(w for w in WRITERS if w.name=="review")
+        self.assertEqual(set(calls),set(writer.lines))
+        self.assertEqual(fields,set(writer.writes))
+        self.assertTrue({"updated_at","updated_by","visit_notes","client_profile_link_status"}<=fields)
+
+    def test_review_coupling_and_all_inventory_activation_blocks_are_preserved(self):
+        writer=next(w for w in WRITERS if w.name=="review")
+        self.assertEqual(writer.category,"COORDINATED_MULTI_RECORD_PROTOCOL")
+        self.assertTrue({"CLIENT/PET M&G","JOB","Calendar","notifications","async creation"}<=set(writer.coupled))
+        self.assertEqual(len(WRITERS),26)
+        for writer in WRITERS:
+            result=assess_writer(writer)
+            self.assertFalse(assess_writer(writer,result.required_guards).activation_ready)
