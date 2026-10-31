@@ -1,5 +1,7 @@
 # Current Project State
 
+**2026-10-31 cancellation access adapter:** `CANCELLATION_ACCESS_ADAPTER_INACTIVE_NOT_INTEGRATED`. Corrected-PR52-dependent SDK-free customer-cohort access mapping with injected synthetic evidence only; 443 focused passes. No handler, live verifier, storage or migration integration. Provenance/freshness, active-record compatibility, writer/lifetime, API/retention/IAM and release gates remain pending. See [access acceptance](../release-notes/cancellation-access-adapter.md).
+
 **2026-10-31 PR52 corrective checkpoint:** Five inactive contract findings corrected: attempt-generation/quiescence proof, current replay observation fencing, strict numeric binding, ownership classification and review-writer field coverage. 403 focused tests pass; real adapters, all-writer/ABA, policy/migration/IAM/retention and release gates remain pending. See [corrective acceptance](../release-notes/cancellation-adapter-compatibility-foundation.md#corrective-maintenance-checkpoint---2026-10-31). No runtime activation.
 
 **2026-10-31 cancellation adapter foundation:** `CANCELLATION_ADAPTER_FOUNDATION_INACTIVE_NOT_INTEGRATED`. PR51-dependent SDK-free observation/commit ports, synthetic legacy classifier and field-level writer inventory only; 374 focused passes. No real adapter or writer integration; legacy, auth/provenance, mixed-version/lifetime, policy/API/retention and release gates remain open. See [foundation acceptance](../release-notes/cancellation-adapter-compatibility-foundation.md).

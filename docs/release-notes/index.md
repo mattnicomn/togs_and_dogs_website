@@ -4,6 +4,8 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 
 ## 🌟 Featured / Recent
 
+- [**Cancellation-specific access adapter - INACTIVE**](cancellation-access-adapter.md) (2026-10-31) - Corrected PR52 dependency; customer-only synthetic gateway/booking evidence mapping; 443 focused passes, no runtime integration.
+
 - [**Cancellation adapter compatibility foundation - INACTIVE**](cancellation-adapter-compatibility-foundation.md) (2026-10-31) - SDK-free ports, synthetic legacy classification and writer compatibility rules; PR51 dependency, dated five-finding correction with 403 focused passes; no runtime integration.
 
 - [**Cancellation-request submission - INACTIVE**](cancellation-submission-contract.md) (2026-10-30) - PR50-dependent field-preserving REQUEST/receipt contract; dated authoritative replay/identity correction with 312 focused passes; no final cancellation, handler integration or activation.

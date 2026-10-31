@@ -421,3 +421,6 @@ The dated update log below is historical chronology. Statements such as “stric
 
 
 **2026-10-31 PR52 correction:** [Five-finding corrective acceptance](../release-notes/cancellation-adapter-compatibility-foundation.md#corrective-maintenance-checkpoint---2026-10-31); 403 focused passes. Attempt/quiescence, replay freshness, numeric binding, ownership classification and review-writer inventory corrected offline. Real adapters, all-writer/lifetime, policy/API, migration/IAM/retention and rollout remain blocked; no runtime activation.
+
+
+**2026-10-31 cancellation access mapping:** [Inactive customer-cohort adapter](../release-notes/cancellation-access-adapter.md), dependent on corrected PR52. 443 focused passes; gateway/profile provenance, freshness, storage/attempt protocol, writer containment, legacy adoption and API/retention/release remain gated. No runtime integration or migration.
