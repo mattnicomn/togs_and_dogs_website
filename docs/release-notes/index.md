@@ -4,6 +4,8 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 
 ## 🌟 Featured / Recent
 
+- [**Cancellation adapter compatibility foundation - INACTIVE**](cancellation-adapter-compatibility-foundation.md) (2026-10-31) - SDK-free ports, synthetic legacy classification and writer compatibility rules; PR51 dependency, no runtime integration.
+
 - [**Cancellation-request submission - INACTIVE**](cancellation-submission-contract.md) (2026-10-30) - PR50-dependent field-preserving REQUEST/receipt contract; dated authoritative replay/identity correction with 312 focused passes; no final cancellation, handler integration or activation.
 
 - [**Slice 2B-C atomic workflow contract — INACTIVE**](slice-2bc-atomic-workflow-contract.md) (2026-10-30) — PR49-dependent pure REQUEST/JOB/PET persistence and outbox recovery model; synthetic tests only. No writer/API integration or activation.
