@@ -156,6 +156,11 @@ class BookingAccess:
     tenant_active: bool = False
     booking_allowed: bool = False
     read_id: str = ""
+    # Gate C3b.3g.2 / PR54: identity fields the trusted adapter authoritatively
+    # observed ABSENT from the booking record. The commit fences each with
+    # attribute_not_exists so a concurrent insert (even one that fails to bump
+    # the revision) cannot slip an unfenced ownership field past the condition.
+    absent_fields: tuple = ()
 
 
 def authorize(submission, access, snapshot):
@@ -170,16 +175,39 @@ def authorize(submission, access, snapshot):
     need(type(access.role) is str and access.role in {"client","owner","admin","staff"}, "ACCESS_DENIED")
     need(access.incarnation==snapshot.incarnation and revision(access.revision)==snapshot.revision, "STALE_ACCESS")
     need(type(access.bindings) is tuple, "ACCESS_BINDING")
+    identity_universe={"client_email","linked_client_profile_id","cognito_sub"}
     fields=set()
     for pair in access.bindings:
         need(type(pair) is tuple and len(pair)==2, "ACCESS_BINDING")
         field,value=pair
-        need(field in {"client_email","linked_client_profile_id","cognito_sub"} and field not in fields
+        need(field in identity_universe and field not in fields
              and type(value) is str and bool(value), "ACCESS_BINDING")
         fields.add(field)
     # No client email/name matching occurs here; the existing trusted adapter's
     # verified booking decision must provide its concrete persisted identity fence.
     need(access.role != "client" or bool(fields), "ACCESS_BINDING")
+    # Gate C3b.3g.2 / PR54: validate observed-absent identity evidence. Each
+    # entry must be a known identity field, unique, and DISJOINT from the present
+    # bindings (a field cannot be both present-fenced and absent) - contradictory
+    # or forged absence evidence is rejected here. EXHAUSTIVENESS over the
+    # identity universe is NOT enforced in authorize(): it is enforced for the
+    # client protected path in transaction() (PROTECTED_IDENTITY_COVERAGE_*),
+    # the real condition-construction boundary, so legacy/non-protected callers
+    # that reach authorize() are not newly broken.
+    need(type(access.absent_fields) is tuple, "ACCESS_ABSENCE_BINDING")
+    absent=set()
+    for field in access.absent_fields:
+        need(type(field) is str and field in identity_universe and field not in absent
+             and field not in fields, "ACCESS_ABSENCE_BINDING")
+        absent.add(field)
+    # Well-formed and disjoint from the present fence (a field cannot be both
+    # present-fenced and attested-absent) - contradictory/forged absence
+    # evidence is rejected. Exhaustiveness over the identity universe is NOT
+    # required here: the existing contract allows a client fence of just a
+    # subject/profile identity, and absent-field evidence is optional on this
+    # legacy path. The trusted adapter (PR52 prepare_commit) derives a complete
+    # present-vs-absent partition from the attested observation; callers that
+    # supply absent_fields get those fenced with attribute_not_exists.
 
 
 def warning(start, now):
@@ -366,6 +394,27 @@ def transaction(plan,table_name):
             ":rev":snap.revision,":next":snap.revision+1,":new":"CANCELLATION_REQUESTED",":reason":sub.reason,
             ":time":receipt.submitted_at,":by":"CLIENT#"+sub.client_id,":empty":[],":list":"L",":number":"N",
             ":audit":[{"status":"CANCELLATION_REQUESTED","timestamp":receipt.submitted_at,"by":"CLIENT#"+sub.client_id,"reason":sub.reason}]}
+    # Gate C3b.3g.2 / PR54 corrective: MANDATORY protected-path identity coverage,
+    # enforced HERE at real condition construction (not only in authorize, which
+    # stays permissive for non-protected/legacy callers). For a client protected
+    # cancellation every identity field must be accounted for - either present and
+    # equality-fenced (bindings) or attested-absent and attribute_not_exists-fenced
+    # - with the two sets DISJOINT and DUPLICATE-FREE. This fails closed on the
+    # omitted/default empty-absence case, partial coverage, and contradictory or
+    # duplicate evidence, so a transaction can never be built that leaves an
+    # identity field unfenced (the insert-without-revision-bump race). Absence
+    # fields are NOT treated as authenticated here; completeness of the fence is a
+    # structural precondition, and real trusted-verifier/bridge provenance remains
+    # a separate, still-pending gate (see acceptance doc). Checked before the
+    # body is assembled so an underprotected client commit never materializes.
+    identity_universe={"client_email","linked_client_profile_id","cognito_sub"}
+    if plan.access.role == "client":
+        present_cov=[f for f,_ in plan.access.bindings]
+        absent_cov=list(plan.access.absent_fields)
+        need(all(f in identity_universe for f in present_cov+absent_cov),"PROTECTED_IDENTITY_COVERAGE_FIELD")
+        need(len(present_cov)==len(set(present_cov)) and len(absent_cov)==len(set(absent_cov)),"PROTECTED_IDENTITY_COVERAGE_DUPLICATE")
+        need(set(present_cov).isdisjoint(set(absent_cov)),"PROTECTED_IDENTITY_COVERAGE_CONTRADICTION")
+        need(set(present_cov) | set(absent_cov) == identity_universe,"PROTECTED_IDENTITY_COVERAGE_INCOMPLETE")
     parts=["attribute_exists(PK)","attribute_exists(SK)","company_id = :tenant","client_id = :client","request_id = :request",
            "#s = :old","#inc = :inc","#rev = :rev","attribute_type(#rev, :number)","(attribute_not_exists(#audit) OR attribute_type(#audit, :list))"]
     if snap.start_present:parts.append("#start = :start");values[":start"]=snap.start_date
@@ -374,6 +423,13 @@ def transaction(plan,table_name):
         names["#m"+str(index)]=marker;parts.append("attribute_not_exists(#m"+str(index)+")")
     for index,(field,value) in enumerate(plan.access.bindings):
         names["#a"+str(index)]=field;values[":a"+str(index)]=value;parts.append("#a"+str(index)+" = :a"+str(index))
+    # Gate C3b.3g.2 / PR54: fence each authoritatively-absent identity field with
+    # attribute_not_exists so a concurrent insert after observation is rejected
+    # even if the inserting writer does NOT advance legacy_write_revision. Uses a
+    # distinct #x name namespace; present-field equalities (#a), revision (#rev)
+    # and incarnation (#inc) guards are unchanged.
+    for index,field in enumerate(plan.access.absent_fields):
+        names["#x"+str(index)]=field;parts.append("attribute_not_exists(#x"+str(index)+")")
     update={"TableName":table_name,"Key":attrs(sub.key()),"ConditionExpression":" AND ".join(parts),
         "UpdateExpression":"SET #s = :new, cancellation_reason = :reason, cancellation_requested_at = :time, cancellation_requested_by = :by, #audit = list_append(if_not_exists(#audit, :empty), :audit), #rev = :next",
         "ExpressionAttributeNames":names,"ExpressionAttributeValues":attrs(values)}

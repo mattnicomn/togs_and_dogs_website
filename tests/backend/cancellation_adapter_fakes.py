@@ -191,7 +191,8 @@ class FakeCommitPort:
         p=command.observation.principal
         sub=Submission(q.tenant,q.client_id,q.request_id,q.issuer,q.subject,q.operation,q.reason)
         access=BookingAccess(q.tenant,q.client_id,q.request_id,q.issuer,q.subject,q.role,command.incarnation,
-            command.expected_revision,tuple(p.identity_bindings.mapping().items()),True,True,True,True)
+            command.expected_revision,tuple(p.identity_bindings.mapping().items()),True,True,True,True,
+            absent_fields=command.absent_identity_fields)
         plan=prepare(sub,access,parse_snapshot(request,sub),datetime.fromisoformat(command.submitted_at),
                      StatusAssumption(command.assumed_status,True,"SYNTHETIC_ONLY",command.assumption_reference))
         wire=transaction(plan,"offline-adapter")

@@ -13,7 +13,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[2]/"src/backend"))
 from common.cancellation_adapter_foundation import (
     AdapterError,FrozenMap,Observation,ObservationAttestation,CommitReport,OutcomeAttestation,
     freeze,thaw,fingerprint,classify_legacy,validate_observation,prepare_commit,validate_command,
-    replay_response,commit_outcome,
+    replay_response,commit_outcome,IDENTITY_FIELDS,
 )
 from common.cancellation_writer_inventory import WRITERS,ROLLOUT_BLOCKERS,assess_writer
 from cancellation_adapter_fakes import State,FakeAuthority,FakeCommitPort,fixture,query,STAMP
@@ -507,7 +507,14 @@ class ReplayFreshnessCorrectionTests(unittest.TestCase):
                 with self.subTest(field=field,value=value):
                     q,s,a,p,o=setup()
                     s.rows[q.key()][field]=q.client_id if field=="linked_client_profile_id" else "opaque-binding"
-                    a.bindings={field:s.rows[q.key()][field]};p.commit(command(q,a.observe(q),a));old=a.observe(q)
+                    # Complete protected-path coverage: bind EVERY identity field
+                    # present in the record (base client_email plus the field under
+                    # test) so prepare_commit derives a present/absent partition that
+                    # exhausts the identity universe and the PR51 transaction can be
+                    # built. The field under test is equality-fenced; the remaining
+                    # identity fields stay attested-absent.
+                    a.bindings={f:s.rows[q.key()][f] for f in IDENTITY_FIELDS if f in s.rows[q.key()]}
+                    p.commit(command(q,a.observe(q),a));old=a.observe(q)
                     if value=="ABSENT":del s.rows[q.key()][field]
                     else:s.rows[q.key()][field]=value
                     before=deepcopy(s.rows)

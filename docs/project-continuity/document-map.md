@@ -16,6 +16,7 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 | Topic | Location |
 |-------|----------|
 | Cancellation-specific access adapter (inactive; customer cohort; injected evidence; corrected PR52 dependency) | `docs/release-notes/cancellation-access-adapter.md` |
+| Cancellation absent-identity ownership guard (inactive; PR54; attribute_not_exists fencing of observed-absent identities; stacked on PR53) | `docs/release-notes/cancellation-absent-identity-guard.md` |
 | Cancellation adapter compatibility foundation (inactive; PR52 corrective attempt/replay/type/classifier/writer checkpoint; PR51 dependency) | `docs/release-notes/cancellation-adapter-compatibility-foundation.md` |
 | Cancellation-request submission (inactive; authoritative replay/identity correction; PR50 dependency; status/API/recovery pending) | `docs/release-notes/cancellation-submission-contract.md` |
 | Slice 2B-C atomic workflow / post-commit recovery (inactive; PR49 dependency; all-writer/API gates open) | `docs/release-notes/slice-2bc-atomic-workflow-contract.md` |

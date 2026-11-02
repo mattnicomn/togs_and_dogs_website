@@ -283,6 +283,10 @@ class CommitCommand:
     stored_receipt: FrozenMap
     guards: tuple
     blockers: tuple=("INACTIVE_NO_RUNTIME","SOURCE_STATUS_POLICY_PENDING","REAL_ADAPTER_PENDING","ALL_WRITERS_PENDING","RETENTION_ROLLOUT_PENDING")
+    # Gate C3b.3g.2 / PR54: identity fields derived ABSENT from the attested
+    # observation request, carried through the inactive contract so a real
+    # transaction can fence each with attribute_not_exists.
+    absent_identity_fields: tuple=()
 
 
 def prepare_commit(query, observation, verifier, now, submitted_at, assumed_status=None, assumption_reference=""):
@@ -304,10 +308,26 @@ def prepare_commit(query, observation, verifier, now, submitted_at, assumed_stat
     patch=freeze({"set":{"status":"CANCELLATION_REQUESTED","cancellation_reason":query.reason,
         "cancellation_requested_at":stamp,"cancellation_requested_by":"CLIENT#"+query.client_id,"legacy_write_revision":old+1},
         "append":{"audit_log":[audit]}})
+    # Gate C3b.3g.2 / PR54: derive observed-absent identity fields from the
+    # ATTESTED request (not a caller input) and validate consistency against the
+    # present identity bindings. Present (identity_bindings) and absent must be
+    # disjoint and together exhaust IDENTITY_FIELDS, so every identity field is
+    # accounted for - no silent third state a later insert could exploit.
+    present=set(observation.principal.identity_bindings.mapping())
+    absent=tuple(f for f in IDENTITY_FIELDS if f not in request)
+    # Disjoint by construction: a present binding must be in the request
+    # (validate_observation enforces BOOKING_IDENTITY_CHANGED), while absent means
+    # not-in-request - so the two sets cannot overlap. Assert it as a fail-closed
+    # invariant against any future drift. Exhaustiveness is NOT required here: a
+    # field present in the request but not bound (an incomplete fence) is already
+    # rejected upstream by the PR53 adapter; the parent contract stays permissive
+    # so legacy/offline callers are not newly broken.
+    require(present.isdisjoint(set(absent)),"ABSENCE_CONTRADICTS_PRESENT")
     guards=("EXACT_EXISTING_REQUEST","EXPECTED_REVISION_AND_INCARNATION","SOURCE_STATUS_AND_START",
-            "ACTUAL_BOOKING_IDENTITY","AUDIT_LIST_OR_ABSENT","NO_CANONICAL_MARKERS","RESERVATION_ABSENT",
-            "LIVE_PERMANENT_LIFETIME","CREATE_ONLY_RECEIPT","ATOMIC_REQUEST_AND_RECEIPT","FIELD_PRESERVING_UPDATE")
-    command=CommitCommand(query,observation,stamp,assumed_status,assumption_reference,old,request["record_incarnation"],patch,freeze(stored),guards)
+            "ACTUAL_BOOKING_IDENTITY","ABSENT_IDENTITY_NOT_INSERTED","AUDIT_LIST_OR_ABSENT","NO_CANONICAL_MARKERS",
+            "RESERVATION_ABSENT","LIVE_PERMANENT_LIFETIME","CREATE_ONLY_RECEIPT","ATOMIC_REQUEST_AND_RECEIPT","FIELD_PRESERVING_UPDATE")
+    command=CommitCommand(query,observation,stamp,assumed_status,assumption_reference,old,request["record_incarnation"],
+                          patch,freeze(stored),guards,absent_identity_fields=absent)
     require(len(fingerprint(command))==64 and len(json.dumps(patch.mapping()))*2+4096<300*1024,"OVERSIZE_REFUSED")
     return command
 

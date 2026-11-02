@@ -36,7 +36,8 @@ def fixture(status="ASSIGNED", role="client"):
           "client_email":"opaque-booking-binding","audit_log":[{"action":"EXISTING"}],"unrelated":{"preserve":[1,2]}}
     snap=parse_snapshot(item,sub)
     access=BookingAccess(sub.tenant,sub.client_id,sub.request_id,sub.issuer,sub.actor,role,snap.incarnation,snap.revision,
-                         (("client_email","opaque-booking-binding"),),True,True,True,True)
+                         (("client_email","opaque-booking-binding"),),True,True,True,True,
+                         absent_fields=("cognito_sub","linked_client_profile_id"))
     assumption=StatusAssumption(status,True,"SYNTHETIC_ONLY","synthetic-test-scenario")
     return sub,item,access,snap,assumption
 
@@ -539,9 +540,18 @@ class CorrectiveReplayEvidenceTests(unittest.TestCase):
             self.assert_refused(p,s)
 
     def test_every_relied_identity_field_is_compared_to_persisted_value(self):
-        for field in ("client_email","linked_client_profile_id","cognito_sub"):
-            sub,item,access,snapshot,policy=fixture();item[field]="actor-binding"
-            access=replace(access,bindings=((field,"actor-binding"),))
+        identity_universe=("client_email","linked_client_profile_id","cognito_sub")
+        for field in identity_universe:
+            sub,item,access,snapshot,policy=fixture()
+            # Record-consistent complete coverage: the item carries EXACTLY the one
+            # identity field under test (present, equality-fenced); the other two are
+            # genuinely not in the record (attested-absent, attribute_not_exists-fenced).
+            # present + absent exhaust the identity universe and match the stored item,
+            # so transaction() can be built and its condition evaluates cleanly.
+            for other in identity_universe:item.pop(other,None)
+            item[field]="actor-binding"
+            access=replace(access,bindings=((field,"actor-binding"),),
+                           absent_fields=tuple(f for f in identity_universe if f!=field))
             p=prepare(sub,access,parse_snapshot(item,sub),NOW,policy);s=MemoryStore(p,item);s.submit(p)
             s.rows[(item["PK"],item["SK"])][field]="someone-else"
             self.assert_refused(p,s)

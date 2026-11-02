@@ -195,6 +195,7 @@ class AccessEvidence:
     principal: GatewayEvidence
     bundle: Bundle
     bindings: tuple
+    absent_identity_fields: tuple = ()
 
     @property
     def activation_ready(self):return False
@@ -304,7 +305,16 @@ class CancellationAccessAdapter:
             if field in request:need(field in fields,"INCOMPLETE_OWNERSHIP_FENCE")
         # The commit fence must contain a subject/profile identity, never just an email.
         need("cognito_sub" in fields or "linked_client_profile_id" in fields,"IMMUTABLE_OWNERSHIP_FENCE_REQUIRED")
-        return link.bindings
+        # Authoritative observed-absent identity evidence (Gate C3b.3g.2 / PR54).
+        # A field is "absent" only when its KEY is missing from the attested
+        # request (present-but-NULL/empty already failed OWNERSHIP_SHAPE above).
+        # This is derived from the bundle-attested request, not a caller input,
+        # so it cannot be forged independently of the observation. Returned as
+        # typed evidence so a future commit can fence each absent identity with
+        # attribute_not_exists, closing the "inserted after observation" race.
+        # Disjoint-and-exhaustive by construction: fields ∪ absent == IDENTITIES.
+        absent=tuple(f for f in IDENTITIES if f not in request)
+        return link.bindings,absent
 
     def observe(self,event,query,now):
         need(type(query) is Query,"QUERY");query.validate()
@@ -312,13 +322,14 @@ class CancellationAccessAdapter:
         principal=self.verifier.authenticate(facts,self.configuration,now)
         self._principal(facts,principal,query,now)
         bundle=self.reader.observe(query,principal)
-        bindings=self._bundle(query,principal,bundle,now)
-        return AccessEvidence(query,facts,principal,bundle,bindings)
+        bindings,absent=self._bundle(query,principal,bundle,now)
+        return AccessEvidence(query,facts,principal,bundle,bindings,absent)
 
     def verify_current(self,evidence,now):
         need(type(evidence) is AccessEvidence,"ACCESS_EVIDENCE")
         evidence.query.validate()
         self._principal(evidence.facts,evidence.principal,evidence.query,now)
-        bindings=self._bundle(evidence.query,evidence.principal,evidence.bundle,now)
+        bindings,absent=self._bundle(evidence.query,evidence.principal,evidence.bundle,now)
         need(digest(bindings)==digest(evidence.bindings),"ACCESS_BINDING")
+        need(digest(absent)==digest(evidence.absent_identity_fields),"ACCESS_ABSENCE_BINDING")
         return evidence  # Verifier must recheck actual current evidence; lease/digest alone is insufficient.
