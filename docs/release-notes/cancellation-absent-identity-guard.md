@@ -39,14 +39,17 @@ Error ordering: the previously ambiguous `OVERSIZE_REFUSED` / `CONDITIONAL_REFUS
 
 ## Offline condition-evaluation tests
 
-`tests/backend/test_cancellation_absent_identity_guard.py` (9 cases) includes a minimal synthetic evaluator for the closed clause grammar PR51 emits and evaluates the ACTUAL generated `ConditionExpression` against synthetic stored-item states (not only strings):
+`tests/backend/test_cancellation_absent_identity_guard.py` (11 cases) includes a minimal synthetic evaluator for the closed clause grammar PR51 emits and evaluates the ACTUAL generated `ConditionExpression` against synthetic stored-item states (not only strings):
 
+- Absent field fenced with `attribute_not_exists`; present field still equality-fenced.
 - Absent field remains absent -> condition PASSES.
 - Absent field inserted, revision unchanged -> DENIES (the race this PR closes).
 - Absent field inserted, revision changed -> DENIES.
 - Present field changed / removed / NULL -> DENIES.
-- Conflicting (present+absent) and forged (unknown/duplicate) absence evidence -> rejected by `authorize()` before any transaction is built.
-- Existing successful transaction (clean snapshot; and legacy no-absent-fields path) -> remains valid.
+- Default/partial coverage (omitted or incomplete absence evidence) -> refuses at construction with `PROTECTED_IDENTITY_COVERAGE_INCOMPLETE` before any transaction is built.
+- Complete valid coverage -> builds and fences every identity field (equality for present, `attribute_not_exists` for absent).
+- Conflicting (present+absent) and forged (unknown/duplicate) absence evidence -> rejected by `authorize()` (`ACCESS_ABSENCE_BINDING`) before any transaction is built.
+- Existing successful transaction (complete-coverage clean snapshot) -> remains valid.
 - Condition <= 4096 bytes; TransactWriteItems envelope within limits.
 
 ## Validation

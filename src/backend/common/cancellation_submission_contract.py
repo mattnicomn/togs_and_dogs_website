@@ -189,10 +189,11 @@ def authorize(submission, access, snapshot):
     # Gate C3b.3g.2 / PR54: validate observed-absent identity evidence. Each
     # entry must be a known identity field, unique, and DISJOINT from the present
     # bindings (a field cannot be both present-fenced and absent) - contradictory
-    # or forged absence evidence is rejected. For the client role the evidence
-    # must be EXHAUSTIVE over the identity universe (every identity field is
-    # either present-fenced or attested-absent), so no identity field is left in
-    # an unaccounted third state that a later insert could exploit.
+    # or forged absence evidence is rejected here. EXHAUSTIVENESS over the
+    # identity universe is NOT enforced in authorize(): it is enforced for the
+    # client protected path in transaction() (PROTECTED_IDENTITY_COVERAGE_*),
+    # the real condition-construction boundary, so legacy/non-protected callers
+    # that reach authorize() are not newly broken.
     need(type(access.absent_fields) is tuple, "ACCESS_ABSENCE_BINDING")
     absent=set()
     for field in access.absent_fields:
