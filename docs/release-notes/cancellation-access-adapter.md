@@ -84,3 +84,16 @@ Full guarded backend suite: **FULL_BACKEND_NOT_VERIFIED.** The full `tests/backe
 ### Remaining gates
 
 Hosted/stable-runner full-suite confirmation against the exact 77-failure baseline (including multiplicity); exact-head security/CI observation on the dependent base (hosted CI targets `main`, so the dependent chain may not supply hosted jobs - report as observed, never inherited); and all previously recorded pre-integration gates (real-verifier trust/provenance/freshness, writer/mixed-version closure, storage/reconciliation adapter, source-status/resubmission policy, retention/recovery, exact-principal transactional IAM, UX/release evidence). PR53 remains inactive and not merge-ready. No parent edits, runtime integration, AWS/Terraform/Cognito/IAM, migration/backfill, enrollment, Stripe/tenant, distribution or Ryan testing occurred.
+
+### Evidence retention - 2026-11-01 (PR53-specific baseline)
+
+A later detached, line-buffered run (not the blocking foreground `-q` runs that had stalled) **completed** the full `tests/backend` suite at head `13e9f5d418c288d4cf6383900875101aac803695`. This supersedes the earlier "stalls at ~24%" note as an environment/invocation artifact, not a true test hang. The completed run is retained as a durable, out-of-worktree evidence set (kept out of git; raw artifacts are not committed):
+
+- Location: `D:\petcare-rollback\pr53-evidence\13e9f5d\` (survives removal of the temporary PR53 worktree).
+- Files: `bv_junit.xml`, `bv_full.txt`, `pr53_failure_manifest.json` (machine-readable: head, JUnit meta, 74 sorted failure node IDs + normalized signatures + multiplicity), `SHA256SUMS.txt`, `README.md`.
+- SHA256 (verified MATCH against the originals): bv_junit.xml `179D1394...90CDBBE`; bv_full.txt `B2CB5965...4992C58F`; pr53_failure_manifest.json `D3DBC7D4...55AC1BFD`.
+- Runner: platform win32, Python 3.13.3, pytest 9.0.2, hypothesis 6.98.0, host NICO2018; command `py -3 -m pytest tests/backend --rootdir <worktree> -p no:cacheprovider -v --junitxml=<junit>` with `CI_AWS_CALL_GUARD=true` and dummy AWS env.
+
+**PR53-specific baseline (this environment):** JUnit tests=2817, **failures=74**, errors=0, skipped=0 (pytest collected 2590 items; the +227 delta is unittest-style subtests expanded into individual JUnit testcases). **Cancellation-module failures = 0** - every `test_cancellation_*` passes, including the six new P1/P2 regressions. All 74 failures are pre-existing environmental families (guard-blocked unmocked AWS `dynamodb.GetItem/Query` -> 500; deferred-infra static `.tf` reads -> FileNotFoundError; entitlement/tenant-enforcement and phase24a/service contract characterization); none is attributable to PR53's P1/P2 change.
+
+**Historical 77-failure parity: UNVERIFIED.** This 74-failure result is NOT asserted equivalent to the historical "77 failed / 2507 passed" figure. No retained machine-readable 77-failure baseline (sorted node IDs + multiplicity) exists, and the collection total differs, so no node-ID / signature / multiplicity parity is claimed. **FULL_BACKEND_NOT_VERIFIED remains OPEN** until a stable/hosted runner reproduces the historical baseline for an exact diff.
