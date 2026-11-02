@@ -14,6 +14,7 @@ from common.cancellation_access_adapter import (
     CancellationAccessAdapter,event_facts,frozen,thaw,digest,raw_digest,need,
 )
 from common import cancellation_adapter_foundation as parent
+from common import cancellation_submission_contract as submission
 
 
 ISSUER="https://synthetic-issuer.example.invalid"
@@ -36,11 +37,11 @@ class SyntheticReader:
             "audit_log":[{"action":"previous"}],"unknown":{"keep":Decimal("1.25")}}
         self.profiles=[{"PK":"COMPANY#tenant_a","SK":"CLIENT#client-a","client_id":"client-a","company_id":"tenant_a",
                         "cognito_sub":"subject-a","is_active":True}]
-        self.tenant={"PK":"TENANT#tenant_a","SK":"METADATA","is_active":True,"subscription_status":"active"}
+        self.tenant={"PK":"TENANT#tenant_a","SK":"METADATA","company_id":"tenant_a","is_active":True,"subscription_status":"active"}
         self.lifetime={"PK":"LIFETIME#"+q.token(),"SK":"PERMANENT","incarnation":"life-a","retired":False}
         self.reservation=None;self.receipt=None
         self.link=LinkProof(ISSUER,"subject-a",q.tenant,q.client_id,q.request_id,"client-a","life-a",1,
-                           (("cognito_sub","subject-a"),("linked_client_profile_id","client-a")),"synthetic-provenance-a")
+                           (("cognito_sub","subject-a"),("linked_client_profile_id","client-a"),("client_email","opaque-binding")),"synthetic-provenance-a")
         self.epochs=(1,1,1);self.revoked=False;self.complete=True;self.coherence="COHERENT_SNAPSHOT"
         self.now=NOW;self.serial=0;self.calls=0;self.registry={};self.fail=False;self.partial=False
 
@@ -277,14 +278,16 @@ class CancellationAccessTests(unittest.TestCase):
         event,r,v,a,q=setup();r.profiles[0].update(client_id="profile-b",SK="CLIENT#profile-b")
         r.request["linked_client_profile_id"]="profile-b"
         with self.assertRaisesRegex(AccessError,"PROVENANCE_BINDING"):a.observe(event,q,NOW)
-        r.link=replace(r.link,profile_id="profile-b",bindings=(("cognito_sub","subject-a"),("linked_client_profile_id","profile-b")))
+        r.link=replace(r.link,profile_id="profile-b",bindings=(("cognito_sub","subject-a"),("linked_client_profile_id","profile-b"),("client_email","opaque-binding")))
         with self.assertRaisesRegex(AccessError,"UNISSUED_LINK_PROVENANCE"):a.observe(event,q,NOW)
         v.trusted_links.add(digest(r.link))  # Explicit independent synthetic authority, not a reader flag.
         result=a.observe(event,q,NOW);self.assertEqual(result.bundle.linkage.profile_id,"profile-b")
         self.assertEqual(r.request["client_id"],"client-a")
 
     def test_verified_subject_profile_link_can_fence_booking_without_booking_subject_field(self):
-        event,r,v,a,q=setup();del r.request["cognito_sub"]
+        # No cognito_sub and no client_email persisted: the only relied-upon
+        # identity is the linked profile, and the fence covers it completely.
+        event,r,v,a,q=setup();del r.request["cognito_sub"];del r.request["client_email"]
         r.link=replace(r.link,bindings=(("linked_client_profile_id","client-a"),))
         v.trusted_links.add(digest(r.link));before=rows(r)
         result=a.observe(event,q,NOW)
@@ -421,3 +424,111 @@ class CancellationAccessTests(unittest.TestCase):
         self.assertIn("INACTIVE_NO_RUNTIME",cmd.blockers);self.assertEqual(rows(r),before)
         r.request["legacy_write_revision"]=2
         with self.assertRaises(AccessError):parent.validate_observation(pq,observation,bridge,NOW)
+
+    # --- P1 corrective-maintenance regressions (commit-time ownership fences) ---
+
+    def test_persisted_identity_field_absent_from_commit_fence_fails_closed(self):
+        # A relied-upon persisted identity (here client_email) that is present on
+        # the booking record but omitted from the fence must FAIL CLOSED, because
+        # the actual commit ConditionExpression only asserts the bound fields.
+        event,r,v,a,q=setup()
+        r.link=replace(r.link,bindings=(("cognito_sub","subject-a"),("linked_client_profile_id","client-a")))
+        v.trusted_links.add(digest(r.link));before=rows(r)
+        with self.assertRaisesRegex(AccessError,"INCOMPLETE_OWNERSHIP_FENCE"):a.observe(event,q,NOW)
+        self.assertEqual(rows(r),before)
+
+    def test_every_present_identity_field_is_in_the_returned_commit_fence(self):
+        event,r,v,a,q=setup();result=a.observe(event,q,NOW)
+        fenced={field for field,_ in result.bindings}
+        present={field for field in ("client_email","cognito_sub","linked_client_profile_id") if field in r.request}
+        self.assertTrue(present<=fenced)
+        self.assertIn("client_email",fenced)  # present on the record -> must be fenced
+
+    def _actual_commit_transaction(self,r,v,a,q,now):
+        """Build the real PR51 commit transaction from this adapter's evidence.
+
+        Exercises the ACTUAL ConditionExpression (not access prevalidation):
+        the fence bindings become per-identity `#a = :a` equality conditions.
+        """
+        from datetime import datetime,timezone
+        evidence=a.observe({"requestContext":{"authorizer":{"claims":
+            {"iss":ISSUER,"sub":"subject-a","custom:company_id":"tenant_a","cognito:groups":["client"]}}}},q,now)
+        sub=submission.Submission(q.tenant,q.client_id,q.request_id,evidence.principal.issuer,
+                                  evidence.principal.subject,q.operation,q.reason)
+        snap=submission.parse_snapshot(thaw(evidence.bundle.request),sub)
+        access=submission.BookingAccess(sub.tenant,sub.client_id,sub.request_id,sub.issuer,sub.actor,"client",
+            snap.incarnation,snap.revision,evidence.bindings,True,True,True,True,"read-a")
+        assumption=submission.StatusAssumption(snap.status,True,"SYNTHETIC_ONLY","DESIGN_ONLY_TEST")
+        plan=submission.prepare(sub,access,snap,datetime(2026,10,31,12,tzinfo=timezone.utc),assumption)
+        return submission.transaction(plan,"petcare-hero-table")
+
+    def test_actual_pr51_condition_expression_pins_every_fenced_identity_and_revision(self):
+        event,r,v,a,q=setup();txn=self._actual_commit_transaction(r,v,a,q,NOW)
+        update=txn["TransactItems"][0]["Update"]
+        condition=update["ConditionExpression"];names=update["ExpressionAttributeNames"]
+        # Revision and incarnation are pinned (changed/removed value bumps revision).
+        self.assertIn("#rev = :rev",condition);self.assertIn("#inc = :inc",condition)
+        # Each relied-upon identity field appears as a named equality condition.
+        for field in ("client_email","cognito_sub","linked_client_profile_id"):
+            self.assertIn(field,names.values())
+        fenced_names=[n for n,src in names.items() if src in ("client_email","cognito_sub","linked_client_profile_id")]
+        for n in fenced_names:self.assertIn(n+" = :",condition)
+
+    def test_actual_commit_refuses_changed_removed_null_or_inserted_identity(self):
+        # Drive the ACTUAL parent commit validation (not access-only) with
+        # synthetic post-preparation identity mutations; each must refuse.
+        from datetime import datetime,timezone
+        base_event={"requestContext":{"authorizer":{"claims":
+            {"iss":ISSUER,"sub":"subject-a","custom:company_id":"tenant_a","cognito:groups":["client"]}}}}
+        def build(r,v,a,q):
+            evidence=a.observe(base_event,q,NOW)
+            pq=parent.Query(q.tenant,q.client_id,q.request_id,evidence.principal.issuer,evidence.principal.subject,
+                            "client",q.operation,q.reason)
+            pg=evidence.principal
+            principal=parent.Principal(pg.issuer,pg.subject,pg.tenant,pg.role,parent.freeze(dict(evidence.bindings)),
+                                       pg.principal_epoch,pg.tenant_epoch,pg.revocation_epoch,True,False)
+            b=evidence.bundle
+            obs=parent.Observation(pq.binding(),principal,parent.freeze(thaw(b.request)),parent.freeze(thaw(b.lifetime)),
+                                   None,None,b.observation_id,b.observed_at,b.valid_until,b.coherence)
+            class Bridge:
+                def verify_observation(self,query,o,now):
+                    a.verify_current(evidence,now)
+                    need(parent.fingerprint(query)==parent.fingerprint(pq) and parent.fingerprint(o)==parent.fingerprint(obs),"BRIDGE_BINDING")
+                    return parent.ObservationAttestation(parent.fingerprint(query),parent.fingerprint(o),o.observation_id,
+                                                         pg.principal_epoch,pg.tenant_epoch,pg.revocation_epoch)
+            return pq,obs,Bridge()
+        for field in ("cognito_sub","linked_client_profile_id","client_email"):
+            for mutation in ("other","ABSENT","NULL","INSERTED"):
+                event,r,v,a,q=setup()
+                pq,obs,bridge=build(r,v,a,q)
+                # Mutate the backing record AFTER preparation, then re-validate the
+                # frozen observation against the (now divergent) current record via
+                # the bridge's verify_current obligation.
+                if mutation=="INSERTED":
+                    # Simulate a newly inserted identity field not present at prep.
+                    event2,r2,v2,a2,q2=setup();del r2.request["cognito_sub"];del r2.request["client_email"]
+                    r2.link=replace(r2.link,bindings=(("linked_client_profile_id","client-a"),));v2.trusted_links.add(digest(r2.link))
+                    pq,obs,bridge=build(r2,v2,a2,q2)
+                    r2.request["cognito_sub"]="subject-a"  # inserted after observation
+                    with self.assertRaises(AccessError):parent.validate_observation(pq,obs,bridge,NOW)
+                    continue
+                if mutation=="ABSENT":del r.request[field]
+                elif mutation=="NULL":r.request[field]=None
+                else:r.request[field]="other"
+                with self.assertRaises(AccessError):parent.validate_observation(pq,obs,bridge,NOW)
+
+    # --- P2 corrective-maintenance regressions (exact tenant metadata identity) ---
+
+    def test_tenant_metadata_company_id_must_exactly_match_selected_tenant(self):
+        for value in (None,"tenant_b","TENANT_A"," tenant_a","ABSENT",123,{}):
+            event,r,v,a,q=setup()
+            if value=="ABSENT":r.tenant.pop("company_id",None)
+            else:r.tenant["company_id"]=value
+            before=rows(r)
+            with self.assertRaisesRegex(AccessError,"ACTIVE_TENANT_REQUIRED"):a.observe(event,q,NOW)
+            self.assertEqual(rows(r),before)
+
+    def test_tenant_metadata_exact_company_id_positive_fixture_is_aligned(self):
+        event,r,v,a,q=setup()
+        self.assertEqual(r.tenant["company_id"],q.tenant)  # fixture documents exact identity
+        self.assertEqual(a.observe(event,q,NOW).query.tenant,q.tenant)

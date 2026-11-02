@@ -259,6 +259,7 @@ class CancellationAccessAdapter:
         need((request.get("PK"),request.get("SK"),request.get("company_id"),request.get("client_id"),request.get("request_id"))==
              (*query.key(),query.tenant,query.client_id,query.request_id),"EXACT_BOOKING")
         need(tenant.get("PK")=="TENANT#"+query.tenant and tenant.get("SK")=="METADATA"
+             and tenant.get("company_id")==query.tenant
              and tenant.get("is_active") is True and tenant.get("subscription_status")=="active","ACTIVE_TENANT_REQUIRED")
         need(request.get("status") in ("APPROVED","ASSIGNED"),"INITIAL_STATUS_ONLY")
         need(not any(k in request for k in MARKERS),"PROTECTED_MARKER")
@@ -290,6 +291,17 @@ class CancellationAccessAdapter:
             need(field in IDENTITIES and field not in fields and type(value) is str and bool(value.strip())
                  and field in request and request[field]==value,"PERSISTED_IDENTITY_CHANGED")
             fields.add(field)
+        # Completeness: every relied-upon persisted identity field present on the
+        # booking record must be covered by the commit fence, so the actual
+        # transaction ConditionExpression asserts its exact value (an equality
+        # that also fails if the attribute is later removed/NULLed). A persisted
+        # client_email (or any identity field) left out of the fence would not be
+        # pinned by name, so a change to it could survive a writer that fails to
+        # advance the revision. Fail closed when the fence is incomplete; this
+        # needs no parent/PR51 change (the extra binding flows through the
+        # existing per-binding `#a = :a` condition unchanged).
+        for field in IDENTITIES:
+            if field in request:need(field in fields,"INCOMPLETE_OWNERSHIP_FENCE")
         # The commit fence must contain a subject/profile identity, never just an email.
         need("cognito_sub" in fields or "linked_client_profile_id" in fields,"IMMUTABLE_OWNERSHIP_FENCE_REQUIRED")
         return link.bindings

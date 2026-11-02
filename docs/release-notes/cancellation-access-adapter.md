@@ -57,3 +57,30 @@ Next smallest separately approvable slice: cancellation-specific coherent storag
 Before handler integration: approve source-status/resubmission and role/legacy policies, real-verifier trust/provenance/freshness, schema/adoption and full writer/mixed-version closure, receipt/attempt/lifetime protection and retention, safe storage rollback, exact-principal transactional IAM, operation-key/error/pending UX and release evidence. No canonical owner execution, onboarding, payment or scheduling change. PR19 source-only reconstruction remains distinct from original plan/ZIP MISSING; evidence is untouched. Canonical CLEAN/required checks/RC integrity and structured Matthew MERGE AUTHORIZATION gates remain unchanged.
 
 Stop at the dependent Draft checkpoint. No parent PR edits, merge/Ready, runtime integration, AWS/Terraform/Cognito/IAM, production/data operation, migration/backfill, enrollment, Stripe/tenant, Android/distribution or Ryan testing occurred.
+
+
+## Corrective maintenance checkpoint - 2026-11-01
+
+**Disposition unchanged:** `CANCELLATION_ACCESS_ADAPTER_INACTIVE_NOT_INTEGRATED`. Two approved, source-scoped corrections were applied to the existing Draft PR53 (`codex/cancellation-access-adapter`, base PR52 `3d610dd2d670300acdd2831ae88af9ca53cf66f8`, unchanged). No parent (PR51/PR52) edits, no runtime wiring, no new PR, no merge or deployment. Only two files change: `src/backend/common/cancellation_access_adapter.py` and `tests/backend/test_cancellation_access_adapter.py`.
+
+### P1 - Complete commit-time ownership/absence fence
+
+`_bundle` now fails closed (`INCOMPLETE_OWNERSHIP_FENCE`) when any relied-upon persisted identity field (`client_email`, `cognito_sub`, `linked_client_profile_id`) is present on the booking record but absent from the commit fence (`LinkProof.bindings`). Previously only the bound fields were required to match and only a subject/profile identity had to be fenced, so a persisted `client_email` could be left unfenced and therefore not asserted by name in the actual commit transaction. With the completeness guard, every present identity flows through the parent's existing per-binding `#a = :a` condition in PR51's `transaction()` ConditionExpression - an equality that also fails if the attribute is later removed or NULLed. The subject/profile requirement (`IMMUTABLE_OWNERSHIP_FENCE_REQUIRED`, email-only still refuses) is preserved. The guard needs no PR51/PR52 change; the extra binding is carried by the unchanged per-binding condition. Where an absence guard cannot be expressed without changing PR51, the adapter fails closed rather than widening the parent contract.
+
+### P2 - Exact tenant metadata identity
+
+`ACTIVE_TENANT_REQUIRED` now additionally requires `tenant.get("company_id") == query.tenant`, so the persisted tenant-metadata record's own `company_id` must exactly equal the trusted selected tenant. Missing, NULL, malformed or contradictory `company_id` values are rejected. The conservative active-status policy (`is_active is True`, `subscription_status == "active"`, exact `PK`/`SK`) is unchanged. The positive synthetic tenant fixture was aligned to include the documented `company_id`.
+
+### Targeted regressions added (six)
+
+`test_persisted_identity_field_absent_from_commit_fence_fails_closed`, `test_every_present_identity_field_is_in_the_returned_commit_fence`, `test_actual_pr51_condition_expression_pins_every_fenced_identity_and_revision` (drives the real PR51 `transaction()` and asserts each fenced identity plus revision/incarnation appears as a named condition), `test_actual_commit_refuses_changed_removed_null_or_inserted_identity` (drives the real parent `validate_observation` with synthetic post-preparation identity mutations - changed/removed/NULL/inserted - each refuses), `test_tenant_metadata_company_id_must_exactly_match_selected_tenant`, and `test_tenant_metadata_exact_company_id_positive_fixture_is_aligned`. Positive fixtures were aligned: tenant metadata carries `company_id`; the default `LinkProof.bindings` fences all three present identities; two subject-less cases drop `client_email` so the fence stays complete.
+
+### Validation
+
+Targeted cancellation suite: **206 passed, 23 subtests passed** (prior checkpoint 200 + 23; the six new regressions account for the delta), zero failures, deterministic across reruns, on Python 3.13.3.
+
+Full guarded backend suite: **FULL_BACKEND_NOT_VERIFIED.** The full `tests/backend` run reproducibly stalls at ~24% in this local environment (an environmental hang independent of this change, observed across multiple attempts). Full-suite regression clearance against the 77-failure baseline is therefore NOT claimed from this environment and must be established by hosted CI or a stable runner. Containment rationale (not a substitute for the full run): the change touches only the adapter and its test; the adapter's `test_source_is_unwired...` asserts no other `src/backend` module imports `cancellation_access_adapter`, so no non-cancellation test can be affected, and the three cancellation modules pass.
+
+### Remaining gates
+
+Hosted/stable-runner full-suite confirmation against the exact 77-failure baseline (including multiplicity); exact-head security/CI observation on the dependent base (hosted CI targets `main`, so the dependent chain may not supply hosted jobs - report as observed, never inherited); and all previously recorded pre-integration gates (real-verifier trust/provenance/freshness, writer/mixed-version closure, storage/reconciliation adapter, source-status/resubmission policy, retention/recovery, exact-principal transactional IAM, UX/release evidence). PR53 remains inactive and not merge-ready. No parent edits, runtime integration, AWS/Terraform/Cognito/IAM, migration/backfill, enrollment, Stripe/tenant, distribution or Ryan testing occurred.
