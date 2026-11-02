@@ -391,8 +391,9 @@ class NoExecutionPropertiesTests(unittest.TestCase):
         for forbidden in ("boto3", "botocore", "requests", "handlers", "urllib"):
             self.assertNotIn(forbidden, imported, forbidden)
         # Only standard-library modules are imported (S0b adds hashlib+json for
-        # the canonical lifetime token; still no SDK/network/DB).
-        self.assertTrue(imported.issubset({"dataclasses", "re", "hashlib", "json"}), imported)
+        # the canonical lifetime token; Correction A adds datetime for ISO-8601
+        # UTC validation; still no SDK/network/DB).
+        self.assertTrue(imported.issubset({"dataclasses", "re", "hashlib", "json", "datetime"}), imported)
 
     def test_no_table_or_client_objects(self):
         self.assertFalse(hasattr(rw, "table"))
@@ -933,6 +934,127 @@ class S0bNoExecutionTests(unittest.TestCase):
             self.assertNotIn("TableName", entry["Put"])
         # The spec is data only; no execution guidance / client handles.
         self.assertFalse(hasattr(rw, "transact_write_items"))
+
+
+class S0bCorrectionA_CreatedAtValidationTests(unittest.TestCase):
+    """Correction A: genuine ISO-8601 UTC validation for created_at."""
+    def test_valid_utc_accepted(self):
+        for good in ("2026-11-01T12:00:00+00:00", "2026-11-01T12:00:00Z",
+                     "2026-11-01T12:00:00.123456+00:00", "2026-11-01 12:00:00+00:00"):
+            self.assertTrue(rw._valid_iso_utc(good), good)
+            spec = rw.build_create(KEY, create_intent(created_at=good), absent_lifetime(derived_token()))
+            self.assertIsInstance(spec, rw.CreateSpec, good)
+
+    def test_invalid_rejected(self):
+        for bad in ("not-a-date", "banana", "2026-13-99", "0", "   ", "",
+                    "2026-11-01",                      # date-only (incomplete)
+                    "2026-11-01T12:00:00",             # naive (no offset)
+                    "2026-11-01T12:00:00+02:00",       # non-UTC offset
+                    " 2026-11-01T12:00:00+00:00",      # surrounding whitespace
+                    "2026-11-01T12:00:00+00:00 "):
+            self.assertFalse(rw._valid_iso_utc(bad), bad)
+            r = rw.build_create(KEY, create_intent(created_at=bad), absent_lifetime(derived_token()))
+            self.assertIsInstance(r, rw.Refusal, bad)
+            self.assertEqual(r.reason, "MALFORMED_CREATED_AT", bad)
+
+    def test_non_string_rejected(self):
+        for bad in (5, None, 20261101, True, ["2026-11-01T12:00:00Z"]):
+            self.assertFalse(rw._valid_iso_utc(bad), bad)
+
+    def test_garbage_no_longer_builds(self):
+        # Regression for the review finding: 'banana' used to build a CreateSpec.
+        r = rw.build_create(KEY, create_intent(created_at="banana"), absent_lifetime(derived_token()))
+        self.assertIsInstance(r, rw.Refusal)
+        self.assertEqual(r.reason, "MALFORMED_CREATED_AT")
+
+
+class S0bCorrectionB_CreatedAtOwnershipTests(unittest.TestCase):
+    """Correction B: created_at is builder-owned; item may not supply it."""
+    def test_item_created_at_refused_even_if_equal(self):
+        same = "2026-11-01T12:00:00+00:00"
+        r = rw.build_create(KEY, create_intent(created_at=same,
+                                               item={"company_id": "tenant_a", "created_at": same}),
+                            absent_lifetime(derived_token()))
+        self.assertIsInstance(r, rw.Refusal)
+        self.assertEqual(r.reason, "RESERVED_FIELD_IN_ITEM")
+
+    def test_item_created_at_conflict_refused_not_overwritten(self):
+        # Regression: a contradictory item.created_at used to be silently overwritten.
+        r = rw.build_create(KEY, create_intent(item={"company_id": "tenant_a",
+                                                     "created_at": "1999-01-01T00:00:00+00:00"}),
+                            absent_lifetime(derived_token()))
+        self.assertIsInstance(r, rw.Refusal)
+        self.assertEqual(r.reason, "RESERVED_FIELD_IN_ITEM")
+
+    def test_only_intent_created_at_populates_item(self):
+        spec = rw.build_create(KEY, create_intent(), absent_lifetime(derived_token()))
+        self.assertEqual(spec.transact_items[0]["Put"]["Item"]["created_at"],
+                         "2026-11-01T12:00:00+00:00")
+
+
+class S0bCorrectionC_LifetimeRecordValidationTests(unittest.TestCase):
+    """Correction C: ACTIVE/RETIRED require a well-formed consistent record."""
+    def tok(self):
+        return derived_token()
+
+    def test_active_missing_record_is_malformed(self):
+        r = rw.build_create(KEY, create_intent(),
+                            rw.LifetimeEvidence(state=rw.LIFETIME_ACTIVE, token=self.tok(), retired=False, record=None))
+        self.assertEqual(r.reason, "MALFORMED_LIFETIME_EVIDENCE")
+
+    def test_retired_missing_record_is_malformed(self):
+        r = rw.build_create(KEY, create_intent(),
+                            rw.LifetimeEvidence(state=rw.LIFETIME_RETIRED, token=self.tok(), retired=True, record=None))
+        self.assertEqual(r.reason, "MALFORMED_LIFETIME_EVIDENCE")
+
+    def test_active_wrong_record_key_is_malformed(self):
+        t = self.tok()
+        r = rw.build_create(KEY, create_intent(),
+                            rw.LifetimeEvidence(state=rw.LIFETIME_ACTIVE, token=t, retired=False,
+                                                record={"PK": "LIFETIME#WRONG", "SK": "PERMANENT", "retired": False}))
+        self.assertEqual(r.reason, "MALFORMED_LIFETIME_EVIDENCE")
+
+    def test_active_wrong_sk_is_malformed(self):
+        t = self.tok()
+        r = rw.build_create(KEY, create_intent(),
+                            rw.LifetimeEvidence(state=rw.LIFETIME_ACTIVE, token=t, retired=False,
+                                                record={"PK": "LIFETIME#" + t, "SK": "OTHER", "retired": False}))
+        self.assertEqual(r.reason, "MALFORMED_LIFETIME_EVIDENCE")
+
+    def test_record_retired_contradicts_tag_is_malformed(self):
+        t = self.tok()
+        # RETIRED tag + evidence.retired True, but record.retired False (contradiction).
+        r = rw.build_create(KEY, create_intent(),
+                            rw.LifetimeEvidence(state=rw.LIFETIME_RETIRED, token=t, retired=True,
+                                                record={"PK": "LIFETIME#" + t, "SK": "PERMANENT", "retired": False}))
+        self.assertEqual(r.reason, "MALFORMED_LIFETIME_EVIDENCE")
+
+    def test_record_retired_non_bool_is_malformed(self):
+        t = self.tok()
+        r = rw.build_create(KEY, create_intent(),
+                            rw.LifetimeEvidence(state=rw.LIFETIME_ACTIVE, token=t, retired=False,
+                                                record={"PK": "LIFETIME#" + t, "SK": "PERMANENT", "retired": 0}))
+        self.assertEqual(r.reason, "MALFORMED_LIFETIME_EVIDENCE")
+
+    def test_wellformed_active_and_retired_still_refuse(self):
+        t = self.tok()
+        active = rw.build_create(KEY, create_intent(),
+                                 rw.LifetimeEvidence(state=rw.LIFETIME_ACTIVE, token=t, retired=False,
+                                                     record={"PK": "LIFETIME#" + t, "SK": "PERMANENT", "retired": False}))
+        self.assertEqual(active.reason, "LIFETIME_PRESENT")
+        retired = rw.build_create(KEY, create_intent(),
+                                  rw.LifetimeEvidence(state=rw.LIFETIME_RETIRED, token=t, retired=True,
+                                                      record={"PK": "LIFETIME#" + t, "SK": "PERMANENT", "retired": True}))
+        self.assertEqual(retired.reason, "KEY_RETIRED")
+
+    def test_active_retired_never_produce_createspec(self):
+        t = self.tok()
+        for st, retv in ((rw.LIFETIME_ACTIVE, False), (rw.LIFETIME_RETIRED, True)):
+            for rec_snap in (None, {"PK": "X"}, {"PK": "LIFETIME#" + t, "SK": "PERMANENT", "retired": retv},
+                             {"PK": "LIFETIME#" + t, "SK": "PERMANENT", "retired": not retv}):
+                r = rw.build_create(KEY, create_intent(),
+                                    rw.LifetimeEvidence(state=st, token=t, retired=retv, record=rec_snap))
+                self.assertIsInstance(r, rw.Refusal, (st, rec_snap))
 
 
 if __name__ == "__main__":

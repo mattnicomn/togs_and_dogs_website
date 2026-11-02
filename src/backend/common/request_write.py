@@ -37,6 +37,7 @@ observed it. Real provenance/freshness/authentication remain separate, still
 pending gates.
 """
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from hashlib import sha256
 import json
 import re
@@ -711,10 +712,42 @@ def _request_lifetime_token(tenant, request_key):
 
 
 def _valid_iso_utc(value):
-    # Shape-only check (NOT clock authentication): a non-empty ISO-8601 string
-    # that parses and is timezone-aware or a bare date/naive stamp the creator
-    # supplied. We require a str; deeper clock trust is an adoption obligation.
-    return type(value) is str and bool(value)
+    """Correction A: genuine ISO-8601 UTC timestamp validation (stdlib only).
+
+    Accepts a COMPLETE date-and-time in UTC - either a trailing 'Z' or an
+    explicit '+00:00' offset. Rejects: non-strings, empty/whitespace, impossible
+    dates and arbitrary strings (they fail to parse), date-only or time-only
+    values (incomplete), NAIVE timestamps (no offset), and non-UTC offsets.
+
+    This validates SHAPE and UTC-ness only; it does NOT authenticate that the
+    clock is trusted (an adoption obligation) and it does NOT mint or rewrite
+    the value - the caller's exact string is used verbatim once it validates.
+    """
+    if type(value) is not str or not value.strip():
+        return False
+    text = value.strip()
+    if text != value:
+        return False  # no surrounding whitespace
+    # datetime.fromisoformat accepts 'Z' only on Python 3.11+; normalize it.
+    candidate = text[:-1] + "+00:00" if text.endswith("Z") else text
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError:
+        return False
+    # Require a complete datetime (date-only parses to midnight with tzinfo None;
+    # we reject anything without an explicit UTC offset below, which also
+    # excludes date-only values since they are naive).
+    if parsed.tzinfo is None:
+        return False  # naive timestamp - no offset supplied
+    if parsed.utcoffset() != timezone.utc.utcoffset(None):
+        return False  # non-UTC offset
+    # Reject date-only (no time component) even if an offset were appended:
+    # fromisoformat of "2026-11-01+00:00" raises, so reaching here with a date
+    # means a full datetime was supplied. Belt-and-braces: require the original
+    # text to contain a time separator.
+    if "T" not in text and " " not in text:
+        return False
+    return True
 
 
 def build_create(key, intent, lifetime_evidence):
@@ -764,10 +797,13 @@ def build_create(key, intent, lifetime_evidence):
         return Refusal("ITEM_IDENTIFIER_CONFLICT", "PK")
     if item.get("SK") not in (None, key["SK"]):
         return Refusal("ITEM_IDENTIFIER_CONFLICT", "SK")
-    # Caller item may not carry helper-owned version/incarnation (the builder
-    # owns these); a supplied legacy_write_revision or record_incarnation is a
+    # Caller item may not carry helper-owned metadata (the builder owns these);
+    # a supplied legacy_write_revision, record_incarnation, or created_at is a
     # conflict even if it happens to match, to keep a single source of truth.
-    for reserved in ("legacy_write_revision", "record_incarnation"):
+    # Correction B: created_at is builder-owned - only the validated
+    # intent.created_at populates the item; a caller item.created_at is refused
+    # rather than silently overwritten.
+    for reserved in ("legacy_write_revision", "record_incarnation", "created_at"):
         if reserved in item:
             return Refusal("RESERVED_FIELD_IN_ITEM", reserved)
     if "audit_log" in item and type(item["audit_log"]) is not list:
@@ -783,15 +819,27 @@ def build_create(key, intent, lifetime_evidence):
     # Any observed state must be bound to THIS key's derived token.
     if ev.token != lifetime_token:
         return Refusal("MALFORMED_LIFETIME_EVIDENCE", "TOKEN")
-    if ev.state == LIFETIME_ACTIVE:
-        # Internal consistency: ACTIVE must carry retired is False.
-        if ev.retired is not False:
+    if ev.state in (LIFETIME_ACTIVE, LIFETIME_RETIRED):
+        # Correction C: ACTIVE/RETIRED must carry a well-formed observed record
+        # snapshot that is internally consistent with the tag. The evidence
+        # retired flag must be the exact bool matching the tag, the record must
+        # be a dict keyed to THIS canonical token/PERMANENT, and record.retired
+        # must be an exact bool that agrees with both. Any missing, malformed, or
+        # contradictory piece yields MALFORMED_LIFETIME_EVIDENCE - it is NOT a
+        # clean PRESENT/RETIRED refusal. Both branches still ALWAYS refuse
+        # creation (no CreateSpec is ever produced from an observed lifetime).
+        expected_retired = ev.state == LIFETIME_RETIRED
+        if ev.retired is not expected_retired:
             return Refusal("MALFORMED_LIFETIME_EVIDENCE", "RETIRED")
-        return Refusal("LIFETIME_PRESENT")
-    if ev.state == LIFETIME_RETIRED:
-        if ev.retired is not True:
-            return Refusal("MALFORMED_LIFETIME_EVIDENCE", "RETIRED")
-        return Refusal("KEY_RETIRED")
+        rec = ev.record
+        if type(rec) is not dict:
+            return Refusal("MALFORMED_LIFETIME_EVIDENCE", "RECORD_SHAPE")
+        if rec.get("PK") != "LIFETIME#" + lifetime_token or rec.get("SK") != "PERMANENT":
+            return Refusal("MALFORMED_LIFETIME_EVIDENCE", "RECORD_KEY")
+        if type(rec.get("retired")) is not bool or rec.get("retired") is not expected_retired:
+            return Refusal("MALFORMED_LIFETIME_EVIDENCE", "RECORD_RETIRED")
+        # Well-formed and consistent -> fail closed on the correct reason.
+        return Refusal("LIFETIME_PRESENT" if ev.state == LIFETIME_ACTIVE else "KEY_RETIRED")
     # state == LIFETIME_ABSENT. An absent lookup must NOT carry a record or a
     # retired flag; such a mix is malformed, not an absence.
     if ev.record is not None or ev.retired is not None:
