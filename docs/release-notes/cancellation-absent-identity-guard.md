@@ -10,7 +10,7 @@ Branch `codex/cancellation-absent-identity-guard` is based on PR53 head `569c39a
 
 ## The race this closes
 
-PR51's commit `ConditionExpression` pinned identity fields only by equality (`#a = :a`) for fields present and fenced at observation, plus `#rev = :rev` / `#inc = :inc`. A field ABSENT at observation (and therefore unfenced) that a concurrent writer INSERTED before commit was caught only transitively by the revision pin - i.e. only if that writer advanced `legacy_write_revision`. A non-conforming/legacy writer that inserted an identity field without bumping the revision could slip an unfenced ownership field past the condition. The repo's writer inventory does not yet prove the all-writers revision-advance invariant, so the race was reachable.
+PR51's commit `ConditionExpression` pinned identity fields only by equality (`#a = :a`) for fields present and fenced at observation, plus `#rev = :rev` / `#inc = :inc`. A field ABSENT at observation (and therefore unfenced) that a concurrent writer INSERTED before commit was caught only transitively by the revision pin - i.e. only if that writer advanced `legacy_write_revision`. A non-conforming/legacy writer that inserted an identity field without bumping the revision could slip an unfenced ownership field past the condition. The repo's writer inventory does not yet prove the all-writers revision-advance invariant, so the race was reachable. (The first correction made absence fencing available but optional; the Corrective subsection below makes complete coverage mandatory for the protected client path, which is what actually closes the race.)
 
 ## Correction (inactive, design-only)
 
@@ -19,6 +19,23 @@ PR51's commit `ConditionExpression` pinned identity fields only by equality (`#a
 3. **PR51 transaction** - for each verified-absent identity field, `transaction()` emits `attribute_not_exists(#x_j)` on the REQUEST `Update`, in a distinct `#x` name namespace. Present-field equalities (`#a`), revision/incarnation pins, audit/marker/start/reservation/lifetime/receipt conditions are all unchanged. `authorize()` validates supplied `absent_fields` are known identity fields, unique, and disjoint from the present fence (`ACCESS_ABSENCE_BINDING`); absence evidence is optional on the legacy path and exhaustiveness is not required there. The existing `OVERSIZE_REFUSED` check re-validates the 4096-byte ConditionExpression and 300KB transaction envelope with the added clauses.
 
 Preserved: equality conditions for present fields; revision/incarnation guards; receipt create-only, reservation-absent, live-permanent-lifetime behavior; email-only fence still refuses; the subject/profile fence requirement.
+
+## Corrective: mandatory protected-path coverage at `transaction()` (scope expansion)
+
+An independent contract-boundary review of the first correction proved the fence was still **bypassable on the default path**: because absence evidence was optional and exhaustiveness was not imposed, a protected CLIENT cancellation constructed with the default empty `absent_fields=()` built a `ConditionExpression` with NO `attribute_not_exists` identity clauses, so inserting an unfenced identity field (without a revision bump) still passed the condition - the exact race the guard was meant to close. Optional, caller-opt-in absence evidence does not close a race.
+
+The corrective (approved scope expansion, inactive/design-only) makes complete coverage a **mandatory structural precondition at the real condition-construction boundary** - PR51 `transaction()` - gated to the client protected path (`plan.access.role == "client"`):
+
+- Every binding/absent field must be a known identity field (`PROTECTED_IDENTITY_COVERAGE_FIELD`).
+- No duplicates within present or within absent (`PROTECTED_IDENTITY_COVERAGE_DUPLICATE`).
+- Present and absent must be DISJOINT (`PROTECTED_IDENTITY_COVERAGE_CONTRADICTION`).
+- Present ∪ absent must EXHAUST the identity universe `{client_email, linked_client_profile_id, cognito_sub}` (`PROTECTED_IDENTITY_COVERAGE_INCOMPLETE`).
+
+This fails closed on the omitted/default empty-absence case, partial coverage, and contradictory/duplicate evidence, so a transaction can never be built that leaves an identity field in an unaccounted third state. The check runs BEFORE the condition body is assembled, so an underprotected client commit never materializes.
+
+Placement rationale: the enforcement lives in `transaction()`, not in `authorize()`. `authorize()` stays permissive (well-formedness + disjointness only, exhaustiveness NOT required) so inherited non-protected/legacy and offline callers are not newly broken; the mandatory exhaustiveness applies only where a real DynamoDB condition is actually constructed for a protected client. Absence fields are NOT treated as authenticated by this check - completeness of the fence is a structural precondition; real trusted-verifier / bridge provenance and freshness remain a separate, still-pending gate (see Remaining gates).
+
+Error ordering: the previously ambiguous `OVERSIZE_REFUSED` / `CONDITIONAL_REFUSAL` interactions in inherited fixtures were resolved by giving each inherited protected-client fixture complete, record-consistent coverage (present identity fields that exist in the record are equality-fenced; the remaining identity fields are attested-absent and genuinely missing from the record), NOT by reordering or weakening `transaction()`. Both prior "ordering" failures were symptoms of incomplete fixtures, not real ordering conflicts.
 
 ## Offline condition-evaluation tests
 
@@ -34,7 +51,9 @@ Preserved: equality conditions for present fields; revision/incarnation guards; 
 
 ## Validation
 
-Targeted cancellation suite (4 modules): **215 passed, 23 subtests passed** (prior 206+23; +9 new), Python 3.13.3, deterministic. The three inherited contract suites remain green, confirming backward compatibility (absence evidence optional; disjointness invariant holds; no fixture regressions).
+Targeted cancellation suite (4 modules): **217 passed, 23 subtests passed** (prior 206+23; +11 new PR54 cases), Python 3.13.3, pytest 9.0.2, deterministic. The three inherited contract suites remain green. Inherited protected-client fixtures were updated ON THE PR54 BRANCH ONLY to carry complete, record-consistent present/absent identity coverage so they satisfy the new mandatory precondition; each fixture's original test intent and security assertions (identity-change refusal, stale-read refusal, replay freshness) are preserved. No parent branch was edited.
+
+New / changed PR54 guard cases include: default empty-absence coverage refuses at construction (`PROTECTED_IDENTITY_COVERAGE_INCOMPLETE`); partial coverage refuses; complete valid coverage succeeds and fences every identity field; and the insert-without-revision-bump race is denied against the actual generated `ConditionExpression`.
 
 Full guarded backend: see the delivery record. If a stable runner is unavailable, recorded as `FULL_BACKEND_NOT_VERIFIED` without claiming historical 77-failure parity; the PR53 74-failure baseline evidence is retained at `D:\petcare-rollback\pr53-evidence\13e9f5d\`.
 

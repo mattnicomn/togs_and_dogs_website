@@ -393,6 +393,27 @@ def transaction(plan,table_name):
             ":rev":snap.revision,":next":snap.revision+1,":new":"CANCELLATION_REQUESTED",":reason":sub.reason,
             ":time":receipt.submitted_at,":by":"CLIENT#"+sub.client_id,":empty":[],":list":"L",":number":"N",
             ":audit":[{"status":"CANCELLATION_REQUESTED","timestamp":receipt.submitted_at,"by":"CLIENT#"+sub.client_id,"reason":sub.reason}]}
+    # Gate C3b.3g.2 / PR54 corrective: MANDATORY protected-path identity coverage,
+    # enforced HERE at real condition construction (not only in authorize, which
+    # stays permissive for non-protected/legacy callers). For a client protected
+    # cancellation every identity field must be accounted for - either present and
+    # equality-fenced (bindings) or attested-absent and attribute_not_exists-fenced
+    # - with the two sets DISJOINT and DUPLICATE-FREE. This fails closed on the
+    # omitted/default empty-absence case, partial coverage, and contradictory or
+    # duplicate evidence, so a transaction can never be built that leaves an
+    # identity field unfenced (the insert-without-revision-bump race). Absence
+    # fields are NOT treated as authenticated here; completeness of the fence is a
+    # structural precondition, and real trusted-verifier/bridge provenance remains
+    # a separate, still-pending gate (see acceptance doc). Checked before the
+    # body is assembled so an underprotected client commit never materializes.
+    identity_universe={"client_email","linked_client_profile_id","cognito_sub"}
+    if plan.access.role == "client":
+        present_cov=[f for f,_ in plan.access.bindings]
+        absent_cov=list(plan.access.absent_fields)
+        need(all(f in identity_universe for f in present_cov+absent_cov),"PROTECTED_IDENTITY_COVERAGE_FIELD")
+        need(len(present_cov)==len(set(present_cov)) and len(absent_cov)==len(set(absent_cov)),"PROTECTED_IDENTITY_COVERAGE_DUPLICATE")
+        need(set(present_cov).isdisjoint(set(absent_cov)),"PROTECTED_IDENTITY_COVERAGE_CONTRADICTION")
+        need(set(present_cov) | set(absent_cov) == identity_universe,"PROTECTED_IDENTITY_COVERAGE_INCOMPLETE")
     parts=["attribute_exists(PK)","attribute_exists(SK)","company_id = :tenant","client_id = :client","request_id = :request",
            "#s = :old","#inc = :inc","#rev = :rev","attribute_type(#rev, :number)","(attribute_not_exists(#audit) OR attribute_type(#audit, :list))"]
     if snap.start_present:parts.append("#start = :start");values[":start"]=snap.start_date

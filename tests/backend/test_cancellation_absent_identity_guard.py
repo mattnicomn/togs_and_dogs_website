@@ -199,16 +199,32 @@ class AbsentIdentityGuardTests(unittest.TestCase):
         self.assertFalse(evaluate(cond, stored_request(cognito_sub=None), names, values))
 
     def test_existing_successful_transaction_remains_valid(self):
+        # Complete coverage (present cognito_sub + absent client_email,
+        # linked_client_profile_id) is the only valid protected client shape.
         cond, names, values = request_update(build_transaction(("client_email", "linked_client_profile_id")))
         # The clean snapshot (correct revision/incarnation/status, present field
         # intact, absent fields still absent) must satisfy the condition.
         self.assertTrue(evaluate(cond, stored_request(), names, values))
-        # And with NO absent fields supplied (legacy path), the condition still
-        # validates a clean present-only fence.
-        cond2, names2, values2 = request_update(
-            build_transaction((), present_bindings=(("cognito_sub", "subject-a"),))
-        )
-        self.assertTrue(evaluate(cond2, stored_request(), names2, values2))
+
+    def test_default_or_partial_coverage_refuses_at_construction(self):
+        # PR54 corrective: a protected CLIENT cancellation with omitted/default
+        # absence evidence (incomplete coverage) must FAIL CLOSED before any
+        # transaction/condition is built - closing the default-path bypass.
+        with self.assertRaisesRegex(sc.SubmissionError, "PROTECTED_IDENTITY_COVERAGE_INCOMPLETE"):
+            build_transaction(())  # present=cognito_sub only; client_email + linked absent but unattested
+        with self.assertRaisesRegex(sc.SubmissionError, "PROTECTED_IDENTITY_COVERAGE_INCOMPLETE"):
+            build_transaction(("client_email",))  # still missing linked_client_profile_id
+
+    def test_complete_valid_coverage_succeeds(self):
+        # Explicit positive: full partition builds a transaction whose condition
+        # fences every identity field (equality for present, attribute_not_exists
+        # for absent).
+        txn = build_transaction(("client_email", "linked_client_profile_id"))
+        cond, names, _ = request_update(txn)
+        fenced_absent = {names[n] for n in names if ("attribute_not_exists(" + n + ")") in cond}
+        self.assertIn("client_email", fenced_absent)
+        self.assertIn("linked_client_profile_id", fenced_absent)
+        self.assertIn("#a0 = :a0", cond)  # cognito_sub equality-fenced
 
     def test_conflicting_absence_evidence_is_rejected(self):
         # A field claimed BOTH present (binding) and absent must be refused by
