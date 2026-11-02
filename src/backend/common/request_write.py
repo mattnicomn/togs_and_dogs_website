@@ -13,6 +13,8 @@ What this module provides:
   * build_update(key, expected, plan, disposition) -> UpdateSpec | Refusal  [S0a]
   * interpret_failure(evidence)                 -> FailureClassification [S0a]
   * build_create(key, intent, lifetime_evidence) -> CreateSpec | Refusal [S0b]
+  * build_retire(key, expected, lifetime_evidence) -> RetireSpec | Refusal [S0c]
+  * classify_retire_failure(evidence) -> FailureClassification            [S0c]
 
 Security posture (see the acceptance doc for the full contract):
   * A helper CANNOT protect legacy writers. It only fences writes that call it.
@@ -885,3 +887,382 @@ def build_create(key, intent, lifetime_evidence):
         minted_incarnation=intent.incarnation,
         advances_revision=False,
     )
+
+
+# ===========================================================================
+# S0c - permanent REQUEST retirement + atomic lifetime tombstone
+# ===========================================================================
+#
+# build_retire CONSTRUCTS (never executes) a single, indivisible transaction of
+# exactly TWO conditional Updates: the permanent lifetime record is retired
+# in place (retired False->True, never deleted) and the REQUEST is fenced and
+# marked retired_lifetime=True with its revision advanced. It opens no client
+# and performs no write.
+#
+# Permanent retirement is DISTINCT from the reversible RequestStatus values
+# ARCHIVED/DELETED (which this contract does not touch and status.py is NOT
+# modified). The permanence lives in lifetime.retired + the REQUEST
+# retired_lifetime marker, established atomically.
+#
+# LIMITATIONS (not closed by this inactive slice; see the acceptance doc):
+#   * No S0a retired_lifetime write-fence, no restore-after-retirement refusal,
+#     no JOB/assignment/payment execution barrier, no Stage-2 child reconciler,
+#     no S0d execution, no deployed-fleet verification.
+#   * Child-state and reread evidence are STRUCTURAL attestations, NOT provenance
+#     and NOT protection against stale reads, unfenced writers or concurrent JOB
+#     execution/billing. No fleet-wide ABA closure is claimed.
+
+# JobStatus value sets, MIRRORED (not imported) from common/status.py to keep
+# this module inactive and dependency-free. A parity test asserts these match
+# the live enum + transition table.
+_ACTIVE_JOB_STATES = ("JOB_CREATED", "ASSIGNED", "APPROVED")       # APPROVED = JOB_CREATED synonym; executable now
+_REOPENABLE_JOB_STATES = ("CANCELLED", "COMPLETED")                # inactive now but can transition back to executable
+_DURABLY_INACTIVE_JOB_STATES = ("ARCHIVED", "DELETED")             # no status-machine path back to an executable state
+_KNOWN_JOB_STATES = _ACTIVE_JOB_STATES + _REOPENABLE_JOB_STATES + _DURABLY_INACTIVE_JOB_STATES
+
+# Reread observation states.
+NOT_OBSERVED = "NOT_OBSERVED"          # no lookup performed
+OBSERVED_ABSENT = "OBSERVED_ABSENT"    # looked up at the exact key; item does not exist
+OBSERVED_PRESENT = "OBSERVED_PRESENT"  # looked up at the exact key; snapshot supplied
+MALFORMED = "MALFORMED"                # wrong shape / key mismatch / inconsistent
+_OBSERVATION_STATES = (NOT_OBSERVED, OBSERVED_ABSENT, OBSERVED_PRESENT, MALFORMED)
+
+# S0c failure classifications (in addition to the S0a set).
+ALREADY_RETIRED = "ALREADY_RETIRED"
+REQUEST_ABSENT = "REQUEST_ABSENT"
+INCARNATION_DIVERGED = "INCARNATION_DIVERGED"
+LIFETIME_MISSING = "LIFETIME_MISSING"
+
+
+@dataclass(frozen=True)
+class ChildJobEvidence:
+    """One attested child-JOB observation.
+
+    job_id: the child JOB's id; its key is (PK="JOB#<job_id>", SK="REQ#<request_id>").
+    status: a JobStatus value in _KNOWN_JOB_STATES.
+    This is a STRUCTURAL attestation, never provenance, and point-in-time only.
+    """
+    job_id: str
+    status: str
+
+
+@dataclass(frozen=True)
+class RetireExpected:
+    """The REQUEST state the caller read and is retiring against."""
+    tenant: str
+    revision: int                  # exact prior legacy_write_revision (canonical int)
+    incarnation: str               # exact record_incarnation
+    retired_at: str                # caller-supplied, _valid_iso_utc-validated UTC stamp
+    source_status: object = None   # optional advisory RequestStatus pin
+    request_id: object = None      # if set, must equal key-derived request_id
+    client_id: object = None       # if set, must equal key-derived client_id
+    protected_client: bool = False
+    present_identity: tuple = ()
+    absent_identity: tuple = ()
+    children: tuple = ()           # tuple[ChildJobEvidence] observed for THIS request
+    child_set_complete: bool = False  # caller attests ALL children are enumerated
+
+
+@dataclass(frozen=True)
+class RetireSpec:
+    """A constructed (NOT executed) single transaction of two conditional Updates."""
+    transact_items: tuple          # ordered (lifetime Update, REQUEST Update) - exactly 2
+    lifetime_token: str
+    retires_revision: bool         # True: REQUEST legacy_write_revision advances
+    retired_at: str
+
+
+@dataclass(frozen=True)
+class RecordObservation:
+    """A key-bound post-failure observation of one record."""
+    state: str                     # one of _OBSERVATION_STATES
+    key: object = None             # exact {"PK":..,"SK":..} the lookup targeted
+    snapshot: object = None        # dict for OBSERVED_PRESENT; None otherwise
+
+
+@dataclass(frozen=True)
+class RetireFailureEvidence:
+    kind: str                              # "transaction_cancellation" | "reread"
+    cancellation_reasons: tuple = ()       # per-operand codes, order (lifetime, request)
+    request_obs: object = None             # RecordObservation for the REQUEST key
+    lifetime_obs: object = None            # RecordObservation for the LIFETIME key
+    expected: object = None                # the RetireExpected used
+
+
+def _child_disposition(status):
+    if status in _ACTIVE_JOB_STATES:
+        return "ACTIVE"
+    if status in _REOPENABLE_JOB_STATES:
+        return "REOPENABLE"
+    if status in _DURABLY_INACTIVE_JOB_STATES:
+        return "DURABLE"
+    return "UNKNOWN"
+
+
+def _validate_children(expected, key_request_id):
+    """Return None if the child set is acceptable for retirement, else a reason.
+
+    Fail-closed structural gate (necessary-not-sufficient): refuses ACTIVE and
+    REOPENABLE children, requires a complete attested set, validates identity and
+    rejects duplicates/malformed. Does NOT prove durable inactivity or guard
+    against stale evidence / concurrent execution (see module limitations).
+    """
+    if not _is_sequence(expected.children):
+        return "MALFORMED_CHILD_EVIDENCE"
+    if expected.child_set_complete is not True:
+        return "CHILD_SET_INCOMPLETE"
+    seen = set()
+    worst = None  # track strongest refusal: ACTIVE beats REOPENABLE
+    for child in expected.children:
+        if type(child) is not ChildJobEvidence:
+            return "MALFORMED_CHILD_EVIDENCE"
+        if not _valid_identifier(child.job_id):
+            return "MALFORMED_CHILD_EVIDENCE"
+        if child.status not in _KNOWN_JOB_STATES:
+            return "MALFORMED_CHILD_EVIDENCE"
+        if child.job_id in seen:
+            return "DUPLICATE_CHILD_EVIDENCE"
+        seen.add(child.job_id)
+        disposition = _child_disposition(child.status)
+        if disposition == "ACTIVE":
+            worst = "ACTIVE_CHILDREN_PRESENT"
+        elif disposition == "REOPENABLE" and worst is None:
+            worst = "REOPENABLE_CHILDREN_PRESENT"
+    return worst  # None iff every child is DURABLY inactive
+
+
+def build_retire(key, expected, lifetime_evidence):
+    """Construct (NOT execute) a permanent-retirement two-operand transaction.
+
+    Returns a RetireSpec on success, or a Refusal. Never executes, never emits an
+    unconditional update/delete, never deletes the lifetime record.
+    """
+    # --- shape checks -------------------------------------------------------
+    if type(expected) is not RetireExpected:
+        return Refusal("MALFORMED_EXPECTED")
+    if type(lifetime_evidence) is not LifetimeEvidence:
+        return Refusal("MALFORMED_LIFETIME_EVIDENCE")
+
+    parsed = _parse_request_key(key)
+    if parsed is None:
+        return Refusal("MALFORMED_KEY")
+    key_request_id, key_client_id = parsed
+
+    if expected.request_id is not None and expected.request_id != key_request_id:
+        return Refusal("KEY_EXPECTED_MISMATCH", "request_id")
+    if expected.client_id is not None and expected.client_id != key_client_id:
+        return Refusal("KEY_EXPECTED_MISMATCH", "client_id")
+    if type(expected.tenant) is not str or not expected.tenant:
+        return Refusal("MALFORMED_TENANT")
+    if not _valid_revision(expected.revision):
+        return Refusal("MALFORMED_REVISION")
+    if not _valid_incarnation(expected.incarnation):
+        return Refusal("MALFORMED_INCARNATION")
+    if not _valid_iso_utc(expected.retired_at):
+        return Refusal("MALFORMED_RETIRED_AT")
+    if expected.source_status is not None and (type(expected.source_status) is not str or not expected.source_status):
+        return Refusal("MALFORMED_SOURCE_STATUS")
+
+    # --- protected-client ownership coverage (PR54-complete), if requested ---
+    if expected.protected_client:
+        why = _validate_ownership_coverage(expected)
+        if why is not None:
+            return Refusal(why)
+
+    # --- child set gate (structural, necessary-not-sufficient) --------------
+    child_reason = _validate_children(expected, key_request_id)
+    if child_reason is not None:
+        return Refusal(child_reason)
+
+    # --- lifetime evidence: must be a token-bound, well-formed ACTIVE record -
+    lifetime_token = _request_lifetime_token(expected.tenant, (key["PK"], key["SK"]))
+    ev = lifetime_evidence
+    if ev.state not in _LIFETIME_STATES:
+        return Refusal("MALFORMED_LIFETIME_EVIDENCE", "STATE")
+    if ev.state == LIFETIME_NOT_OBSERVED:
+        return Refusal("LIFETIME_NOT_OBSERVED")
+    if ev.token != lifetime_token:
+        return Refusal("MALFORMED_LIFETIME_EVIDENCE", "TOKEN")
+    if ev.state == LIFETIME_ABSENT:
+        return Refusal("LIFETIME_NOT_OBSERVED")  # cannot retire a never-created lifetime
+    # ACTIVE or RETIRED: require a well-formed, consistent record (S0b Correction C).
+    expected_retired = ev.state == LIFETIME_RETIRED
+    if ev.retired is not expected_retired:
+        return Refusal("MALFORMED_LIFETIME_EVIDENCE", "RETIRED")
+    rec = ev.record
+    if type(rec) is not dict:
+        return Refusal("MALFORMED_LIFETIME_EVIDENCE", "RECORD_SHAPE")
+    if rec.get("PK") != "LIFETIME#" + lifetime_token or rec.get("SK") != "PERMANENT":
+        return Refusal("MALFORMED_LIFETIME_EVIDENCE", "RECORD_KEY")
+    if type(rec.get("retired")) is not bool or rec.get("retired") is not expected_retired:
+        return Refusal("MALFORMED_LIFETIME_EVIDENCE", "RECORD_RETIRED")
+    if rec.get("incarnation") != expected.incarnation:
+        return Refusal("MALFORMED_LIFETIME_EVIDENCE", "RECORD_INCARNATION")
+    if ev.state == LIFETIME_RETIRED:
+        return Refusal("ALREADY_RETIRED")
+    # ev.state == LIFETIME_ACTIVE and fully consistent -> construct.
+
+    # --- operand 1: lifetime Update (retire-in-place, never deleted) --------
+    lifetime_update = {
+        "Update": {
+            "Key": {"PK": "LIFETIME#" + lifetime_token, "SK": "PERMANENT"},
+            "UpdateExpression": "SET #ret = :true, #rat = :ts, #rrev = :next",
+            "ConditionExpression": "attribute_exists(PK) AND #ret = :false AND #inc = :inc",
+            "ExpressionAttributeNames": {
+                "#ret": "retired", "#rat": "retired_at", "#rrev": "retired_revision", "#inc": "incarnation"},
+            "ExpressionAttributeValues": {
+                ":true": True, ":false": False, ":ts": expected.retired_at,
+                ":inc": expected.incarnation, ":next": expected.revision + 1},
+        }
+    }
+
+    # --- operand 2: REQUEST Update (fenced soft-retire; marker; rev advance) -
+    names = {"#rev": "legacy_write_revision", "#inc": "record_incarnation",
+             "#rl": "retired_lifetime", "#rat": "retired_at"}
+    values = {":tenant": expected.tenant, ":reqid": key_request_id, ":cliid": key_client_id,
+              ":rev": expected.revision, ":next": expected.revision + 1,
+              ":inc": expected.incarnation, ":true": True, ":false": False,
+              ":ts": expected.retired_at}
+    conditions = [
+        "attribute_exists(PK)", "attribute_exists(SK)",
+        "company_id = :tenant",
+        "request_id = :reqid",
+        "client_id = :cliid",
+        "#rev = :rev",
+        "#inc = :inc",
+        # Idempotent one-way marker: refuse if already retired.
+        "(attribute_not_exists(#rl) OR #rl = :false)",
+    ]
+    if expected.source_status is not None:
+        names["#sstat"] = "status"
+        values[":sstat"] = expected.source_status
+        conditions.append("#sstat = :sstat")
+    for i, (f, v) in enumerate(expected.present_identity):
+        nk = "#id" + str(i)
+        vk = ":id" + str(i)
+        names[nk] = f
+        values[vk] = v
+        conditions.append(nk + " = " + vk)
+    for i, f in enumerate(expected.absent_identity):
+        nk = "#na" + str(i)
+        names[nk] = f
+        conditions.append("attribute_not_exists(" + nk + ")")
+    request_update = {
+        "Update": {
+            "Key": {"PK": key["PK"], "SK": key["SK"]},
+            "UpdateExpression": "SET #rev = :next, #rl = :true, #rat = :ts",
+            "ConditionExpression": " AND ".join(conditions),
+            "ExpressionAttributeNames": names,
+            "ExpressionAttributeValues": values,
+        }
+    }
+
+    return RetireSpec(
+        transact_items=(lifetime_update, request_update),
+        lifetime_token=lifetime_token,
+        retires_revision=True,
+        retired_at=expected.retired_at,
+    )
+
+
+# ---------------------------------------------------------------------------
+# S0c failure classification
+# ---------------------------------------------------------------------------
+
+def _valid_request_observation(obs):
+    """Validate a REQUEST RecordObservation by its OWN internal key consistency.
+
+    Returns the obs if well-formed (state in the set; for OBSERVED_PRESENT the key
+    is a well-formed REQUEST key and snapshot PK/SK match it; for OBSERVED_ABSENT
+    the key is a well-formed REQUEST key), else None (-> treated MALFORMED).
+    Classification interprets a failure; it does not recompute a token, so it
+    binds to the observation's own key rather than a reconstructed expected key.
+    """
+    if type(obs) is not RecordObservation or obs.state not in _OBSERVATION_STATES:
+        return None
+    if obs.state in (OBSERVED_PRESENT, OBSERVED_ABSENT):
+        if type(obs.key) is not dict or _parse_request_key(obs.key) is None:
+            return None
+    if obs.state == OBSERVED_PRESENT:
+        if type(obs.snapshot) is not dict:
+            return None
+        if obs.snapshot.get("PK") != obs.key.get("PK") or obs.snapshot.get("SK") != obs.key.get("SK"):
+            return None
+    return obs
+
+
+def _valid_lifetime_observation(obs):
+    """Validate a LIFETIME RecordObservation by its own internal key consistency.
+
+    A well-formed lifetime key is {"PK": "LIFETIME#<hex>", "SK": "PERMANENT"};
+    for OBSERVED_PRESENT the snapshot PK/SK must match the key.
+    """
+    if type(obs) is not RecordObservation or obs.state not in _OBSERVATION_STATES:
+        return None
+    if obs.state in (OBSERVED_PRESENT, OBSERVED_ABSENT):
+        if type(obs.key) is not dict:
+            return None
+        pk, sk = obs.key.get("PK"), obs.key.get("SK")
+        if type(pk) is not str or not pk.startswith("LIFETIME#") or sk != "PERMANENT":
+            return None
+    if obs.state == OBSERVED_PRESENT:
+        if type(obs.snapshot) is not dict:
+            return None
+        if obs.snapshot.get("PK") != obs.key.get("PK") or obs.snapshot.get("SK") != obs.key.get("SK"):
+            return None
+    return obs
+
+
+def classify_retire_failure(evidence):
+    """Classify an S0c retirement failure. Default INDETERMINATE unless a valid,
+    complete, key-bound observation justifies a specific cause. No blind retry,
+    no inferred successful retire/delete.
+
+    Observations are validated by their OWN internal key consistency (the obs
+    key is well-formed for its record type and the snapshot PK/SK match it). This
+    is a failure-interpretation helper, not an authorization path, so it does not
+    recompute the canonical token; a caller that mislabels an observation's key
+    simply fails validation and the result stays INDETERMINATE.
+    """
+    if type(evidence) is not RetireFailureEvidence:
+        return FailureClassification(INDETERMINATE, False, ("MALFORMED_EVIDENCE",))
+    expected = evidence.expected
+    if type(expected) is not RetireExpected:
+        return FailureClassification(INDETERMINATE, False, ("MISSING_OR_MALFORMED_EXPECTED",))
+
+    life_obs = evidence.lifetime_obs
+    req_obs = evidence.request_obs
+
+    # Lifetime-based: ALREADY_RETIRED / LIFETIME_MISSING / INCARNATION_DIVERGED.
+    if type(life_obs) is RecordObservation and life_obs.state != NOT_OBSERVED:
+        valid_life = _valid_lifetime_observation(life_obs)
+        if valid_life is None:
+            return FailureClassification(INDETERMINATE, False, ("MALFORMED_LIFETIME_OBSERVATION",))
+        if valid_life.state == OBSERVED_ABSENT:
+            return FailureClassification(LIFETIME_MISSING, True, ("LIFETIME_OBSERVED_ABSENT",))
+        if valid_life.state == OBSERVED_PRESENT:
+            snap = valid_life.snapshot
+            if snap.get("retired") is True and snap.get("incarnation") == expected.incarnation:
+                return FailureClassification(ALREADY_RETIRED, True, ("LIFETIME_RETIRED_OBSERVED",))
+            if snap.get("incarnation") != expected.incarnation:
+                return FailureClassification(INCARNATION_DIVERGED, True, ("LIFETIME_INCARNATION_DIVERGED",))
+
+    # REQUEST-based: REQUEST_ABSENT / TENANT_MISMATCH / STALE / INCARNATION_DIVERGED.
+    if type(req_obs) is RecordObservation and req_obs.state != NOT_OBSERVED:
+        valid_req = _valid_request_observation(req_obs)
+        if valid_req is None:
+            return FailureClassification(INDETERMINATE, False, ("MALFORMED_REQUEST_OBSERVATION",))
+        if valid_req.state == OBSERVED_ABSENT:
+            return FailureClassification(REQUEST_ABSENT, True, ("REQUEST_OBSERVED_ABSENT",))
+        if valid_req.state == OBSERVED_PRESENT:
+            snap = valid_req.snapshot
+            if snap.get("company_id") != expected.tenant:
+                return FailureClassification(TENANT_MISMATCH, True, ("TENANT_DIVERGED",))
+            if snap.get("legacy_write_revision") != expected.revision:
+                return FailureClassification(STALE, True, ("REVISION_DIVERGED",))
+            if snap.get("record_incarnation") != expected.incarnation:
+                return FailureClassification(INCARNATION_DIVERGED, True, ("REQUEST_INCARNATION_DIVERGED",))
+
+    # Nothing sufficient was observed (or observations agree with expected but
+    # the transaction still cancelled for an unobserved reason).
+    return FailureClassification(INDETERMINATE, False, ("INSUFFICIENT_OR_CONSISTENT_EVIDENCE",))

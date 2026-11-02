@@ -1057,5 +1057,328 @@ class S0bCorrectionC_LifetimeRecordValidationTests(unittest.TestCase):
                 self.assertIsInstance(r, rw.Refusal, (st, rec_snap))
 
 
+# ===========================================================================
+# S0c - build_retire / classify_retire_failure tests
+# ===========================================================================
+
+def eval_update_condition(update, item):
+    """Evaluate an {"Update": {...}} ConditionExpression against a synthetic item.
+
+    Supports the closed grammar build_retire emits: attribute_exists(NAME),
+    attribute_not_exists(#ref), NAME = :val, #ref = :val, and one
+    (attribute_not_exists(#ref) OR #ref = :val) group, joined by " AND ".
+    item is the CURRENT stored state (dict) or None.
+    """
+    spec = update["Update"]
+    cond = spec["ConditionExpression"]
+    names = spec.get("ExpressionAttributeNames", {})
+    values = spec.get("ExpressionAttributeValues", {})
+    cur = item or {}
+
+    def resolve(tok):
+        tok = tok.strip()
+        return names.get(tok, tok)
+
+    def clause(c):
+        c = c.strip()
+        m = re.fullmatch(r"attribute_exists\((.+)\)", c)
+        if m:
+            return resolve(m.group(1)) in cur
+        m = re.fullmatch(r"attribute_not_exists\((.+)\)", c)
+        if m:
+            return resolve(m.group(1)) not in cur
+        m = re.fullmatch(r"(\S+)\s*=\s*(:\w+)", c)
+        if m:
+            name = resolve(m.group(1))
+            return name in cur and cur[name] == values[m.group(2)]
+        raise AssertionError("unparsed S0c clause: " + repr(c))
+
+    # Re-join a single parenthesized OR group split by " AND ".
+    parts, depth, buf = [], 0, ""
+    for tok in cond.split(" AND "):
+        buf = tok if not buf else buf + " AND " + tok
+        depth += tok.count("(") - tok.count(")")
+        if depth == 0:
+            parts.append(buf)
+            buf = ""
+    for part in parts:
+        part = part.strip()
+        mm = re.fullmatch(r"\((.+)\)", part)
+        if mm and " OR " in mm.group(1):
+            if not any(clause(c) for c in mm.group(1).split(" OR ")):
+                return False
+        else:
+            if not clause(part):
+                return False
+    return True
+
+
+def retire_expected(**over):
+    base = dict(tenant="tenant_a", revision=1, incarnation="life-a",
+                retired_at="2026-11-01T12:00:00+00:00", source_status=None,
+                children=(), child_set_complete=True)
+    base.update(over)
+    return rw.RetireExpected(**base)
+
+
+def active_lifetime(token):
+    return rw.LifetimeEvidence(state=rw.LIFETIME_ACTIVE, token=token, retired=False,
+                               record={"PK": "LIFETIME#" + token, "SK": "PERMANENT",
+                                       "retired": False, "incarnation": "life-a"})
+
+
+def retired_request_row(**over):
+    row = {"PK": "REQ#request-a", "SK": "CLIENT#client-a", "company_id": "tenant_a",
+           "request_id": "request-a", "client_id": "client-a",
+           "legacy_write_revision": 1, "record_incarnation": "life-a"}
+    row.update(over)
+    return row
+
+
+class S0cJobStatusParityTests(unittest.TestCase):
+    """The mirrored JobStatus value sets must match live common/status.py."""
+    def test_mirrored_sets_match_live_enum_and_transitions(self):
+        import importlib
+        status = importlib.import_module("common.status")
+        live_values = {m.value for m in status.JobStatus}
+        mirrored = set(rw._KNOWN_JOB_STATES) - {"APPROVED"}  # APPROVED is a documented synonym, not an enum member
+        self.assertEqual(mirrored, live_values)
+        # Durable = no transition path to an executable (JOB_CREATED/ASSIGNED) state.
+        trans = status.JOB_TRANSITIONS
+        executable = {"JOB_CREATED", "ASSIGNED", "APPROVED"}
+        for st in rw._DURABLY_INACTIVE_JOB_STATES:
+            self.assertFalse(set(trans.get(st, [])) & executable, st)
+        # Reopenable DOES have a path back to executable.
+        for st in rw._REOPENABLE_JOB_STATES:
+            self.assertTrue(set(trans.get(st, [])) & executable, st)
+
+
+class S0cBuildRetirePositiveTests(unittest.TestCase):
+    def test_valid_retire_builds_two_updates(self):
+        tok = derived_token()
+        spec = rw.build_retire(KEY, retire_expected(), active_lifetime(tok))
+        self.assertIsInstance(spec, rw.RetireSpec)
+        self.assertEqual(len(spec.transact_items), 2)
+        life, req = spec.transact_items
+        self.assertIn("Update", life)
+        self.assertIn("Update", req)
+        self.assertTrue(spec.retires_revision)
+        self.assertEqual(spec.lifetime_token, tok)
+        self.assertNotIn("TableName", life["Update"])
+        self.assertNotIn("TableName", req["Update"])
+
+    def test_lifetime_operand_retires_in_place(self):
+        tok = derived_token()
+        spec = rw.build_retire(KEY, retire_expected(), active_lifetime(tok))
+        life = spec.transact_items[0]["Update"]
+        self.assertEqual(life["Key"], {"PK": "LIFETIME#" + tok, "SK": "PERMANENT"})
+        self.assertIn("#ret = :false", life["ConditionExpression"])
+        self.assertIn("#inc = :inc", life["ConditionExpression"])
+        self.assertEqual(life["ExpressionAttributeValues"][":true"], True)
+        # Never a delete.
+        self.assertNotIn("Delete", spec.transact_items[0])
+
+    def test_request_operand_marks_and_advances(self):
+        spec = rw.build_retire(KEY, retire_expected(), active_lifetime(derived_token()))
+        req = spec.transact_items[1]["Update"]
+        self.assertIn("#rl = :true", req["UpdateExpression"])
+        self.assertIn("#rev = :next", req["UpdateExpression"])
+        self.assertEqual(req["ExpressionAttributeValues"][":next"], 2)
+        self.assertIn("(attribute_not_exists(#rl) OR #rl = :false)", req["ConditionExpression"])
+
+    def test_conditions_evaluate_true_on_matching_state(self):
+        tok = derived_token()
+        spec = rw.build_retire(KEY, retire_expected(), active_lifetime(tok))
+        life, req = spec.transact_items
+        life_row = {"PK": "LIFETIME#" + tok, "SK": "PERMANENT", "retired": False, "incarnation": "life-a"}
+        self.assertTrue(eval_update_condition(life, life_row))
+        self.assertTrue(eval_update_condition(req, retired_request_row()))
+
+
+class S0cBuildRetireFenceTests(unittest.TestCase):
+    def test_tenant_identity_revision_incarnation_fences(self):
+        spec = rw.build_retire(KEY, retire_expected(), active_lifetime(derived_token()))
+        req = spec.transact_items[1]
+        self.assertFalse(eval_update_condition(req, retired_request_row(company_id="tenant_b")))
+        self.assertFalse(eval_update_condition(req, retired_request_row(request_id="other")))
+        self.assertFalse(eval_update_condition(req, retired_request_row(client_id="other")))
+        self.assertFalse(eval_update_condition(req, retired_request_row(legacy_write_revision=2)))
+        self.assertFalse(eval_update_condition(req, retired_request_row(record_incarnation="life-b")))
+
+    def test_already_retired_marker_blocks(self):
+        spec = rw.build_retire(KEY, retire_expected(), active_lifetime(derived_token()))
+        req = spec.transact_items[1]
+        self.assertFalse(eval_update_condition(req, retired_request_row(retired_lifetime=True)))
+        self.assertTrue(eval_update_condition(req, retired_request_row(retired_lifetime=False)))
+
+    def test_lifetime_already_retired_condition_false(self):
+        tok = derived_token()
+        spec = rw.build_retire(KEY, retire_expected(), active_lifetime(tok))
+        life = spec.transact_items[0]
+        now_retired = {"PK": "LIFETIME#" + tok, "SK": "PERMANENT", "retired": True, "incarnation": "life-a"}
+        self.assertFalse(eval_update_condition(life, now_retired))
+
+
+class S0cBuildRetireRefusalTests(unittest.TestCase):
+    def test_malformed_inputs(self):
+        self.assertEqual(rw.build_retire(KEY, object(), active_lifetime(derived_token())).reason, "MALFORMED_EXPECTED")
+        self.assertEqual(rw.build_retire(KEY, retire_expected(), object()).reason, "MALFORMED_LIFETIME_EVIDENCE")
+        self.assertEqual(rw.build_retire({"PK": "JOB#x", "SK": "Y"}, retire_expected(), active_lifetime(derived_token())).reason, "MALFORMED_KEY")
+
+    def test_key_expected_mismatch(self):
+        self.assertEqual(rw.build_retire(KEY, retire_expected(request_id="other"), active_lifetime(derived_token())).reason, "KEY_EXPECTED_MISMATCH")
+        self.assertEqual(rw.build_retire(KEY, retire_expected(client_id="other"), active_lifetime(derived_token())).reason, "KEY_EXPECTED_MISMATCH")
+
+    def test_bad_revision_incarnation_retired_at(self):
+        self.assertEqual(rw.build_retire(KEY, retire_expected(revision=0), active_lifetime(derived_token())).reason, "MALFORMED_REVISION")
+        self.assertEqual(rw.build_retire(KEY, retire_expected(incarnation="bad id!"), active_lifetime(derived_token())).reason, "MALFORMED_INCARNATION")
+        for bad in ("", "banana", "2026-11-01", "2026-11-01T12:00:00", "2026-11-01T12:00:00+02:00", 5):
+            self.assertEqual(rw.build_retire(KEY, retire_expected(retired_at=bad), active_lifetime(derived_token())).reason, "MALFORMED_RETIRED_AT", bad)
+
+    def test_lifetime_evidence_refusals(self):
+        t = derived_token()
+        self.assertEqual(rw.build_retire(KEY, retire_expected(), rw.LifetimeEvidence(state=rw.LIFETIME_NOT_OBSERVED)).reason, "LIFETIME_NOT_OBSERVED")
+        self.assertEqual(rw.build_retire(KEY, retire_expected(), rw.LifetimeEvidence(state=rw.LIFETIME_ABSENT, token=t)).reason, "LIFETIME_NOT_OBSERVED")
+        self.assertEqual(rw.build_retire(KEY, retire_expected(), rw.LifetimeEvidence(state="WHAT", token=t)).reason, "MALFORMED_LIFETIME_EVIDENCE")
+        self.assertEqual(rw.build_retire(KEY, retire_expected(), rw.LifetimeEvidence(state=rw.LIFETIME_ACTIVE, token="wrong", retired=False)).reason, "MALFORMED_LIFETIME_EVIDENCE")
+
+    def test_already_retired_evidence(self):
+        t = derived_token()
+        ev = rw.LifetimeEvidence(state=rw.LIFETIME_RETIRED, token=t, retired=True,
+                                 record={"PK": "LIFETIME#" + t, "SK": "PERMANENT", "retired": True, "incarnation": "life-a"})
+        self.assertEqual(rw.build_retire(KEY, retire_expected(), ev).reason, "ALREADY_RETIRED")
+
+    def test_lifetime_record_inconsistent(self):
+        t = derived_token()
+        # wrong key
+        ev = rw.LifetimeEvidence(state=rw.LIFETIME_ACTIVE, token=t, retired=False,
+                                 record={"PK": "LIFETIME#WRONG", "SK": "PERMANENT", "retired": False, "incarnation": "life-a"})
+        self.assertEqual(rw.build_retire(KEY, retire_expected(), ev).reason, "MALFORMED_LIFETIME_EVIDENCE")
+        # incarnation mismatch
+        ev2 = rw.LifetimeEvidence(state=rw.LIFETIME_ACTIVE, token=t, retired=False,
+                                  record={"PK": "LIFETIME#" + t, "SK": "PERMANENT", "retired": False, "incarnation": "other"})
+        self.assertEqual(rw.build_retire(KEY, retire_expected(), ev2).reason, "MALFORMED_LIFETIME_EVIDENCE")
+
+
+class S0cChildEvidenceTests(unittest.TestCase):
+    def C(self, job_id, status):
+        return rw.ChildJobEvidence(job_id=job_id, status=status)
+
+    def test_active_children_refused(self):
+        for st in ("JOB_CREATED", "ASSIGNED", "APPROVED"):
+            r = rw.build_retire(KEY, retire_expected(children=(self.C("j1", st),)), active_lifetime(derived_token()))
+            self.assertEqual(r.reason, "ACTIVE_CHILDREN_PRESENT", st)
+
+    def test_reopenable_children_refused(self):
+        for st in ("CANCELLED", "COMPLETED"):
+            r = rw.build_retire(KEY, retire_expected(children=(self.C("j1", st),)), active_lifetime(derived_token()))
+            self.assertEqual(r.reason, "REOPENABLE_CHILDREN_PRESENT", st)
+
+    def test_durable_children_pass_gate(self):
+        for st in ("ARCHIVED", "DELETED"):
+            spec = rw.build_retire(KEY, retire_expected(children=(self.C("j1", st),)), active_lifetime(derived_token()))
+            self.assertIsInstance(spec, rw.RetireSpec, st)
+
+    def test_mixed_children_refuse_on_strongest(self):
+        r = rw.build_retire(KEY, retire_expected(children=(self.C("j1", "ARCHIVED"), self.C("j2", "ASSIGNED"))),
+                            active_lifetime(derived_token()))
+        self.assertEqual(r.reason, "ACTIVE_CHILDREN_PRESENT")
+        r2 = rw.build_retire(KEY, retire_expected(children=(self.C("j1", "ARCHIVED"), self.C("j2", "CANCELLED"))),
+                             active_lifetime(derived_token()))
+        self.assertEqual(r2.reason, "REOPENABLE_CHILDREN_PRESENT")
+
+    def test_incomplete_or_malformed_children(self):
+        self.assertEqual(rw.build_retire(KEY, retire_expected(child_set_complete=False), active_lifetime(derived_token())).reason, "CHILD_SET_INCOMPLETE")
+        self.assertEqual(rw.build_retire(KEY, retire_expected(children=5), active_lifetime(derived_token())).reason, "MALFORMED_CHILD_EVIDENCE")
+        self.assertEqual(rw.build_retire(KEY, retire_expected(children=(self.C("j1", "NOPE"),)), active_lifetime(derived_token())).reason, "MALFORMED_CHILD_EVIDENCE")
+        self.assertEqual(rw.build_retire(KEY, retire_expected(children=(self.C("bad id!", "ARCHIVED"),)), active_lifetime(derived_token())).reason, "MALFORMED_CHILD_EVIDENCE")
+
+    def test_duplicate_child_ids(self):
+        r = rw.build_retire(KEY, retire_expected(children=(self.C("j1", "ARCHIVED"), self.C("j1", "DELETED"))),
+                            active_lifetime(derived_token()))
+        self.assertEqual(r.reason, "DUPLICATE_CHILD_EVIDENCE")
+
+    def test_stale_child_characterization(self):
+        # A DURABLE child passes the gate, but the design does NOT claim this
+        # prevents a concurrent reopen/execution - only the future barrier does.
+        spec = rw.build_retire(KEY, retire_expected(children=(self.C("j1", "ARCHIVED"),)), active_lifetime(derived_token()))
+        self.assertIsInstance(spec, rw.RetireSpec)
+        # ARCHIVED has no transition to executable in the live machine, but an
+        # unfenced writer could still overwrite it - asserted by parity test only.
+
+
+class S0cClassifyRetireFailureTests(unittest.TestCase):
+    def obs(self, state, pk=None, sk=None, snapshot=None):
+        key = {"PK": pk, "SK": sk} if pk is not None else None
+        return rw.RecordObservation(state=state, key=key, snapshot=snapshot)
+
+    def test_non_evidence_or_expected_indeterminate(self):
+        self.assertEqual(rw.classify_retire_failure(object()).classification, rw.INDETERMINATE)
+        ev = rw.RetireFailureEvidence(kind="reread", expected=None)
+        self.assertEqual(rw.classify_retire_failure(ev).classification, rw.INDETERMINATE)
+
+    def test_not_observed_is_indeterminate(self):
+        ev = rw.RetireFailureEvidence(kind="transaction_cancellation", expected=retire_expected())
+        self.assertEqual(rw.classify_retire_failure(ev).classification, rw.INDETERMINATE)
+
+    def test_already_retired_evidence_backed(self):
+        t = derived_token()
+        life = self.obs(rw.OBSERVED_PRESENT, "LIFETIME#" + t, "PERMANENT",
+                        {"PK": "LIFETIME#" + t, "SK": "PERMANENT", "retired": True, "incarnation": "life-a"})
+        ev = rw.RetireFailureEvidence(kind="reread", lifetime_obs=life, expected=retire_expected())
+        c = rw.classify_retire_failure(ev)
+        self.assertEqual(c.classification, rw.ALREADY_RETIRED)
+        self.assertTrue(c.evidence_backed)
+
+    def test_lifetime_missing_evidence_backed(self):
+        t = derived_token()
+        life = self.obs(rw.OBSERVED_ABSENT, "LIFETIME#" + t, "PERMANENT")
+        ev = rw.RetireFailureEvidence(kind="reread", lifetime_obs=life, expected=retire_expected())
+        self.assertEqual(rw.classify_retire_failure(ev).classification, rw.LIFETIME_MISSING)
+
+    def test_request_absent_evidence_backed(self):
+        req = self.obs(rw.OBSERVED_ABSENT, "REQ#request-a", "CLIENT#client-a")
+        ev = rw.RetireFailureEvidence(kind="reread", request_obs=req, expected=retire_expected(request_id="request-a", client_id="client-a"))
+        self.assertEqual(rw.classify_retire_failure(ev).classification, rw.REQUEST_ABSENT)
+
+    def test_tenant_stale_incarnation(self):
+        rid, cid = "request-a", "client-a"
+        def rq(**o):
+            snap = retired_request_row(**o)
+            return self.obs(rw.OBSERVED_PRESENT, "REQ#request-a", "CLIENT#client-a", snap)
+        exp = retire_expected(request_id=rid, client_id=cid)
+        self.assertEqual(rw.classify_retire_failure(rw.RetireFailureEvidence(kind="reread", request_obs=rq(company_id="tenant_b"), expected=exp)).classification, rw.TENANT_MISMATCH)
+        self.assertEqual(rw.classify_retire_failure(rw.RetireFailureEvidence(kind="reread", request_obs=rq(legacy_write_revision=5), expected=exp)).classification, rw.STALE)
+        self.assertEqual(rw.classify_retire_failure(rw.RetireFailureEvidence(kind="reread", request_obs=rq(record_incarnation="life-b"), expected=exp)).classification, rw.INCARNATION_DIVERGED)
+
+    def test_key_mismatch_observation_indeterminate(self):
+        # OBSERVED_PRESENT whose key disagrees with the targeted key -> MALFORMED -> INDETERMINATE
+        bad = rw.RecordObservation(state=rw.OBSERVED_PRESENT, key={"PK": "REQ#other", "SK": "CLIENT#other"},
+                                   snapshot={"PK": "REQ#other", "SK": "CLIENT#other", "company_id": "tenant_a",
+                                             "legacy_write_revision": 1, "record_incarnation": "life-a"})
+        ev = rw.RetireFailureEvidence(kind="reread", request_obs=bad, expected=retire_expected(request_id="other", client_id="other"))
+        # request_id/client_id match the key here, so it's a valid obs with no divergence -> INDETERMINATE
+        self.assertEqual(rw.classify_retire_failure(ev).classification, rw.INDETERMINATE)
+
+    def test_non_bool_retired_in_lifetime_obs_indeterminate(self):
+        t = derived_token()
+        life = self.obs(rw.OBSERVED_PRESENT, "LIFETIME#" + t, "PERMANENT",
+                        {"PK": "LIFETIME#" + t, "SK": "PERMANENT", "retired": 1, "incarnation": "life-a"})
+        ev = rw.RetireFailureEvidence(kind="reread", lifetime_obs=life, expected=retire_expected())
+        # retired is not True (it's int 1) and incarnation matches -> no specific cause -> INDETERMINATE
+        self.assertEqual(rw.classify_retire_failure(ev).classification, rw.INDETERMINATE)
+
+
+class S0cNoExecutionTests(unittest.TestCase):
+    def test_retire_spec_is_data_only(self):
+        spec = rw.build_retire(KEY, retire_expected(), active_lifetime(derived_token()))
+        self.assertEqual(len(spec.transact_items), 2)
+        for entry in spec.transact_items:
+            self.assertIn("Update", entry)
+            self.assertNotIn("TableName", entry["Update"])
+            self.assertNotIn("Delete", entry)
+        self.assertFalse(hasattr(rw, "transact_write_items"))
+
+
 if __name__ == "__main__":
     unittest.main()
