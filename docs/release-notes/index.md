@@ -4,6 +4,8 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 
 ## 🌟 Featured / Recent
 
+- [**Cancellation absent-identity ownership guard - INACTIVE (PR54)**](cancellation-absent-identity-guard.md) (2026-11-01) - Stacked on PR53; closes the absent-identity insertion race by fencing each observed-absent identity with `attribute_not_exists` in the PR51 transaction, with typed absent-field evidence threaded PR53->PR52->PR51 and an offline condition-evaluation test suite (215 focused passes). Inactive; no runtime integration; all-writers revision invariant still outstanding.
+
 - [**Cancellation-specific access adapter - INACTIVE**](cancellation-access-adapter.md) (2026-10-31) - Corrected PR52 dependency; customer-only synthetic gateway/booking evidence mapping; 443 focused passes, no runtime integration.
 
 - [**Cancellation adapter compatibility foundation - INACTIVE**](cancellation-adapter-compatibility-foundation.md) (2026-10-31) - SDK-free ports, synthetic legacy classification and writer compatibility rules; PR51 dependency, dated five-finding correction with 403 focused passes; no runtime integration.

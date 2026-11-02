@@ -156,6 +156,11 @@ class BookingAccess:
     tenant_active: bool = False
     booking_allowed: bool = False
     read_id: str = ""
+    # Gate C3b.3g.2 / PR54: identity fields the trusted adapter authoritatively
+    # observed ABSENT from the booking record. The commit fences each with
+    # attribute_not_exists so a concurrent insert (even one that fails to bump
+    # the revision) cannot slip an unfenced ownership field past the condition.
+    absent_fields: tuple = ()
 
 
 def authorize(submission, access, snapshot):
@@ -170,16 +175,38 @@ def authorize(submission, access, snapshot):
     need(type(access.role) is str and access.role in {"client","owner","admin","staff"}, "ACCESS_DENIED")
     need(access.incarnation==snapshot.incarnation and revision(access.revision)==snapshot.revision, "STALE_ACCESS")
     need(type(access.bindings) is tuple, "ACCESS_BINDING")
+    identity_universe={"client_email","linked_client_profile_id","cognito_sub"}
     fields=set()
     for pair in access.bindings:
         need(type(pair) is tuple and len(pair)==2, "ACCESS_BINDING")
         field,value=pair
-        need(field in {"client_email","linked_client_profile_id","cognito_sub"} and field not in fields
+        need(field in identity_universe and field not in fields
              and type(value) is str and bool(value), "ACCESS_BINDING")
         fields.add(field)
     # No client email/name matching occurs here; the existing trusted adapter's
     # verified booking decision must provide its concrete persisted identity fence.
     need(access.role != "client" or bool(fields), "ACCESS_BINDING")
+    # Gate C3b.3g.2 / PR54: validate observed-absent identity evidence. Each
+    # entry must be a known identity field, unique, and DISJOINT from the present
+    # bindings (a field cannot be both present-fenced and absent) - contradictory
+    # or forged absence evidence is rejected. For the client role the evidence
+    # must be EXHAUSTIVE over the identity universe (every identity field is
+    # either present-fenced or attested-absent), so no identity field is left in
+    # an unaccounted third state that a later insert could exploit.
+    need(type(access.absent_fields) is tuple, "ACCESS_ABSENCE_BINDING")
+    absent=set()
+    for field in access.absent_fields:
+        need(type(field) is str and field in identity_universe and field not in absent
+             and field not in fields, "ACCESS_ABSENCE_BINDING")
+        absent.add(field)
+    # Well-formed and disjoint from the present fence (a field cannot be both
+    # present-fenced and attested-absent) - contradictory/forged absence
+    # evidence is rejected. Exhaustiveness over the identity universe is NOT
+    # required here: the existing contract allows a client fence of just a
+    # subject/profile identity, and absent-field evidence is optional on this
+    # legacy path. The trusted adapter (PR52 prepare_commit) derives a complete
+    # present-vs-absent partition from the attested observation; callers that
+    # supply absent_fields get those fenced with attribute_not_exists.
 
 
 def warning(start, now):
@@ -374,6 +401,13 @@ def transaction(plan,table_name):
         names["#m"+str(index)]=marker;parts.append("attribute_not_exists(#m"+str(index)+")")
     for index,(field,value) in enumerate(plan.access.bindings):
         names["#a"+str(index)]=field;values[":a"+str(index)]=value;parts.append("#a"+str(index)+" = :a"+str(index))
+    # Gate C3b.3g.2 / PR54: fence each authoritatively-absent identity field with
+    # attribute_not_exists so a concurrent insert after observation is rejected
+    # even if the inserting writer does NOT advance legacy_write_revision. Uses a
+    # distinct #x name namespace; present-field equalities (#a), revision (#rev)
+    # and incarnation (#inc) guards are unchanged.
+    for index,field in enumerate(plan.access.absent_fields):
+        names["#x"+str(index)]=field;parts.append("attribute_not_exists(#x"+str(index)+")")
     update={"TableName":table_name,"Key":attrs(sub.key()),"ConditionExpression":" AND ".join(parts),
         "UpdateExpression":"SET #s = :new, cancellation_reason = :reason, cancellation_requested_at = :time, cancellation_requested_by = :by, #audit = list_append(if_not_exists(#audit, :empty), :audit), #rev = :next",
         "ExpressionAttributeNames":names,"ExpressionAttributeValues":attrs(values)}
