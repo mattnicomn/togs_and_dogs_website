@@ -332,11 +332,29 @@ class InterpretFailureTests(unittest.TestCase):
         self.assertEqual(c.classification, rw.STALE)
         self.assertTrue(c.evidence_backed)
 
-    def test_reread_absent_row_is_absent(self):
-        ev = rw.FailureEvidence(kind="reread", observed_row=None, expected=complete_client_expected())
+    def test_reread_observed_absence_is_absent(self):
+        # Finding B: an observed absence is an explicit observation - row None AND
+        # an explicit tombstone_present=False - not merely a missing re-read row.
+        ev = rw.FailureEvidence(kind="reread", observed_row=None, tombstone_present=False,
+                                expected=complete_client_expected())
         c = rw.interpret_failure(ev)
         self.assertEqual(c.classification, rw.ABSENT)
         self.assertTrue(c.evidence_backed)
+
+    def test_reread_missing_row_without_observation_is_indeterminate(self):
+        # Finding B: observed_row=None with NO explicit tombstone signal is a
+        # MISSING re-read, not a proven absence.
+        ev = rw.FailureEvidence(kind="reread", observed_row=None, expected=complete_client_expected())
+        c = rw.interpret_failure(ev)
+        self.assertEqual(c.classification, rw.INDETERMINATE)
+        self.assertFalse(c.evidence_backed)
+
+    def test_reread_without_expected_is_indeterminate(self):
+        # Finding B: no ExpectedState baseline -> cannot classify.
+        ev = rw.FailureEvidence(kind="reread", observed_row=None, tombstone_present=False, expected=None)
+        c = rw.interpret_failure(ev)
+        self.assertEqual(c.classification, rw.INDETERMINATE)
+        self.assertFalse(c.evidence_backed)
 
     def test_tombstone_is_retired(self):
         ev = rw.FailureEvidence(kind="reread", observed_row=None, tombstone_present=True,
@@ -379,6 +397,196 @@ class NoExecutionPropertiesTests(unittest.TestCase):
         self.assertFalse(hasattr(rw, "table"))
         self.assertFalse(hasattr(rw, "dynamodb"))
         self.assertFalse(hasattr(rw, "client"))
+
+
+class FindingA_KeyAndExpectedBindingTests(unittest.TestCase):
+    """Finding A: non-REQUEST keys refused; request/client/tenant bound in cond."""
+    def test_non_request_key_refused(self):
+        for bad in ({"PK": "JOB#x", "SK": "METADATA"},
+                    {"PK": "REQ#a", "SK": "METADATA"},
+                    {"PK": "COMPANY#a", "SK": "CLIENT#a"}):
+            r = rw.build_update(bad, complete_client_expected(), simple_plan(), ELIGIBLE)
+            self.assertIsInstance(r, rw.Refusal, bad)
+            self.assertEqual(r.reason, "MALFORMED_KEY", bad)
+
+    def test_key_with_extra_attributes_refused(self):
+        r = rw.build_update({"PK": "REQ#a", "SK": "CLIENT#a", "x": 1},
+                            complete_client_expected(), simple_plan(), ELIGIBLE)
+        self.assertEqual(r.reason, "MALFORMED_KEY")
+
+    def test_malformed_identifier_in_key_refused(self):
+        r = rw.build_update({"PK": "REQ#bad id!", "SK": "CLIENT#client-a"},
+                            complete_client_expected(), simple_plan(), ELIGIBLE)
+        self.assertEqual(r.reason, "MALFORMED_KEY")
+
+    def test_mismatched_expected_ids_refused(self):
+        r = rw.build_update(KEY, complete_client_expected(request_id="other"), simple_plan(), ELIGIBLE)
+        self.assertEqual(r.reason, "KEY_EXPECTED_MISMATCH")
+        r = rw.build_update(KEY, complete_client_expected(client_id="other"), simple_plan(), ELIGIBLE)
+        self.assertEqual(r.reason, "KEY_EXPECTED_MISMATCH")
+
+    def test_request_client_bound_into_condition(self):
+        spec = rw.build_update(KEY, complete_client_expected(), simple_plan(), ELIGIBLE)
+        self.assertIsInstance(spec, rw.UpdateSpec)
+        self.assertIn("request_id = :reqid", spec.condition_expression)
+        self.assertIn("client_id = :cliid", spec.condition_expression)
+        self.assertEqual(spec.values[":reqid"], "request-a")
+        self.assertEqual(spec.values[":cliid"], "client-a")
+
+    def test_condition_evaluates_request_client_against_item(self):
+        spec = rw.build_update(KEY, complete_client_expected(), simple_plan(), ELIGIBLE)
+        good = versioned_snapshot(cognito_sub="subject-a")
+        self.assertTrue(evaluate(spec, good))
+        # An item whose own request_id/client_id disagree with the key fails.
+        self.assertFalse(evaluate(spec, versioned_snapshot(cognito_sub="subject-a", request_id="other")))
+        self.assertFalse(evaluate(spec, versioned_snapshot(cognito_sub="subject-a", client_id="other")))
+
+
+class FindingB_FailureEvidenceTests(unittest.TestCase):
+    """Finding B: never classify from incomplete/malformed reread evidence."""
+    def test_missing_expected_is_indeterminate(self):
+        for ev in (rw.FailureEvidence(kind="reread", observed_row=None, tombstone_present=False, expected=None),
+                   rw.FailureEvidence(kind="reread", observed_row=versioned_snapshot(), expected=None)):
+            c = rw.interpret_failure(ev)
+            self.assertEqual(c.classification, rw.INDETERMINATE)
+            self.assertFalse(c.evidence_backed)
+
+    def test_missing_reread_vs_observed_absence(self):
+        # No observation signal -> MISSING (INDETERMINATE)
+        c = rw.interpret_failure(rw.FailureEvidence(kind="reread", observed_row=None,
+                                                    expected=complete_client_expected()))
+        self.assertEqual(c.classification, rw.INDETERMINATE)
+        # Explicit observed absence -> ABSENT
+        c = rw.interpret_failure(rw.FailureEvidence(kind="reread", observed_row=None, tombstone_present=False,
+                                                    expected=complete_client_expected()))
+        self.assertEqual(c.classification, rw.ABSENT)
+        self.assertTrue(c.evidence_backed)
+
+    def test_non_bool_tombstone_is_malformed(self):
+        for bad in (1, "yes", [1], 0, ""):
+            ev = rw.FailureEvidence(kind="reread", observed_row=None, tombstone_present=bad,
+                                    expected=complete_client_expected())
+            c = rw.interpret_failure(ev)
+            self.assertEqual(c.classification, rw.INDETERMINATE, bad)
+            self.assertFalse(c.evidence_backed, bad)
+
+    def test_exact_true_tombstone_is_retired(self):
+        ev = rw.FailureEvidence(kind="reread", observed_row=None, tombstone_present=True,
+                                expected=complete_client_expected())
+        c = rw.interpret_failure(ev)
+        self.assertEqual(c.classification, rw.RETIRED)
+        self.assertTrue(c.evidence_backed)
+
+    def test_transaction_reason_alone_is_indeterminate(self):
+        # ConditionalCheckFailed WITHOUT a re-read cannot name the failed clause.
+        ev = rw.FailureEvidence(kind="transaction_cancellation",
+                                cancellation_reasons=("ConditionalCheckFailed",),
+                                observed_row=None, expected=None)
+        c = rw.interpret_failure(ev)
+        self.assertEqual(c.classification, rw.INDETERMINATE)
+        self.assertFalse(c.evidence_backed)
+
+    def test_transaction_reason_with_full_reread_classifies(self):
+        ev = rw.FailureEvidence(kind="transaction_cancellation",
+                                cancellation_reasons=("ConditionalCheckFailed",),
+                                observed_row=versioned_snapshot(company_id="tenant_b"),
+                                expected=complete_client_expected())
+        c = rw.interpret_failure(ev)
+        self.assertEqual(c.classification, rw.TENANT_MISMATCH)
+        self.assertTrue(c.evidence_backed)
+
+    def test_malformed_cancellation_reasons_indeterminate(self):
+        for bad in (5, "ConditionalCheckFailed"):
+            c = rw.interpret_failure(rw.FailureEvidence(kind="transaction_cancellation",
+                                                        cancellation_reasons=bad))
+            self.assertEqual(c.classification, rw.INDETERMINATE, bad)
+
+
+class FindingC_AuditConflictTests(unittest.TestCase):
+    """Finding C: audit_log may only be touched via append_audit."""
+    def test_set_audit_log_plus_append_refused(self):
+        r = rw.build_update(KEY, complete_client_expected(),
+                            rw.WritePlan(set_fields=(("audit_log", [{"x": 1}]),), append_audit={"y": 2}),
+                            ELIGIBLE)
+        self.assertEqual(r.reason, "AUDIT_FIELD_CONFLICT")
+
+    def test_remove_audit_log_plus_append_refused(self):
+        r = rw.build_update(KEY, complete_client_expected(),
+                            rw.WritePlan(remove_fields=("audit_log",), append_audit={"y": 2}),
+                            ELIGIBLE)
+        self.assertEqual(r.reason, "AUDIT_FIELD_CONFLICT")
+
+    def test_set_audit_log_alone_refused(self):
+        r = rw.build_update(KEY, complete_client_expected(),
+                            rw.WritePlan(set_fields=(("audit_log", [{"x": 1}]),)), ELIGIBLE)
+        self.assertEqual(r.reason, "AUDIT_FIELD_CONFLICT")
+
+    def test_append_audit_alone_still_works(self):
+        spec = rw.build_update(KEY, complete_client_expected(),
+                               rw.WritePlan(append_audit={"status": "CANCELLATION_REQUESTED"}), ELIGIBLE)
+        self.assertIsInstance(spec, rw.UpdateSpec)
+        self.assertIn("list_append(if_not_exists(#audit, :emptylist), :auditentry)", spec.update_expression)
+        audit_names = [k for k, v in spec.names.items() if v == "audit_log"]
+        self.assertEqual(len(audit_names), 1)
+
+
+class FindingD_InputShapeTests(unittest.TestCase):
+    """Finding D: malformed/non-iterable/string collections refused cleanly."""
+    def test_non_iterable_set_remove_refused_not_raised(self):
+        for plan in (rw.WritePlan(set_fields=5), rw.WritePlan(remove_fields=5),
+                     rw.WritePlan(set_fields=None), rw.WritePlan(remove_fields=None)):
+            r = rw.build_update(KEY, complete_client_expected(), plan, ELIGIBLE)
+            self.assertIsInstance(r, rw.Refusal)
+            self.assertEqual(r.reason, "MALFORMED_PLAN_COLLECTION")
+
+    def test_string_as_set_or_remove_collection_refused(self):
+        self.assertEqual(rw.build_update(KEY, complete_client_expected(),
+                                         rw.WritePlan(set_fields="ab"), ELIGIBLE).reason,
+                         "MALFORMED_PLAN_COLLECTION")
+        # The previously-silent destructive char-by-char REMOVE is now refused.
+        r = rw.build_update(KEY, complete_client_expected(),
+                            rw.WritePlan(remove_fields="audit_log"), ELIGIBLE)
+        self.assertEqual(r.reason, "MALFORMED_PLAN_COLLECTION")
+
+    def test_protected_identity_non_iterable_refused_not_raised(self):
+        r = rw.build_update(KEY, complete_client_expected(present_identity=5, absent_identity=(),
+                                                          protected_client=True),
+                            simple_plan(), ELIGIBLE)
+        self.assertIsInstance(r, rw.Refusal)
+        self.assertEqual(r.reason, "OWNERSHIP_EVIDENCE_SHAPE")
+        r = rw.build_update(KEY, complete_client_expected(present_identity=(("cognito_sub", "s"),),
+                                                          absent_identity=5, protected_client=True),
+                            simple_plan(), ELIGIBLE)
+        self.assertEqual(r.reason, "OWNERSHIP_EVIDENCE_SHAPE")
+
+    def test_nonprotected_identity_non_iterable_refused_not_raised(self):
+        r = rw.build_update(KEY, complete_client_expected(protected_client=False, present_identity=5,
+                                                          absent_identity=(), incarnation="life-a",
+                                                          revision=1),
+                            simple_plan(), ELIGIBLE)
+        self.assertIsInstance(r, rw.Refusal)
+        self.assertEqual(r.reason, "OWNERSHIP_EVIDENCE_SHAPE")
+
+    def test_string_identity_collections_refused(self):
+        r = rw.build_update(KEY, complete_client_expected(protected_client=False,
+                                                          present_identity="cognito_sub",
+                                                          absent_identity=()),
+                            simple_plan(), ELIGIBLE)
+        self.assertEqual(r.reason, "OWNERSHIP_EVIDENCE_SHAPE")
+
+    def test_no_typeerror_escapes_for_any_malformed_collection(self):
+        # Exhaustive: none of these should raise; all must be clean Refusals.
+        bad_plans = [
+            rw.WritePlan(set_fields=5), rw.WritePlan(set_fields="xy"),
+            rw.WritePlan(remove_fields=5), rw.WritePlan(remove_fields="field"),
+            rw.WritePlan(set_fields=(("a", 1, 2),)), rw.WritePlan(set_fields=((5, "v"),)),
+        ]
+        for plan in bad_plans:
+            try:
+                r = rw.build_update(KEY, complete_client_expected(), plan, ELIGIBLE)
+            except Exception as e:  # noqa: BLE001 - the whole point is no escape
+                self.fail(f"raised {type(e).__name__} for {plan}")
+            self.assertIsInstance(r, rw.Refusal)
 
 
 if __name__ == "__main__":

@@ -36,7 +36,18 @@ S0a is the pure **decision surface** of a REQUEST mutation: it decides whether a
 
 ## Validation
 
-Scoped run (S0a + the four inherited cancellation suites): **257 passed, 23 subtests passed** (217 inherited + 40 new S0a), Python 3.13.3, pytest 9.0.2. S0a is additive and imported by nothing, so the inherited suites are unchanged. Full guarded backend not run here; recorded `FULL_BACKEND_NOT_VERIFIED` (prior PR53 74-failure baseline retained at `D:\petcare-rollback\pr53-evidence\13e9f5d\`).
+Scoped run (S0a + the four inherited cancellation suites): **282 passed, 23 subtests passed** (217 inherited + 65 S0a), Python 3.13.3, pytest 9.0.2. S0a is additive and imported by nothing, so the inherited suites are unchanged. Full guarded backend not run here; recorded `FULL_BACKEND_NOT_VERIFIED` (prior PR53 74-failure baseline retained at `D:\petcare-rollback\pr53-evidence\13e9f5d\`).
+
+## Corrective maintenance — independent-review findings A–D (2026-11-01)
+
+An independent security review of the initial S0a commit (`99be204`) reproduced four contract defects offline. All were corrected on this branch; module stays pure, inactive, and imported by nothing.
+
+- **A — REQUEST key / expected binding.** `build_update` previously accepted any truthy `PK`/`SK` and never tied the key to `ExpectedState`. It now parses an EXACT REQUEST key (`REQ#<id>` / `CLIENT#<id>`, well-formed identifiers, no extra attributes) via `_parse_request_key` and refuses otherwise (`MALFORMED_KEY`); optional `ExpectedState.request_id`/`client_id`, when supplied, must match the key (`KEY_EXPECTED_MISMATCH`); and the generated condition now binds `request_id = :reqid AND client_id = :cliid` alongside `company_id = :tenant`. This is a STRUCTURAL consistency check, not proof of trusted provenance.
+- **B — failure evidence.** `interpret_failure`/`_classify_from_reread` no longer classify `ABSENT`/`RETIRED`/`STALE`/`TENANT_MISMATCH` from incomplete or malformed re-read evidence. A valid `ExpectedState` baseline is required; a MISSING re-read (`observed_row=None` with no explicit signal) is distinguished from an OBSERVED absence (`observed_row=None` AND `tombstone_present=False`); `tombstone_present` must be an exact `bool` (truthy ints/strings/lists are `MALFORMED_TOMBSTONE_EVIDENCE` → INDETERMINATE); a transaction `ConditionalCheckFailed` reason alone never names the failed clause and stays INDETERMINATE without a full re-read.
+- **C — audit conflicts.** `audit_log` is now owned exclusively by the `append_audit` path; a plan that SETs or REMOVEs `audit_log` directly is refused (`AUDIT_FIELD_CONFLICT`), eliminating the two-actions-on-one-path DynamoDB ValidationException. Safe append-only audit behavior is preserved.
+- **D — input shape safety.** `set_fields`, `remove_fields`, `present_identity`, `absent_identity` (both protected and non-protected paths) and `cancellation_reasons` must be real sequences (tuple/list); a `str`/`bytes` or non-iterable is refused cleanly (`MALFORMED_PLAN_COLLECTION` / `OWNERSHIP_EVIDENCE_SHAPE` / `MALFORMED_CANCELLATION_REASONS`) instead of raising `TypeError` or silently iterating a string into per-character REMOVE fields.
+
+Regressions: 25 new offline cases reproduce every proven defect (including evaluating the generated condition's new `request_id`/`client_id` clauses against synthetic items). The original 40 S0a cases remain meaningful; the one that asserted "`observed_row=None` → ABSENT" was split into stronger variants (observed-absence vs missing-reread vs missing-expected) — a tightening, not a weakened assertion.
 
 ## Remaining approval gates
 

@@ -97,6 +97,13 @@ class ExpectedState:
     present_identity: tuple = ()
     absent_identity: tuple = ()
     protected_client: bool = False
+    # Optional identifiers the caller read for the SAME row. When supplied they
+    # must match the identifiers encoded in the target key (see build_update);
+    # a mismatch is a hard refusal (a caller must not pair one row's expected
+    # state with another row's key). None means "not separately asserted" - the
+    # key-derived identifiers are still bound into the write condition regardless.
+    request_id: object = None        # str or None
+    client_id: object = None         # str or None
 
 
 @dataclass(frozen=True)
@@ -168,6 +175,38 @@ def _valid_incarnation(value):
     return type(value) is str and bool(_ID_RE.fullmatch(value))
 
 
+def _valid_identifier(value):
+    return type(value) is str and bool(_ID_RE.fullmatch(value))
+
+
+def _is_sequence(value):
+    # A real sequence of elements - explicitly NOT a str/bytes (which iterate by
+    # character and would otherwise be silently treated as a collection of
+    # single-character elements). Only tuple/list are accepted as collections.
+    return type(value) in (tuple, list)
+
+
+def _parse_request_key(key):
+    """Validate a REQUEST key and return (request_id, client_id) or None.
+
+    A valid REQUEST key is exactly {"PK": "REQ#<id>", "SK": "CLIENT#<id>"} with
+    well-formed identifiers. Anything else (non-dict, extra/missing keys, wrong
+    prefixes, malformed ids) returns None so the caller can refuse.
+    """
+    if type(key) is not dict or set(key) != {"PK", "SK"}:
+        return None
+    pk, sk = key.get("PK"), key.get("SK")
+    if type(pk) is not str or type(sk) is not str:
+        return None
+    if not pk.startswith("REQ#") or not sk.startswith("CLIENT#"):
+        return None
+    request_id = pk[len("REQ#"):]
+    client_id = sk[len("CLIENT#"):]
+    if not _valid_identifier(request_id) or not _valid_identifier(client_id):
+        return None
+    return request_id, client_id
+
+
 def classify_adoption(snapshot):
     """Decide whether a persisted REQUEST snapshot is safe to fence.
 
@@ -233,6 +272,8 @@ def _validate_ownership_coverage(expected):
     Also requires a subject/profile identity in the present fence (email alone is
     never a sufficient ownership fence).
     """
+    if not _is_sequence(expected.present_identity) or not _is_sequence(expected.absent_identity):
+        return "OWNERSHIP_EVIDENCE_SHAPE"
     present = []
     for pair in expected.present_identity:
         if type(pair) is not tuple or len(pair) != 2:
@@ -275,8 +316,6 @@ def build_update(key, expected, plan, disposition):
         ownership evidence is contradictory/incomplete/malformed.
     """
     # --- shape checks -------------------------------------------------------
-    if type(key) is not dict or not key.get("PK") or not key.get("SK"):
-        return Refusal("MALFORMED_KEY")
     if type(expected) is not ExpectedState:
         return Refusal("MALFORMED_EXPECTED")
     if type(plan) is not WritePlan:
@@ -287,8 +326,25 @@ def build_update(key, expected, plan, disposition):
         # Quarantined or ineligible rows are refused by default.
         return Refusal("ADOPTION_REFUSED", disposition.disposition)
 
+    # Finding A: the key must be an EXACT, well-formed REQUEST key; a
+    # non-REQUEST key (wrong prefix, extra attributes, malformed ids) is refused
+    # rather than producing a spec that targets an arbitrary item.
+    parsed = _parse_request_key(key)
+    if parsed is None:
+        return Refusal("MALFORMED_KEY")
+    key_request_id, key_client_id = parsed
+
     if type(expected.tenant) is not str or not expected.tenant:
         return Refusal("MALFORMED_TENANT")
+    # Finding A: when the caller separately asserts request_id/client_id on the
+    # ExpectedState, they MUST match the key - a caller must not pair one row's
+    # expected state with another row's key. When not asserted, the key-derived
+    # identifiers are still bound into the condition (below). This is a
+    # STRUCTURAL consistency check, not proof the adapter actually observed them.
+    if expected.request_id is not None and expected.request_id != key_request_id:
+        return Refusal("KEY_EXPECTED_MISMATCH", "request_id")
+    if expected.client_id is not None and expected.client_id != key_client_id:
+        return Refusal("KEY_EXPECTED_MISMATCH", "client_id")
     if not _valid_revision(expected.revision):
         # ADOPT_ELIGIBLE must carry a canonical revision to pin and advance.
         return Refusal("MALFORMED_REVISION")
@@ -296,6 +352,11 @@ def build_update(key, expected, plan, disposition):
         return Refusal("MALFORMED_INCARNATION")
 
     # --- plan checks (named SET/REMOVE only, no reserved/identity fields) ----
+    # Finding D: set_fields / remove_fields must be real sequences (tuple/list),
+    # NEVER a str/bytes - a string would otherwise be iterated character by
+    # character and silently build bogus per-character fields.
+    if not _is_sequence(plan.set_fields) or not _is_sequence(plan.remove_fields):
+        return Refusal("MALFORMED_PLAN_COLLECTION")
     set_fields = tuple(plan.set_fields)
     remove_fields = tuple(plan.remove_fields)
     if not set_fields and not remove_fields and plan.append_audit is None:
@@ -319,6 +380,11 @@ def build_update(key, expected, plan, disposition):
             # client proves ownership via expected.present/absent coverage, never
             # by SET-ing an identity field in the plan.
             return Refusal("IDENTITY_FIELD_IMMUTABLE", name)
+        # Finding C: audit_log is owned by the helper's append path. A plan that
+        # SETs or REMOVEs audit_log directly would overlap the list_append and
+        # produce a DynamoDB-invalid update (two actions on one document path).
+        if name == "audit_log":
+            return Refusal("AUDIT_FIELD_CONFLICT", name)
     if plan.append_audit is not None and type(plan.append_audit) is not dict:
         return Refusal("MALFORMED_AUDIT")
 
@@ -332,7 +398,14 @@ def build_update(key, expected, plan, disposition):
         # would be silently unenforced; any supplied identity evidence here is
         # still validated for internal consistency (disjoint/known), but not
         # required to be exhaustive.
-        present = [p[0] if type(p) is tuple and len(p) == 2 else None for p in expected.present_identity]
+        # Finding D: guard the identity collections before iterating.
+        if not _is_sequence(expected.present_identity) or not _is_sequence(expected.absent_identity):
+            return Refusal("OWNERSHIP_EVIDENCE_SHAPE")
+        present = []
+        for p in expected.present_identity:
+            if type(p) is not tuple or len(p) != 2:
+                return Refusal("OWNERSHIP_PRESENT_SHAPE")
+            present.append(p[0])
         if any(f not in IDENTITY_UNIVERSE for f in present):
             return Refusal("OWNERSHIP_PRESENT_FIELD")
         if any(f not in IDENTITY_UNIVERSE for f in expected.absent_identity):
@@ -342,10 +415,16 @@ def build_update(key, expected, plan, disposition):
 
     # --- condition construction ---------------------------------------------
     names = {"#rev": "legacy_write_revision"}
-    values = {":tenant": expected.tenant, ":rev": expected.revision, ":next": expected.revision + 1}
+    values = {":tenant": expected.tenant, ":rev": expected.revision, ":next": expected.revision + 1,
+              ":reqid": key_request_id, ":cliid": key_client_id}
+    # Finding A: bind tenant AND the key-derived request_id / client_id into the
+    # write-time condition so the row's own identifiers must match the key being
+    # written (defence in depth beside the key itself).
     conditions = [
         "attribute_exists(PK)", "attribute_exists(SK)",
         "company_id = :tenant",
+        "request_id = :reqid",
+        "client_id = :cliid",
         "#rev = :rev",
     ]
     # Incarnation pin (only when present on the observed row).
@@ -435,43 +514,64 @@ def interpret_failure(evidence):
         return FailureClassification(INDETERMINATE, False, ("CONDITION_FAILED_CAUSE_UNOBSERVABLE",))
 
     if evidence.kind == "transaction_cancellation":
-        reasons = tuple(evidence.cancellation_reasons or ())
-        # Only a ConditionalCheckFailed reason tells us a precondition was unmet;
-        # even then DynamoDB does not say WHICH clause, so we can only assert the
-        # precondition was unmet (STALE in the generic sense) when exactly the
-        # REQUEST item's check failed AND we were given a re-read proving the
-        # specific divergence. Without a re-read we stay INDETERMINATE.
-        if "ConditionalCheckFailed" not in reasons:
+        reasons = evidence.cancellation_reasons
+        # Finding D: cancellation_reasons must be a real sequence, never a str.
+        if not _is_sequence(reasons):
+            return FailureClassification(INDETERMINATE, False, ("MALFORMED_CANCELLATION_REASONS",))
+        # A transaction cancellation reason ALONE never identifies the specific
+        # failed condition: DynamoDB does not say WHICH clause failed. Even a
+        # ConditionalCheckFailed reason only tells us a precondition was unmet,
+        # so without a deliberate, well-formed re-read we stay INDETERMINATE.
+        if "ConditionalCheckFailed" not in tuple(reasons):
             return FailureClassification(INDETERMINATE, False, ("NO_CONDITIONAL_REASON",))
-        if evidence.observed_row is None and evidence.tombstone_present is None and evidence.expected is None:
-            return FailureClassification(INDETERMINATE, False, ("CONDITIONAL_REASON_WITHOUT_REREAD",))
-        # fall through to re-read based classification below using supplied fields
-        return _classify_from_reread(evidence)
+        return _classify_from_reread(evidence, require_reread=True)
 
     if evidence.kind == "reread":
-        return _classify_from_reread(evidence)
+        return _classify_from_reread(evidence, require_reread=True)
 
     return FailureClassification(INDETERMINATE, False, ("UNKNOWN_EVIDENCE_KIND",))
 
 
-def _classify_from_reread(evidence):
-    """Classify from a deliberate post-failure re-read, with proof per cause."""
+def _classify_from_reread(evidence, require_reread):
+    """Classify from a deliberate post-failure re-read, with proof per cause.
+
+    Finding B: a specific classification (ABSENT/RETIRED/TENANT_MISMATCH/STALE)
+    is returned ONLY when the evidence actually proves it. A missing re-read is
+    distinguished from an observed absence: without a valid ExpectedState
+    baseline AND a definite observation (row dict, row-None-with-proof, or an
+    exact-True tombstone) the result is INDETERMINATE, never a confident ABSENT.
+    """
     expected = evidence.expected
-    row = evidence.observed_row
-    # Retired: a live tombstone was observed.
-    if evidence.tombstone_present is True:
+    # A trustworthy classification needs the baseline the write was built from.
+    if type(expected) is not ExpectedState:
+        return FailureClassification(INDETERMINATE, False, ("MISSING_OR_MALFORMED_EXPECTED",))
+
+    # Tombstone must be an EXACT bool. Any other type (truthy ints/strings/lists)
+    # is malformed evidence, NOT a proven retirement.
+    tomb = evidence.tombstone_present
+    if tomb is not None and type(tomb) is not bool:
+        return FailureClassification(INDETERMINATE, False, ("MALFORMED_TOMBSTONE_EVIDENCE",))
+    if tomb is True:
         return FailureClassification(RETIRED, True, ("TOMBSTONE_OBSERVED",))
-    # Absent: the row is gone.
+
+    row = evidence.observed_row
+    # Distinguish "no re-read supplied" from "re-read observed the row is gone".
+    # A caller signals an observed absence with observed_row=None AND
+    # tombstone_present=False (an explicit, deliberate observation). A re-read
+    # that supplied neither a row nor an explicit False tombstone is treated as
+    # MISSING, not as ABSENT.
     if row is None:
-        return FailureClassification(ABSENT, True, ("ROW_ABSENT_ON_REREAD",))
-    if type(row) is not dict or type(expected) is not ExpectedState:
+        if tomb is False:
+            return FailureClassification(ABSENT, True, ("ROW_ABSENT_ON_REREAD",))
+        return FailureClassification(INDETERMINATE, False, ("REREAD_MISSING",))
+    if type(row) is not dict:
         return FailureClassification(INDETERMINATE, False, ("INSUFFICIENT_REREAD",))
+
     # Tenant mismatch: observed company_id differs from what we wrote against.
     if row.get("company_id") != expected.tenant:
         return FailureClassification(TENANT_MISMATCH, True, ("TENANT_DIVERGED",))
     # Stale: revision moved relative to expected.
-    observed_rev = row.get("legacy_write_revision")
-    if observed_rev != expected.revision:
+    if row.get("legacy_write_revision") != expected.revision:
         return FailureClassification(STALE, True, ("REVISION_DIVERGED",))
     # Incarnation diverged (lifecycle change).
     if expected.incarnation is not None and row.get("record_incarnation") != expected.incarnation:
