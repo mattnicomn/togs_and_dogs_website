@@ -390,8 +390,9 @@ class NoExecutionPropertiesTests(unittest.TestCase):
                 imported.add(node.module.split(".")[0])
         for forbidden in ("boto3", "botocore", "requests", "handlers", "urllib"):
             self.assertNotIn(forbidden, imported, forbidden)
-        # Only standard-library modules are imported.
-        self.assertTrue(imported.issubset({"dataclasses", "re"}), imported)
+        # Only standard-library modules are imported (S0b adds hashlib+json for
+        # the canonical lifetime token; still no SDK/network/DB).
+        self.assertTrue(imported.issubset({"dataclasses", "re", "hashlib", "json"}), imported)
 
     def test_no_table_or_client_objects(self):
         self.assertFalse(hasattr(rw, "table"))
@@ -668,6 +669,270 @@ class Correction2_RequestIdentityMatchTests(unittest.TestCase):
     def test_wrong_prefix_still_ineligible(self):
         self.assertEqual(rw.classify_adoption(versioned_snapshot(PK="JOB#x")).disposition,
                          rw.REFUSE_INELIGIBLE)
+
+
+# ===========================================================================
+# S0b - build_create tests
+# ===========================================================================
+
+def eval_put_condition(put, item):
+    """Evaluate a create-only Put ConditionExpression against a synthetic item.
+
+    The S0b Put grammar is exactly:
+      attribute_not_exists(PK) AND attribute_not_exists(SK)
+    with literal names (no ExpressionAttributeNames). item is the CURRENT stored
+    state at that key (dict) or None if absent.
+    """
+    cond = put["Put"]["ConditionExpression"]
+    cur = item or {}
+    ok = True
+    for clause in cond.split(" AND "):
+        m = re.fullmatch(r"attribute_not_exists\((.+)\)", clause.strip())
+        assert m, "unexpected S0b clause: " + clause
+        ok = ok and (m.group(1) not in cur)
+    return ok
+
+
+def create_intent(**over):
+    base = dict(tenant="tenant_a", request_id="request-a", client_id="client-a",
+                incarnation="life-a", created_at="2026-11-01T12:00:00+00:00",
+                item={"company_id": "tenant_a", "status": "PENDING_REVIEW",
+                      "client_email": "owner@example.invalid"})
+    base.update(over)
+    return rw.CreateIntent(**base)
+
+
+def absent_lifetime(token):
+    return rw.LifetimeEvidence(state=rw.LIFETIME_ABSENT, token=token)
+
+
+def derived_token():
+    # Recompute via the module helper for binding the evidence token.
+    return rw._request_lifetime_token("tenant_a", ("REQ#request-a", "CLIENT#client-a"))
+
+
+class S0bCanonicalTokenTests(unittest.TestCase):
+    """The S0b lifetime token must be byte-identical to the inactive contracts."""
+    def test_token_matches_submission_contract(self):
+        import importlib
+        sc = importlib.import_module("common.cancellation_submission_contract")
+        sub = sc.Submission("tenant_a", "client-a", "request-a",
+                            "https://issuer.example.invalid", "actor-a", "operation-a", "r")
+        self.assertEqual(derived_token(), sub.token())
+
+    def test_token_matches_foundation_and_access(self):
+        import importlib
+        found = importlib.import_module("common.cancellation_adapter_foundation")
+        acc = importlib.import_module("common.cancellation_access_adapter")
+        fq = found.Query("tenant_a", "client-a", "request-a",
+                         "https://issuer.example.invalid", "subject-a", "client", "operation-a", "r")
+        aq = acc.Query("tenant_a", "client-a", "request-a", "operation-a", "r")
+        self.assertEqual(derived_token(), fq.token())
+        self.assertEqual(derived_token(), aq.token())
+
+    def test_token_is_deterministic(self):
+        self.assertEqual(derived_token(), derived_token())
+
+
+class S0bBuildCreatePositiveTests(unittest.TestCase):
+    def test_valid_create_builds_two_create_only_puts(self):
+        tok = derived_token()
+        spec = rw.build_create(KEY, create_intent(), absent_lifetime(tok))
+        self.assertIsInstance(spec, rw.CreateSpec)
+        self.assertEqual(len(spec.transact_items), 2)
+        req, life = spec.transact_items
+        self.assertEqual(req["Put"]["ConditionExpression"],
+                         "attribute_not_exists(PK) AND attribute_not_exists(SK)")
+        self.assertEqual(life["Put"]["ConditionExpression"],
+                         "attribute_not_exists(PK) AND attribute_not_exists(SK)")
+        self.assertFalse(spec.advances_revision)
+        self.assertEqual(spec.lifetime_token, tok)
+
+    def test_request_item_has_helper_owned_fields(self):
+        spec = rw.build_create(KEY, create_intent(), absent_lifetime(derived_token()))
+        req_item = spec.transact_items[0]["Put"]["Item"]
+        self.assertEqual(req_item["legacy_write_revision"], 1)
+        self.assertEqual(req_item["record_incarnation"], "life-a")
+        self.assertEqual(req_item["PK"], "REQ#request-a")
+        self.assertEqual(req_item["SK"], "CLIENT#client-a")
+        self.assertEqual(req_item["company_id"], "tenant_a")
+        self.assertEqual(req_item["created_at"], "2026-11-01T12:00:00+00:00")
+
+    def test_lifetime_item_shape(self):
+        tok = derived_token()
+        spec = rw.build_create(KEY, create_intent(), absent_lifetime(tok))
+        life_item = spec.transact_items[1]["Put"]["Item"]
+        self.assertEqual(life_item["PK"], "LIFETIME#" + tok)
+        self.assertEqual(life_item["SK"], "PERMANENT")
+        self.assertEqual(life_item["retired"], False)
+        self.assertEqual(life_item["incarnation"], "life-a")
+
+    def test_both_conditions_pass_on_absent_state(self):
+        spec = rw.build_create(KEY, create_intent(), absent_lifetime(derived_token()))
+        req, life = spec.transact_items
+        # No existing REQUEST and no existing lifetime -> both create-only pass.
+        self.assertTrue(eval_put_condition(req, None))
+        self.assertTrue(eval_put_condition(life, None))
+
+
+class S0bCollisionAndConcurrencyTests(unittest.TestCase):
+    def test_request_collision_fails_condition(self):
+        spec = rw.build_create(KEY, create_intent(), absent_lifetime(derived_token()))
+        req = spec.transact_items[0]
+        existing = {"PK": "REQ#request-a", "SK": "CLIENT#client-a", "company_id": "tenant_a"}
+        self.assertFalse(eval_put_condition(req, existing))
+
+    def test_stale_absence_lifetime_now_present_fails_condition(self):
+        # Evidence said ABSENT (prior read), but the lifetime now exists: the
+        # create-only lifetime Put condition evaluates False -> transaction would
+        # cancel. No double-create / no overwrite (atomic self-fencing).
+        spec = rw.build_create(KEY, create_intent(), absent_lifetime(derived_token()))
+        life = spec.transact_items[1]
+        now_present = {"PK": life["Put"]["Item"]["PK"], "SK": "PERMANENT", "retired": False}
+        self.assertFalse(eval_put_condition(life, now_present))
+
+    def test_concurrent_request_present_fails_even_if_lifetime_absent(self):
+        spec = rw.build_create(KEY, create_intent(), absent_lifetime(derived_token()))
+        req = spec.transact_items[0]
+        self.assertFalse(eval_put_condition(req, {"PK": "REQ#request-a", "SK": "CLIENT#client-a"}))
+
+
+class S0bInvalidInputTests(unittest.TestCase):
+    def test_malformed_intent_or_evidence(self):
+        self.assertEqual(rw.build_create(KEY, object(), absent_lifetime(derived_token())).reason, "MALFORMED_INTENT")
+        self.assertEqual(rw.build_create(KEY, create_intent(), object()).reason, "MALFORMED_LIFETIME_EVIDENCE")
+
+    def test_non_request_key_refused(self):
+        self.assertEqual(rw.build_create({"PK": "JOB#x", "SK": "METADATA"}, create_intent(),
+                                         absent_lifetime(derived_token())).reason, "MALFORMED_KEY")
+
+    def test_intent_key_mismatch_refused(self):
+        self.assertEqual(rw.build_create(KEY, create_intent(request_id="other"),
+                                         absent_lifetime(derived_token())).reason, "KEY_INTENT_MISMATCH")
+        self.assertEqual(rw.build_create(KEY, create_intent(client_id="other"),
+                                         absent_lifetime(derived_token())).reason, "KEY_INTENT_MISMATCH")
+
+    def test_tenant_mismatch_refused(self):
+        # item.company_id disagrees with intent.tenant
+        self.assertEqual(rw.build_create(KEY, create_intent(item={"company_id": "tenant_b"}),
+                                         absent_lifetime(derived_token())).reason, "TENANT_MISMATCH")
+
+    def test_malformed_incarnation_or_created_at(self):
+        self.assertEqual(rw.build_create(KEY, create_intent(incarnation=None),
+                                         absent_lifetime(derived_token())).reason, "MALFORMED_INCARNATION")
+        self.assertEqual(rw.build_create(KEY, create_intent(incarnation="bad id!"),
+                                         absent_lifetime(derived_token())).reason, "MALFORMED_INCARNATION")
+        self.assertEqual(rw.build_create(KEY, create_intent(created_at=""),
+                                         absent_lifetime(derived_token())).reason, "MALFORMED_CREATED_AT")
+        self.assertEqual(rw.build_create(KEY, create_intent(created_at=5),
+                                         absent_lifetime(derived_token())).reason, "MALFORMED_CREATED_AT")
+
+    def test_reserved_item_fields_refused(self):
+        for fld in ("legacy_write_revision", "record_incarnation"):
+            r = rw.build_create(KEY, create_intent(item={"company_id": "tenant_a", fld: "x"}),
+                                absent_lifetime(derived_token()))
+            self.assertEqual(r.reason, "RESERVED_FIELD_IN_ITEM", fld)
+
+    def test_item_identifier_conflict_refused(self):
+        for fld, bad in (("request_id", "other"), ("client_id", "other"),
+                         ("PK", "REQ#other"), ("SK", "CLIENT#other")):
+            r = rw.build_create(KEY, create_intent(item={"company_id": "tenant_a", fld: bad}),
+                                absent_lifetime(derived_token()))
+            self.assertEqual(r.reason, "ITEM_IDENTIFIER_CONFLICT", fld)
+
+    def test_malformed_audit_in_item(self):
+        r = rw.build_create(KEY, create_intent(item={"company_id": "tenant_a", "audit_log": "notalist"}),
+                            absent_lifetime(derived_token()))
+        self.assertEqual(r.reason, "MALFORMED_AUDIT")
+
+    def test_non_dict_item(self):
+        self.assertEqual(rw.build_create(KEY, create_intent(item=5),
+                                         absent_lifetime(derived_token())).reason, "MALFORMED_ITEM")
+
+
+class S0bLifetimeEvidenceTests(unittest.TestCase):
+    def test_unknown_state_refused(self):
+        r = rw.build_create(KEY, create_intent(), rw.LifetimeEvidence(state="WHATEVER", token=derived_token()))
+        self.assertEqual(r.reason, "MALFORMED_LIFETIME_EVIDENCE")
+
+    def test_not_observed_refused(self):
+        r = rw.build_create(KEY, create_intent(), rw.LifetimeEvidence(state=rw.LIFETIME_NOT_OBSERVED))
+        self.assertEqual(r.reason, "LIFETIME_NOT_OBSERVED")
+
+    def test_token_mismatch_refused(self):
+        r = rw.build_create(KEY, create_intent(), rw.LifetimeEvidence(state=rw.LIFETIME_ABSENT, token="wrong-token"))
+        self.assertEqual(r.reason, "MALFORMED_LIFETIME_EVIDENCE")
+
+    def test_active_lifetime_refused(self):
+        tok = derived_token()
+        r = rw.build_create(KEY, create_intent(),
+                            rw.LifetimeEvidence(state=rw.LIFETIME_ACTIVE, token=tok, retired=False,
+                                                record={"PK": "LIFETIME#" + tok, "SK": "PERMANENT", "retired": False}))
+        self.assertEqual(r.reason, "LIFETIME_PRESENT")
+
+    def test_retired_lifetime_refused(self):
+        tok = derived_token()
+        r = rw.build_create(KEY, create_intent(),
+                            rw.LifetimeEvidence(state=rw.LIFETIME_RETIRED, token=tok, retired=True,
+                                                record={"PK": "LIFETIME#" + tok, "SK": "PERMANENT", "retired": True}))
+        self.assertEqual(r.reason, "KEY_RETIRED")
+
+    def test_active_with_inconsistent_retired_refused(self):
+        tok = derived_token()
+        r = rw.build_create(KEY, create_intent(),
+                            rw.LifetimeEvidence(state=rw.LIFETIME_ACTIVE, token=tok, retired=True))
+        self.assertEqual(r.reason, "MALFORMED_LIFETIME_EVIDENCE")
+
+    def test_retired_non_bool_refused(self):
+        tok = derived_token()
+        for bad in (1, "yes", [1]):
+            r = rw.build_create(KEY, create_intent(),
+                                rw.LifetimeEvidence(state=rw.LIFETIME_RETIRED, token=tok, retired=bad))
+            self.assertEqual(r.reason, "MALFORMED_LIFETIME_EVIDENCE", bad)
+
+    def test_absent_with_record_or_retired_refused(self):
+        tok = derived_token()
+        r = rw.build_create(KEY, create_intent(),
+                            rw.LifetimeEvidence(state=rw.LIFETIME_ABSENT, token=tok, retired=False))
+        self.assertEqual(r.reason, "MALFORMED_LIFETIME_EVIDENCE")
+        r = rw.build_create(KEY, create_intent(),
+                            rw.LifetimeEvidence(state=rw.LIFETIME_ABSENT, token=tok, record={"x": 1}))
+        self.assertEqual(r.reason, "MALFORMED_LIFETIME_EVIDENCE")
+
+
+class S0bHistoricalABATests(unittest.TestCase):
+    """missing REQUEST + missing lifetime does NOT prove a never-used key."""
+    def test_fresh_and_purged_states_are_observationally_identical(self):
+        # Two synthetic histories produce the SAME absent/absent observable state.
+        fresh_request_state = None       # never written
+        purged_request_state = None      # deleted by an unfenced path
+        self.assertEqual(fresh_request_state, purged_request_state)
+        # And both would pass a bare create-only REQUEST condition...
+        spec = rw.build_create(KEY, create_intent(), absent_lifetime(derived_token()))
+        req = spec.transact_items[0]
+        self.assertTrue(eval_put_condition(req, fresh_request_state))
+        self.assertTrue(eval_put_condition(req, purged_request_state))
+        # ...which is EXACTLY why create-only alone cannot prove 'never used'.
+        # The builder still required LIFETIME_ABSENT evidence (necessary), but a
+        # retired tombstone (S0c) is what would distinguish a purged key.
+
+    def test_retired_tombstone_distinguishes_purged_key(self):
+        # If the historical delete had tombstoned (S0c), evidence would be
+        # RETIRED and the create is refused - the ABA-safe outcome.
+        tok = derived_token()
+        r = rw.build_create(KEY, create_intent(),
+                            rw.LifetimeEvidence(state=rw.LIFETIME_RETIRED, token=tok, retired=True,
+                                                record={"PK": "LIFETIME#" + tok, "SK": "PERMANENT", "retired": True}))
+        self.assertEqual(r.reason, "KEY_RETIRED")
+
+
+class S0bNoExecutionTests(unittest.TestCase):
+    def test_build_create_has_no_tablename_or_client(self):
+        spec = rw.build_create(KEY, create_intent(), absent_lifetime(derived_token()))
+        for entry in spec.transact_items:
+            self.assertNotIn("TableName", entry["Put"])
+        # The spec is data only; no execution guidance / client handles.
+        self.assertFalse(hasattr(rw, "transact_write_items"))
 
 
 if __name__ == "__main__":

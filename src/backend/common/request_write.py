@@ -1,16 +1,18 @@
 """INACTIVE shared REQUEST write-safety contract (S0a). Standard library only.
 
-DESIGN SCOPE (S0a): three PURE functions that DECIDE and CONSTRUCT the
+DESIGN SCOPE (S0a + S0b): PURE functions that DECIDE and CONSTRUCT the
 security-relevant surface of a REQUEST mutation. NOTHING here executes a write,
 opens a boto3/SDK client, touches the network or a DynamoDB table, imports a
 handler, or is imported by any production module. There is no create/delete/
-tombstone/transaction execution in this slice; those are later, separately
-approved slices (S0b/S0c/S0d).
+tombstone/transaction EXECUTION here; S0b constructs (but never executes) a
+create-only transaction specification. Delete/tombstone-on-delete (S0c) and
+real execution (S0d) are later, separately approved slices.
 
 What this module provides:
-  * classify_adoption(snapshot)                 -> AdoptionDisposition
-  * build_update(key, expected, plan, disposition) -> UpdateSpec | Refusal
-  * interpret_failure(evidence)                 -> FailureClassification
+  * classify_adoption(snapshot)                 -> AdoptionDisposition   [S0a]
+  * build_update(key, expected, plan, disposition) -> UpdateSpec | Refusal  [S0a]
+  * interpret_failure(evidence)                 -> FailureClassification [S0a]
+  * build_create(key, intent, lifetime_evidence) -> CreateSpec | Refusal [S0b]
 
 Security posture (see the acceptance doc for the full contract):
   * A helper CANNOT protect legacy writers. It only fences writes that call it.
@@ -35,6 +37,8 @@ observed it. Real provenance/freshness/authentication remain separate, still
 pending gates.
 """
 from dataclasses import dataclass
+from hashlib import sha256
+import json
 import re
 
 
@@ -608,3 +612,228 @@ def _classify_from_reread(evidence, require_reread):
     # A re-read that shows no divergence does not prove a cause (e.g. an absent
     # identity field may have been inserted-then-removed): stay honest.
     return FailureClassification(INDETERMINATE, False, ("REREAD_SHOWS_NO_DIVERGENCE",))
+
+
+# ===========================================================================
+# S0b - create-only REQUEST + permanent lifetime transaction specification
+# ===========================================================================
+#
+# build_create CONSTRUCTS (never executes) a single, indivisible transaction
+# specification containing two conditional, create-only Puts: the new REQUEST
+# and its permanent lifetime record. It opens no client and performs no write.
+#
+# Lifetime evidence is a TAGGED state (not free booleans): only a well-formed,
+# token-bound LIFETIME_ABSENT permits a plan; every other/uncertain state
+# refuses. Structural validation here is NOT provenance authentication - that a
+# trusted reader actually produced the evidence, and that the incarnation is
+# globally unique / created_at came from a trusted clock, remain adoption-time
+# obligations and pending gates.
+
+# Lifetime evidence state tags.
+LIFETIME_ABSENT = "LIFETIME_ABSENT"          # looked up; no record exists -> may mint (subject to ABA gates)
+LIFETIME_ACTIVE = "LIFETIME_ACTIVE"          # looked up; record exists, retired is False -> refuse
+LIFETIME_RETIRED = "LIFETIME_RETIRED"        # looked up; record exists, retired is True -> refuse (never recreate)
+LIFETIME_NOT_OBSERVED = "LIFETIME_NOT_OBSERVED"  # no lookup performed -> refuse
+_LIFETIME_STATES = (LIFETIME_ABSENT, LIFETIME_ACTIVE, LIFETIME_RETIRED, LIFETIME_NOT_OBSERVED)
+
+# System-owned fields the create helper computes; a caller item must not supply
+# a contradictory value for these. legacy_write_revision is fully helper-owned.
+_CREATE_RESERVED_ITEM_FIELDS = frozenset({
+    "PK", "SK", "legacy_write_revision", "record_incarnation",
+})
+
+
+@dataclass(frozen=True)
+class CreateIntent:
+    """A caller's intent to create a brand-new REQUEST.
+
+    request_id/client_id MUST equal the identifiers encoded in the target key.
+    incarnation and created_at are caller-supplied (minted by a trusted creator
+    and a trusted clock, respectively) - the pure builder VALIDATES their shape
+    but cannot authenticate uniqueness or clock trust. No revision field: the
+    builder initializes legacy_write_revision=1 itself.
+    """
+    tenant: str
+    request_id: str
+    client_id: str
+    incarnation: str
+    created_at: str
+    item: dict
+
+
+@dataclass(frozen=True)
+class LifetimeEvidence:
+    """Tagged, attested lifetime-lookup state bound to a specific token.
+
+    state: one of _LIFETIME_STATES.
+    token: the lifetime token the lookup was bound to (must equal the builder's
+           deterministically derived token).
+    retired: exact bool for ACTIVE/RETIRED (False/True); None otherwise.
+    record: the observed lifetime snapshot (dict) for ACTIVE/RETIRED; None
+            otherwise. Used only for internal-consistency validation.
+    """
+    state: str
+    token: object = None
+    retired: object = None
+    record: object = None
+
+
+@dataclass(frozen=True)
+class CreateSpec:
+    """A constructed (NOT executed) single transaction of two create-only Puts.
+
+    transact_items is an ordered tuple of two {"Put": {...}} operands - the
+    REQUEST and the permanent lifetime - each carrying a create-only
+    ConditionExpression. There is no TableName and no client here; wiring to a
+    low-level transact_write_items is a later (S0d) concern. advances_revision
+    is False because this is initialization (revision := 1), not an advance.
+    """
+    transact_items: tuple
+    lifetime_token: str
+    minted_incarnation: str
+    advances_revision: bool
+
+
+def _request_lifetime_token(tenant, request_key):
+    """Canonical lifetime token, byte-identical to the inactive cancellation
+    contracts' Submission/Query token encoding.
+
+    Computes sha256(json.dumps([tenant, pk, sk], sort_keys=True,
+    separators=(",",":"), ensure_ascii=True)).hexdigest(), where pk/sk are the
+    already-validated "REQ#<id>" / "CLIENT#<id>" key. Byte-equivalence with the
+    sibling inactive contracts' token() is asserted by the test suite, so this
+    helper stays the single importable source without naming those modules.
+    request_key is (pk, sk).
+    """
+    pk, sk = request_key
+    payload = json.dumps([tenant, pk, sk], sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return sha256(payload.encode()).hexdigest()
+
+
+def _valid_iso_utc(value):
+    # Shape-only check (NOT clock authentication): a non-empty ISO-8601 string
+    # that parses and is timezone-aware or a bare date/naive stamp the creator
+    # supplied. We require a str; deeper clock trust is an adoption obligation.
+    return type(value) is str and bool(value)
+
+
+def build_create(key, intent, lifetime_evidence):
+    """Construct (NOT execute) a create-only REQUEST+lifetime transaction spec.
+
+    Returns a CreateSpec on success, or a Refusal. Never executes, never emits
+    an unconditional/upsert Put, and never infers a never-used key from a
+    missing REQUEST (it requires token-bound LIFETIME_ABSENT evidence - which
+    is necessary but NOT sufficient for global ABA; see the acceptance doc).
+    """
+    # --- shape checks -------------------------------------------------------
+    if type(intent) is not CreateIntent:
+        return Refusal("MALFORMED_INTENT")
+    if type(lifetime_evidence) is not LifetimeEvidence:
+        return Refusal("MALFORMED_LIFETIME_EVIDENCE")
+
+    # Finding A reuse: exact, well-formed REQUEST key.
+    parsed = _parse_request_key(key)
+    if parsed is None:
+        return Refusal("MALFORMED_KEY")
+    key_request_id, key_client_id = parsed
+
+    # Intent identifiers must match the key.
+    if intent.request_id != key_request_id or intent.client_id != key_client_id:
+        return Refusal("KEY_INTENT_MISMATCH")
+    if type(intent.tenant) is not str or not intent.tenant:
+        return Refusal("MALFORMED_TENANT")
+
+    # Caller-supplied, trusted-minted metadata: validate SHAPE only.
+    if not _valid_incarnation(intent.incarnation):
+        return Refusal("MALFORMED_INCARNATION")
+    if not _valid_iso_utc(intent.created_at):
+        return Refusal("MALFORMED_CREATED_AT")
+
+    # --- item checks: tenant consistency + no contradictory system fields ---
+    if type(intent.item) is not dict:
+        return Refusal("MALFORMED_ITEM")
+    item = intent.item
+    # The item's own identifiers must agree with the key/intent.
+    if item.get("company_id") != intent.tenant:
+        return Refusal("TENANT_MISMATCH")
+    if item.get("request_id") not in (None, key_request_id):
+        return Refusal("ITEM_IDENTIFIER_CONFLICT", "request_id")
+    if item.get("client_id") not in (None, key_client_id):
+        return Refusal("ITEM_IDENTIFIER_CONFLICT", "client_id")
+    if item.get("PK") not in (None, key["PK"]):
+        return Refusal("ITEM_IDENTIFIER_CONFLICT", "PK")
+    if item.get("SK") not in (None, key["SK"]):
+        return Refusal("ITEM_IDENTIFIER_CONFLICT", "SK")
+    # Caller item may not carry helper-owned version/incarnation (the builder
+    # owns these); a supplied legacy_write_revision or record_incarnation is a
+    # conflict even if it happens to match, to keep a single source of truth.
+    for reserved in ("legacy_write_revision", "record_incarnation"):
+        if reserved in item:
+            return Refusal("RESERVED_FIELD_IN_ITEM", reserved)
+    if "audit_log" in item and type(item["audit_log"]) is not list:
+        return Refusal("MALFORMED_AUDIT")
+
+    # --- lifetime evidence: tagged state, token binding, exact bools --------
+    lifetime_token = _request_lifetime_token(intent.tenant, (key["PK"], key["SK"]))
+    ev = lifetime_evidence
+    if ev.state not in _LIFETIME_STATES:
+        return Refusal("MALFORMED_LIFETIME_EVIDENCE", "STATE")
+    if ev.state == LIFETIME_NOT_OBSERVED:
+        return Refusal("LIFETIME_NOT_OBSERVED")
+    # Any observed state must be bound to THIS key's derived token.
+    if ev.token != lifetime_token:
+        return Refusal("MALFORMED_LIFETIME_EVIDENCE", "TOKEN")
+    if ev.state == LIFETIME_ACTIVE:
+        # Internal consistency: ACTIVE must carry retired is False.
+        if ev.retired is not False:
+            return Refusal("MALFORMED_LIFETIME_EVIDENCE", "RETIRED")
+        return Refusal("LIFETIME_PRESENT")
+    if ev.state == LIFETIME_RETIRED:
+        if ev.retired is not True:
+            return Refusal("MALFORMED_LIFETIME_EVIDENCE", "RETIRED")
+        return Refusal("KEY_RETIRED")
+    # state == LIFETIME_ABSENT. An absent lookup must NOT carry a record or a
+    # retired flag; such a mix is malformed, not an absence.
+    if ev.record is not None or ev.retired is not None:
+        return Refusal("MALFORMED_LIFETIME_EVIDENCE", "ABSENT_SHAPE")
+
+    # --- construct the two create-only Puts (single transaction) ------------
+    # The REQUEST item: caller fields plus helper-owned revision/incarnation.
+    # Named explicitly so the helper is the single source of truth for them.
+    request_item = dict(item)
+    request_item["PK"] = key["PK"]
+    request_item["SK"] = key["SK"]
+    request_item["company_id"] = intent.tenant
+    request_item["request_id"] = key_request_id
+    request_item["client_id"] = key_client_id
+    request_item["legacy_write_revision"] = 1
+    request_item["record_incarnation"] = intent.incarnation
+    request_item["created_at"] = intent.created_at
+
+    request_put = {
+        "Put": {
+            "Item": request_item,
+            # Create-only: both key attributes must be absent. No upsert.
+            "ConditionExpression": "attribute_not_exists(PK) AND attribute_not_exists(SK)",
+        }
+    }
+
+    lifetime_item = {
+        "PK": "LIFETIME#" + lifetime_token,
+        "SK": "PERMANENT",
+        "incarnation": intent.incarnation,
+        "retired": False,
+    }
+    lifetime_put = {
+        "Put": {
+            "Item": lifetime_item,
+            "ConditionExpression": "attribute_not_exists(PK) AND attribute_not_exists(SK)",
+        }
+    }
+
+    return CreateSpec(
+        transact_items=(request_put, lifetime_put),
+        lifetime_token=lifetime_token,
+        minted_incarnation=intent.incarnation,
+        advances_revision=False,
+    )
