@@ -4,6 +4,8 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 
 ## 🌟 Featured / Recent
 
+- [**Shared REQUEST write-safety contract - INACTIVE (S0a)**](request-write-safety-contract.md) (2026-11-01) - Stacked on PR54; smallest reviewable slice of a shared write-safety helper: three PURE functions (`classify_adoption`, `build_update`, `interpret_failure`) that quarantine unversioned legacy rows, construct (never execute) conditional tenant/revision/incarnation/ownership-fenced UpdateItem specs, and classify failures evidence-first (default INDETERMINATE). No SDK/execution; imported by nothing; 40 offline cases evaluating the generated condition against synthetic records (257 focused passes with inherited suites). A helper cannot protect legacy writers; fleet inventory and create/delete/tombstone/coupled/adoption slices remain separate gates.
+
 - [**Cancellation absent-identity ownership guard - INACTIVE (PR54)**](cancellation-absent-identity-guard.md) (2026-11-01) - Stacked on PR53; closes the absent-identity insertion race by fencing each observed-absent identity with `attribute_not_exists` in the PR51 transaction, with typed absent-field evidence threaded PR53->PR52->PR51 and an offline condition-evaluation test suite (215 focused passes). Inactive; no runtime integration; all-writers revision invariant still outstanding.
 
 - [**Cancellation-specific access adapter - INACTIVE**](cancellation-access-adapter.md) (2026-10-31) - Corrected PR52 dependency; customer-only synthetic gateway/booking evidence mapping; 443 focused passes, no runtime integration.
