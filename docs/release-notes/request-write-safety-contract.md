@@ -36,7 +36,16 @@ S0a is the pure **decision surface** of a REQUEST mutation: it decides whether a
 
 ## Validation
 
-Scoped run (S0a + the four inherited cancellation suites): **282 passed, 23 subtests passed** (217 inherited + 65 S0a), Python 3.13.3, pytest 9.0.2. S0a is additive and imported by nothing, so the inherited suites are unchanged. Full guarded backend not run here; recorded `FULL_BACKEND_NOT_VERIFIED` (prior PR53 74-failure baseline retained at `D:\petcare-rollback\pr53-evidence\13e9f5d\`).
+Scoped run (S0a + the four inherited cancellation suites): **293 passed, 23 subtests passed** (217 inherited + 76 S0a), Python 3.13.3, pytest 9.0.2. S0a is additive and imported by nothing, so the inherited suites are unchanged. Full guarded backend not run here; recorded `FULL_BACKEND_NOT_VERIFIED` (prior PR53 74-failure baseline retained at `D:\petcare-rollback\pr53-evidence\13e9f5d\`).
+
+## Final hardening — corrections 1 and 2 (2026-11-01)
+
+A final verification pass flagged two provenance/adoption-discipline sharp edges. Both are now closed in the module itself; it stays pure, inactive, and imported by nothing. No seeding/adoption override was introduced - both changes strictly tighten.
+
+- **C1 — mandatory incarnation on eligible writes.** `build_update` now requires a valid, non-None `ExpectedState.incarnation` whenever the disposition is `ADOPT_ELIGIBLE` (an eligible row by definition carries a well-formed `record_incarnation`; `classify_adoption` quarantines any row that lacks/malforms it). A missing/malformed incarnation is refused (`MALFORMED_INCARNATION`) BEFORE any `UpdateSpec` is generated, and the incarnation pin (`#inc = :inc`) is now emitted unconditionally, so the lifetime fence can never be silently omitted. Regressions confirm an item with a changed or removed incarnation FAILS the actual generated condition.
+- **C2 — persisted identity must match the key.** `classify_adoption` now requires an exact `REQ#<request_id>` / `CLIENT#<client_id>` key AND that the persisted `request_id` / `client_id` attributes equal the identifiers encoded in PK/SK. A missing, malformed, or mismatched identifier returns `REFUSE_INELIGIBLE` (`REQUEST_ID_KEY_MISMATCH` / `CLIENT_ID_KEY_MISMATCH` / `MALFORMED_KEY_IDENTIFIER`) rather than quarantine or eligibility, so an internally inconsistent row is never adopted. (The PR55 Finding-A write-time binding already rejected such a row at the condition; C2 closes the classification layer too.)
+
+Preserved unchanged: mandatory tenant/revision/incarnation fencing; PR54-complete protected-client coverage; strict key/expected consistency; quarantine-by-default legacy handling; named SET/REMOVE updates and `audit_log` append safety; evidence-backed failure classification; pure, side-effect-free, inactive, imported-by-nothing module. 11 new negative/positive regressions added (5 for C1, 6 for C2), evaluating generated conditions against synthetic stored REQUEST items; the original 65 cases are retained without weakened assertions.
 
 ## Corrective maintenance — independent-review findings A–D (2026-11-01)
 

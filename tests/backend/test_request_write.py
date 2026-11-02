@@ -589,5 +589,86 @@ class FindingD_InputShapeTests(unittest.TestCase):
             self.assertIsInstance(r, rw.Refusal)
 
 
+class Correction1_MandatoryIncarnationTests(unittest.TestCase):
+    """PR55 hardening C1: an ADOPT_ELIGIBLE write MUST pin a valid incarnation."""
+    def test_eligible_missing_incarnation_refused(self):
+        r = rw.build_update(KEY, complete_client_expected(incarnation=None), simple_plan(), ELIGIBLE)
+        self.assertIsInstance(r, rw.Refusal)
+        self.assertEqual(r.reason, "MALFORMED_INCARNATION")
+
+    def test_eligible_malformed_incarnation_refused(self):
+        for bad in ("", "bad id!", 5, True, "x" * 129):
+            r = rw.build_update(KEY, complete_client_expected(incarnation=bad), simple_plan(), ELIGIBLE)
+            self.assertIsInstance(r, rw.Refusal, bad)
+            self.assertEqual(r.reason, "MALFORMED_INCARNATION", bad)
+
+    def test_eligible_valid_incarnation_builds_and_pins(self):
+        spec = rw.build_update(KEY, complete_client_expected(), simple_plan(), ELIGIBLE)
+        self.assertIsInstance(spec, rw.UpdateSpec)
+        self.assertIn("#inc = :inc", spec.condition_expression)
+        self.assertEqual(spec.names["#inc"], "record_incarnation")
+        self.assertEqual(spec.values[":inc"], "life-a")
+
+    def test_lifetime_fence_never_omitted_changed_incarnation_fails(self):
+        # The lifetime fence is always present; an item whose incarnation changed
+        # must FAIL the actual generated condition.
+        spec = rw.build_update(KEY, complete_client_expected(), simple_plan(), ELIGIBLE)
+        good = versioned_snapshot(cognito_sub="subject-a")
+        self.assertTrue(evaluate(spec, good))
+        changed = versioned_snapshot(cognito_sub="subject-a", record_incarnation="DIFFERENT-LIFE")
+        self.assertFalse(evaluate(spec, changed))
+        removed = versioned_snapshot(cognito_sub="subject-a")
+        del removed["record_incarnation"]
+        self.assertFalse(evaluate(spec, removed))
+
+    def test_no_seeding_override_still_absent(self):
+        # C1 tightens the eligible path; it introduces no bypass.
+        self.assertFalse(hasattr(rw, "SEEDING"))
+        import inspect
+        self.assertEqual(tuple(inspect.signature(rw.build_update).parameters),
+                         ("key", "expected", "plan", "disposition"))
+
+
+class Correction2_RequestIdentityMatchTests(unittest.TestCase):
+    """PR55 hardening C2: classify_adoption requires PK/SK ids == persisted ids."""
+    def test_request_id_key_mismatch_ineligible(self):
+        snap = versioned_snapshot(request_id="other-request")
+        d = rw.classify_adoption(snap)
+        self.assertEqual(d.disposition, rw.REFUSE_INELIGIBLE)
+        self.assertIn("REQUEST_ID_KEY_MISMATCH", d.reasons)
+
+    def test_client_id_key_mismatch_ineligible(self):
+        snap = versioned_snapshot(client_id="other-client")
+        d = rw.classify_adoption(snap)
+        self.assertEqual(d.disposition, rw.REFUSE_INELIGIBLE)
+        self.assertIn("CLIENT_ID_KEY_MISMATCH", d.reasons)
+
+    def test_both_identifiers_mismatch_ineligible(self):
+        snap = versioned_snapshot(request_id="x", client_id="y")
+        d = rw.classify_adoption(snap)
+        self.assertEqual(d.disposition, rw.REFUSE_INELIGIBLE)
+        self.assertIn("REQUEST_ID_KEY_MISMATCH", d.reasons)
+        self.assertIn("CLIENT_ID_KEY_MISMATCH", d.reasons)
+
+    def test_malformed_key_identifier_ineligible(self):
+        # PK/SK correctly prefixed but ids are malformed -> ineligible.
+        snap = versioned_snapshot(PK="REQ#bad id!", SK="CLIENT#bad id!",
+                                  request_id="bad id!", client_id="bad id!")
+        d = rw.classify_adoption(snap)
+        self.assertEqual(d.disposition, rw.REFUSE_INELIGIBLE)
+        self.assertIn("MALFORMED_KEY_IDENTIFIER", d.reasons)
+
+    def test_valid_complete_snapshot_still_eligible(self):
+        # A fully consistent row (PK/SK ids == persisted ids, valid rev+inc) is
+        # still ADOPT_ELIGIBLE - the tightening does not over-refuse.
+        d = rw.classify_adoption(versioned_snapshot())
+        self.assertEqual(d.disposition, rw.ADOPT_ELIGIBLE)
+        self.assertEqual(d.reasons, ())
+
+    def test_wrong_prefix_still_ineligible(self):
+        self.assertEqual(rw.classify_adoption(versioned_snapshot(PK="JOB#x")).disposition,
+                         rw.REFUSE_INELIGIBLE)
+
+
 if __name__ == "__main__":
     unittest.main()

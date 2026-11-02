@@ -235,10 +235,28 @@ def classify_adoption(snapshot):
             reasons.append("MISSING_" + key_field)
     pk = snapshot.get("PK")
     sk = snapshot.get("SK")
+    # Correction 2 (PR55 hardening): the PK/SK must be an EXACT, well-formed
+    # REQ#<request_id> / CLIENT#<client_id> pair, AND the persisted request_id /
+    # client_id attributes must MATCH the identifiers encoded in PK/SK. A row
+    # whose own identifiers disagree with its key (or whose key ids are
+    # malformed) is REFUSE_INELIGIBLE - not merely quarantined - because its
+    # identity is internally inconsistent and must never be adopted.
+    parsed = _parse_request_key({"PK": pk, "SK": sk}) if type(pk) is str and type(sk) is str else None
     if type(pk) is str and not pk.startswith("REQ#"):
         reasons.append("NOT_A_REQUEST_PK")
     if type(sk) is str and not sk.startswith("CLIENT#"):
         reasons.append("NOT_A_REQUEST_SK")
+    if parsed is None:
+        # PK/SK present and prefixed but ids malformed (or key shape invalid).
+        if "NOT_A_REQUEST_PK" not in reasons and "NOT_A_REQUEST_SK" not in reasons \
+                and not any(r.startswith("MISSING_") for r in reasons):
+            reasons.append("MALFORMED_KEY_IDENTIFIER")
+    else:
+        key_request_id, key_client_id = parsed
+        if snapshot.get("request_id") != key_request_id:
+            reasons.append("REQUEST_ID_KEY_MISMATCH")
+        if snapshot.get("client_id") != key_client_id:
+            reasons.append("CLIENT_ID_KEY_MISMATCH")
     if reasons:
         return AdoptionDisposition(REFUSE_INELIGIBLE, tuple(sorted(set(reasons))))
 
@@ -348,7 +366,14 @@ def build_update(key, expected, plan, disposition):
     if not _valid_revision(expected.revision):
         # ADOPT_ELIGIBLE must carry a canonical revision to pin and advance.
         return Refusal("MALFORMED_REVISION")
-    if expected.incarnation is not None and not _valid_incarnation(expected.incarnation):
+    # Correction 1 (PR55 hardening): an ADOPT_ELIGIBLE row BY DEFINITION carries a
+    # well-formed record_incarnation (classify_adoption quarantines any row that
+    # lacks/malforms it). The write MUST therefore pin that incarnation. Require a
+    # valid, non-None ExpectedState.incarnation here so the lifetime fence can
+    # never be silently omitted on an eligible write - a None or malformed
+    # incarnation is refused BEFORE any UpdateSpec is generated. This is not a
+    # seeding/adoption override: it tightens (never relaxes) the eligible path.
+    if not _valid_incarnation(expected.incarnation):
         return Refusal("MALFORMED_INCARNATION")
 
     # --- plan checks (named SET/REMOVE only, no reserved/identity fields) ----
@@ -427,11 +452,12 @@ def build_update(key, expected, plan, disposition):
         "client_id = :cliid",
         "#rev = :rev",
     ]
-    # Incarnation pin (only when present on the observed row).
-    if expected.incarnation is not None:
-        names["#inc"] = "record_incarnation"
-        values[":inc"] = expected.incarnation
-        conditions.append("#inc = :inc")
+    # Incarnation pin. Correction 1: always emitted for an eligible write - the
+    # incarnation was validated non-None/well-formed above, so the lifetime fence
+    # is mandatory and can never be omitted.
+    names["#inc"] = "record_incarnation"
+    values[":inc"] = expected.incarnation
+    conditions.append("#inc = :inc")
     # Source-status pin ONLY for a declared status transition.
     if expected.source_status is not None:
         if type(expected.source_status) is not str or not expected.source_status:
