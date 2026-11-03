@@ -63,6 +63,47 @@ When Google Antigravity is unavailable:
 
 When AG becomes available again, return to the normal operating model.
 
+## Terminal and Process Discipline (Kiro execution)
+
+This section governs how Kiro runs commands. It constrains execution mechanics
+only; it does not grant authority or weaken any gate in the Absolute
+Prohibitions below or in the canonical `docs/project-continuity/guardrails.md`.
+
+- **Default to ONE foreground `execute_pwsh` terminal** for routine, sequential
+  commands. Run commands one at a time and read each result before issuing the
+  next.
+- **Do not spawn background terminals for routine one-shot commands** or
+  verification steps. Reserve background sessions (`control_pwsh_process`) for
+  genuinely long-running tasks (dev servers, build/test watchers), and reuse the
+  same session rather than opening a new one per command.
+- **Poll an existing process until it exits** instead of launching a duplicate
+  command when output appears delayed.
+- **Never run concurrent Terraform applies**, and never launch a second
+  Terraform plan/apply because the first seems slow.
+- **Before retrying an ambiguous command, determine whether it is still
+  executing and whether it already changed system state** (especially for
+  Terraform, AWS, git writes, or file mutations). Do not blindly re-run.
+- **Never kill active Terraform/AWS operations, state-lock holders, or unrelated
+  user processes.** Terminate only Kiro-owned processes confirmed idle/exited.
+- **Use consistent PowerShell syntax** in a single invocation (do not mix
+  cmd.exe and PowerShell syntax) and **use explicit working directories and
+  absolute paths** when the shell's current directory is uncertain.
+- **Verify real command exit codes** from the command just run; never rely on a
+  stale `ERRORLEVEL` or `$LASTEXITCODE` from an earlier command.
+- **Use `Clear-Host` only when safe** — never when it would discard command
+  output still needed for debugging or audit evidence.
+- **Clean up disposable Kiro-owned scratch files** created during a task only
+  after preserving required evidence and confirming scope.
+- **Keep branches, worktrees, rollback ZIPs, saved Terraform plans/state files,
+  and historical evidence intact.** Never delete them as part of cleanup.
+- **If the original terminal becomes unusable, first diagnose the cause**; open
+  only ONE replacement terminal if recovery of the original is impossible.
+- **Close only confirmed-idle Kiro-owned background terminals**; do not leave
+  abandoned Kiro-owned terminals open.
+- **Never automatically trigger interactive AWS SSO browser login.** If
+  authentication is expired, report it and request owner action.
+- **Do not change global shell settings or operating-system configuration.**
+
 ## Absolute Prohibitions
 
 - Never use `git add .` or wildcard staging.
