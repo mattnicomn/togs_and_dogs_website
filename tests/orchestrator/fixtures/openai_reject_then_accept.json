@@ -1,0 +1,18 @@
+{
+  "_synthetic": true,
+  "note": "A1 SYNTHETIC reviewer verdicts. Not from a live OpenAI call.",
+  "reviews": [
+    {
+      "verdict": "REJECT",
+      "findings": [
+        {"severity": "high", "message": "acceptance marker 'needs_marker' not present"}
+      ],
+      "usage": {"tokens": 800, "cost_usd": 0.0}
+    },
+    {
+      "verdict": "ACCEPT",
+      "findings": [],
+      "usage": {"tokens": 600, "cost_usd": 0.0}
+    }
+  ]
+}

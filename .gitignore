@@ -58,3 +58,10 @@ api_e2e_test.py
 
 # Validation scripts (one-off, not committed)
 cw_*.ps1
+
+# AI Development Orchestrator (A1) local runtime directory.
+# Holds durable state, checkpoints, the integrity key, and sanitized event
+# logs. It is agent-writable and must NEVER be a trusted approval source, so it
+# is never committed. (Owner-controlled approval manifests live OUTSIDE the
+# repository entirely; see scripts/orchestrator/config.py.)
+.orchestrator/
