@@ -42,10 +42,30 @@ def _eval_clause(clause, item, names, values):
 
 
 def evaluate(spec, item):
-    """True iff the stored `item` satisfies the whole ConditionExpression."""
-    for part in spec.condition_expression.split(" AND "):
-        if not _eval_clause(part, item, spec.names, spec.values):
-            return False
+    """True iff the stored `item` satisfies the whole ConditionExpression.
+
+    Handles flat clauses joined by " AND " plus a single parenthesized OR group
+    (the mandatory retirement fence `(attribute_not_exists(#rl) OR #rl = :false)`).
+    """
+    names, values = spec.names, spec.values
+    # Re-join tokens split inside a parenthesized group.
+    parts, depth, buf = [], 0, ""
+    for tok in spec.condition_expression.split(" AND "):
+        buf = tok if not buf else buf + " AND " + tok
+        depth += tok.count("(") - tok.count(")")
+        if depth == 0:
+            parts.append(buf)
+            buf = ""
+    assert depth == 0 and not buf, "unbalanced condition"
+    for part in parts:
+        part = part.strip()
+        mm = re.fullmatch(r"\((.+)\)", part)
+        if mm and " OR " in mm.group(1):
+            if not any(_eval_clause(c, item, names, values) for c in mm.group(1).split(" OR ")):
+                return False
+        else:
+            if not _eval_clause(part, item, names, values):
+                return False
     return True
 
 
@@ -1511,6 +1531,158 @@ class S0cNoExecutionTests(unittest.TestCase):
             self.assertNotIn("TableName", entry["Update"])
             self.assertNotIn("Delete", entry)
         self.assertFalse(hasattr(rw, "transact_write_items"))
+
+
+# ===========================================================================
+# S0a retirement write-fence (A / B / C) tests
+# ===========================================================================
+
+def retire_fence_expected(**over):
+    # A complete-coverage protected-client ExpectedState (so build_update reaches
+    # condition construction) with a tunable retirement_marker.
+    base = dict(tenant="tenant_a", revision=1, incarnation="life-a", source_status=None,
+                present_identity=(("cognito_sub", "subject-a"),),
+                absent_identity=("client_email", "linked_client_profile_id"),
+                protected_client=True)
+    base.update(over)
+    return rw.ExpectedState(**base)
+
+
+def rf_plan():
+    return rw.WritePlan(set_fields=(("cancellation_reason", "r"),), append_audit={"status": "X"})
+
+
+ELIG = rw.AdoptionDisposition(rw.ADOPT_ELIGIBLE, ())
+RF_KEY = {"PK": "REQ#request-a", "SK": "CLIENT#client-a"}
+
+
+class S0aRetirementEvidenceTests(unittest.TestCase):
+    """Part A: tagged retirement-marker evidence handling."""
+    def test_true_marker_refused(self):
+        r = rw.build_update(RF_KEY, retire_fence_expected(retirement_marker=rw.RETIREMENT_TRUE), rf_plan(), ELIG)
+        self.assertIsInstance(r, rw.Refusal)
+        self.assertEqual(r.reason, "RETIRED_REQUEST")
+
+    def test_malformed_or_unknown_marker_fail_closed(self):
+        for bad in ("garbage", "", None, True, 1, ("x",)):
+            r = rw.build_update(RF_KEY, retire_fence_expected(retirement_marker=bad), rf_plan(), ELIG)
+            self.assertIsInstance(r, rw.Refusal, bad)
+            self.assertEqual(r.reason, "MALFORMED_RETIREMENT_EVIDENCE", bad)
+
+    def test_false_marker_eligible(self):
+        spec = rw.build_update(RF_KEY, retire_fence_expected(retirement_marker=rw.RETIREMENT_FALSE), rf_plan(), ELIG)
+        self.assertIsInstance(spec, rw.UpdateSpec)
+
+    def test_observed_absent_marker_eligible(self):
+        spec = rw.build_update(RF_KEY, retire_fence_expected(retirement_marker=rw.RETIREMENT_ABSENT), rf_plan(), ELIG)
+        self.assertIsInstance(spec, rw.UpdateSpec)
+
+    def test_not_observed_eligible_legacy_compat(self):
+        # Default NOT_OBSERVED is eligible under the documented legacy assumption;
+        # the mandatory condition still protects the write at commit.
+        spec = rw.build_update(RF_KEY, retire_fence_expected(), rf_plan(), ELIG)
+        self.assertIsInstance(spec, rw.UpdateSpec)
+        self.assertEqual(retire_fence_expected().retirement_marker, rw.RETIREMENT_NOT_OBSERVED)
+
+    def test_missing_vs_observed_absence_distinct(self):
+        # NOT_OBSERVED (default) and OBSERVED_ABSENT are distinct tags, both
+        # eligible, but represented by different constants (no inference of
+        # observed absence from a missing lookup).
+        self.assertNotEqual(rw.RETIREMENT_NOT_OBSERVED, rw.RETIREMENT_ABSENT)
+
+
+class S0aRetirementFenceConditionTests(unittest.TestCase):
+    """Part B: mandatory (attribute_not_exists(#rl) OR #rl = :false) on EVERY update."""
+    def spec(self, **over):
+        s = rw.build_update(RF_KEY, retire_fence_expected(**over), rf_plan(), ELIG)
+        assert isinstance(s, rw.UpdateSpec), s
+        return s
+
+    def test_condition_present_on_every_update(self):
+        # With and without a declared status transition, the fence is present.
+        for over in ({}, {"source_status": "ASSIGNED"}):
+            spec = self.spec(**over)
+            self.assertIn("(attribute_not_exists(#rl) OR #rl = :false)", spec.condition_expression)
+            self.assertEqual(spec.names["#rl"], "retired_lifetime")
+            self.assertEqual(spec.values[":false"], False)
+
+    def test_absent_marker_passes(self):
+        spec = self.spec()
+        item = versioned_snapshot(cognito_sub="subject-a")  # no retired_lifetime attribute
+        self.assertTrue(evaluate(spec, item))
+
+    def test_exact_false_passes(self):
+        spec = self.spec()
+        item = versioned_snapshot(cognito_sub="subject-a", retired_lifetime=False)
+        self.assertTrue(evaluate(spec, item))
+
+    def test_exact_true_fails(self):
+        spec = self.spec()
+        item = versioned_snapshot(cognito_sub="subject-a", retired_lifetime=True)
+        self.assertFalse(evaluate(spec, item))
+
+    def test_non_bool_marker_fails(self):
+        # A non-bool value is neither absent nor == False -> condition false.
+        for bad in (1, "true", "True"):
+            spec = self.spec()
+            item = versioned_snapshot(cognito_sub="subject-a", retired_lifetime=bad)
+            self.assertFalse(evaluate(spec, item), bad)
+
+    def test_concurrent_retirement_after_read_fails(self):
+        # Caller read FALSE/absent; a concurrent S0c retire set it True before
+        # this update commits -> the fence makes the update fail closed.
+        spec = self.spec(retirement_marker=rw.RETIREMENT_FALSE)
+        now_retired = versioned_snapshot(cognito_sub="subject-a", retired_lifetime=True)
+        self.assertFalse(evaluate(spec, now_retired))
+
+
+class S0aReservedRetirementMetadataTests(unittest.TestCase):
+    """Part C: retired_lifetime / retired_at are reserved from plans."""
+    def test_set_retirement_fields_refused(self):
+        for fld in ("retired_lifetime", "retired_at"):
+            r = rw.build_update(RF_KEY, retire_fence_expected(),
+                                rw.WritePlan(set_fields=((fld, "x"),)), ELIG)
+            self.assertIsInstance(r, rw.Refusal, fld)
+            self.assertEqual(r.reason, "RESERVED_FIELD", fld)
+
+    def test_remove_retirement_fields_refused(self):
+        # In particular, a plan may not CLEAR the permanent marker via REMOVE.
+        for fld in ("retired_lifetime", "retired_at"):
+            r = rw.build_update(RF_KEY, retire_fence_expected(),
+                                rw.WritePlan(remove_fields=(fld,)), ELIG)
+            self.assertIsInstance(r, rw.Refusal, fld)
+            self.assertEqual(r.reason, "RESERVED_FIELD", fld)
+
+    def test_fields_present_in_reserved_set(self):
+        self.assertIn("retired_lifetime", rw.RESERVED_FIELDS)
+        self.assertIn("retired_at", rw.RESERVED_FIELDS)
+        # Existing reserved protections preserved.
+        for prior in ("legacy_write_revision", "record_incarnation", "PK", "SK", "company_id"):
+            self.assertIn(prior, rw.RESERVED_FIELDS)
+
+
+class S0aRetirementCompatibilityTests(unittest.TestCase):
+    """Part D: S0b/S0c and existing S0a protections unchanged alongside the fence."""
+    def test_protected_client_identity_still_enforced(self):
+        # Incomplete ownership coverage still refused even with a FALSE marker.
+        r = rw.build_update(RF_KEY, retire_fence_expected(retirement_marker=rw.RETIREMENT_FALSE,
+                                                          absent_identity=("client_email",)),
+                            rf_plan(), ELIG)
+        self.assertEqual(r.reason, "OWNERSHIP_INCOMPLETE")
+
+    def test_revision_and_audit_behavior_preserved(self):
+        spec = rw.build_update(RF_KEY, retire_fence_expected(retirement_marker=rw.RETIREMENT_FALSE), rf_plan(), ELIG)
+        self.assertIn("#rev = :next", spec.update_expression)
+        self.assertTrue(spec.advances_revision)
+        self.assertIn("list_append(if_not_exists(#audit, :emptylist), :auditentry)", spec.update_expression)
+
+    def test_s0b_build_create_still_works(self):
+        spec = rw.build_create(KEY, create_intent(), absent_lifetime(derived_token()))
+        self.assertIsInstance(spec, rw.CreateSpec)
+
+    def test_s0c_build_retire_still_works(self):
+        spec = rw.build_retire(KEY, retire_expected(), active_lifetime(derived_token()))
+        self.assertIsInstance(spec, rw.RetireSpec)
 
 
 if __name__ == "__main__":
