@@ -135,8 +135,20 @@ class TestHandlerRouteGating:
         assert body['is_blocked'] is True
         assert 'google_calendar_status' not in body
 
-    def test_tenant_info_active_full_status(self):
-        """tenant-info returns 200 with full status when tenant is active."""
+    @patch('botocore.httpsession.URLLib3Session.send',
+           side_effect=AssertionError('Unmocked AWS/botocore network call attempted in tenant-info test'))
+    @patch('handlers.google_auth_handler.secrets')
+    @patch('common.google_calendar._resolve_google_token_binding')
+    def test_tenant_info_active_full_status(self, mock_binding, mock_secrets, _no_net):
+        """tenant-info returns 200 with full status when tenant is active.
+
+        Gate C3b.3h.2: the google_calendar_status is derived by the real
+        get_status, which resolves the AC-9 per-tenant provider binding. An
+        active second tenant with no binding (resolver returns None) yields
+        NOT_CONNECTED, with no Secrets Manager read — exercising the real
+        status-resolution logic instead of the removed get_stored_tokens helper.
+        Disabled-tenant and entitlement assertions in this class are unchanged.
+        """
         self.mock_get_item.return_value = {
             'company_id': 'test_tenant_alpha',
             'display_name': 'Test Tenant Alpha',
@@ -148,7 +160,8 @@ class TestHandlerRouteGating:
             subscription_tier='starter',
             subscription_status='active'
         )
-        
+        mock_binding.return_value = None  # unbound second tenant -> NOT_CONNECTED
+
         event = make_event('/admin/tenant-info', http_method='GET', custom_company_id='test_tenant_alpha', groups=['owner'])
         resp = admin_handler(event, None)
         assert resp['statusCode'] == 200
@@ -158,6 +171,7 @@ class TestHandlerRouteGating:
         assert body['is_access_allowed'] is True
         assert body['is_blocked'] is False
         assert body['google_calendar_status'] == 'NOT_CONNECTED'
+        mock_secrets.get_secret_value.assert_not_called()
 
     def test_admin_handler_other_routes_blocked(self):
         """Other routes in admin_handler return 403 when tenant is disabled."""
