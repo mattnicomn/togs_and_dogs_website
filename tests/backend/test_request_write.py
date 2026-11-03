@@ -1343,6 +1343,65 @@ class S0cClassifyRetireFailureTests(unittest.TestCase):
             self.ev(kind="transaction_cancellation", cancellation_reasons=("ConditionalCheckFailed", "ConditionalCheckFailed"))
         ).classification, rw.INDETERMINATE)
 
+    # --- Correction A: evidence.kind validation -----------------------------
+    def test_unknown_or_bad_kind_never_classifies(self):
+        # Even with a fully valid, key-bound retired-lifetime observation that
+        # WOULD otherwise be ALREADY_RETIRED, an invalid kind -> INDETERMINATE.
+        life = self.obs(rw.OBSERVED_PRESENT, "LIFETIME#" + derived_token(), "PERMANENT",
+                        {"PK": "LIFETIME#" + derived_token(), "SK": "PERMANENT", "retired": True, "incarnation": "life-a"})
+        for bad_kind in ("garbage", "", "REREAD", "Reread", None, 123, ("reread",)):
+            c = rw.classify_retire_failure(self.ev(kind=bad_kind, lifetime_obs=life))
+            self.assertEqual(c.classification, rw.INDETERMINATE, bad_kind)
+            self.assertFalse(c.evidence_backed, bad_kind)
+
+    def test_valid_kinds_still_classify(self):
+        life = self.obs(rw.OBSERVED_PRESENT, "LIFETIME#" + derived_token(), "PERMANENT",
+                        {"PK": "LIFETIME#" + derived_token(), "SK": "PERMANENT", "retired": True, "incarnation": "life-a"})
+        # reread (no reasons) -> classifies
+        self.assertEqual(rw.classify_retire_failure(self.ev(kind="reread", lifetime_obs=life)).classification, rw.ALREADY_RETIRED)
+        # transaction_cancellation with a well-formed 2-entry envelope -> classifies
+        self.assertEqual(rw.classify_retire_failure(
+            self.ev(kind="transaction_cancellation", cancellation_reasons=("None", "ConditionalCheckFailed"), lifetime_obs=life)
+        ).classification, rw.ALREADY_RETIRED)
+
+    # --- Correction B: cancellation metadata validation ---------------------
+    def test_malformed_cancellation_container_never_classifies(self):
+        life = self.obs(rw.OBSERVED_PRESENT, "LIFETIME#" + derived_token(), "PERMANENT",
+                        {"PK": "LIFETIME#" + derived_token(), "SK": "PERMANENT", "retired": True, "incarnation": "life-a"})
+        for bad in ("string", 5, None, {"a": 1}):
+            c = rw.classify_retire_failure(
+                self.ev(kind="transaction_cancellation", cancellation_reasons=bad, lifetime_obs=life))
+            self.assertEqual(c.classification, rw.INDETERMINATE, bad)
+
+    def test_malformed_cancellation_entry_never_classifies(self):
+        life = self.obs(rw.OBSERVED_PRESENT, "LIFETIME#" + derived_token(), "PERMANENT",
+                        {"PK": "LIFETIME#" + derived_token(), "SK": "PERMANENT", "retired": True, "incarnation": "life-a"})
+        for bad_entry in ((None,), (5,), ({},), ("ok", 7)):
+            c = rw.classify_retire_failure(
+                self.ev(kind="transaction_cancellation", cancellation_reasons=bad_entry, lifetime_obs=life))
+            self.assertEqual(c.classification, rw.INDETERMINATE, bad_entry)
+
+    def test_unsupported_cancellation_count(self):
+        life = self.obs(rw.OBSERVED_PRESENT, "LIFETIME#" + derived_token(), "PERMANENT",
+                        {"PK": "LIFETIME#" + derived_token(), "SK": "PERMANENT", "retired": True, "incarnation": "life-a"})
+        # More than two positional operands is unsupported.
+        c = rw.classify_retire_failure(
+            self.ev(kind="transaction_cancellation", cancellation_reasons=("a", "b", "c"), lifetime_obs=life))
+        self.assertEqual(c.classification, rw.INDETERMINATE)
+
+    def test_reread_with_cancellation_reasons_is_contradictory(self):
+        life = self.obs(rw.OBSERVED_PRESENT, "LIFETIME#" + derived_token(), "PERMANENT",
+                        {"PK": "LIFETIME#" + derived_token(), "SK": "PERMANENT", "retired": True, "incarnation": "life-a"})
+        c = rw.classify_retire_failure(
+            self.ev(kind="reread", cancellation_reasons=("ConditionalCheckFailed",), lifetime_obs=life))
+        self.assertEqual(c.classification, rw.INDETERMINATE)
+
+    def test_valid_transaction_envelope_zero_reasons_insufficient_without_obs(self):
+        # A valid transaction_cancellation envelope with no reasons and no useful
+        # observation is INSUFFICIENT, not a specific failure.
+        c = rw.classify_retire_failure(self.ev(kind="transaction_cancellation", cancellation_reasons=()))
+        self.assertEqual(c.classification, rw.INDETERMINATE)
+
     # --- correct, key-bound positive classifications ------------------------
     def test_already_retired_evidence_backed(self):
         t = derived_token()

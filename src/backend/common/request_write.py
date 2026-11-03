@@ -1235,6 +1235,37 @@ def classify_retire_failure(evidence):
     expected = evidence.expected
     if type(expected) is not RetireExpected:
         return FailureClassification(INDETERMINATE, False, ("MISSING_OR_MALFORMED_EXPECTED",))
+
+    # Correction A: accept ONLY the two exact evidence kinds; anything else
+    # (unknown, empty, None, non-string) is insufficient -> INDETERMINATE. No
+    # aliases, no implicit normalization; exact-string membership.
+    if evidence.kind not in ("reread", "transaction_cancellation"):
+        return FailureClassification(INDETERMINATE, False, ("UNKNOWN_EVIDENCE_KIND",))
+
+    # Correction B: validate the cancellation-metadata envelope BEFORE any
+    # specific classification, so malformed metadata yields INDETERMINATE even
+    # when an observation would otherwise support a diagnosis. The reasons are
+    # validated for SHAPE only and are NEVER used to infer which conditional
+    # clause failed; the specific cause always comes from a key-bound reread.
+    reasons = evidence.cancellation_reasons
+    if not _is_sequence(reasons):
+        return FailureClassification(INDETERMINATE, False, ("MALFORMED_CANCELLATION_REASONS",))
+    if evidence.kind == "transaction_cancellation":
+        # Positional mapping to the two S0c operands (lifetime, REQUEST): at most
+        # two entries; each entry a str. Zero entries = insufficient information
+        # (not proof of any specific failure). Unsupported count / non-str entry
+        # -> INDETERMINATE.
+        if len(reasons) > 2:
+            return FailureClassification(INDETERMINATE, False, ("UNSUPPORTED_CANCELLATION_COUNT",))
+        for entry in reasons:
+            if type(entry) is not str:
+                return FailureClassification(INDETERMINATE, False, ("MALFORMED_CANCELLATION_ENTRY",))
+    else:
+        # kind == "reread": a re-read carries NO per-operand cancellation
+        # metadata. Any supplied reasons are contradictory envelope data.
+        if len(reasons) != 0:
+            return FailureClassification(INDETERMINATE, False, ("REREAD_WITH_CANCELLATION_REASONS",))
+
     # Authoritative target identity: strict REQUEST key + valid tenant.
     parsed = _parse_request_key(evidence.target_request_key)
     if parsed is None:
