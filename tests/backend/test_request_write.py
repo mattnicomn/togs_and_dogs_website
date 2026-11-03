@@ -85,12 +85,16 @@ def versioned_snapshot(**over):
 
 
 def complete_client_expected(**over):
+    # Supplies an explicit OBSERVED retirement tag (FALSE) by default so the
+    # fixture reflects a caller that actually looked up retired_lifetime. Tests
+    # that exercise the evidence gate override retirement_marker explicitly.
     base = dict(
         tenant="tenant_a", revision=1, incarnation="life-a", source_status="ASSIGNED",
         read_id="read-a",
         present_identity=(("cognito_sub", "subject-a"),),
         absent_identity=("client_email", "linked_client_profile_id"),
         protected_client=True,
+        retirement_marker=rw.RETIREMENT_FALSE,
     )
     base.update(over)
     return rw.ExpectedState(**base)
@@ -1539,11 +1543,13 @@ class S0cNoExecutionTests(unittest.TestCase):
 
 def retire_fence_expected(**over):
     # A complete-coverage protected-client ExpectedState (so build_update reaches
-    # condition construction) with a tunable retirement_marker.
+    # condition construction) with an explicit OBSERVED retirement tag by default
+    # (FALSE); evidence-gate tests override retirement_marker explicitly.
     base = dict(tenant="tenant_a", revision=1, incarnation="life-a", source_status=None,
                 present_identity=(("cognito_sub", "subject-a"),),
                 absent_identity=("client_email", "linked_client_profile_id"),
-                protected_client=True)
+                protected_client=True,
+                retirement_marker=rw.RETIREMENT_FALSE)
     base.update(over)
     return rw.ExpectedState(**base)
 
@@ -1577,18 +1583,35 @@ class S0aRetirementEvidenceTests(unittest.TestCase):
         spec = rw.build_update(RF_KEY, retire_fence_expected(retirement_marker=rw.RETIREMENT_ABSENT), rf_plan(), ELIG)
         self.assertIsInstance(spec, rw.UpdateSpec)
 
-    def test_not_observed_eligible_legacy_compat(self):
-        # Default NOT_OBSERVED is eligible under the documented legacy assumption;
-        # the mandatory condition still protects the write at commit.
-        spec = rw.build_update(RF_KEY, retire_fence_expected(), rf_plan(), ELIG)
-        self.assertIsInstance(spec, rw.UpdateSpec)
-        self.assertEqual(retire_fence_expected().retirement_marker, rw.RETIREMENT_NOT_OBSERVED)
+    def test_explicit_not_observed_refused(self):
+        # PR58 correction: an unperformed lookup (NOT_OBSERVED) fails closed,
+        # even with otherwise-valid complete coverage.
+        r = rw.build_update(RF_KEY, retire_fence_expected(retirement_marker=rw.RETIREMENT_NOT_OBSERVED),
+                            rf_plan(), ELIG)
+        self.assertIsInstance(r, rw.Refusal)
+        self.assertEqual(r.reason, "RETIREMENT_EVIDENCE_NOT_OBSERVED")
+
+    def test_omitted_evidence_defaults_to_not_observed_and_refuses(self):
+        # The ExpectedState default is NOT_OBSERVED; a caller that omits the tag
+        # entirely is refused - omitted evidence never authorizes an update.
+        omitted = rw.ExpectedState(tenant="tenant_a", revision=1, incarnation="life-a",
+                                   present_identity=(("cognito_sub", "subject-a"),),
+                                   absent_identity=("client_email", "linked_client_profile_id"),
+                                   protected_client=True)
+        self.assertEqual(omitted.retirement_marker, rw.RETIREMENT_NOT_OBSERVED)
+        r = rw.build_update(RF_KEY, omitted, rf_plan(), ELIG)
+        self.assertIsInstance(r, rw.Refusal)
+        self.assertEqual(r.reason, "RETIREMENT_EVIDENCE_NOT_OBSERVED")
 
     def test_missing_vs_observed_absence_distinct(self):
-        # NOT_OBSERVED (default) and OBSERVED_ABSENT are distinct tags, both
-        # eligible, but represented by different constants (no inference of
-        # observed absence from a missing lookup).
+        # NOT_OBSERVED (unperformed lookup -> refuse) and OBSERVED_ABSENT
+        # (actually-observed missing attribute -> eligible) are distinct tags with
+        # distinct outcomes; observed absence is never inferred from a missing lookup.
         self.assertNotEqual(rw.RETIREMENT_NOT_OBSERVED, rw.RETIREMENT_ABSENT)
+        self.assertEqual(rw.build_update(RF_KEY, retire_fence_expected(retirement_marker=rw.RETIREMENT_NOT_OBSERVED),
+                                         rf_plan(), ELIG).reason, "RETIREMENT_EVIDENCE_NOT_OBSERVED")
+        self.assertIsInstance(rw.build_update(RF_KEY, retire_fence_expected(retirement_marker=rw.RETIREMENT_ABSENT),
+                                              rf_plan(), ELIG), rw.UpdateSpec)
 
 
 class S0aRetirementFenceConditionTests(unittest.TestCase):

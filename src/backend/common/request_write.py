@@ -407,17 +407,28 @@ def build_update(key, expected, plan, disposition):
         return Refusal("MALFORMED_INCARNATION")
 
     # --- retirement-marker evidence (S0a retirement write-fence, part A) ----
-    # Require explicit, well-formed tagged evidence. A retired REQUEST is refused
-    # outright; malformed/unknown evidence fails closed. FALSE and (observed)
-    # ABSENT are eligible for a guarded update; NOT_OBSERVED is eligible only
-    # under the documented legacy compatibility assumption. In EVERY case the
-    # mandatory attribute_not_exists/False condition (part B) is still emitted,
-    # so this evidence gate is defence-in-depth, not the sole protection.
+    # Require EXPLICIT, well-formed, OBSERVED tagged evidence - fail-closed:
+    #   RETIREMENT_TRUE          -> RETIRED_REQUEST (a retired row is never updated)
+    #   RETIREMENT_FALSE         -> eligible (guarded update)
+    #   RETIREMENT_ABSENT        -> eligible under the documented legacy
+    #                               compatibility assumption (an ACTUALLY OBSERVED
+    #                               missing attribute)
+    #   RETIREMENT_NOT_OBSERVED  -> RETIREMENT_EVIDENCE_NOT_OBSERVED (an unperformed
+    #                               lookup is NOT observed absence; omitted evidence
+    #                               never authorizes an update)
+    #   anything else            -> MALFORMED_RETIREMENT_EVIDENCE (fail-closed)
+    # There is NO seeding/bypass override, and observed absence is never inferred
+    # from omitted evidence. The mandatory attribute_not_exists/False condition
+    # (part B) is STILL emitted on every eligible update, so this evidence gate is
+    # defence-in-depth, not the sole protection.
     rm = expected.retirement_marker
     if rm not in _RETIREMENT_STATES:
         return Refusal("MALFORMED_RETIREMENT_EVIDENCE")
     if rm == RETIREMENT_TRUE:
         return Refusal("RETIRED_REQUEST")
+    if rm == RETIREMENT_NOT_OBSERVED:
+        return Refusal("RETIREMENT_EVIDENCE_NOT_OBSERVED")
+    # rm is now exactly RETIREMENT_FALSE or RETIREMENT_ABSENT -> eligible.
 
     # --- plan checks (named SET/REMOVE only, no reserved/identity fields) ----
     # Finding D: set_fields / remove_fields must be real sequences (tuple/list),
