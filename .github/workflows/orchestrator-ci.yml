@@ -1,0 +1,61 @@
+name: Orchestrator CI
+
+# Track 3 — dedicated, credential-free CI for the offline AI Development
+# Orchestrator prototype (scripts/orchestrator/** + tests/orchestrator/**).
+#
+# This is a SEPARATE workflow from ci.yml; it adds one new status check
+# ("orchestrator (offline pytest)") and changes none of the existing web /
+# mobile / shared / backend jobs or their names.
+#
+# Safety posture:
+#   * No secrets, no AWS, no OpenAI, no Kiro CLI, no Stripe, no deployment,
+#     no id-token. Least-privilege: read-only contents, no write permissions.
+#   * The orchestrator package uses only the Python standard library; the test
+#     suite needs only pytest and is fully offline and MOCKED. Its autouse
+#     fixtures (tests/orchestrator/conftest.py) block sockets and subprocess
+#     spawning, so no network or live-agent execution can occur in CI.
+#   * The repository guard prevents this workflow from running work on forks or
+#     unrelated repositories.
+
+on:
+  pull_request:
+    # No branch filter: this must run for the stacked Draft PR that targets the
+    # codex/ai-dev-orchestrator-a1 branch (not only PRs targeting main), and it
+    # is path-scoped so it only runs when orchestrator source, orchestrator
+    # tests, or this workflow itself change.
+    paths:
+      - 'scripts/orchestrator/**'
+      - 'tests/orchestrator/**'
+      - '.github/workflows/orchestrator-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: orchestrator-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  orchestrator:
+    name: orchestrator (offline pytest)
+    # Only run in the canonical repository; never on forks / unrelated repos.
+    if: github.repository == 'mattnicomn/togs_and_dogs_website'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tests/orchestrator/requirements-ci.txt
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r tests/orchestrator/requirements-ci.txt
+      # Run the complete offline orchestrator suite. No app install, no live
+      # agent service. Note on the one symlink test
+      # (test_symlinked_manifest_into_untrusted_tree_refused): it SKIPS on
+      # Windows because os.symlink there is unprivileged, but on a Linux runner
+      # os.symlink works, so that test is expected to EXECUTE (not skip) and
+      # assert the symlink-escape refusal. The real pass/skip outcome is
+      # whatever CI reports; this comment documents the platform difference and
+      # does not force or fake any result.
+      - run: pytest tests/orchestrator -p no:cacheprovider
