@@ -78,6 +78,14 @@ class RunState:
     stop_reason: str | None = None
     # Sanitized usage snapshot, updated as the run proceeds.
     usage: dict[str, Any] = field(default_factory=dict)
+    # Finding 2: persisted authorization binding. The manifest fingerprint and
+    # the task identity recorded at authorize time; re-checked on every resume.
+    manifest_fingerprint: str | None = None
+    task_fingerprint: str | None = None
+    # Finding 3: durable pending/completed operation model keyed by a stable
+    # idempotency key. Maps effect_key -> {"status": "pending"|"completed",
+    # "idempotency_key": str, "result": {...}|None}.
+    operations: dict[str, dict[str, Any]] = field(default_factory=dict)
     schema_version: int = SCHEMA_VERSION
 
     # --- phase transitions -------------------------------------------------
@@ -108,6 +116,55 @@ class RunState:
     def record_effect(self, key: str) -> None:
         if key not in self.performed_effects:
             self.performed_effects.append(key)
+
+    # --- durable pending/completed operation model (Finding 3) -------------
+    #
+    # An irreversible external operation is modeled in three persisted steps:
+    #   1. begin_operation(key, idem)  -> status "pending"  (BEFORE the call)
+    #   2. <perform the external call>
+    #   3. complete_operation(key, result) -> status "completed" (AFTER success
+    #      is confirmed and persisted)
+    #
+    # A crash between (1) and (3) leaves the operation "pending": on restart the
+    # loop reconciles it against the external adapter using the SAME idempotency
+    # key, so a completed-but-unconfirmed call is recognized (never duplicated),
+    # and if reconciliation is impossible the loop STOPS rather than retrying.
+
+    def begin_operation(self, key: str, idempotency_key: str) -> None:
+        existing = self.operations.get(key)
+        if existing and existing.get("status") == "completed":
+            return  # already done; never regress a completed op to pending
+        self.operations[key] = {
+            "status": "pending",
+            "idempotency_key": idempotency_key,
+            "result": None,
+        }
+
+    def complete_operation(self, key: str, result: dict[str, Any]) -> None:
+        op = self.operations.get(key, {"idempotency_key": None})
+        op["status"] = "completed"
+        op["result"] = result
+        self.operations[key] = op
+        self.record_effect(key)
+
+    def operation_status(self, key: str) -> str | None:
+        op = self.operations.get(key)
+        return op.get("status") if op else None
+
+    def operation_idempotency_key(self, key: str) -> str | None:
+        op = self.operations.get(key)
+        return op.get("idempotency_key") if op else None
+
+    def operation_result(self, key: str) -> dict[str, Any] | None:
+        op = self.operations.get(key)
+        return op.get("result") if op else None
+
+    # --- resume authorization (Finding 2) ----------------------------------
+
+    def is_terminal_stopped(self) -> bool:
+        """True iff the run is in a terminal STOPPED state (never auto-resume)."""
+
+        return self.phase == "STOPPED"
 
     # --- (de)serialization -------------------------------------------------
 

@@ -132,3 +132,19 @@ def write_manifest(approvals_dir: Path):
 @pytest.fixture
 def synthetic_task_dict() -> dict[str, Any]:
     return json.loads((FIXTURES / "synthetic_task.json").read_text(encoding="utf-8"))
+
+
+def complete_usage_snapshot(**overrides: Any) -> dict[str, Any]:
+    """A complete, well-formed cumulative budget snapshot for hand-crafted
+    checkpoints, matching what ``BudgetGovernor.snapshot()`` always writes in a
+    real run (F4 requires resumed checkpoints to carry a complete snapshot)."""
+
+    snap = {
+        "tokens_used": 0,
+        "cost_used_usd": 0.0,
+        "corrections_used": 0,
+        "rejections_seen": 0,
+        "elapsed_seconds": 0.0,
+    }
+    snap.update(overrides)
+    return snap

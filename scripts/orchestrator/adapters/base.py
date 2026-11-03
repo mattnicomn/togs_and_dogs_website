@@ -98,8 +98,15 @@ class ReviewAdapter(Protocol):
 
 @runtime_checkable
 class GitHubAdapter(Protocol):
-    """Opens a Draft PR for an accepted result. Never merges, never deploys."""
+    """Opens a Draft PR for an accepted result. Never merges, never deploys.
+
+    ``open_draft_pr`` is idempotent on ``idempotency_key``;
+    ``find_by_idempotency_key`` lets the orchestrator reconcile an uncertain
+    (pending) operation after a crash (Finding 3).
+    """
 
     def open_draft_pr(
-        self, *, base: str, head: str, title: str, body: str
+        self, *, base: str, head: str, title: str, body: str, idempotency_key: str
     ) -> DraftPRResult: ...
+
+    def find_by_idempotency_key(self, idempotency_key: str) -> DraftPRResult | None: ...

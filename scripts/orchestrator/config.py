@@ -23,10 +23,20 @@ import os
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
+from . import errors
+
 # Environment variable the owner sets to point at their controlled approval
 # directory (ideally outside the repository entirely).
 ENV_APPROVALS_DIR = "PETCARE_ORCH_APPROVALS_DIR"
 ENV_RUNTIME_DIR = "PETCARE_ORCH_RUNTIME_DIR"
+
+# Finding 1 (owner approval trust): the approvals source must be an explicitly
+# configured owner-controlled location. The orchestrator must NEVER silently
+# default it to a path under the repository or any agent-writable directory,
+# because such a default would let an AI-authored file masquerade as owner
+# authorization. ``load_config`` therefore refuses to invent an approvals dir;
+# the caller must pass one (A1 tests pass an explicit temp dir; a future A2
+# deployment points it at an OS-permission-protected owner directory).
 
 
 @dataclass(frozen=True)
@@ -102,20 +112,41 @@ def load_config(
     runtime_dir: Path | str | None = None,
     approvals_dir: Path | str | None = None,
     budgets: Budgets | None = None,
+    require_approvals: bool = True,
 ) -> Config:
     """Build a :class:`Config`, honoring environment overrides.
 
-    Precedence: explicit argument > environment variable > default.
-    No directories are created here; callers (or the state store) create the
-    runtime dir on demand. The approvals dir is NEVER created by the
-    orchestrator — it belongs to the owner.
+    Precedence for the approvals source: explicit argument > environment
+    variable (``PETCARE_ORCH_APPROVALS_DIR``). There is deliberately **no
+    default** — an unset approvals source raises
+    :class:`errors.ApprovalSourceNotConfigured` (Finding 1). This prevents the
+    approval source from silently resolving to a path under the repository or
+    any agent-writable directory.
+
+    ``require_approvals=False`` is only for commands that read local state and
+    never load a manifest (e.g. ``status``); in that case a non-authoritative
+    placeholder approvals path is used and must never be trusted for approval.
+
+    The runtime dir still has a safe default (it is explicitly agent-writable
+    and never a trust anchor). No directories are created here; the approvals
+    dir is NEVER created by the orchestrator — it belongs to the owner.
     """
 
     rt = runtime_dir or os.environ.get(ENV_RUNTIME_DIR) or Path.cwd() / ".orchestrator"
-    ap = approvals_dir or os.environ.get(ENV_APPROVALS_DIR) or Path.cwd() / ".orchestrator-approvals"
+
+    ap_raw = approvals_dir or os.environ.get(ENV_APPROVALS_DIR)
+    if ap_raw is None:
+        if require_approvals:
+            raise errors.ApprovalSourceNotConfigured(
+                "no owner-controlled approvals source configured; set "
+                f"{ENV_APPROVALS_DIR} or pass approvals_dir explicitly "
+                "(the orchestrator refuses to default it under the repo)"
+            )
+        # Non-authoritative placeholder for manifest-free commands only.
+        ap_raw = _resolve(rt) / "_UNCONFIGURED_APPROVALS_DO_NOT_TRUST"
 
     return Config(
         runtime_dir=_resolve(rt),
-        approvals_dir=_resolve(ap),
+        approvals_dir=_resolve(ap_raw),
         budgets=budgets or Budgets(),
     )

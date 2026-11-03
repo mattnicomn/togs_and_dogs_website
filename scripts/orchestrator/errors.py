@@ -42,9 +42,68 @@ class ApprovalInvalid(OrchestratorStop):
 
 
 class ApprovalUntrustedSource(OrchestratorStop):
-    """The manifest resolved to an agent-writable (untrusted) location."""
+    """The manifest resolved to an agent-writable (untrusted) location.
+
+    Also raised when a symlink (or any path component) escapes into an
+    untrusted tree after full real-path resolution.
+    """
 
     reason_code = "APPROVAL_UNTRUSTED_SOURCE"
+
+
+class ApprovalSourceNotConfigured(OrchestratorStop):
+    """No owner-controlled approval source was explicitly configured.
+
+    The orchestrator refuses to invent a default approvals directory (doing so
+    could place the approval source under the repo or an agent-writable path).
+    An explicit, owner-controlled source must be configured.
+    """
+
+    reason_code = "APPROVAL_SOURCE_NOT_CONFIGURED"
+
+
+class ResumeAuthorizationChanged(OrchestratorStop):
+    """On resume, the persisted authorization no longer matches the manifest
+    and request (identity, scope, SHA, branch, path scope, or actions)."""
+
+    reason_code = "RESUME_AUTHORIZATION_CHANGED"
+
+
+class ResumeOfStoppedWork(OrchestratorStop):
+    """A resume was attempted against a run already in a terminal STOPPED
+    state. Stopped work is never silently resumed."""
+
+    reason_code = "RESUME_OF_STOPPED_WORK"
+
+
+class SideEffectReconciliationFailed(OrchestratorStop):
+    """A side effect was left in an uncertain (pending) state and could not be
+    reconciled against the external adapter, so the run halts rather than
+    risk a duplicate."""
+
+    reason_code = "SIDE_EFFECT_RECONCILIATION_FAILED"
+
+
+class OperationRecordInvalid(OrchestratorStop):
+    """A persisted pending/completed operation record is malformed, or its
+    idempotency key does not match the key derived from the authorized
+    identity. Fail-closed before any reconciliation/lookup/side effect."""
+
+    reason_code = "OPERATION_RECORD_INVALID"
+
+
+class ReconciledResultIncompatible(OrchestratorStop):
+    """A reconciled/rehydrated external result does not match the authorized
+    base/head or the required draft/open/unmerged semantics, so it is not
+    adopted (fail-closed)."""
+
+    reason_code = "RECONCILED_RESULT_INCOMPATIBLE"
+
+
+class BudgetSnapshotInvalid(OrchestratorStop):
+    """A restored budget snapshot is malformed or already over budget."""
+
+    reason_code = "BUDGET_SNAPSHOT_INVALID"
 
 
 class ScopeMismatch(OrchestratorStop):

@@ -35,7 +35,9 @@ first failing check (scope, SHA, branch).
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import json
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -106,6 +108,65 @@ class ApprovalManifest:
                 f"request sha={request.base_sha!r} != manifest {self.base_sha!r}"
             )
 
+    # --- identity / integrity (Finding 2: resume authorization) -----------
+
+    def fingerprint(self) -> str:
+        """Stable content digest binding the authorizing scope.
+
+        Covers every authorization-bearing field (NOT ``authorized_by`` /
+        ``authorized_at``, which are audit metadata, nor ``source_path``). The
+        loop persists this at authorize time and re-computes it on every
+        resume; any drift means the manifest was swapped or edited and the run
+        must be re-authorized.
+        """
+
+        canonical = json.dumps(
+            {
+                "scope_id": self.scope_id,
+                "repository": self.repository,
+                "base_sha": self.base_sha,
+                "target_branch": self.target_branch,
+                "base_branch": self.base_branch,
+                "allowed_paths": sorted(self.allowed_paths),
+                "allowed_actions": sorted(self.allowed_actions),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def assert_owner_source_permissions(self, *, enforce: bool) -> list[str]:
+        """Advisory (A1) / enforced (future A2) OS-permission boundary check.
+
+        Returns a list of human-readable warnings about the approvals source
+        being writable by non-owners. In A1 (``enforce=False``) this is
+        advisory only and the warnings are logged. A future A2 deployment can
+        call with ``enforce=True`` to turn a world/group-writable owner source
+        into a hard :class:`errors.ApprovalUntrustedSource` stop. The check is
+        intentionally conservative and best-effort across platforms.
+        """
+
+        warnings: list[str] = []
+        try:
+            st = os.stat(self.source_path)
+            mode = st.st_mode
+            # POSIX group/other write bits (meaningful on POSIX; on Windows the
+            # bits are not authoritative, so this stays advisory there).
+            if mode & 0o022:
+                warnings.append(
+                    f"approval source {self.source_path} is group/other-writable "
+                    f"(mode {oct(mode & 0o777)})"
+                )
+        except OSError as exc:  # pragma: no cover - platform dependent
+            warnings.append(f"could not stat approval source: {exc}")
+
+        if enforce and warnings:
+            raise errors.ApprovalUntrustedSource(
+                "owner approval source fails OS-permission boundary: " + "; ".join(warnings)
+            )
+        return warnings
+
     # --- path / action scope ----------------------------------------------
 
     def path_allowed(self, repo_rel_path: str) -> bool:
@@ -149,21 +210,49 @@ class ApprovalManifest:
 def load_manifest(path: Path | str, config: Config) -> ApprovalManifest:
     """Load and structurally validate a manifest from an owner-controlled path.
 
-    Fail-closed checks, in order:
-      1. The resolved path must NOT be inside any untrusted (agent-writable)
-         root -> ``ApprovalUntrustedSource``.
+    Fail-closed checks, in order (Finding 1 — owner approval trust):
+      1a. The fully real-path-resolved manifest must be CONTAINED within the
+          configured owner approvals dir (positive allowlist), after resolving
+          every symlink -> ``ApprovalUntrustedSource`` if it escapes.
+      1b. The resolved path must NOT be inside any untrusted (agent-writable)
+          root -> ``ApprovalUntrustedSource``.
+      1c. Neither the manifest's own real path nor the approvals dir's real
+          path may traverse a symlink that lands inside an untrusted root.
       2. The file must exist -> ``ApprovalMissing``.
       3. The file must be valid JSON object with all required fields of the
          right type -> ``ApprovalInvalid``.
+
+    ``authorized_by`` is recorded for audit only and is NEVER treated as proof
+    of authorization: trust derives entirely from the file's owner-controlled
+    *location* plus (at resume) the integrity binding, not from its contents.
     """
 
-    resolved = Path(path).expanduser().resolve()
+    # Resolve symlinks fully (strict=False so a missing file still yields a
+    # canonical path we can range-check before the existence check).
+    resolved = _realpath(path)
+    approvals_root = _realpath(config.approvals_dir)
 
-    # (1) Trust boundary: reject manifests living in agent-writable trees.
+    # (1a) Positive containment: the manifest must live under the configured
+    # owner-controlled approvals directory, even after symlink resolution.
+    if not _is_within(resolved, approvals_root):
+        raise errors.ApprovalUntrustedSource(
+            f"manifest {resolved} is not within the configured owner approvals "
+            f"dir {approvals_root}"
+        )
+
+    # (1b) Negative exclusion: never inside an agent-writable tree.
     for untrusted in config.untrusted_roots:
         if _is_within(resolved, untrusted):
             raise errors.ApprovalUntrustedSource(
                 f"manifest {resolved} is inside untrusted root {untrusted}"
+            )
+
+    # (1c) Symlink boundary: the approvals dir itself must not be a symlink
+    # that resolves into an untrusted tree (defense against a redirected dir).
+    for untrusted in config.untrusted_roots:
+        if _is_within(approvals_root, untrusted):
+            raise errors.ApprovalUntrustedSource(
+                f"approvals dir {approvals_root} resolves inside untrusted root {untrusted}"
             )
 
     # (2) Existence.
@@ -213,6 +302,16 @@ def load_manifest(path: Path | str, config: Config) -> ApprovalManifest:
         source_path=resolved,
         base_branch=base_branch,
     )
+
+
+def _realpath(path: Path | str) -> Path:
+    """Fully resolve a path, following symlinks (Finding 1 boundary check).
+
+    Uses ``os.path.realpath`` so every symlinked component is collapsed to its
+    real target, then normalizes. Does not require the path to exist.
+    """
+
+    return Path(os.path.realpath(Path(path).expanduser()))
 
 
 def _is_within(child: Path, parent: Path) -> bool:

@@ -95,9 +95,15 @@ def test_resume_from_accepted_phase_skips_draft_pr_idempotently(config, write_ma
 
     manifest = load_manifest(write_manifest(), config)
 
-    # Hand-craft a checkpoint in the ACCEPTED phase with the PR effect already
-    # recorded (simulating a crash right after the effect was persisted).
+    # Hand-craft a checkpoint in the ACCEPTED phase with the PR operation
+    # already COMPLETED (simulating a crash right after the effect was
+    # persisted) — exactly what a real run records: a complete operation entry
+    # with the authorized idempotency key + a valid, authorized-compatible
+    # result, plus fingerprints and a complete usage snapshot (F2/F3/F4).
     from scripts.orchestrator.checkpoint import CheckpointStore
+    from scripts.orchestrator.loop import Orchestrator, task_fingerprint
+
+    from .conftest import complete_usage_snapshot
 
     state = RunState(
         scope_id=manifest.scope_id,
@@ -106,7 +112,18 @@ def test_resume_from_accepted_phase_skips_draft_pr_idempotently(config, write_ma
         target_branch=manifest.target_branch,
         phase="ACCEPTED",
     )
-    state.record_effect(f"draft_pr:{manifest.scope_id}")
+    state.manifest_fingerprint = manifest.fingerprint()
+    state.task_fingerprint = task_fingerprint(_task(manifest))
+    state.usage = complete_usage_snapshot()
+    effect_key = f"draft_pr:{manifest.scope_id}"
+    _tmp = _orch(config, manifest)
+    idem = _tmp._draft_pr_idempotency_key(state)
+    state.begin_operation(effect_key, idem)
+    state.complete_operation(effect_key, {
+        "number": 4242, "url": "mock://pull/4242",
+        "is_draft": True, "is_open": True, "is_merged": False,
+        "base": manifest.base_branch, "head": manifest.target_branch,
+    })
     CheckpointStore(config.checkpoint_path).save(state)
 
     gh = MockGitHubAdapter()

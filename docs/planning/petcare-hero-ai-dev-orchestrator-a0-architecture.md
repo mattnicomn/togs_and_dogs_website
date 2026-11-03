@@ -193,3 +193,78 @@ cancellation decision; gate-aware approval UX needs refinement; Google Calendar
 health unverified; planning target Dec 11, 2026 (not a promise). A4 does not
 divert into S0d-2 or extra SaaS hardening as an Android-launch prerequisite
 absent documented dependency evidence.
+
+---
+
+## 9. A1.1 corrective maintenance (four findings, same branch/PR #60)
+
+Four independently identified A1 gaps were corrected on the same branch; all
+remained offline/mocked and preserved the 54-test baseline (now 83 tests;
+1 skip where the OS does not support symlinks).
+
+1. **Owner approval trust.** `load_config` no longer defaults the approvals
+   source — an unset source raises `ApprovalSourceNotConfigured` (never a repo/
+   agent-writable default). `load_manifest` now enforces **positive
+   containment** inside the configured owner approvals dir plus full
+   **symlink/real-path** resolution, so a symlink escaping into an
+   agent-writable tree is refused. `authorized_by` is explicitly audit-only and
+   excluded from the integrity fingerprint — it is never proof. An OS-permission
+   boundary hook (`assert_owner_source_permissions`) is advisory in A1 and
+   enforceable in A2.
+
+2. **Resume authorization.** Every invocation/resume re-verifies manifest
+   identity + integrity (persisted `manifest_fingerprint`), scope id +
+   repository, base SHA + target branch, persisted task identity + path scope
+   (`task_fingerprint`), and allowed actions. Any change raises
+   `ResumeAuthorizationChanged`; a terminal STOPPED run raises
+   `ResumeOfStoppedWork` and is never auto-resumed.
+
+3. **Side-effect recovery.** Irreversible operations use a durable
+   pending → completed model keyed by a stable idempotency key. A crash is
+   simulated before the external call, after external success but before
+   confirmation, and after persisted completion. On restart an uncertain
+   (pending) operation is reconciled against the (mock) GitHub adapter by key:
+   a completed-but-unconfirmed call is adopted (never duplicated); if
+   reconciliation itself is impossible the run STOPS
+   (`SideEffectReconciliationFailed`) rather than retrying blindly.
+
+4. **Cumulative budget recovery.** The budget snapshot now includes
+   `elapsed_seconds`; `restore_governor` rebuilds token/cost/correction/
+   rejection/elapsed state on resume so budgets are never reset, and rejects a
+   malformed or already-over-budget snapshot (`BudgetSnapshotInvalid`).
+
+---
+
+## 10. A1.3 corrective maintenance (two findings, same branch/PR #60)
+
+Two further recovery gaps were hardened on the same branch; all offline/mocked,
+preserving the baseline (now 114 tests; 1 skip where the OS lacks symlinks).
+
+**Correction A — operation-status fail-closed.** Before any reconciliation,
+rehydration, skip, or new side effect, `_validate_existing_operation` now fully
+validates whatever the ledger already holds for the draft-PR effect: it rejects
+an unknown/invalid `status`, a non-dict or malformed record, a missing/
+mismatched idempotency key, a `completed` record with no result payload, and any
+inconsistency between `performed_effects` and `operations` (effect marked done
+without a completed record, completed record not in the ledger, pending record
+already in the ledger). An invalid existing record is **never** overwritten with
+a fresh pending op, and **no adapter call** occurs for an invalid status or
+inconsistent ledger — the run stops `OPERATION_RECORD_INVALID`. All valid
+crash-reconciliation scenarios and the mandatory owner stop are preserved.
+
+**Correction B — cumulative usage persistence.** `_account` now persists the
+cumulative budget snapshot **immediately after each successfully accounted mock
+adapter response, before the next operation**, so an inter-operation crash
+cannot lose already-accounted usage. On budget exhaustion the governor already
+holds the exhausting usage, and the terminal STOPPED checkpoint snapshots it
+(usage evidence preserved, never reset). Recovery restores cumulative usage and
+never silently resets it. Active-runtime elapsed semantics are unchanged (sum of
+wall-clock while the process runs, across restarts; downtime excluded).
+
+**Honest limitation (do not over-claim).** This is best-effort, not exactly-once
+*real* API accounting. A live adapter call whose response is never received
+(network cut after the server did the work) leaves usage the client never saw,
+so the persisted cumulative usage can under-count real provider-side
+consumption. A2's live adapters must reconcile actual usage from provider
+response metadata where available; the A1 mock accounts only responses the
+orchestrator actually received.

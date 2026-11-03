@@ -87,7 +87,13 @@ def cmd_resume(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    config = load_config(runtime_dir=args.runtime_dir, approvals_dir=args.approvals_dir)
+    # status reads local state only and never loads a manifest, so it does not
+    # require an owner-controlled approvals source to be configured.
+    config = load_config(
+        runtime_dir=args.runtime_dir,
+        approvals_dir=args.approvals_dir,
+        require_approvals=False,
+    )
     store = StateStore(config.state_path)
     if not store.exists():
         print("no state found", file=sys.stderr)
