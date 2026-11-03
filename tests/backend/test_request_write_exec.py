@@ -314,6 +314,32 @@ class SerializationTests(unittest.TestCase):
             rx._serialize_value(set())
         self.assertEqual(ctx.exception.reason, "SER_EMPTY_SET")
 
+    def test_empty_string_string_set_member_rejected(self):
+        # Correction B: an SS member equal to "" is invalid in DynamoDB.
+        with self.assertRaises(rx._SerializationError) as ctx:
+            rx._serialize_value({"", "a"})
+        self.assertEqual(ctx.exception.reason, "SER_EMPTY_STRING_SET_MEMBER")
+        with self.assertRaises(rx._SerializationError) as ctx2:
+            rx._serialize_value({""})
+        self.assertEqual(ctx2.exception.reason, "SER_EMPTY_STRING_SET_MEMBER")
+
+    def test_nonempty_string_set_still_valid(self):
+        # Valid nonempty string sets keep canonical ordering and are not affected.
+        self.assertEqual(rx._serialize_value({"b", "a"}), {"SS": ["a", "b"]})
+
+    def test_empty_string_as_scalar_and_map_value_still_valid(self):
+        # Empty string is still valid as a scalar and inside a map/list (only SS
+        # members are forbidden from being empty).
+        self.assertEqual(rx._serialize_value(""), {"S": ""})
+        self.assertEqual(rx._serialize_value({"a": ""}), {"M": {"a": {"S": ""}}})
+        self.assertEqual(rx._serialize_value([""]), {"L": [{"S": ""}]})
+
+    def test_empty_string_in_nested_set_within_map_rejected(self):
+        # A nested raw application payload carrying an empty SS member fails closed.
+        with self.assertRaises(rx._SerializationError) as ctx:
+            rx._serialize_value({"tags": {"", "x"}})
+        self.assertEqual(ctx.exception.reason, "SER_EMPTY_STRING_SET_MEMBER")
+
     def test_mixed_set_rejected(self):
         with self.assertRaises(rx._SerializationError) as ctx:
             rx._serialize_value({1, "a"})
@@ -363,45 +389,59 @@ class SerializationTests(unittest.TestCase):
 
 
 # ===========================================================================
-# B - strict raw/prepared boundary; legitimate AV-like app maps
+# C - raw/prepared TYPE separation (no AV-shape guessing)
 # ===========================================================================
 
 class RawPreparedBoundaryTests(unittest.TestCase):
     def test_legit_app_map_with_av_like_value_key_is_valid(self):
-        # A map VALUE that is itself a map containing a key named "S"/"N"/"M" is a
-        # legitimate application map and must serialize normally (NOT be mistaken
-        # for a prepared AttributeValue). Here "S"/"N" are MULTI-key maps, so even
-        # the narrow single-key heuristic leaves them alone.
+        # A map whose keys are named "S"/"N"/"M" is a legitimate application map
+        # and must serialize normally - key name is NOT evidence of serialization.
         out = rx._serialize_value({"S": "hello", "N": "world", "M": "map"})
         self.assertEqual(out, {"M": {"S": {"S": "hello"}, "N": {"S": "world"}, "M": {"S": "map"}}})
 
-    def test_already_serialized_attribute_map_rejected(self):
-        # A top-level attribute map whose EVERY value is already an AttributeValue
-        # would be double-serialized; it must fail closed.
-        already = {"PK": {"S": "REQ#x"}, "rev": {"N": "1"}}
-        with self.assertRaises(rx._SerializationError) as ctx:
-            rx._serialize_map(already)
-        self.assertEqual(ctx.exception.reason, "SER_ALREADY_SERIALIZED")
+    def test_single_attribute_map_with_av_like_shape_serializes(self):
+        # Correction C: a single-attribute map that LOOKS like a bare AV (e.g.
+        # {"S": "x"}) is a legitimate raw app map and must serialize, NOT be
+        # rejected as "already serialized". It becomes a nested M.
+        self.assertEqual(rx._serialize_value({"S": "x"}), {"M": {"S": {"S": "x"}}})
+        # As a top-level attribute map: key "S" is an attribute name, value "x" a
+        # raw string -> {"S": {"S": "x"}}. No false "already serialized" rejection.
+        self.assertEqual(rx._serialize_map({"S": "x"}), {"S": {"S": "x"}})
 
-    def test_bare_attribute_value_as_top_level_map_rejected(self):
-        # A map that IS itself a bare AttributeValue (e.g. {"S": "x"}) is a
-        # double-serialization error at the top level.
-        with self.assertRaises(rx._SerializationError) as ctx:
-            rx._serialize_map({"S": "x"})
-        self.assertEqual(ctx.exception.reason, "SER_ALREADY_SERIALIZED")
-
-    def test_mixed_raw_and_av_values_not_falsely_rejected(self):
-        # A real raw attribute map (raw scalar values) serializes normally even if
-        # ONE value happens to be an app map; not all values are AV-shaped.
-        out = rx._serialize_map({"PK": "REQ#x", "meta": {"S": "hello"}})
-        self.assertEqual(out["PK"], {"S": "REQ#x"})
-        # meta is a raw 1-key app map -> serialized (NOT treated as a bare AV).
-        self.assertEqual(out["meta"], {"M": {"S": {"S": "hello"}}})
+    def test_attribute_map_with_av_shaped_values_serializes(self):
+        # A raw map whose VALUES happen to be AV-shaped maps is still raw: no
+        # shape-guessing rejection. Each value is serialized (double-wrapped is the
+        # caller's data, not our concern) - the point is we do NOT false-positive.
+        out = rx._serialize_map({"PK": {"S": "REQ#x"}, "rev": {"N": "1"}})
+        self.assertEqual(out["PK"], {"M": {"S": {"S": "REQ#x"}}})
+        self.assertEqual(out["rev"], {"M": {"N": {"S": "1"}}})
 
     def test_single_key_app_value_named_S_with_nonstr_payload_is_app_map(self):
-        # {"S": 5} is NOT a valid prepared S (payload is int), so it is treated as
-        # an application map and serialized (key "S" preserved as attr name).
+        # {"S": 5} is a plain app map; serialized with key "S" as an attribute.
         self.assertEqual(rx._serialize_value({"S": 5}), {"M": {"S": {"N": "5"}}})
+
+    def test_prepared_update_rejected_as_raw_value(self):
+        # Feeding a PreparedUpdate into a raw serializer is a type error and must
+        # fail closed (never re-serialized).
+        prepared = rx.translate_update(real_update_spec(), TABLE)
+        self.assertIsInstance(prepared, rx.PreparedUpdate)
+        with self.assertRaises(rx._SerializationError) as ctx:
+            rx._serialize_value(prepared)
+        self.assertEqual(ctx.exception.reason, "SER_PREPARED_OBJECT")
+        with self.assertRaises(rx._SerializationError) as ctx2:
+            rx._serialize_map({"x": prepared})
+        self.assertEqual(ctx2.exception.reason, "SER_PREPARED_OBJECT")
+
+    def test_prepared_txn_and_refusal_rejected_as_raw_value(self):
+        prepared = rx.translate_create(real_create_spec(), TABLE)
+        self.assertIsInstance(prepared, rx.PreparedTxn)
+        with self.assertRaises(rx._SerializationError) as ctx:
+            rx._serialize_value(prepared)
+        self.assertEqual(ctx.exception.reason, "SER_PREPARED_OBJECT")
+        refusal = rx.TranslationRefusal("X")
+        with self.assertRaises(rx._SerializationError) as ctx2:
+            rx._serialize_value(refusal)
+        self.assertEqual(ctx2.exception.reason, "SER_PREPARED_OBJECT")
 
 
 # ===========================================================================
@@ -523,6 +563,203 @@ class RefusalTests(unittest.TestCase):
         r = rx.translate_create(spec, TABLE)
         self.assertIsInstance(r, rx.TranslationRefusal)
         self.assertEqual(r.reason, "PREFLIGHT_ITEM_TOO_LARGE")
+
+
+# ===========================================================================
+# A - strict adversarial expression validation (manually constructed specs)
+# ===========================================================================
+
+def _update_with(cond=None, upd=None, names=None, values=None):
+    base = real_update_spec()
+    return rw.UpdateSpec(
+        key=base.key,
+        condition_expression=cond if cond is not None else base.condition_expression,
+        update_expression=upd if upd is not None else base.update_expression,
+        names=names if names is not None else base.names,
+        values=values if values is not None else base.values,
+        advances_revision=base.advances_revision,
+        fenced_present=base.fenced_present, fenced_absent=base.fenced_absent)
+
+
+class AdversarialUpdateExpressionTests(unittest.TestCase):
+    """Manually constructed UpdateSpecs that are NOT from the approved builder."""
+
+    def test_builder_spec_passes(self):
+        self.assertIsInstance(rx.translate_update(real_update_spec(), TABLE), rx.PreparedUpdate)
+
+    def test_injected_or_branch_rejected(self):
+        # A required predicate present but wrapped in an unauthorized OR branch
+        # that would let an attacker bypass the tenant fence.
+        base = real_update_spec()
+        poisoned = base.condition_expression.replace(
+            "company_id = :tenant",
+            "(company_id = :tenant OR attribute_exists(PK))")
+        r = rx.translate_update(_update_with(cond=poisoned), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_tenant_fence_present_inside_larger_unsafe_expression_rejected(self):
+        # The exact tenant substring is present, but as part of a different,
+        # unsafe clause - substring checks would have passed; grammar must reject.
+        base = real_update_spec()
+        poisoned = base.condition_expression.replace(
+            "company_id = :tenant", "company_id = :tenant OR size(company_id) = :z")
+        r = rx.translate_update(_update_with(cond=poisoned), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_missing_tenant_fence_rejected(self):
+        base = real_update_spec()
+        poisoned = base.condition_expression.replace(" AND company_id = :tenant", "")
+        r = rx.translate_update(_update_with(cond=poisoned), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_missing_revision_pin_rejected(self):
+        base = real_update_spec()
+        poisoned = base.condition_expression.replace(" AND #rev = :rev", "")
+        r = rx.translate_update(_update_with(cond=poisoned), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_missing_incarnation_pin_rejected(self):
+        base = real_update_spec()
+        poisoned = base.condition_expression.replace(" AND #inc = :inc", "")
+        r = rx.translate_update(_update_with(cond=poisoned), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_weakened_retirement_fence_rejected(self):
+        # Retirement guard altered to always-true grouping.
+        base = real_update_spec()
+        poisoned = base.condition_expression.replace(
+            "(attribute_not_exists(#rl) OR #rl = :false)",
+            "(attribute_not_exists(#rl) OR attribute_exists(#rl))")
+        r = rx.translate_update(_update_with(cond=poisoned), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_retirement_fence_name_binding_mismatch_rejected(self):
+        # Fence clause present, but #rl rebound to a non-retirement attribute.
+        base = real_update_spec()
+        names = dict(base.names)
+        names["#rl"] = "some_other_attr"
+        r = rx.translate_update(_update_with(names=names), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_false_value_binding_non_false_rejected(self):
+        base = real_update_spec()
+        values = dict(base.values)
+        values[":false"] = True  # not exact False
+        r = rx.translate_update(_update_with(values=values), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_missing_revision_advance_rejected(self):
+        base = real_update_spec()
+        poisoned_upd = base.update_expression.replace(", #rev = :next", "")
+        r = rx.translate_update(_update_with(upd=poisoned_upd), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_extra_injected_predicate_rejected(self):
+        # A recognized form but an UNEXPECTED equality clause whose #ref is NOT in
+        # names - cannot be a benign optional clause.
+        base = real_update_spec()
+        poisoned = base.condition_expression + " AND #evil = :evil"
+        r = rx.translate_update(_update_with(cond=poisoned), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_unbalanced_parentheses_rejected(self):
+        base = real_update_spec()
+        poisoned = base.condition_expression + " AND (attribute_exists(PK)"
+        r = rx.translate_update(_update_with(cond=poisoned), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+
+class AdversarialCreateExpressionTests(unittest.TestCase):
+    def test_create_only_condition_weakened_to_permit_overwrite_rejected(self):
+        # Replace the create-only guard with one that permits an overwrite.
+        spec = real_create_spec()
+        put0 = {"Put": {"Item": spec.transact_items[0]["Put"]["Item"],
+                        "ConditionExpression": "attribute_exists(PK)"}}
+        bad = rw.CreateSpec(transact_items=(put0, spec.transact_items[1]),
+                            lifetime_token=spec.lifetime_token,
+                            minted_incarnation=spec.minted_incarnation,
+                            advances_revision=False)
+        r = rx.translate_create(bad, TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_create_only_condition_with_extra_clause_rejected(self):
+        spec = real_create_spec()
+        put1 = {"Put": {"Item": spec.transact_items[1]["Put"]["Item"],
+                        "ConditionExpression":
+                            "attribute_not_exists(PK) AND attribute_not_exists(SK) AND attribute_exists(x)"}}
+        bad = rw.CreateSpec(transact_items=(spec.transact_items[0], put1),
+                            lifetime_token=spec.lifetime_token,
+                            minted_incarnation=spec.minted_incarnation,
+                            advances_revision=False)
+        r = rx.translate_create(bad, TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_both_put_operands_validated_independently(self):
+        # Second operand weakened even though the first is valid.
+        spec = real_create_spec()
+        put1 = {"Put": {"Item": spec.transact_items[1]["Put"]["Item"],
+                        "ConditionExpression": "attribute_not_exists(PK)"}}  # missing SK guard
+        bad = rw.CreateSpec(transact_items=(spec.transact_items[0], put1),
+                            lifetime_token=spec.lifetime_token,
+                            minted_incarnation=spec.minted_incarnation,
+                            advances_revision=False)
+        self.assertEqual(rx.translate_create(bad, TABLE).reason, "MISSING_SECURITY_CONDITION")
+
+
+class AdversarialRetireExpressionTests(unittest.TestCase):
+    def test_builder_retire_passes(self):
+        self.assertIsInstance(rx.translate_retire(real_retire_spec(), TABLE), rx.PreparedTxn)
+
+    def test_swapped_operands_rejected(self):
+        # Operand roles swapped: REQUEST update in position 0, lifetime in 1.
+        spec = real_retire_spec()
+        swapped = rw.RetireSpec(transact_items=(spec.transact_items[1], spec.transact_items[0]),
+                                lifetime_token=spec.lifetime_token,
+                                retires_revision=True, retired_at=spec.retired_at)
+        r = rx.translate_retire(swapped, TABLE)
+        self.assertEqual(r.reason, "RETIRE_OPERAND_ROLE")
+
+    def test_lifetime_operand_missing_not_already_retired_guard_rejected(self):
+        spec = real_retire_spec()
+        life = spec.transact_items[0]["Update"]
+        poisoned_cond = life["ConditionExpression"].replace(" AND #ret = :false", "")
+        poisoned = {"Update": dict(life, ConditionExpression=poisoned_cond)}
+        bad = rw.RetireSpec(transact_items=(poisoned, spec.transact_items[1]),
+                            lifetime_token=spec.lifetime_token,
+                            retires_revision=True, retired_at=spec.retired_at)
+        self.assertEqual(rx.translate_retire(bad, TABLE).reason, "MISSING_SECURITY_CONDITION")
+
+    def test_request_operand_missing_retirement_fence_rejected(self):
+        spec = real_retire_spec()
+        req = spec.transact_items[1]["Update"]
+        poisoned_cond = req["ConditionExpression"].replace(
+            " AND (attribute_not_exists(#rl) OR #rl = :false)", "")
+        poisoned = {"Update": dict(req, ConditionExpression=poisoned_cond)}
+        bad = rw.RetireSpec(transact_items=(spec.transact_items[0], poisoned),
+                            lifetime_token=spec.lifetime_token,
+                            retires_revision=True, retired_at=spec.retired_at)
+        self.assertEqual(rx.translate_retire(bad, TABLE).reason, "MISSING_SECURITY_CONDITION")
+
+    def test_request_operand_not_marking_retired_rejected(self):
+        spec = real_retire_spec()
+        req = spec.transact_items[1]["Update"]
+        poisoned_expr = req["UpdateExpression"].replace(", #rl = :true", "")
+        poisoned = {"Update": dict(req, UpdateExpression=poisoned_expr)}
+        bad = rw.RetireSpec(transact_items=(spec.transact_items[0], poisoned),
+                            lifetime_token=spec.lifetime_token,
+                            retires_revision=True, retired_at=spec.retired_at)
+        self.assertEqual(rx.translate_retire(bad, TABLE).reason, "MISSING_SECURITY_CONDITION")
+
+    def test_lifetime_operand_as_delete_role_confusion_rejected(self):
+        # A lifetime key placed where only an Update is allowed, with a REQUEST-
+        # style key, trips the role check.
+        spec = real_retire_spec()
+        req = spec.transact_items[1]
+        # Put the REQUEST operand in position 0 (expects a LIFETIME key).
+        bad = rw.RetireSpec(transact_items=(req, spec.transact_items[1]),
+                            lifetime_token=spec.lifetime_token,
+                            retires_revision=True, retired_at=spec.retired_at)
+        self.assertEqual(rx.translate_retire(bad, TABLE).reason, "RETIRE_OPERAND_ROLE")
 
 
 # ===========================================================================

@@ -30,9 +30,11 @@ WHAT THIS MODULE GUARANTEES:
     normalization; floats, NaN/Infinity, empty/mixed/nested sets, non-string map
     keys, binary, unknown objects and cyclic/too-deep structures are REFUSED.
   * A raw application value is never confused with a prepared AttributeValue: the
-    raw/prepared boundary is by SOURCE/RESULT TYPE, not by inspecting dict keys,
-    so a legitimate application map containing a key literally named "S"/"N"/"M"
-    stays valid and is never double-serialized.
+    raw/prepared boundary is enforced by SOURCE/RESULT TYPE (a raw value is never
+    one of this module's PreparedUpdate/PreparedTxn/TranslationRefusal objects),
+    NOT by guessing at AttributeValue "shape". A legitimate application map whose
+    keys are named "S"/"N"/"M"/"BOOL"/"NULL", a single-attribute map with an
+    AV-like shape, and nested raw maps all stay valid and serialize normally.
   * create/retire carry a deterministic <=32-hex ClientRequestToken derived from
     the canonical serialized request. A single UpdateItem carries NO token (the
     revision-advance condition is its replay fence).
@@ -52,6 +54,7 @@ from dataclasses import dataclass
 from decimal import Decimal, Context, Inexact, Rounded, localcontext
 from hashlib import sha256
 import json
+import re
 
 from common.request_write import (
     UpdateSpec,
@@ -127,15 +130,6 @@ _TOKEN_RECIPE_VERSION = 1
 _TOKEN_DOMAIN = "petcare.request_write_exec.txn"
 _TOKEN_HEX_LEN = 32  # <= DynamoDB's 36-char ClientRequestToken maximum
 
-# The 8 AttributeValue type discriminators. Used ONLY to detect an input that is
-# ALREADY a prepared AttributeValue (a double-serialization error) - never to
-# decide that an arbitrary application map is "pre-serialized". A real
-# application map is distinguished because it is passed as a raw value to be
-# serialized, whereas a prepared operand only ever appears where the spec puts
-# serialized bytes. See _reject_if_already_serialized for the strict rule.
-_AV_DISCRIMINATORS = frozenset({"S", "N", "B", "SS", "NS", "BS", "M", "L", "NULL", "BOOL"})
-
-
 class _SerializationError(Exception):
     """Internal: a strict serialization failure carrying a stable reason code."""
 
@@ -204,6 +198,9 @@ def _serialize_value(value, _depth=0, _seen=None):
     if _seen is None:
         _seen = ()
 
+    # Correction C: a prepared/result object is never a raw value (type boundary).
+    _reject_prepared_type(value)
+
     # --- scalars ---
     if value is None:
         return {"NULL": True}
@@ -254,6 +251,10 @@ def _serialize_value(value, _depth=0, _seen=None):
         if any(type(m) is bool for m in members):
             raise _SerializationError("SER_SET_TYPE", "bool in set")
         if types == {str}:
+            # Correction B: DynamoDB forbids an empty string as a String Set
+            # member. Reject it rather than silently emitting an invalid SS.
+            if any(m == "" for m in members):
+                raise _SerializationError("SER_EMPTY_STRING_SET_MEMBER")
             # String set: canonical ascending ordering for determinism.
             return {"SS": sorted(members)}
         if types <= {int, Decimal} and types:
@@ -277,9 +278,9 @@ def _serialize_map(mapping):
     application value run through _serialize_value. Raises _SerializationError on
     any invalid key or value.
     """
+    _reject_prepared_type(mapping)
     if type(mapping) is not dict:
         raise _SerializationError("SER_NOT_A_MAP")
-    _reject_if_already_serialized(mapping)
     out = {}
     for k, v in mapping.items():
         if type(k) is not str or not k:
@@ -288,55 +289,25 @@ def _serialize_map(mapping):
     return out
 
 
-def _looks_like_attribute_value(obj):
-    """True iff ``obj`` has the exact shape of a bare prepared AttributeValue.
+def _reject_prepared_type(value):
+    """Fail closed if ``value`` is one of THIS module's PREPARED result objects.
 
-    A bare AV is a single-key dict whose only key is an AV discriminator AND whose
-    value matches that discriminator's payload shape (NULL->True, BOOL->bool,
-    S/N->str, SS/NS/BS/L->list, M->dict, B->bytes/str). This is a SHAPE check used
-    only to catch double-serialization; a legitimate single-key application map
-    like {"S": 5} (payload is an int, not a str) does NOT match and stays valid.
+    Correction C: the raw/prepared boundary is enforced by TYPE, never by guessing
+    at AttributeValue "shape". A legitimate raw application value - including a
+    dict whose keys happen to be named "S"/"N"/"M"/"BOOL"/"NULL", a single-
+    attribute map with an AV-like shape, or a nested raw map - is NOT evidence of
+    pre-serialization and must serialize normally. The ONLY thing that is never a
+    valid raw value is one of this module's own prepared/result dataclasses
+    (PreparedUpdate / PreparedTxn / TranslationRefusal); feeding one of those into
+    a raw serializer is a programming error and is refused loudly rather than
+    re-serialized. Prepared requests are plain dicts built only inside the
+    translate_* functions from freshly serialized maps, so they can never re-enter
+    _serialize_map as a raw value through the public API.
     """
-    if type(obj) is not dict or len(obj) != 1:
-        return False
-    (only_key, only_val), = obj.items()
-    if only_key not in _AV_DISCRIMINATORS:
-        return False
-    return (
-        (only_key == "NULL" and only_val is True)
-        or (only_key == "BOOL" and type(only_val) is bool)
-        or (only_key in ("S", "N") and type(only_val) is str)
-        or (only_key in ("SS", "NS", "BS", "L") and type(only_val) is list)
-        or (only_key == "M" and type(only_val) is dict)
-        or (only_key == "B" and isinstance(only_val, (bytes, bytearray, str)))
-    )
-
-
-def _reject_if_already_serialized(mapping):
-    """Fail closed if ``mapping`` is ALREADY a prepared AttributeValue map.
-
-    The raw/prepared boundary is enforced by TYPE/position in this module, but as
-    defence-in-depth we catch the two double-serialization shapes the live
-    manual_external_adapter warned about, applied ONLY to the TOP-LEVEL attribute
-    map (whose keys are attribute names):
-      1. The map IS itself a bare AttributeValue (e.g. {"S": "x"}).
-      2. The map is non-empty and EVERY value is itself a bare AttributeValue
-         (e.g. {"PK": {"S": "x"}, "n": {"N": "1"}}) - i.e. a map whose values were
-         already serialized, which would be double-wrapped if serialized again.
-    A legitimate raw attribute map (values are raw scalars/containers) never
-    matches: a raw value like {"S": "hello"} (one attribute among others) only
-    trips case 2 if ALL siblings are also bare-AV-shaped, which a real raw map is
-    not. Nested values are never passed here, so an attribute literally named
-    "S"/"N"/"M" is untouched.
-    """
-    if _looks_like_attribute_value(mapping):
+    if isinstance(value, (PreparedUpdate, PreparedTxn, TranslationRefusal)):
         raise _SerializationError(
-            "SER_ALREADY_SERIALIZED",
-            "input is itself a prepared AttributeValue (double-serialization)")
-    if mapping and all(_looks_like_attribute_value(v) for v in mapping.values()):
-        raise _SerializationError(
-            "SER_ALREADY_SERIALIZED",
-            "every attribute value is already an AttributeValue (double-serialization)")
+            "SER_PREPARED_OBJECT",
+            "a prepared/result object is not a raw application value")
 
 
 # ---------------------------------------------------------------------------
@@ -389,6 +360,276 @@ def _serialized_byte_size(obj):
     return len(json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8"))
 
 
+# ===========================================================================
+# Strict security-expression validation (Correction A)
+# ===========================================================================
+#
+# The committed builders emit a CLOSED expression grammar: a flat list of clauses
+# joined by " AND ", with exactly one parenthesized OR group (the retirement
+# fence). We parse that exact grammar into a canonical multiset of typed clauses
+# and validate STRUCTURE + name/value bindings - never substring presence. Any
+# clause that is not a recognized safe form (e.g. an injected OR branch, an extra
+# predicate, altered grouping, or a weakened fence) makes the whole expression
+# FAIL CLOSED. We do NOT rewrite; we only accept or refuse, and on accept the
+# committed string is preserved verbatim.
+#
+# This is a narrowly-scoped exact-grammar recognizer for the builders' output,
+# NOT a general DynamoDB expression parser. An adversarially hand-built spec that
+# does not match the grammar is refused.
+
+# Clause token kinds the grammar permits.
+#   ("exists", LITERAL)                       -> attribute_exists(LITERAL)
+#   ("not_exists", NAMEREF)                   -> attribute_not_exists(NAMEREF)
+#   ("eq", LHS, RHS)                          -> LHS = RHS   (LHS literal or #ref, RHS :val)
+#   ("retirement_fence",)                     -> (attribute_not_exists(#rl) OR #rl = :false)
+_RETIREMENT_FENCE_CLAUSE = "(attribute_not_exists(#rl) OR #rl = :false)"
+_EQ_RE = re.compile(r"^(#?[A-Za-z0-9_]+|[A-Za-z0-9_]+)\s=\s(:[A-Za-z0-9_]+)$")
+_EXISTS_RE = re.compile(r"^attribute_exists\(([#A-Za-z0-9_]+)\)$")
+_NOT_EXISTS_RE = re.compile(r"^attribute_not_exists\(([#A-Za-z0-9_]+)\)$")
+
+
+def _split_top_level_and(expression):
+    """Split an expression into top-level ' AND '-joined clauses.
+
+    Respects a single parenthesized group so the retirement fence
+    '(attribute_not_exists(#rl) OR #rl = :false)' is kept whole. Returns the list
+    of clause strings, or None if parentheses are unbalanced.
+    """
+    parts, depth, buf = [], 0, ""
+    for tok in expression.split(" AND "):
+        buf = tok if not buf else buf + " AND " + tok
+        depth += tok.count("(") - tok.count(")")
+        if depth == 0:
+            parts.append(buf)
+            buf = ""
+        elif depth < 0:
+            return None
+    if depth != 0 or buf:
+        return None
+    return [p.strip() for p in parts]
+
+
+def _classify_clause(clause):
+    """Classify one clause into a typed tuple, or return None if not a safe form.
+
+    Any clause that is not EXACTLY one of the closed grammar forms (including an
+    OR anywhere other than the single approved retirement fence) is rejected by
+    returning None, so the caller fails closed.
+    """
+    if clause == _RETIREMENT_FENCE_CLAUSE:
+        return ("retirement_fence",)
+    # Reject any other parenthesis/OR usage outright - no unauthorized grouping
+    # or OR branch is part of the grammar.
+    if "(" in clause or ")" in clause or " OR " in clause:
+        m = _EXISTS_RE.match(clause)
+        if m:
+            return ("exists", m.group(1))
+        m = _NOT_EXISTS_RE.match(clause)
+        if m:
+            return ("not_exists", m.group(1))
+        return None
+    m = _EXISTS_RE.match(clause)
+    if m:
+        return ("exists", m.group(1))
+    m = _NOT_EXISTS_RE.match(clause)
+    if m:
+        return ("not_exists", m.group(1))
+    m = _EQ_RE.match(clause)
+    if m:
+        return ("eq", m.group(1), m.group(2))
+    return None
+
+
+def _parse_condition(expression):
+    """Parse an expression into a list of typed clauses, or None on any bad form."""
+    if type(expression) is not str or not expression:
+        return None
+    clauses = _split_top_level_and(expression)
+    if clauses is None:
+        return None
+    typed = []
+    for c in clauses:
+        t = _classify_clause(c)
+        if t is None:
+            return None
+        typed.append(t)
+    return typed
+
+
+def _names_value_consistent(names, values):
+    """Every #ref used must be defined in names; every :val used in values.
+
+    Returns None if consistent, else a reason. Also rejects a names/values map
+    that is not a plain dict.
+    """
+    if type(names) is not dict or type(values) is not dict:
+        return "BINDINGS_NOT_MAP"
+    return None
+
+
+def _require_clause(typed, clause, reason):
+    return None if clause in typed else reason
+
+
+def _validate_update_condition(spec):
+    """Strict grammar validation of an S0a UpdateSpec. Returns None or a reason.
+
+    Requires the EXACT mandatory fence clause-set as whole clauses with correct
+    name bindings, forbids any unrecognized clause, and checks that the revision
+    advance appears in the update expression. Adversarial specs that smuggle an
+    extra/weakened predicate fail here.
+    """
+    names, values = spec.names, spec.values
+    bad = _names_value_consistent(names, values)
+    if bad:
+        return bad
+    typed = _parse_condition(spec.condition_expression)
+    if typed is None:
+        return "UNPARSEABLE_OR_UNSAFE_CONDITION"
+    # Mandatory clause set (whole clauses), independent of optional identity/status.
+    required = [
+        ("exists", "PK"), ("exists", "SK"),
+        ("eq", "company_id", ":tenant"),
+        ("eq", "request_id", ":reqid"),
+        ("eq", "client_id", ":cliid"),
+        ("eq", "#rev", ":rev"),
+        ("eq", "#inc", ":inc"),
+        ("retirement_fence",),
+    ]
+    for clause in required:
+        if clause not in typed:
+            return "MISSING_REQUIRED_CLAUSE:" + _clause_label(clause)
+    # Name bindings for the fence + pins must be exactly correct.
+    if names.get("#rl") != "retired_lifetime":
+        return "BAD_BINDING_#rl"
+    if names.get("#rev") != "legacy_write_revision":
+        return "BAD_BINDING_#rev"
+    if names.get("#inc") != "record_incarnation":
+        return "BAD_BINDING_#inc"
+    if values.get(":false") is not False:
+        return "BAD_BINDING_:false"
+    # Revision advance must be present in the update expression as a SET clause.
+    if "#rev = :next" not in spec.update_expression:
+        return "MISSING_REVISION_ADVANCE"
+    if ":rev" not in values or ":next" not in values:
+        return "MISSING_REVISION_VALUES"
+    # Every remaining clause must be a recognized safe form (guaranteed by parse).
+    # Optional clauses allowed: #sstat=:sstat, #idN=:idN, attribute_not_exists(#naN).
+    for t in typed:
+        if t in required:
+            continue
+        if t[0] == "eq" and t[1].startswith("#") and names.get(t[1]) is not None:
+            continue
+        if t[0] == "not_exists" and t[1].startswith("#") and names.get(t[1]) is not None:
+            continue
+        return "UNEXPECTED_CLAUSE:" + _clause_label(t)
+    return None
+
+
+def _clause_label(t):
+    if t[0] == "retirement_fence":
+        return "retirement_fence"
+    if t[0] == "exists":
+        return "attribute_exists(" + t[1] + ")"
+    if t[0] == "not_exists":
+        return "attribute_not_exists(" + t[1] + ")"
+    return t[1] + " = " + t[2]
+
+
+def _validate_create_put_condition(cond):
+    """S0b create-only Put: EXACTLY attribute_not_exists(PK) AND attribute_not_exists(SK).
+
+    No tenant/identity binding is expected on a create (the item carries identity);
+    the mandatory protection is the two create-only existence guards and NOTHING
+    that would permit an overwrite. Any extra/altered clause fails closed.
+    """
+    typed = _parse_condition(cond)
+    if typed is None:
+        return "UNPARSEABLE_OR_UNSAFE_CONDITION"
+    if sorted(typed) != sorted([("not_exists", "PK"), ("not_exists", "SK")]):
+        return "CREATE_ONLY_CONDITION_ALTERED"
+    return None
+
+
+def _validate_retire_lifetime_condition(upd):
+    """S0c lifetime Update: attribute_exists(PK) AND #ret=:false AND #inc=:inc.
+
+    The retire-in-place guard must assert the record exists, is NOT already
+    retired, and matches the expected incarnation. Never a delete; never without
+    the not-already-retired guard.
+    """
+    cond = upd.get("ConditionExpression")
+    names = upd.get("ExpressionAttributeNames", {})
+    values = upd.get("ExpressionAttributeValues", {})
+    typed = _parse_condition(cond)
+    if typed is None:
+        return "UNPARSEABLE_OR_UNSAFE_CONDITION"
+    required = [("exists", "PK"), ("eq", "#ret", ":false"), ("eq", "#inc", ":inc")]
+    if sorted(typed) != sorted(required):
+        return "LIFETIME_OPERAND_ALTERED"
+    if names.get("#ret") != "retired":
+        return "BAD_BINDING_#ret"
+    if names.get("#inc") != "incarnation":
+        return "BAD_BINDING_#inc"
+    if values.get(":false") is not False:
+        return "BAD_BINDING_:false"
+    # Must set retired=True (not clear it) and advance a revision; never delete.
+    expr = upd.get("UpdateExpression", "")
+    if "#ret = :true" not in expr or values.get(":true") is not True:
+        return "LIFETIME_NOT_RETIRED_SET"
+    return None
+
+
+def _validate_retire_request_condition(upd):
+    """S0c REQUEST Update: same fence set as S0a plus the retirement marker write.
+
+    Reuses the S0a mandatory clause-set validation (tenant/identity/revision/
+    incarnation/retirement-fence) and additionally requires the operand to SET
+    retired_lifetime=True and advance the revision.
+    """
+    cond = upd.get("ConditionExpression")
+    names = upd.get("ExpressionAttributeNames", {})
+    values = upd.get("ExpressionAttributeValues", {})
+    typed = _parse_condition(cond)
+    if typed is None:
+        return "UNPARSEABLE_OR_UNSAFE_CONDITION"
+    required = [
+        ("exists", "PK"), ("exists", "SK"),
+        ("eq", "company_id", ":tenant"),
+        ("eq", "request_id", ":reqid"),
+        ("eq", "client_id", ":cliid"),
+        ("eq", "#rev", ":rev"),
+        ("eq", "#inc", ":inc"),
+        ("retirement_fence",),
+    ]
+    for clause in required:
+        if clause not in typed:
+            return "MISSING_REQUIRED_CLAUSE:" + _clause_label(clause)
+    if names.get("#rl") != "retired_lifetime":
+        return "BAD_BINDING_#rl"
+    if names.get("#rev") != "legacy_write_revision":
+        return "BAD_BINDING_#rev"
+    if names.get("#inc") != "record_incarnation":
+        return "BAD_BINDING_#inc"
+    if values.get(":false") is not False:
+        return "BAD_BINDING_:false"
+    for t in typed:
+        if t in required:
+            continue
+        if t[0] == "eq" and t[1].startswith("#") and names.get(t[1]) is not None:
+            continue
+        if t[0] == "not_exists" and t[1].startswith("#") and names.get(t[1]) is not None:
+            continue
+        return "UNEXPECTED_CLAUSE:" + _clause_label(t)
+    # Must SET retired_lifetime=True and advance the revision; never clear it.
+    expr = upd.get("UpdateExpression", "")
+    if "#rl = :true" not in expr or values.get(":true") is not True:
+        return "REQUEST_NOT_MARKED_RETIRED"
+    if "#rev = :next" not in expr or ":next" not in values:
+        return "MISSING_REVISION_ADVANCE"
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Public translation functions
 # ---------------------------------------------------------------------------
@@ -425,12 +666,13 @@ def translate_update(spec, table_name):
     if type(spec.values) is not dict or not spec.values:
         return TranslationRefusal("MISSING_VALUES")
 
-    # Security-condition presence: the mandatory retirement fence and the
-    # revision machinery must be present verbatim. We never rewrite them; we
-    # refuse if a required clause/placeholder is absent.
-    missing = _missing_update_security(spec)
-    if missing is not None:
-        return TranslationRefusal("MISSING_SECURITY_CONDITION", missing)
+    # Correction A: strict grammar validation of the whole condition - clause
+    # structure and name/value bindings, not substring presence. We never
+    # rewrite; we refuse any expression that does not match the committed S0a
+    # grammar with all mandatory fences intact.
+    bad = _validate_update_condition(spec)
+    if bad is not None:
+        return TranslationRefusal("MISSING_SECURITY_CONDITION", bad)
 
     try:
         serialized_key = _serialize_map(spec.key)
@@ -477,10 +719,12 @@ def translate_create(spec, table_name):
         cond = put.get("ConditionExpression")
         if type(cond) is not str or not cond:
             return TranslationRefusal("MISSING_CONDITION")
-        # Create-only security: both key attributes must be fenced absent. Never
-        # rewrite - refuse if the create-only condition is not present verbatim.
-        if "attribute_not_exists(PK)" not in cond or "attribute_not_exists(SK)" not in cond:
-            return TranslationRefusal("MISSING_SECURITY_CONDITION", "create-only attribute_not_exists")
+        # Correction A: create-only condition must be EXACTLY the two existence
+        # guards (no extra/altered clause that could permit an overwrite). Both
+        # Put operands are validated independently.
+        bad = _validate_create_put_condition(cond)
+        if bad is not None:
+            return TranslationRefusal("MISSING_SECURITY_CONDITION", bad)
         try:
             serialized_item = _serialize_map(put["Item"])
         except _SerializationError as exc:
@@ -515,9 +759,13 @@ def translate_retire(spec, table_name):
     if type(spec.transact_items) not in (tuple, list) or len(spec.transact_items) != 2:
         return TranslationRefusal("BAD_OPERAND_COUNT", "retire requires exactly 2 operands")
 
+    # Correction A: the two retire operands have FIXED roles by position -
+    # operand 0 is the lifetime retire-in-place Update (key LIFETIME#.../PERMANENT)
+    # and operand 1 is the REQUEST Update (key REQ#.../CLIENT#...). We validate each
+    # by its role, reject a swapped/role-confused operand, and require each
+    # operand's protections independently.
     operands = []
-    saw_request_retirement_fence = False
-    for operand in spec.transact_items:
+    for index, operand in enumerate(spec.transact_items):
         if type(operand) is not dict or set(operand) != {"Update"}:
             return TranslationRefusal("BAD_OPERAND_SHAPE", "retire operands must be a single Update")
         upd = operand["Update"]
@@ -538,10 +786,25 @@ def translate_retire(spec, table_name):
             return TranslationRefusal("MISSING_NAMES")
         if type(values) is not dict or not values:
             return TranslationRefusal("MISSING_VALUES")
-        # No delete may ever appear; the retire shape is Update-only by contract.
-        # (The operand-key check above already guarantees this.)
-        if "retired_lifetime" in names.values() and "(attribute_not_exists(#rl) OR #rl = :false)" in cond:
-            saw_request_retirement_fence = True
+
+        # Role validation by position + key shape, then role-specific grammar.
+        pk = key.get("PK", "")
+        if index == 0:
+            # Lifetime operand: key must be LIFETIME#.../PERMANENT.
+            if not (isinstance(pk, str) and pk.startswith("LIFETIME#") and key.get("SK") == "PERMANENT"):
+                return TranslationRefusal("RETIRE_OPERAND_ROLE", "operand 0 must be the lifetime record")
+            role_bad = _validate_retire_lifetime_condition(upd)
+            if role_bad is not None:
+                return TranslationRefusal("MISSING_SECURITY_CONDITION", role_bad)
+        else:
+            # REQUEST operand: key must be REQ#.../CLIENT#...; full fence set.
+            if not (isinstance(pk, str) and pk.startswith("REQ#")
+                    and isinstance(key.get("SK"), str) and key["SK"].startswith("CLIENT#")):
+                return TranslationRefusal("RETIRE_OPERAND_ROLE", "operand 1 must be the REQUEST record")
+            role_bad = _validate_retire_request_condition(upd)
+            if role_bad is not None:
+                return TranslationRefusal("MISSING_SECURITY_CONDITION", role_bad)
+
         try:
             serialized_key = _serialize_map(key)
             serialized_values = _serialize_map(values)
@@ -559,10 +822,6 @@ def translate_retire(spec, table_name):
         }
         operands.append(prepared_update)
 
-    # The REQUEST operand must carry the mandatory not-already-retired fence.
-    if not saw_request_retirement_fence:
-        return TranslationRefusal("MISSING_SECURITY_CONDITION", "retire request retirement fence")
-
     token = _idempotency_token(table_name, "retire", operands)
     request = {"TransactItems": operands, "ClientRequestToken": token}
 
@@ -576,44 +835,6 @@ def translate_retire(spec, table_name):
 # ---------------------------------------------------------------------------
 # Internal security / size helpers
 # ---------------------------------------------------------------------------
-
-def _missing_update_security(spec):
-    """Return a reason if a required UpdateSpec security clause is missing, else None.
-
-    We NEVER rewrite a condition. We only refuse to translate a spec that lacks a
-    mandatory fence, so a weakened/omitted condition can never be serialized into
-    a live request through this adapter.
-    """
-    cond = spec.condition_expression
-    names = spec.names
-    values = spec.values
-    # Mandatory retirement write-fence (PR58): names #rl -> retired_lifetime,
-    # values :false == exact bool False, and the OR-group present verbatim.
-    if "(attribute_not_exists(#rl) OR #rl = :false)" not in cond:
-        return "retirement fence clause"
-    if names.get("#rl") != "retired_lifetime":
-        return "retired_lifetime name binding"
-    if ":false" not in values or values[":false"] is not False:
-        return "exact :false boolean"
-    # Tenant + REQUEST identity fences.
-    if "company_id = :tenant" not in cond:
-        return "tenant fence"
-    if "request_id = :reqid" not in cond or "client_id = :cliid" not in cond:
-        return "request identity fence"
-    # Revision pin + advance.
-    if "#rev = :rev" not in cond:
-        return "revision pin"
-    if names.get("#rev") != "legacy_write_revision":
-        return "revision name binding"
-    if "#rev = :next" not in spec.update_expression:
-        return "revision advance"
-    if ":rev" not in values or ":next" not in values:
-        return "revision values"
-    # Incarnation pin (always emitted for an eligible write).
-    if "#inc = :inc" not in cond or names.get("#inc") != "record_incarnation":
-        return "incarnation fence"
-    return None
-
 
 def _txn_size_preflight(operands, request):
     """Conservative preflight for transaction operand count and byte size."""
