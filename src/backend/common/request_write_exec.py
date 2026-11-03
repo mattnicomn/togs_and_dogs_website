@@ -61,6 +61,9 @@ from common.request_write import (
     CreateSpec,
     RetireSpec,
     Refusal,
+    RESERVED_FIELDS,
+    IDENTITY_UNIVERSE,
+    _request_lifetime_token,
 )
 
 
@@ -467,6 +470,197 @@ def _names_value_consistent(names, values):
     return None
 
 
+# ---------------------------------------------------------------------------
+# UpdateExpression grammar (Correction A) + placeholder validation (Correction C)
+# ---------------------------------------------------------------------------
+#
+# The committed builders emit UpdateExpressions of the exact closed form:
+#   SET <assign>[, <assign>...] [REMOVE <nref>[, <nref>...]]
+# where each <assign> is one of:
+#   "#x = :y"                                            (named field or pin)
+#   "#audit = list_append(if_not_exists(#audit, :emptylist), :auditentry)"  (S0a audit)
+# and each <nref> is a "#x" name reference. No other action word, function, or
+# path form is part of the grammar. We parse into typed assign/remove tuples and
+# validate STRUCTURE + bindings; anything else fails closed. Expressions still
+# pass through VERBATIM - we accept or refuse, never rewrite.
+
+_ASSIGN_EQ_RE = re.compile(r"^(#[A-Za-z0-9_]+)\s=\s(:[A-Za-z0-9_]+)$")
+_AUDIT_ASSIGN = "#audit = list_append(if_not_exists(#audit, :emptylist), :auditentry)"
+_REMOVE_REF_RE = re.compile(r"^#[A-Za-z0-9_]+$")
+
+# Helper-owned / version fields a plan must NEVER plainly SET/REMOVE through an
+# S0a update (the helper owns their write-time semantics). These are the exact
+# attribute NAMES (resolved via ExpressionAttributeNames), not placeholders.
+# Mirrors the contract's RESERVED_FIELDS and identity universe (imported, so this
+# stays authoritative rather than a drifting copy).
+_HELPER_OWNED_NAMES = frozenset(RESERVED_FIELDS) | frozenset(IDENTITY_UNIVERSE) | frozenset({"audit_log"})
+
+
+def _parse_update_expression(expr):
+    """Parse an UpdateExpression into (set_assigns, remove_refs) or None.
+
+    set_assigns: list of ("eq", "#x", ":y") or ("audit",) tuples in order.
+    remove_refs: list of "#x" name refs.
+    Returns None if the expression is not EXACTLY the closed SET[...][ REMOVE ...]
+    grammar (unknown action word, function, path form, or empty section).
+    """
+    if type(expr) is not str or not expr.startswith("SET "):
+        return None
+    remove_part = None
+    set_part = expr[len("SET "):]
+    if " REMOVE " in set_part:
+        set_part, remove_part = set_part.split(" REMOVE ", 1)
+    # No other action keyword may appear (ADD/DELETE or a second SET/REMOVE).
+    for banned in (" ADD ", " DELETE ", " SET ", " REMOVE "):
+        if banned in (" " + set_part + " ") or (remove_part is not None and banned in (" " + remove_part + " ")):
+            return None
+    set_assigns = []
+    for clause in _split_top_level_commas(set_part):
+        clause = clause.strip()
+        if not clause:
+            return None
+        if clause == _AUDIT_ASSIGN:
+            set_assigns.append(("audit",))
+            continue
+        m = _ASSIGN_EQ_RE.match(clause)
+        if not m:
+            return None  # any function / path / non-#name assign is rejected
+        set_assigns.append(("eq", m.group(1), m.group(2)))
+    if not set_assigns:
+        return None
+    remove_refs = []
+    if remove_part is not None:
+        for raw in _split_top_level_commas(remove_part):
+            ref = raw.strip()
+            if not _REMOVE_REF_RE.match(ref):
+                return None
+            remove_refs.append(ref)
+        if not remove_refs:
+            return None
+    return set_assigns, remove_refs
+
+
+def _split_top_level_commas(segment):
+    """Split on top-level ', ' only, respecting parentheses depth.
+
+    The audit append clause contains a parenthesized ', ' that must NOT split,
+    e.g. 'list_append(if_not_exists(#audit, :emptylist), :auditentry)'.
+    """
+    parts, depth, buf = [], 0, ""
+    i = 0
+    while i < len(segment):
+        ch = segment[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        if depth == 0 and segment[i:i + 2] == ", ":
+            parts.append(buf)
+            buf = ""
+            i += 2
+            continue
+        buf += ch
+        i += 1
+    if buf:
+        parts.append(buf)
+    return parts
+
+
+def _collect_placeholders(*expressions):
+    """Return (names_used, values_used) sets of #refs and :vals across expressions."""
+    names_used, values_used = set(), set()
+    for expr in expressions:
+        if type(expr) is not str:
+            continue
+        names_used.update(re.findall(r"#[A-Za-z0-9_]+", expr))
+        values_used.update(re.findall(r":[A-Za-z0-9_]+", expr))
+    return names_used, values_used
+
+
+def _validate_placeholders(cond, upd, names, values):
+    """Correction C: every #ref/:val used is defined; no undefined/extra bindings.
+
+    Fails closed on a missing binding or an inconsistent helper-owned alias. Does
+    NOT reject unused definitions blindly (the builder may define a value used
+    only in one expression), but every USED placeholder must resolve.
+    """
+    if type(names) is not dict or type(values) is not dict:
+        return "BINDINGS_NOT_MAP"
+    names_used, values_used = _collect_placeholders(cond, upd)
+    for n in names_used:
+        if n not in names:
+            return "UNDEFINED_NAME:" + n
+    for v in values_used:
+        if v not in values:
+            return "UNDEFINED_VALUE:" + v
+    # Every defined name must be a non-empty string attribute name; every value
+    # key well-formed. (Serialization validates value payloads separately.)
+    for n, attr in names.items():
+        if type(n) is not str or not n.startswith("#") or type(attr) is not str or not attr:
+            return "MALFORMED_NAME_BINDING:" + str(n)
+    for v in values:
+        if type(v) is not str or not v.startswith(":"):
+            return "MALFORMED_VALUE_BINDING:" + str(v)
+    return None
+
+
+def _validate_update_set_remove(spec):
+    """Correction A: structural validation of the S0a UpdateExpression.
+
+    Requires the mandatory revision advance, forbids ordinary SET/REMOVE of
+    helper-owned/identity fields (resolved via names), forbids duplicate/
+    overlapping document paths, and preserves the approved audit append and
+    legitimate named field updates. Returns None or a reason.
+    """
+    names = spec.names
+    parsed = _parse_update_expression(spec.update_expression)
+    if parsed is None:
+        return "UNPARSEABLE_OR_UNSAFE_UPDATE"
+    set_assigns, remove_refs = parsed
+
+    # Mandatory revision advance: exactly one "#rev = :next" with #rev bound to
+    # legacy_write_revision.
+    rev_advances = [a for a in set_assigns if a == ("eq", "#rev", ":next")]
+    if len(rev_advances) != 1:
+        return "MISSING_OR_DUP_REVISION_ADVANCE"
+    if names.get("#rev") != "legacy_write_revision":
+        return "BAD_BINDING_#rev"
+
+    touched_names = []   # resolved attribute names SET/REMOVEd by the plan
+    audit_seen = 0
+    for a in set_assigns:
+        if a[0] == "audit":
+            audit_seen += 1
+            continue
+        ref, valref = a[1], a[2]
+        attr = names.get(ref)
+        if attr is None:
+            return "UNDEFINED_NAME:" + ref
+        if ref == "#rev":
+            continue  # the mandatory advance, already validated
+        # The incarnation pin is never SET by an S0a update; only #rev is.
+        # Any assign to a helper-owned/identity attribute is forbidden.
+        if attr in _HELPER_OWNED_NAMES:
+            return "HELPER_OWNED_FIELD_SET:" + attr
+        touched_names.append(attr)
+    if audit_seen > 1:
+        return "DUPLICATE_AUDIT_APPEND"
+
+    for ref in remove_refs:
+        attr = names.get(ref)
+        if attr is None:
+            return "UNDEFINED_NAME:" + ref
+        if attr in _HELPER_OWNED_NAMES:
+            return "HELPER_OWNED_FIELD_REMOVE:" + attr
+        touched_names.append(attr)
+
+    # No duplicate / overlapping document path (same attribute SET and/or REMOVEd
+    # more than once) - DynamoDB rejects overlapping paths; we fail closed first.
+    if len(touched_names) != len(set(touched_names)):
+        return "OVERLAPPING_UPDATE_PATHS"
+    return None
+
+
 def _require_clause(typed, clause, reason):
     return None if clause in typed else reason
 
@@ -508,12 +702,9 @@ def _validate_update_condition(spec):
         return "BAD_BINDING_#inc"
     if values.get(":false") is not False:
         return "BAD_BINDING_:false"
-    # Revision advance must be present in the update expression as a SET clause.
-    if "#rev = :next" not in spec.update_expression:
-        return "MISSING_REVISION_ADVANCE"
     if ":rev" not in values or ":next" not in values:
         return "MISSING_REVISION_VALUES"
-    # Every remaining clause must be a recognized safe form (guaranteed by parse).
+    # Every remaining condition clause must be a recognized safe form.
     # Optional clauses allowed: #sstat=:sstat, #idN=:idN, attribute_not_exists(#naN).
     for t in typed:
         if t in required:
@@ -523,6 +714,14 @@ def _validate_update_condition(spec):
         if t[0] == "not_exists" and t[1].startswith("#") and names.get(t[1]) is not None:
             continue
         return "UNEXPECTED_CLAUSE:" + _clause_label(t)
+    # Correction A: structural UpdateExpression validation (not substring).
+    bad = _validate_update_set_remove(spec)
+    if bad is not None:
+        return bad
+    # Correction C: complete placeholder validation across both expressions.
+    bad = _validate_placeholders(spec.condition_expression, spec.update_expression, names, values)
+    if bad is not None:
+        return bad
     return None
 
 
@@ -551,6 +750,68 @@ def _validate_create_put_condition(cond):
     return None
 
 
+def _validate_create_operands(spec):
+    """Correction B: validate the two S0b Put operands' identity and roles.
+
+    Operand 0 must be the REQUEST Put (canonical REQ#/CLIENT# key, item
+    identifiers consistent, initial revision 1, a record_incarnation). Operand 1
+    must be the permanent lifetime Put whose key is LIFETIME#<token>/PERMANENT
+    with <token> derived from the authoritative tenant + REQUEST identity, whose
+    incarnation MATCHES operand 0, and which is initialized retired=False. Returns
+    None or a reason. Rejects swapped/unrelated/incomplete/malformed operands and
+    contradictory tenant/key/lifetime information.
+    """
+    req_item = spec.transact_items[0]["Put"]["Item"]
+    life_item = spec.transact_items[1]["Put"]["Item"]
+    if type(req_item) is not dict or type(life_item) is not dict:
+        return "CREATE_ITEM_SHAPE"
+
+    # --- operand 0: REQUEST identity ---
+    pk = req_item.get("PK")
+    sk = req_item.get("SK")
+    if type(pk) is not str or not pk.startswith("REQ#"):
+        return "REQUEST_OPERAND_ROLE"
+    if type(sk) is not str or not sk.startswith("CLIENT#"):
+        return "REQUEST_OPERAND_ROLE"
+    key_request_id = pk[len("REQ#"):]
+    key_client_id = sk[len("CLIENT#"):]
+    if not key_request_id or not key_client_id:
+        return "REQUEST_KEY_IDENTIFIER"
+    tenant = req_item.get("company_id")
+    if type(tenant) is not str or not tenant:
+        return "REQUEST_MISSING_TENANT"
+    if req_item.get("request_id") != key_request_id:
+        return "REQUEST_ID_KEY_MISMATCH"
+    if req_item.get("client_id") != key_client_id:
+        return "CLIENT_ID_KEY_MISMATCH"
+    # Correct initial revision.
+    if req_item.get("legacy_write_revision") != 1:
+        return "BAD_INITIAL_REVISION"
+    incarnation = req_item.get("record_incarnation")
+    if type(incarnation) is not str or not incarnation:
+        return "REQUEST_MISSING_INCARNATION"
+    if type(req_item.get("created_at")) is not str or not req_item.get("created_at"):
+        return "REQUEST_MISSING_CREATED_AT"
+
+    # --- operand 1: canonical lifetime key from AUTHORITATIVE tenant + identity ---
+    expected_token = _request_lifetime_token(tenant, (pk, sk))
+    if life_item.get("PK") != "LIFETIME#" + expected_token:
+        return "LIFETIME_KEY_MISMATCH"
+    if life_item.get("SK") != "PERMANENT":
+        return "LIFETIME_KEY_MISMATCH"
+    # Matching incarnation across both operands.
+    if life_item.get("incarnation") != incarnation:
+        return "LIFETIME_INCARNATION_MISMATCH"
+    # Lifetime initialized active (retired exactly False).
+    if life_item.get("retired") is not False:
+        return "LIFETIME_NOT_INITIALIZED_ACTIVE"
+    # No contradictory lifetime fields: it must not carry a REQUEST identity.
+    for forbidden in ("company_id", "request_id", "client_id"):
+        if forbidden in life_item:
+            return "LIFETIME_CONTRADICTORY_FIELD:" + forbidden
+    return None
+
+
 def _validate_retire_lifetime_condition(upd):
     """S0c lifetime Update: attribute_exists(PK) AND #ret=:false AND #inc=:inc.
 
@@ -573,10 +834,35 @@ def _validate_retire_lifetime_condition(upd):
         return "BAD_BINDING_#inc"
     if values.get(":false") is not False:
         return "BAD_BINDING_:false"
-    # Must set retired=True (not clear it) and advance a revision; never delete.
-    expr = upd.get("UpdateExpression", "")
-    if "#ret = :true" not in expr or values.get(":true") is not True:
+    # Correction A: structural UpdateExpression validation. The lifetime operand
+    # must be EXACTLY: SET retired=True, retired_at=:ts, retired_revision=:next.
+    # It must retire (set True), preserve the required retirement metadata, and
+    # never clear a retirement marker.
+    expr = upd.get("UpdateExpression")
+    parsed = _parse_update_expression(expr)
+    if parsed is None:
+        return "UNPARSEABLE_OR_UNSAFE_UPDATE"
+    set_assigns, remove_refs = parsed
+    if remove_refs:
+        return "LIFETIME_UNEXPECTED_REMOVE"
+    assign_map = {}
+    for a in set_assigns:
+        if a[0] != "eq":
+            return "LIFETIME_UNEXPECTED_ASSIGN"
+        assign_map[a[1]] = a[2]
+    expected_assigns = {"#ret": ":true", "#rat": ":ts", "#rrev": ":next"}
+    if assign_map != expected_assigns:
+        return "LIFETIME_UPDATE_SHAPE_ALTERED"
+    if names.get("#rat") != "retired_at":
+        return "BAD_BINDING_#rat"
+    if names.get("#rrev") != "retired_revision":
+        return "BAD_BINDING_#rrev"
+    if values.get(":true") is not True:
         return "LIFETIME_NOT_RETIRED_SET"
+    # Correction C: placeholder completeness across both expressions.
+    bad = _validate_placeholders(cond, expr, names, values)
+    if bad is not None:
+        return bad
     return None
 
 
@@ -621,12 +907,35 @@ def _validate_retire_request_condition(upd):
         if t[0] == "not_exists" and t[1].startswith("#") and names.get(t[1]) is not None:
             continue
         return "UNEXPECTED_CLAUSE:" + _clause_label(t)
-    # Must SET retired_lifetime=True and advance the revision; never clear it.
-    expr = upd.get("UpdateExpression", "")
-    if "#rl = :true" not in expr or values.get(":true") is not True:
+    # Correction A: structural UpdateExpression validation. The REQUEST retire
+    # operand must be EXACTLY: SET legacy_write_revision=:next, retired_lifetime
+    # =True, retired_at=:ts - advance the revision, mark retired, preserve the
+    # retirement timestamp, and nothing else.
+    expr = upd.get("UpdateExpression")
+    parsed = _parse_update_expression(expr)
+    if parsed is None:
+        return "UNPARSEABLE_OR_UNSAFE_UPDATE"
+    set_assigns, remove_refs = parsed
+    if remove_refs:
+        return "REQUEST_UNEXPECTED_REMOVE"
+    assign_map = {}
+    for a in set_assigns:
+        if a[0] != "eq":
+            return "REQUEST_UNEXPECTED_ASSIGN"
+        assign_map[a[1]] = a[2]
+    expected_assigns = {"#rev": ":next", "#rl": ":true", "#rat": ":ts"}
+    if assign_map != expected_assigns:
+        return "REQUEST_UPDATE_SHAPE_ALTERED"
+    if names.get("#rat") != "retired_at":
+        return "BAD_BINDING_#rat"
+    if values.get(":true") is not True:
         return "REQUEST_NOT_MARKED_RETIRED"
-    if "#rev = :next" not in expr or ":next" not in values:
+    if ":next" not in values:
         return "MISSING_REVISION_ADVANCE"
+    # Correction C: placeholder completeness across both expressions.
+    bad = _validate_placeholders(cond, expr, names, values)
+    if bad is not None:
+        return bad
     return None
 
 
@@ -737,6 +1046,13 @@ def translate_create(spec, table_name):
             }
         }
         operands.append(prepared_put)
+
+    # Correction B: validate operand identity and roles (REQUEST then lifetime)
+    # against the RAW spec items, binding the lifetime key to the authoritative
+    # tenant + REQUEST identity. Rejects swapped/unrelated/incomplete operands.
+    bad = _validate_create_operands(spec)
+    if bad is not None:
+        return TranslationRefusal("CREATE_OPERAND_IDENTITY", bad)
 
     token = _idempotency_token(table_name, "create", operands)
     request = {"TransactItems": operands, "ClientRequestToken": token}

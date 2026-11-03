@@ -763,6 +763,248 @@ class AdversarialRetireExpressionTests(unittest.TestCase):
 
 
 # ===========================================================================
+# A/C - adversarial UpdateExpression + placeholder validation
+# ===========================================================================
+
+class AdversarialUpdateWriteExpressionTests(unittest.TestCase):
+    def test_s0a_builder_update_expression_passes(self):
+        # A full builder update (SET named + audit append + REMOVE + rev advance).
+        spec = rw.build_update(
+            KEY,
+            rw.ExpectedState(tenant="tenant_a", revision=1, incarnation="life-a",
+                             source_status="ASSIGNED",
+                             present_identity=(("cognito_sub", "subject-a"),),
+                             absent_identity=("client_email", "linked_client_profile_id"),
+                             protected_client=True, retirement_marker=rw.RETIREMENT_FALSE),
+            rw.WritePlan(set_fields=(("cancellation_reason", "r"), ("note", "n")),
+                         remove_fields=("stale_field",), append_audit={"status": "X"}),
+            ELIGIBLE)
+        self.assertIsInstance(rx.translate_update(spec, TABLE), rx.PreparedUpdate)
+
+    def test_s0a_set_rev_next_rl_true_rejected(self):
+        # SET #rev=:next, #rl=:true - an ordinary update must NOT mark retirement.
+        spec = real_update_spec()
+        names = dict(spec.names); names["#rlp"] = "retired_lifetime"
+        values = dict(spec.values); values[":tru"] = True
+        poisoned_upd = spec.update_expression.replace(
+            ", #rev = :next", ", #rlp = :tru, #rev = :next")
+        bad = _update_with(upd=poisoned_upd, names=names, values=values)
+        r = rx.translate_update(bad, TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+        self.assertEqual(r.detail, "HELPER_OWNED_FIELD_SET:retired_lifetime")
+
+    def test_s0a_update_clearing_retirement_metadata_rejected(self):
+        # REMOVE retired_at (helper-owned) via an ordinary update.
+        spec = real_update_spec()
+        names = dict(spec.names); names["#rat"] = "retired_at"
+        poisoned_upd = spec.update_expression + " REMOVE #rat"
+        bad = _update_with(upd=poisoned_upd, names=names)
+        r = rx.translate_update(bad, TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+        self.assertEqual(r.detail, "HELPER_OWNED_FIELD_REMOVE:retired_at")
+
+    def test_s0a_missing_revision_advance_rejected(self):
+        spec = real_update_spec()
+        poisoned_upd = spec.update_expression.replace(", #rev = :next", "")
+        r = rx.translate_update(_update_with(upd=poisoned_upd), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_s0a_remove_revision_rejected(self):
+        # Attempt to REMOVE legacy_write_revision instead of advancing it.
+        spec = real_update_spec()
+        names = dict(spec.names)  # #rev already -> legacy_write_revision
+        poisoned_upd = spec.update_expression + " REMOVE #rev"
+        r = rx.translate_update(_update_with(upd=poisoned_upd, names=names), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_s0a_identity_mutation_rejected(self):
+        # SET an identity field (client_email) via the plan.
+        spec = real_update_spec()
+        names = dict(spec.names); names["#em"] = "client_email"
+        values = dict(spec.values); values[":em"] = "x@example.invalid"
+        poisoned_upd = spec.update_expression.replace(
+            ", #rev = :next", ", #em = :em, #rev = :next")
+        r = rx.translate_update(_update_with(upd=poisoned_upd, names=names, values=values), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+        self.assertEqual(r.detail, "HELPER_OWNED_FIELD_SET:client_email")
+
+    def test_s0a_overlapping_update_paths_rejected(self):
+        # Same attribute SET twice (duplicate document path).
+        spec = real_update_spec()
+        names = dict(spec.names); names["#dup"] = "note"
+        values = dict(spec.values); values[":dup"] = "n2"
+        # spec already SETs #s0 = cancellation_reason; add a duplicate of "note".
+        names["#s1"] = "note"; values[":s1"] = "n1"
+        poisoned_upd = spec.update_expression.replace(
+            ", #rev = :next", ", #s1 = :s1, #dup = :dup, #rev = :next")
+        r = rx.translate_update(_update_with(upd=poisoned_upd, names=names, values=values), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+        self.assertEqual(r.detail, "OVERLAPPING_UPDATE_PATHS")
+
+    def test_s0a_unknown_action_word_rejected(self):
+        spec = real_update_spec()
+        names = dict(spec.names); names["#cnt"] = "counter"
+        values = dict(spec.values); values[":one"] = 1
+        poisoned_upd = spec.update_expression + " ADD #cnt :one"
+        r = rx.translate_update(_update_with(upd=poisoned_upd, names=names, values=values), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_s0a_undefined_placeholder_rejected(self):
+        # Use a #ref in the update expression that is not defined in names.
+        spec = real_update_spec()
+        poisoned_upd = spec.update_expression.replace(
+            ", #rev = :next", ", #ghost = :ghost, #rev = :next")
+        r = rx.translate_update(_update_with(upd=poisoned_upd), TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+        self.assertIn(r.detail, ("UNDEFINED_NAME:#ghost", "HELPER_OWNED_FIELD_SET:#ghost"))
+
+    def test_s0a_audit_append_preserved(self):
+        # The approved audit append must remain valid.
+        spec = rw.build_update(
+            KEY,
+            rw.ExpectedState(tenant="tenant_a", revision=1, incarnation="life-a",
+                             retirement_marker=rw.RETIREMENT_ABSENT),
+            rw.WritePlan(set_fields=(("note", "n"),), append_audit={"status": "X"}),
+            ELIGIBLE)
+        p = rx.translate_update(spec, TABLE)
+        self.assertIsInstance(p, rx.PreparedUpdate)
+        self.assertIn("list_append(if_not_exists(#audit, :emptylist), :auditentry)",
+                      p.request["UpdateExpression"])
+
+
+class AdversarialS0cUpdateExpressionTests(unittest.TestCase):
+    def test_lifetime_altered_action_rejected(self):
+        # Lifetime operand that does NOT set retired=True (clears it instead).
+        spec = real_retire_spec()
+        life = spec.transact_items[0]["Update"]
+        values = dict(life["ExpressionAttributeValues"]); values[":true"] = False
+        poisoned = {"Update": dict(life, ExpressionAttributeValues=values)}
+        bad = rw.RetireSpec(transact_items=(poisoned, spec.transact_items[1]),
+                            lifetime_token=spec.lifetime_token,
+                            retires_revision=True, retired_at=spec.retired_at)
+        r = rx.translate_retire(bad, TABLE)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+
+    def test_lifetime_missing_retired_at_rejected(self):
+        spec = real_retire_spec()
+        life = spec.transact_items[0]["Update"]
+        poisoned_expr = life["UpdateExpression"].replace(", #rat = :ts", "")
+        poisoned = {"Update": dict(life, UpdateExpression=poisoned_expr)}
+        bad = rw.RetireSpec(transact_items=(poisoned, spec.transact_items[1]),
+                            lifetime_token=spec.lifetime_token,
+                            retires_revision=True, retired_at=spec.retired_at)
+        self.assertEqual(rx.translate_retire(bad, TABLE).reason, "MISSING_SECURITY_CONDITION")
+
+    def test_request_missing_retired_at_rejected(self):
+        spec = real_retire_spec()
+        req = spec.transact_items[1]["Update"]
+        poisoned_expr = req["UpdateExpression"].replace(", #rat = :ts", "")
+        poisoned = {"Update": dict(req, UpdateExpression=poisoned_expr)}
+        bad = rw.RetireSpec(transact_items=(spec.transact_items[0], poisoned),
+                            lifetime_token=spec.lifetime_token,
+                            retires_revision=True, retired_at=spec.retired_at)
+        self.assertEqual(rx.translate_retire(bad, TABLE).reason, "MISSING_SECURITY_CONDITION")
+
+    def test_request_extra_mutation_rejected(self):
+        spec = real_retire_spec()
+        req = spec.transact_items[1]["Update"]
+        names = dict(req["ExpressionAttributeNames"]); names["#x"] = "sneaky"
+        values = dict(req["ExpressionAttributeValues"]); values[":x"] = "v"
+        poisoned_expr = req["UpdateExpression"] + ", #x = :x"
+        poisoned = {"Update": dict(req, UpdateExpression=poisoned_expr,
+                                   ExpressionAttributeNames=names, ExpressionAttributeValues=values)}
+        bad = rw.RetireSpec(transact_items=(spec.transact_items[0], poisoned),
+                            lifetime_token=spec.lifetime_token,
+                            retires_revision=True, retired_at=spec.retired_at)
+        self.assertEqual(rx.translate_retire(bad, TABLE).reason, "MISSING_SECURITY_CONDITION")
+
+
+class AdversarialCreateIdentityTests(unittest.TestCase):
+    def test_builder_create_passes(self):
+        self.assertIsInstance(rx.translate_create(real_create_spec(), TABLE), rx.PreparedTxn)
+
+    def test_swapped_create_operands_rejected(self):
+        spec = real_create_spec()
+        swapped = rw.CreateSpec(transact_items=(spec.transact_items[1], spec.transact_items[0]),
+                                lifetime_token=spec.lifetime_token,
+                                minted_incarnation=spec.minted_incarnation,
+                                advances_revision=False)
+        r = rx.translate_create(swapped, TABLE)
+        self.assertEqual(r.reason, "CREATE_OPERAND_IDENTITY")
+
+    def test_unrelated_lifetime_record_rejected(self):
+        # Lifetime key for a DIFFERENT request/token than operand 0.
+        spec = real_create_spec()
+        other_token = rw._request_lifetime_token("tenant_a", ("REQ#other", "CLIENT#client-a"))
+        life = dict(spec.transact_items[1]["Put"]["Item"])
+        life["PK"] = "LIFETIME#" + other_token
+        bad_put = {"Put": {"Item": life,
+                           "ConditionExpression": "attribute_not_exists(PK) AND attribute_not_exists(SK)"}}
+        bad = rw.CreateSpec(transact_items=(spec.transact_items[0], bad_put),
+                            lifetime_token=spec.lifetime_token,
+                            minted_incarnation=spec.minted_incarnation,
+                            advances_revision=False)
+        r = rx.translate_create(bad, TABLE)
+        self.assertEqual(r.reason, "CREATE_OPERAND_IDENTITY")
+        self.assertEqual(r.detail, "LIFETIME_KEY_MISMATCH")
+
+    def test_incorrect_lifetime_incarnation_rejected(self):
+        spec = real_create_spec()
+        life = dict(spec.transact_items[1]["Put"]["Item"]); life["incarnation"] = "different"
+        bad_put = {"Put": {"Item": life,
+                           "ConditionExpression": "attribute_not_exists(PK) AND attribute_not_exists(SK)"}}
+        bad = rw.CreateSpec(transact_items=(spec.transact_items[0], bad_put),
+                            lifetime_token=spec.lifetime_token,
+                            minted_incarnation=spec.minted_incarnation,
+                            advances_revision=False)
+        self.assertEqual(rx.translate_create(bad, TABLE).detail, "LIFETIME_INCARNATION_MISMATCH")
+
+    def test_missing_initial_revision_rejected(self):
+        spec = real_create_spec()
+        item = dict(spec.transact_items[0]["Put"]["Item"]); item["legacy_write_revision"] = 2
+        bad_put = {"Put": {"Item": item,
+                           "ConditionExpression": "attribute_not_exists(PK) AND attribute_not_exists(SK)"}}
+        bad = rw.CreateSpec(transact_items=(bad_put, spec.transact_items[1]),
+                            lifetime_token=spec.lifetime_token,
+                            minted_incarnation=spec.minted_incarnation,
+                            advances_revision=False)
+        self.assertEqual(rx.translate_create(bad, TABLE).detail, "BAD_INITIAL_REVISION")
+
+    def test_lifetime_not_initialized_active_rejected(self):
+        spec = real_create_spec()
+        life = dict(spec.transact_items[1]["Put"]["Item"]); life["retired"] = True
+        bad_put = {"Put": {"Item": life,
+                           "ConditionExpression": "attribute_not_exists(PK) AND attribute_not_exists(SK)"}}
+        bad = rw.CreateSpec(transact_items=(spec.transact_items[0], bad_put),
+                            lifetime_token=spec.lifetime_token,
+                            minted_incarnation=spec.minted_incarnation,
+                            advances_revision=False)
+        self.assertEqual(rx.translate_create(bad, TABLE).detail, "LIFETIME_NOT_INITIALIZED_ACTIVE")
+
+    def test_contradictory_tenant_in_request_item_rejected(self):
+        spec = real_create_spec()
+        item = dict(spec.transact_items[0]["Put"]["Item"]); item["request_id"] = "mismatch"
+        bad_put = {"Put": {"Item": item,
+                           "ConditionExpression": "attribute_not_exists(PK) AND attribute_not_exists(SK)"}}
+        bad = rw.CreateSpec(transact_items=(bad_put, spec.transact_items[1]),
+                            lifetime_token=spec.lifetime_token,
+                            minted_incarnation=spec.minted_incarnation,
+                            advances_revision=False)
+        self.assertEqual(rx.translate_create(bad, TABLE).detail, "REQUEST_ID_KEY_MISMATCH")
+
+    def test_lifetime_carrying_request_identity_rejected(self):
+        spec = real_create_spec()
+        life = dict(spec.transact_items[1]["Put"]["Item"]); life["company_id"] = "tenant_a"
+        bad_put = {"Put": {"Item": life,
+                           "ConditionExpression": "attribute_not_exists(PK) AND attribute_not_exists(SK)"}}
+        bad = rw.CreateSpec(transact_items=(spec.transact_items[0], bad_put),
+                            lifetime_token=spec.lifetime_token,
+                            minted_incarnation=spec.minted_incarnation,
+                            advances_revision=False)
+        self.assertEqual(rx.translate_create(bad, TABLE).detail, "LIFETIME_CONTRADICTORY_FIELD:company_id")
+
+
+# ===========================================================================
 # G - zero delete/unconditional, zero SDK/env, zero handler imports
 # ===========================================================================
 
