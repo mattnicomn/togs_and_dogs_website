@@ -983,6 +983,12 @@ class RecordObservation:
 @dataclass(frozen=True)
 class RetireFailureEvidence:
     kind: str                              # "transaction_cancellation" | "reread"
+    # Correction A: the AUTHORITATIVE target REQUEST key of the failed operation.
+    # Classification binds to THIS key (and the lifetime token derived from the
+    # expected tenant + this key), never to observation-supplied keys or to
+    # optional RetireExpected.request_id/client_id. Required for any specific
+    # (non-INDETERMINATE) classification.
+    target_request_key: object = None      # {"PK":"REQ#..","SK":"CLIENT#.."}
     cancellation_reasons: tuple = ()       # per-operand codes, order (lifetime, request)
     request_obs: object = None             # RecordObservation for the REQUEST key
     lifetime_obs: object = None            # RecordObservation for the LIFETIME key
@@ -1169,100 +1175,121 @@ def build_retire(key, expected, lifetime_evidence):
 # S0c failure classification
 # ---------------------------------------------------------------------------
 
-def _valid_request_observation(obs):
-    """Validate a REQUEST RecordObservation by its OWN internal key consistency.
+def _observation_binds(obs, target_key, *, require_snapshot_fields=()):
+    """Return a disposition tuple for a RecordObservation against an EXACT target key.
 
-    Returns the obs if well-formed (state in the set; for OBSERVED_PRESENT the key
-    is a well-formed REQUEST key and snapshot PK/SK match it; for OBSERVED_ABSENT
-    the key is a well-formed REQUEST key), else None (-> treated MALFORMED).
-    Classification interprets a failure; it does not recompute a token, so it
-    binds to the observation's own key rather than a reconstructed expected key.
+    Correction A/B: the observation MUST be bound to `target_key` (the
+    authoritative key the classifier derived), not to the observation's own key.
+    Returns one of:
+      ("NOT_OBSERVED", None)
+      ("MALFORMED",   None)   # shape/key/snapshot invalid, OR wrong target
+      ("ABSENT",      None)
+      ("PRESENT",     snapshot_dict)
+    An observation whose key does not EXACTLY equal target_key is MALFORMED
+    (rejected) even if internally self-consistent or sharing an incarnation.
     """
+    if obs is None:
+        return ("NOT_OBSERVED", None)   # no observation supplied for this record
     if type(obs) is not RecordObservation or obs.state not in _OBSERVATION_STATES:
-        return None
-    if obs.state in (OBSERVED_PRESENT, OBSERVED_ABSENT):
-        if type(obs.key) is not dict or _parse_request_key(obs.key) is None:
-            return None
-    if obs.state == OBSERVED_PRESENT:
-        if type(obs.snapshot) is not dict:
-            return None
-        if obs.snapshot.get("PK") != obs.key.get("PK") or obs.snapshot.get("SK") != obs.key.get("SK"):
-            return None
-    return obs
-
-
-def _valid_lifetime_observation(obs):
-    """Validate a LIFETIME RecordObservation by its own internal key consistency.
-
-    A well-formed lifetime key is {"PK": "LIFETIME#<hex>", "SK": "PERMANENT"};
-    for OBSERVED_PRESENT the snapshot PK/SK must match the key.
-    """
-    if type(obs) is not RecordObservation or obs.state not in _OBSERVATION_STATES:
-        return None
-    if obs.state in (OBSERVED_PRESENT, OBSERVED_ABSENT):
-        if type(obs.key) is not dict:
-            return None
-        pk, sk = obs.key.get("PK"), obs.key.get("SK")
-        if type(pk) is not str or not pk.startswith("LIFETIME#") or sk != "PERMANENT":
-            return None
-    if obs.state == OBSERVED_PRESENT:
-        if type(obs.snapshot) is not dict:
-            return None
-        if obs.snapshot.get("PK") != obs.key.get("PK") or obs.snapshot.get("SK") != obs.key.get("SK"):
-            return None
-    return obs
+        return ("MALFORMED", None)
+    if obs.state == NOT_OBSERVED:
+        # A NOT_OBSERVED observation must carry no false absence/presence claim.
+        if obs.snapshot is not None:
+            return ("MALFORMED", None)
+        return ("NOT_OBSERVED", None)
+    # OBSERVED_* must be bound to the exact target key.
+    if type(obs.key) is not dict or obs.key != target_key:
+        return ("MALFORMED", None)
+    if obs.state == OBSERVED_ABSENT:
+        if obs.snapshot is not None:
+            return ("MALFORMED", None)   # an absence must not carry a snapshot
+        return ("ABSENT", None)
+    # OBSERVED_PRESENT
+    snap = obs.snapshot
+    if type(snap) is not dict:
+        return ("MALFORMED", None)
+    if snap.get("PK") != target_key.get("PK") or snap.get("SK") != target_key.get("SK"):
+        return ("MALFORMED", None)
+    for field, permitted in require_snapshot_fields:
+        if field not in snap or type(snap[field]) not in permitted:
+            return ("MALFORMED", None)
+    return ("PRESENT", snap)
 
 
 def classify_retire_failure(evidence):
     """Classify an S0c retirement failure. Default INDETERMINATE unless a valid,
-    complete, key-bound observation justifies a specific cause. No blind retry,
-    no inferred successful retire/delete.
+    key-bound, internally-consistent observation of the EXACT target records
+    justifies a specific cause. No blind retry, no inferred success/delete.
 
-    Observations are validated by their OWN internal key consistency (the obs
-    key is well-formed for its record type and the snapshot PK/SK match it). This
-    is a failure-interpretation helper, not an authorization path, so it does not
-    recompute the canonical token; a caller that mislabels an observation's key
-    simply fails validation and the result stays INDETERMINATE.
+    Correction A: binding is to the AUTHORITATIVE target identity supplied as
+    evidence.target_request_key (validated with the strict REQUEST-key parser)
+    and the lifetime token derived from evidence.expected.tenant + that key -
+    never from observation-supplied keys or optional RetireExpected ids.
+    Correction B: both supplied observations are strictly validated and checked
+    for conflicts BEFORE any specific classification; a wrong-target or malformed
+    observation (even if self-consistent or sharing an incarnation) yields
+    INDETERMINATE, and an unrelated retired lifetime can never be ALREADY_RETIRED.
     """
     if type(evidence) is not RetireFailureEvidence:
         return FailureClassification(INDETERMINATE, False, ("MALFORMED_EVIDENCE",))
     expected = evidence.expected
     if type(expected) is not RetireExpected:
         return FailureClassification(INDETERMINATE, False, ("MISSING_OR_MALFORMED_EXPECTED",))
+    # Authoritative target identity: strict REQUEST key + valid tenant.
+    parsed = _parse_request_key(evidence.target_request_key)
+    if parsed is None:
+        return FailureClassification(INDETERMINATE, False, ("MISSING_OR_MALFORMED_TARGET_KEY",))
+    if type(expected.tenant) is not str or not expected.tenant:
+        return FailureClassification(INDETERMINATE, False, ("MALFORMED_EXPECTED_TENANT",))
+    request_key = {"PK": evidence.target_request_key["PK"], "SK": evidence.target_request_key["SK"]}
+    token = _request_lifetime_token(expected.tenant, (request_key["PK"], request_key["SK"]))
+    lifetime_key = {"PK": "LIFETIME#" + token, "SK": "PERMANENT"}
 
-    life_obs = evidence.lifetime_obs
-    req_obs = evidence.request_obs
+    # Validate BOTH observations against the authoritative keys up front.
+    life_state, life_snap = _observation_binds(
+        evidence.lifetime_obs, lifetime_key,
+        require_snapshot_fields=(("retired", (bool,)), ("incarnation", (str,))))
+    req_state, req_snap = _observation_binds(
+        evidence.request_obs, request_key,
+        require_snapshot_fields=(("company_id", (str,)),
+                                 ("legacy_write_revision", (int,)),
+                                 ("record_incarnation", (str,))))
+    # Any supplied-but-malformed observation makes the whole evidence set
+    # untrustworthy -> INDETERMINATE (do not partially classify).
+    if life_state == "MALFORMED":
+        return FailureClassification(INDETERMINATE, False, ("MALFORMED_LIFETIME_OBSERVATION",))
+    if req_state == "MALFORMED":
+        return FailureClassification(INDETERMINATE, False, ("MALFORMED_REQUEST_OBSERVATION",))
 
-    # Lifetime-based: ALREADY_RETIRED / LIFETIME_MISSING / INCARNATION_DIVERGED.
-    if type(life_obs) is RecordObservation and life_obs.state != NOT_OBSERVED:
-        valid_life = _valid_lifetime_observation(life_obs)
-        if valid_life is None:
-            return FailureClassification(INDETERMINATE, False, ("MALFORMED_LIFETIME_OBSERVATION",))
-        if valid_life.state == OBSERVED_ABSENT:
-            return FailureClassification(LIFETIME_MISSING, True, ("LIFETIME_OBSERVED_ABSENT",))
-        if valid_life.state == OBSERVED_PRESENT:
-            snap = valid_life.snapshot
-            if snap.get("retired") is True and snap.get("incarnation") == expected.incarnation:
-                return FailureClassification(ALREADY_RETIRED, True, ("LIFETIME_RETIRED_OBSERVED",))
-            if snap.get("incarnation") != expected.incarnation:
-                return FailureClassification(INCARNATION_DIVERGED, True, ("LIFETIME_INCARNATION_DIVERGED",))
+    # Conflict check: a present REQUEST that matches expected (unchanged) while
+    # the lifetime claims retired is contradictory -> INDETERMINATE.
+    if (life_state == "PRESENT" and life_snap.get("retired") is True
+            and req_state == "PRESENT"
+            and req_snap.get("company_id") == expected.tenant
+            and req_snap.get("legacy_write_revision") == expected.revision
+            and req_snap.get("record_incarnation") == expected.incarnation):
+        return FailureClassification(INDETERMINATE, False, ("CONTRADICTORY_OBSERVATIONS",))
 
-    # REQUEST-based: REQUEST_ABSENT / TENANT_MISMATCH / STALE / INCARNATION_DIVERGED.
-    if type(req_obs) is RecordObservation and req_obs.state != NOT_OBSERVED:
-        valid_req = _valid_request_observation(req_obs)
-        if valid_req is None:
-            return FailureClassification(INDETERMINATE, False, ("MALFORMED_REQUEST_OBSERVATION",))
-        if valid_req.state == OBSERVED_ABSENT:
-            return FailureClassification(REQUEST_ABSENT, True, ("REQUEST_OBSERVED_ABSENT",))
-        if valid_req.state == OBSERVED_PRESENT:
-            snap = valid_req.snapshot
-            if snap.get("company_id") != expected.tenant:
-                return FailureClassification(TENANT_MISMATCH, True, ("TENANT_DIVERGED",))
-            if snap.get("legacy_write_revision") != expected.revision:
-                return FailureClassification(STALE, True, ("REVISION_DIVERGED",))
-            if snap.get("record_incarnation") != expected.incarnation:
-                return FailureClassification(INCARNATION_DIVERGED, True, ("REQUEST_INCARNATION_DIVERGED",))
+    # Lifetime-based causes (bound to the derived lifetime key only).
+    if life_state == "ABSENT":
+        return FailureClassification(LIFETIME_MISSING, True, ("LIFETIME_OBSERVED_ABSENT",))
+    if life_state == "PRESENT":
+        if life_snap.get("incarnation") != expected.incarnation:
+            return FailureClassification(INCARNATION_DIVERGED, True, ("LIFETIME_INCARNATION_DIVERGED",))
+        if life_snap.get("retired") is True:
+            return FailureClassification(ALREADY_RETIRED, True, ("LIFETIME_RETIRED_OBSERVED",))
 
-    # Nothing sufficient was observed (or observations agree with expected but
-    # the transaction still cancelled for an unobserved reason).
+    # REQUEST-based causes (bound to the target REQUEST key only).
+    if req_state == "ABSENT":
+        return FailureClassification(REQUEST_ABSENT, True, ("REQUEST_OBSERVED_ABSENT",))
+    if req_state == "PRESENT":
+        if req_snap.get("company_id") != expected.tenant:
+            return FailureClassification(TENANT_MISMATCH, True, ("TENANT_DIVERGED",))
+        if req_snap.get("legacy_write_revision") != expected.revision:
+            return FailureClassification(STALE, True, ("REVISION_DIVERGED",))
+        if req_snap.get("record_incarnation") != expected.incarnation:
+            return FailureClassification(INCARNATION_DIVERGED, True, ("REQUEST_INCARNATION_DIVERGED",))
+
+    # Nothing sufficient was observed, or observations agree with expected but
+    # the transaction still cancelled for an unobserved reason.
     return FailureClassification(INDETERMINATE, False, ("INSUFFICIENT_OR_CONSISTENT_EVIDENCE",))
