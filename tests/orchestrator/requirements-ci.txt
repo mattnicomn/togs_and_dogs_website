@@ -1,0 +1,11 @@
+# Offline orchestrator test dependencies for CI (Track 3).
+# Test-only. The orchestrator package (scripts/orchestrator/**) uses ONLY the
+# Python standard library at runtime; the test suite needs only pytest. There
+# is deliberately NO boto3/moto/openai/requests/kiro dependency here: the suite
+# is fully offline and mocked, and its own autouse fixtures
+# (tests/orchestrator/conftest.py) block sockets and subprocess spawning, so no
+# AWS, OpenAI, Kiro CLI, network, or live-agent access is possible.
+#
+# Pinned to match the backend CI pin for a clean GitHub Actions runner on
+# Python 3.12.
+pytest==8.3.5
