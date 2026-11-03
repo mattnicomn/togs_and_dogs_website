@@ -1005,6 +1005,147 @@ class AdversarialCreateIdentityTests(unittest.TestCase):
 
 
 # ===========================================================================
+# Final alias-binding corrections (A: #audit pin; B: #idN/#naN/#sstat pins)
+# ===========================================================================
+
+def _protected_update_spec(**over):
+    base = dict(tenant="tenant_a", revision=1, incarnation="life-a", source_status="ASSIGNED",
+                present_identity=(("cognito_sub", "subject-a"),),
+                absent_identity=("client_email", "linked_client_profile_id"),
+                protected_client=True, retirement_marker=rw.RETIREMENT_FALSE)
+    base.update(over)
+    spec = rw.build_update(KEY, rw.ExpectedState(**base),
+                           rw.WritePlan(set_fields=(("note", "n"),)), ELIGIBLE)
+    assert type(spec) is rw.UpdateSpec, spec
+    return spec
+
+
+def _rebind_names(spec, **changes):
+    names = dict(spec.names); names.update(changes)
+    return rw.UpdateSpec(key=spec.key, condition_expression=spec.condition_expression,
+                         update_expression=spec.update_expression, names=names,
+                         values=dict(spec.values), advances_revision=spec.advances_revision,
+                         fenced_present=spec.fenced_present, fenced_absent=spec.fenced_absent)
+
+
+class AuditAliasBindingTests(unittest.TestCase):
+    """Correction A: #audit must resolve to audit_log; rebinds fail closed."""
+
+    def test_audit_append_builder_output_passes(self):
+        spec = rw.build_update(
+            KEY, rw.ExpectedState(tenant="tenant_a", revision=1, incarnation="life-a",
+                                  retirement_marker=rw.RETIREMENT_ABSENT),
+            rw.WritePlan(set_fields=(("note", "n"),), append_audit={"status": "X"}), ELIGIBLE)
+        p = rx.translate_update(spec, TABLE)
+        self.assertIsInstance(p, rx.PreparedUpdate)
+
+    def _audit_spec(self):
+        return rw.build_update(
+            KEY, rw.ExpectedState(tenant="tenant_a", revision=1, incarnation="life-a",
+                                  retirement_marker=rw.RETIREMENT_FALSE),
+            rw.WritePlan(set_fields=(("note", "n"),), append_audit={"status": "X"}), ELIGIBLE)
+
+    def test_audit_rebound_to_retired_lifetime_rejected(self):
+        bad = _rebind_names(self._audit_spec(), **{"#audit": "retired_lifetime"})
+        r = rx.translate_update(bad, TABLE)
+        self.assertIsInstance(r, rx.TranslationRefusal)
+        self.assertEqual(r.detail, "BAD_BINDING_#audit")
+
+    def test_audit_rebound_to_retired_at_rejected(self):
+        bad = _rebind_names(self._audit_spec(), **{"#audit": "retired_at"})
+        self.assertEqual(rx.translate_update(bad, TABLE).detail, "BAD_BINDING_#audit")
+
+    def test_audit_rebound_to_revision_rejected(self):
+        bad = _rebind_names(self._audit_spec(), **{"#audit": "legacy_write_revision"})
+        self.assertEqual(rx.translate_update(bad, TABLE).detail, "BAD_BINDING_#audit")
+
+    def test_audit_rebound_to_incarnation_rejected(self):
+        bad = _rebind_names(self._audit_spec(), **{"#audit": "record_incarnation"})
+        self.assertEqual(rx.translate_update(bad, TABLE).detail, "BAD_BINDING_#audit")
+
+    def test_audit_rebound_to_tenant_rejected(self):
+        bad = _rebind_names(self._audit_spec(), **{"#audit": "company_id"})
+        self.assertEqual(rx.translate_update(bad, TABLE).detail, "BAD_BINDING_#audit")
+
+    def test_audit_rebound_to_identity_rejected(self):
+        bad = _rebind_names(self._audit_spec(), **{"#audit": "client_email"})
+        self.assertEqual(rx.translate_update(bad, TABLE).detail, "BAD_BINDING_#audit")
+
+    def test_audit_append_collision_with_plain_audit_log_set_rejected(self):
+        # A plain plan field (#s0) also targeting audit_log collides with the
+        # append path and must be caught by overlapping-path detection.
+        spec = self._audit_spec()
+        bad = _rebind_names(spec, **{"#s0": "audit_log"})
+        r = rx.translate_update(bad, TABLE)
+        self.assertIsInstance(r, rx.TranslationRefusal)
+        self.assertIn(r.detail, ("OVERLAPPING_UPDATE_PATHS", "HELPER_OWNED_FIELD_SET:audit_log"))
+
+
+class OptionalClauseAliasBindingTests(unittest.TestCase):
+    """Correction B: #idN/#naN/#sstat must carry canonical identity/status roles."""
+
+    def test_protected_builder_output_passes(self):
+        self.assertIsInstance(rx.translate_update(_protected_update_spec(), TABLE), rx.PreparedUpdate)
+
+    def test_present_identity_alias_to_retired_lifetime_rejected(self):
+        bad = _rebind_names(_protected_update_spec(), **{"#id0": "retired_lifetime"})
+        r = rx.translate_update(bad, TABLE)
+        self.assertIsInstance(r, rx.TranslationRefusal)
+        self.assertEqual(r.detail, "NON_IDENTITY_PRESENT_FENCE:retired_lifetime")
+
+    def test_present_identity_alias_to_tenant_rejected(self):
+        bad = _rebind_names(_protected_update_spec(), **{"#id0": "company_id"})
+        self.assertEqual(rx.translate_update(bad, TABLE).detail, "NON_IDENTITY_PRESENT_FENCE:company_id")
+
+    def test_absent_identity_alias_to_retired_lifetime_rejected(self):
+        bad = _rebind_names(_protected_update_spec(), **{"#na0": "retired_lifetime"})
+        r = rx.translate_update(bad, TABLE)
+        self.assertEqual(r.detail, "NON_IDENTITY_ABSENT_FENCE:retired_lifetime")
+
+    def test_absent_identity_alias_to_legacy_revision_rejected(self):
+        bad = _rebind_names(_protected_update_spec(), **{"#na1": "legacy_write_revision"})
+        self.assertEqual(rx.translate_update(bad, TABLE).detail,
+                         "NON_IDENTITY_ABSENT_FENCE:legacy_write_revision")
+
+    def test_sstat_alias_to_non_status_rejected(self):
+        bad = _rebind_names(_protected_update_spec(), **{"#sstat": "retired_lifetime"})
+        self.assertEqual(rx.translate_update(bad, TABLE).detail, "BAD_BINDING_#sstat")
+
+    def test_legitimate_identity_and_status_bindings_pass(self):
+        # cognito_sub present, client_email/linked_client_profile_id absent,
+        # status pinned - the canonical protected-client shape.
+        p = rx.translate_update(_protected_update_spec(), TABLE)
+        self.assertIsInstance(p, rx.PreparedUpdate)
+        names = p.request["ExpressionAttributeNames"]
+        self.assertEqual(names["#id0"], "cognito_sub")
+        self.assertEqual(names["#sstat"], "status")
+
+    def test_s0c_request_present_identity_alias_rejected(self):
+        # Same discipline on the S0c REQUEST operand.
+        rexp = rw.RetireExpected(tenant="tenant_a", revision=1, incarnation="life-a",
+                                 retired_at="2026-11-01T12:00:00+00:00", source_status="ASSIGNED",
+                                 present_identity=(("cognito_sub", "subject-a"),),
+                                 absent_identity=("client_email", "linked_client_profile_id"),
+                                 protected_client=True, children=(), child_set_complete=True)
+        tok = rw._request_lifetime_token("tenant_a", ("REQ#request-a", "CLIENT#client-a"))
+        rev = rw.LifetimeEvidence(state=rw.LIFETIME_ACTIVE, token=tok, retired=False,
+                                  record={"PK": "LIFETIME#" + tok, "SK": "PERMANENT",
+                                          "retired": False, "incarnation": "life-a"})
+        spec = rw.build_retire(KEY, rexp, rev)
+        self.assertIsInstance(rx.translate_retire(spec, TABLE), rx.PreparedTxn)  # control
+        req = spec.transact_items[1]["Update"]
+        names = dict(req["ExpressionAttributeNames"]); names["#id0"] = "retired_lifetime"
+        poisoned = {"Update": dict(req, ExpressionAttributeNames=names)}
+        bad = rw.RetireSpec(transact_items=(spec.transact_items[0], poisoned),
+                            lifetime_token=spec.lifetime_token,
+                            retires_revision=True, retired_at=spec.retired_at)
+        r = rx.translate_retire(bad, TABLE)
+        self.assertIsInstance(r, rx.TranslationRefusal)
+        self.assertEqual(r.reason, "MISSING_SECURITY_CONDITION")
+        self.assertEqual(r.detail, "NON_IDENTITY_PRESENT_FENCE:retired_lifetime")
+
+
+# ===========================================================================
 # G - zero delete/unconditional, zero SDK/env, zero handler imports
 # ===========================================================================
 

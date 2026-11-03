@@ -631,6 +631,18 @@ def _validate_update_set_remove(spec):
     for a in set_assigns:
         if a[0] == "audit":
             audit_seen += 1
+            # Correction A: the audit-append target #audit MUST resolve to
+            # audit_log. Without this, a caller could rebind #audit to a
+            # helper-owned attribute (retired_lifetime, retired_at,
+            # legacy_write_revision, record_incarnation) or an identity field
+            # and smuggle a list_append write onto it - bypassing the plain
+            # SET/REMOVE helper-owned protection. Fail closed on any rebind.
+            if names.get("#audit") != "audit_log":
+                return "BAD_BINDING_#audit"
+            # The audit append writes the audit_log document path; include it in
+            # collision detection so it cannot overlap another SET/REMOVE of the
+            # same attribute.
+            touched_names.append("audit_log")
             continue
         ref, valref = a[1], a[2]
         attr = names.get(ref)
@@ -655,7 +667,8 @@ def _validate_update_set_remove(spec):
         touched_names.append(attr)
 
     # No duplicate / overlapping document path (same attribute SET and/or REMOVEd
-    # more than once) - DynamoDB rejects overlapping paths; we fail closed first.
+    # more than once, INCLUDING the audit_log append) - DynamoDB rejects
+    # overlapping paths; we fail closed first.
     if len(touched_names) != len(set(touched_names)):
         return "OVERLAPPING_UPDATE_PATHS"
     return None
@@ -704,16 +717,12 @@ def _validate_update_condition(spec):
         return "BAD_BINDING_:false"
     if ":rev" not in values or ":next" not in values:
         return "MISSING_REVISION_VALUES"
-    # Every remaining condition clause must be a recognized safe form.
-    # Optional clauses allowed: #sstat=:sstat, #idN=:idN, attribute_not_exists(#naN).
-    for t in typed:
-        if t in required:
-            continue
-        if t[0] == "eq" and t[1].startswith("#") and names.get(t[1]) is not None:
-            continue
-        if t[0] == "not_exists" and t[1].startswith("#") and names.get(t[1]) is not None:
-            continue
-        return "UNEXPECTED_CLAUSE:" + _clause_label(t)
+    # Correction B: optional clauses (#sstat / present #idN / absent #naN) must
+    # carry canonical placeholder roles pinned to status/identity fields - an
+    # arbitrary alias that merely exists in names is rejected.
+    bad = _validate_optional_clauses(typed, required, names)
+    if bad is not None:
+        return bad
     # Correction A: structural UpdateExpression validation (not substring).
     bad = _validate_update_set_remove(spec)
     if bad is not None:
@@ -733,6 +742,72 @@ def _clause_label(t):
     if t[0] == "not_exists":
         return "attribute_not_exists(" + t[1] + ")"
     return t[1] + " = " + t[2]
+
+
+def _validate_optional_clauses(typed, required, names):
+    """Correction B: validate the OPTIONAL condition clauses (beyond `required`).
+
+    The committed grammar permits exactly three optional clause kinds, each with
+    a CANONICAL placeholder role that must be pinned - an alias that merely
+    exists in `names` is NOT enough:
+      * ("eq", "#sstat", ":sstat")       -> names["#sstat"] == "status"
+      * ("eq", "#idN", ":idN")           -> names["#idN"] in IDENTITY_UNIVERSE
+                                            (present-identity equality fence)
+      * ("not_exists", "#naN")           -> names["#naN"] in IDENTITY_UNIVERSE
+                                            (absent-identity fence)
+    The equality value placeholder must match the name index (#idK pairs with
+    :idK) so a present-identity clause cannot borrow an unrelated value binding.
+    Identity coverage must not duplicate or conflict: an identity attribute may
+    appear at most once, and never both present-fenced and absent-fenced.
+    Returns None or a reason. Any other alias (helper-owned or arbitrary) fails.
+    """
+    present_ids = []   # identity attributes equality-fenced (present)
+    absent_ids = []    # identity attributes attribute_not_exists-fenced (absent)
+    status_seen = 0
+    for t in typed:
+        if t in required:
+            continue
+        if t[0] == "eq":
+            ref, valref = t[1], t[2]
+            if not ref.startswith("#"):
+                return "UNEXPECTED_CLAUSE:" + _clause_label(t)
+            attr = names.get(ref)
+            if attr is None:
+                return "UNDEFINED_NAME:" + ref
+            if ref == "#sstat":
+                if attr != "status" or valref != ":sstat":
+                    return "BAD_BINDING_#sstat"
+                status_seen += 1
+                continue
+            # Present-identity equality: #idK = :idK, attr an identity field.
+            if not (ref.startswith("#id") and valref == ":id" + ref[len("#id"):]):
+                return "UNEXPECTED_IDENTITY_ALIAS:" + _clause_label(t)
+            if attr not in IDENTITY_UNIVERSE:
+                return "NON_IDENTITY_PRESENT_FENCE:" + str(attr)
+            present_ids.append(attr)
+            continue
+        if t[0] == "not_exists":
+            ref = t[1]
+            if not ref.startswith("#na"):
+                return "UNEXPECTED_IDENTITY_ALIAS:" + _clause_label(t)
+            attr = names.get(ref)
+            if attr is None:
+                return "UNDEFINED_NAME:" + ref
+            if attr not in IDENTITY_UNIVERSE:
+                return "NON_IDENTITY_ABSENT_FENCE:" + str(attr)
+            absent_ids.append(attr)
+            continue
+        return "UNEXPECTED_CLAUSE:" + _clause_label(t)
+    if status_seen > 1:
+        return "DUPLICATE_STATUS_PIN"
+    # No duplicate or conflicting identity coverage.
+    if len(present_ids) != len(set(present_ids)):
+        return "DUPLICATE_PRESENT_IDENTITY"
+    if len(absent_ids) != len(set(absent_ids)):
+        return "DUPLICATE_ABSENT_IDENTITY"
+    if not set(present_ids).isdisjoint(set(absent_ids)):
+        return "CONFLICTING_IDENTITY_COVERAGE"
+    return None
 
 
 def _validate_create_put_condition(cond):
@@ -899,14 +974,13 @@ def _validate_retire_request_condition(upd):
         return "BAD_BINDING_#inc"
     if values.get(":false") is not False:
         return "BAD_BINDING_:false"
-    for t in typed:
-        if t in required:
-            continue
-        if t[0] == "eq" and t[1].startswith("#") and names.get(t[1]) is not None:
-            continue
-        if t[0] == "not_exists" and t[1].startswith("#") and names.get(t[1]) is not None:
-            continue
-        return "UNEXPECTED_CLAUSE:" + _clause_label(t)
+    # Correction B: optional clauses (#sstat / present #idN / absent #naN) must
+    # carry canonical placeholder roles pinned to status/identity fields - an
+    # arbitrary alias that merely exists in names is rejected. Same discipline as
+    # the S0a update condition.
+    bad = _validate_optional_clauses(typed, required, names)
+    if bad is not None:
+        return bad
     # Correction A: structural UpdateExpression validation. The REQUEST retire
     # operand must be EXACTLY: SET legacy_write_revision=:next, retired_lifetime
     # =True, retired_at=:ts - advance the revision, mark retired, preserve the
