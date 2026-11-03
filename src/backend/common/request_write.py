@@ -57,7 +57,20 @@ _ID_RE = re.compile(r"[A-Za-z0-9_-]{1,128}")
 RESERVED_FIELDS = frozenset({
     "PK", "SK", "company_id", "client_id", "request_id",
     "legacy_write_revision", "record_incarnation",
+    # Retirement-fence helper-owned metadata (S0c writes these; an S0a update
+    # must never SET or REMOVE them - in particular a caller must not be able to
+    # clear the permanent retired_lifetime marker through an ordinary update).
+    "retired_lifetime", "retired_at",
 })
+
+# Tagged retirement-marker evidence states for an S0a update (ExpectedState).
+# Explicit, well-formed evidence is required; missing evidence is NOT treated as
+# an observed absence. This is a STRUCTURAL shape check, not provenance.
+RETIREMENT_ABSENT = "RETIREMENT_ABSENT"      # looked up; retired_lifetime attribute not present on the row
+RETIREMENT_FALSE = "RETIREMENT_FALSE"        # looked up; retired_lifetime is exactly False
+RETIREMENT_TRUE = "RETIREMENT_TRUE"          # looked up; retired_lifetime is exactly True -> refuse
+RETIREMENT_NOT_OBSERVED = "RETIREMENT_NOT_OBSERVED"  # no lookup performed
+_RETIREMENT_STATES = (RETIREMENT_ABSENT, RETIREMENT_FALSE, RETIREMENT_TRUE, RETIREMENT_NOT_OBSERVED)
 
 
 # ---------------------------------------------------------------------------
@@ -111,6 +124,16 @@ class ExpectedState:
     # key-derived identifiers are still bound into the write condition regardless.
     request_id: object = None        # str or None
     client_id: object = None         # str or None
+    # Retirement-marker evidence (S0a retirement write-fence). A tagged state
+    # the caller attests from the observed row's retired_lifetime attribute:
+    #   RETIREMENT_ABSENT  - the attribute is not present on the row
+    #   RETIREMENT_FALSE   - the attribute is exactly False
+    #   RETIREMENT_TRUE    - the attribute is exactly True (-> RETIRED_REQUEST)
+    #   RETIREMENT_NOT_OBSERVED (default) - no lookup performed
+    # An unrecognized/other value is malformed and fails closed. Missing evidence
+    # (NOT_OBSERVED) is eligible ONLY under the documented legacy compatibility
+    # assumption; observed absence (ABSENT) is distinct and must be explicit.
+    retirement_marker: object = RETIREMENT_NOT_OBSERVED
 
 
 @dataclass(frozen=True)
@@ -383,6 +406,30 @@ def build_update(key, expected, plan, disposition):
     if not _valid_incarnation(expected.incarnation):
         return Refusal("MALFORMED_INCARNATION")
 
+    # --- retirement-marker evidence (S0a retirement write-fence, part A) ----
+    # Require EXPLICIT, well-formed, OBSERVED tagged evidence - fail-closed:
+    #   RETIREMENT_TRUE          -> RETIRED_REQUEST (a retired row is never updated)
+    #   RETIREMENT_FALSE         -> eligible (guarded update)
+    #   RETIREMENT_ABSENT        -> eligible under the documented legacy
+    #                               compatibility assumption (an ACTUALLY OBSERVED
+    #                               missing attribute)
+    #   RETIREMENT_NOT_OBSERVED  -> RETIREMENT_EVIDENCE_NOT_OBSERVED (an unperformed
+    #                               lookup is NOT observed absence; omitted evidence
+    #                               never authorizes an update)
+    #   anything else            -> MALFORMED_RETIREMENT_EVIDENCE (fail-closed)
+    # There is NO seeding/bypass override, and observed absence is never inferred
+    # from omitted evidence. The mandatory attribute_not_exists/False condition
+    # (part B) is STILL emitted on every eligible update, so this evidence gate is
+    # defence-in-depth, not the sole protection.
+    rm = expected.retirement_marker
+    if rm not in _RETIREMENT_STATES:
+        return Refusal("MALFORMED_RETIREMENT_EVIDENCE")
+    if rm == RETIREMENT_TRUE:
+        return Refusal("RETIRED_REQUEST")
+    if rm == RETIREMENT_NOT_OBSERVED:
+        return Refusal("RETIREMENT_EVIDENCE_NOT_OBSERVED")
+    # rm is now exactly RETIREMENT_FALSE or RETIREMENT_ABSENT -> eligible.
+
     # --- plan checks (named SET/REMOVE only, no reserved/identity fields) ----
     # Finding D: set_fields / remove_fields must be real sequences (tuple/list),
     # NEVER a str/bytes - a string would otherwise be iterated character by
@@ -465,6 +512,16 @@ def build_update(key, expected, plan, disposition):
     names["#inc"] = "record_incarnation"
     values[":inc"] = expected.incarnation
     conditions.append("#inc = :inc")
+    # MANDATORY retirement write-fence (S0a retirement write-fence, part B).
+    # EVERY update - not only declared status transitions - must assert the
+    # REQUEST is not permanently retired, so a concurrent S0c retirement that
+    # commits after the caller's read makes this update fail closed. A retired
+    # row is only writable with the exact boolean False marker or no marker at
+    # all; any non-False/non-absent (e.g. True, or a non-bool value) fails the
+    # condition at commit.
+    names["#rl"] = "retired_lifetime"
+    values[":false"] = False
+    conditions.append("(attribute_not_exists(#rl) OR #rl = :false)")
     # Source-status pin ONLY for a declared status transition.
     if expected.source_status is not None:
         if type(expected.source_status) is not str or not expected.source_status:
