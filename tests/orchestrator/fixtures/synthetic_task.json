@@ -1,0 +1,15 @@
+{
+  "_synthetic": true,
+  "note": "A1 SYNTHETIC TASK fixture. Not real data. Not a live Kiro schema.",
+  "scope_id": "A1_SYNTHETIC_TASK_001",
+  "repository": "mattnicomn/togs_and_dogs_website",
+  "base_sha": "8fe7fa78ad707ac67a05d29059d2771a9aa256c8",
+  "target_branch": "codex/ai-dev-orchestrator-a1",
+  "base_branch": "main",
+  "allowed_paths": [
+    "scripts/orchestrator/**",
+    "tests/orchestrator/**"
+  ],
+  "allowed_actions": ["implement", "review", "correct", "draft_pr"],
+  "acceptance_key": "needs_marker"
+}
