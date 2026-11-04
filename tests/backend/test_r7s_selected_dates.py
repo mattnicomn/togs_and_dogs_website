@@ -15,10 +15,31 @@ the handler falls through to use the explicit start_date / end_date fields
 
 These tests exercise the intake handler directly with mocked DB/SFN to avoid
 any real AWS calls.
+
+Test isolation (Gate C3b.3c / V3d)
+----------------------------------
+Every event here is a public-intake (CUSTOMER_INTAKE) submission, so the
+handler runs its tenant-resolution + entitlement + DB preamble BEFORE the
+selected_dates processing block:
+
+    require_active_tenant -> resolve_public_intake_tenant -> (field validation)
+    -> selected_dates normalization -> client-count table.query
+    -> entitlement gates -> put_item
+
+Those boundaries reach live AWS in CI, where the handler correctly fails closed
+with PUBLIC_INTAKE_TENANT_RESOLUTION_FAILED and returns 500 — before the
+selected_dates logic ever runs, masking the real behavior. The `intake_isolation`
+fixture below (reused from the V3a/V3b/V3c pattern) models the "active tenant
+resolves, limits not breached" state so the handler reaches the REAL
+selected_dates normalization. It never mocks date parsing, the selected_dates
+validation, scheduling, or the handler response: start/end derivation, sorting,
+dedup, filtering, and the fallback behavior all run against the handler's own
+logic, and every accept/reject assertion is preserved.
 """
 import json
 import pytest
-from unittest.mock import patch
+from contextlib import ExitStack
+from unittest.mock import patch, MagicMock
 from handlers.intake_handler import handler as intake_handler
 
 
@@ -37,6 +58,69 @@ def mock_db():
 def mock_sfn():
     with patch('handlers.intake_handler.sfn') as mock_sfn_client:
         yield mock_sfn_client
+
+
+@pytest.fixture
+def no_network():
+    """Fail loudly if any test in this module reaches a real AWS/boto3 call.
+
+    Scoped safety net for THIS module only (not autouse, not global): if an
+    unmocked DynamoDB/boto3 operation slips through, the botocore HTTP
+    transport raises instead of silently returning an error the handler would
+    convert into a misleading 500 (which is exactly how the selected_dates
+    behavior was being masked before this isolation).
+    """
+    def _blocked(*args, **kwargs):
+        raise AssertionError(
+            "Unmocked AWS network call attempted during an isolated selected-"
+            "dates test. Add an explicit scoped mock for the operation the "
+            "handler reached."
+        )
+
+    with patch('botocore.httpsession.URLLib3Session.send', _blocked):
+        yield
+
+
+@pytest.fixture
+def intake_isolation(no_network):
+    """Explicit, scoped isolation of the public-intake tenant-resolution and
+    entitlement/DB preamble that surrounds the selected_dates processing block.
+
+    Models the documented 'active tenant resolves, limits not breached' state
+    so the handler reaches its REAL selected_dates normalization without
+    touching AWS. Patches target the exact boundaries the public-intake path
+    calls: common.auth / common.entitlement are imported lazily inside
+    handler(), so they are patched at their source modules; `table` is bound at
+    module import (from common.db import ... table) so it is patched on the
+    handler module.
+
+    The date parsing, selected_dates validation, scheduling calculations, and
+    the handler response are NOT mocked. put_item/sfn stay under mock_db/
+    mock_sfn, and the real sort/dedup/filter/derive logic runs for every case.
+
+    Yields the resolver mock so a test may assert tenant resolution occurred.
+    """
+    COMPANY_ID = "tog_and_dogs"
+    mock_table = MagicMock(name="intake_handler.table")
+    # No pre-existing client with the test email -> exercises the new-client
+    # entitlement path, which is then allowed by the check_limit patch below.
+    mock_table.query.return_value = {"Items": []}
+
+    with ExitStack() as stack:
+        resolver = stack.enter_context(
+            patch('common.auth.resolve_public_intake_tenant', return_value=COMPANY_ID)
+        )
+        # Active tenant: require_active_tenant returns None (no block).
+        stack.enter_context(
+            patch('common.entitlement.require_active_tenant', return_value=None)
+        )
+        stack.enter_context(patch('handlers.intake_handler.table', mock_table))
+        # Entitlement gates: allow (no limit breach) without touching DynamoDB.
+        stack.enter_context(patch('common.entitlement.check_limit', return_value=None))
+        stack.enter_context(patch('common.entitlement.get_active_client_count', return_value=0))
+        stack.enter_context(patch('common.entitlement.get_monthly_bookings_count', return_value=0))
+        stack.enter_context(patch('common.entitlement.increment_monthly_bookings', return_value=None))
+        yield resolver
 
 
 def _intake_event(body_overrides=None):
@@ -66,7 +150,7 @@ def _saved_item(mock_db):
 # selected_dates absent / null / single-entry (fallback path)
 # ---------------------------------------------------------------------------
 
-def test_no_selected_dates_uses_explicit_start_date(mock_db, mock_sfn):
+def test_no_selected_dates_uses_explicit_start_date(mock_db, mock_sfn, intake_isolation):
     """When selected_dates is absent, start_date comes from the explicit field."""
     event = _intake_event()
     resp = intake_handler(event, None)
@@ -76,7 +160,7 @@ def test_no_selected_dates_uses_explicit_start_date(mock_db, mock_sfn):
     assert saved["selected_dates"] is None
 
 
-def test_null_selected_dates_uses_explicit_start_date(mock_db, mock_sfn):
+def test_null_selected_dates_uses_explicit_start_date(mock_db, mock_sfn, intake_isolation):
     """selected_dates=None is treated the same as absent."""
     event = _intake_event({"selected_dates": None})
     resp = intake_handler(event, None)
@@ -86,7 +170,7 @@ def test_null_selected_dates_uses_explicit_start_date(mock_db, mock_sfn):
     assert saved["selected_dates"] is None
 
 
-def test_empty_list_selected_dates_uses_explicit_start_date(mock_db, mock_sfn):
+def test_empty_list_selected_dates_uses_explicit_start_date(mock_db, mock_sfn, intake_isolation):
     """selected_dates=[] (empty list) falls through to explicit start_date."""
     event = _intake_event({"selected_dates": []})
     resp = intake_handler(event, None)
@@ -96,7 +180,7 @@ def test_empty_list_selected_dates_uses_explicit_start_date(mock_db, mock_sfn):
     assert saved["selected_dates"] is None
 
 
-def test_single_selected_date_does_not_override_start_date(mock_db, mock_sfn):
+def test_single_selected_date_does_not_override_start_date(mock_db, mock_sfn, intake_isolation):
     """selected_dates with exactly 1 entry: handler only processes lists with
     len > 1, so start_date stays as the explicit field value.
     The single-date list is stored as-is if truthy, otherwise None."""
@@ -115,7 +199,7 @@ def test_single_selected_date_does_not_override_start_date(mock_db, mock_sfn):
 # Multi-date processing (len > 1)
 # ---------------------------------------------------------------------------
 
-def test_two_selected_dates_derives_start_and_end(mock_db, mock_sfn):
+def test_two_selected_dates_derives_start_and_end(mock_db, mock_sfn, intake_isolation):
     """Two valid dates → start_date=first, end_date=last, selected_dates stored sorted."""
     event = _intake_event({
         "selected_dates": ["2026-08-05", "2026-08-03"],
@@ -129,7 +213,7 @@ def test_two_selected_dates_derives_start_and_end(mock_db, mock_sfn):
     assert saved["selected_dates"] == ["2026-08-03", "2026-08-05"]
 
 
-def test_multiple_selected_dates_sorted_and_stored(mock_db, mock_sfn):
+def test_multiple_selected_dates_sorted_and_stored(mock_db, mock_sfn, intake_isolation):
     """Multiple dates in arbitrary order → sorted, correct start/end."""
     dates = ["2026-09-10", "2026-09-01", "2026-09-05", "2026-09-03"]
     event = _intake_event({
@@ -144,7 +228,7 @@ def test_multiple_selected_dates_sorted_and_stored(mock_db, mock_sfn):
     assert saved["end_date"] == "2026-09-10"
 
 
-def test_non_consecutive_selected_dates_stored_correctly(mock_db, mock_sfn):
+def test_non_consecutive_selected_dates_stored_correctly(mock_db, mock_sfn, intake_isolation):
     """Non-consecutive dates (e.g. Mon/Wed/Fri) are all preserved."""
     dates = ["2026-09-07", "2026-09-09", "2026-09-11"]  # Mon/Wed/Fri
     event = _intake_event({
@@ -159,7 +243,7 @@ def test_non_consecutive_selected_dates_stored_correctly(mock_db, mock_sfn):
     assert saved["end_date"] == "2026-09-11"
 
 
-def test_selected_dates_deduplication(mock_db, mock_sfn):
+def test_selected_dates_deduplication(mock_db, mock_sfn, intake_isolation):
     """Duplicate dates are deduplicated before storage."""
     dates = ["2026-08-01", "2026-08-01", "2026-08-03", "2026-08-03"]
     event = _intake_event({
@@ -178,7 +262,7 @@ def test_selected_dates_deduplication(mock_db, mock_sfn):
 # Invalid / malformed selected_dates handling
 # ---------------------------------------------------------------------------
 
-def test_selected_dates_with_invalid_strings_filtered(mock_db, mock_sfn):
+def test_selected_dates_with_invalid_strings_filtered(mock_db, mock_sfn, intake_isolation):
     """Non-date strings are filtered out; valid dates are processed."""
     event = _intake_event({
         "selected_dates": ["2026-08-01", "not-a-date", "2026-08-03", "garbage"],
@@ -193,7 +277,7 @@ def test_selected_dates_with_invalid_strings_filtered(mock_db, mock_sfn):
     assert saved["end_date"] == "2026-08-03"
 
 
-def test_selected_dates_with_none_values_filtered(mock_db, mock_sfn):
+def test_selected_dates_with_none_values_filtered(mock_db, mock_sfn, intake_isolation):
     """None values inside the list are filtered out."""
     event = _intake_event({
         "selected_dates": [None, "2026-08-01", None, "2026-08-05"],
@@ -206,7 +290,7 @@ def test_selected_dates_with_none_values_filtered(mock_db, mock_sfn):
     assert saved["start_date"] == "2026-08-01"
 
 
-def test_selected_dates_with_integer_values_filtered(mock_db, mock_sfn):
+def test_selected_dates_with_integer_values_filtered(mock_db, mock_sfn, intake_isolation):
     """Integer values inside the list are filtered out (must be strings)."""
     event = _intake_event({
         "selected_dates": [20260801, "2026-08-01", "2026-08-03"],
@@ -218,7 +302,7 @@ def test_selected_dates_with_integer_values_filtered(mock_db, mock_sfn):
     assert saved["selected_dates"] == ["2026-08-01", "2026-08-03"]
 
 
-def test_selected_dates_all_invalid_falls_back_to_explicit_start_date(mock_db, mock_sfn):
+def test_selected_dates_all_invalid_falls_back_to_explicit_start_date(mock_db, mock_sfn, intake_isolation):
     """If all entries are invalid, valid_dates is empty → override NOT triggered.
 
     The handler only replaces start_date/end_date when at least one valid date
@@ -241,7 +325,7 @@ def test_selected_dates_all_invalid_falls_back_to_explicit_start_date(mock_db, m
     assert saved["selected_dates"] == ["not-a-date", "also-bad", "2026-13-99"]
 
 
-def test_selected_dates_not_a_list_falls_back(mock_db, mock_sfn):
+def test_selected_dates_not_a_list_falls_back(mock_db, mock_sfn, intake_isolation):
     """If selected_dates is a string (not a list), no processing occurs."""
     event = _intake_event({
         "selected_dates": "2026-08-01",
