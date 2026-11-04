@@ -181,3 +181,90 @@ class MilestoneOwnerStop(OrchestratorStop):
     """
 
     reason_code = "MILESTONE_OWNER_STOP"
+
+
+# --- A2-A (offline evidence + advisory review) failures --------------------
+
+
+class PullRequestNotApproved(OrchestratorStop):
+    """The pull request is not listed in the owner-approved manifest."""
+
+    reason_code = "PULL_REQUEST_NOT_APPROVED"
+
+
+class ObservedHeadChanged(OrchestratorStop):
+    """The observed PR head differs from the owner-approved head SHA, or moved
+    while evidence was being collected (time-of-check/time-of-use)."""
+
+    reason_code = "OBSERVED_HEAD_CHANGED"
+
+
+class PullRequestStateUnexpected(OrchestratorStop):
+    """The PR is not in a reviewable state (e.g. closed or merged)."""
+
+    reason_code = "PULL_REQUEST_STATE_UNEXPECTED"
+
+
+class EvidenceInvalid(OrchestratorStop):
+    """Observed evidence is malformed, inconsistent, or fails an integrity
+    check. Never repaired or guessed: the run halts."""
+
+    reason_code = "EVIDENCE_INVALID"
+
+
+class EvidenceIncomplete(OrchestratorStop):
+    """Required evidence is missing (no completed CI job, no baseline binding,
+    no summary line). A missing input is never treated as 'no problems'."""
+
+    reason_code = "EVIDENCE_INCOMPLETE"
+
+
+class EvidenceTooLarge(OrchestratorStop):
+    """Evidence exceeds a hard size limit. Truncation is refused because it
+    could hide a failing test."""
+
+    reason_code = "EVIDENCE_TOO_LARGE"
+
+
+class ReviewerOutputInvalid(OrchestratorStop):
+    """The reviewer's response failed strict schema or semantic validation."""
+
+    reason_code = "REVIEWER_OUTPUT_INVALID"
+
+
+class ProviderTimeout(OrchestratorStop):
+    """The provider call exceeded its per-call timeout on every attempt."""
+
+    reason_code = "PROVIDER_TIMEOUT"
+
+
+class ProviderRateLimited(OrchestratorStop):
+    """The provider rate-limited every attempt."""
+
+    reason_code = "PROVIDER_RATE_LIMITED"
+
+
+class ProviderSpendCapReached(OrchestratorStop):
+    """A provider-side hard spend cap was hit. Never retried."""
+
+    reason_code = "PROVIDER_SPEND_CAP_REACHED"
+
+
+class ProviderError(OrchestratorStop):
+    """A non-retryable provider/transport failure."""
+
+    reason_code = "PROVIDER_ERROR"
+
+
+class ReviewCallUncertain(OrchestratorStop):
+    """A previous review call was left pending after a crash. Whether the
+    provider processed (and billed) it is unknown, so it is never silently
+    repeated; fresh owner authorization is required."""
+
+    reason_code = "REVIEW_CALL_UNCERTAIN"
+
+
+class RunLocked(OrchestratorStop):
+    """Another run holds the runtime-dir lock (or a stale lock remains)."""
+
+    reason_code = "RUN_LOCKED"

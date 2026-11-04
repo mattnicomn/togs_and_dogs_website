@@ -60,6 +60,45 @@ _REQUIRED_FIELDS = (
 )
 
 
+# Closed action vocabulary (A2-A). An approval manifest may only grant actions
+# from this fixed, in-code set. There is deliberately NO merge, ready-for-review,
+# deploy, terraform, permission-grant or approve action: such operations cannot
+# be authorized by configuration because they do not exist as actions at all.
+KNOWN_ACTIONS = frozenset(
+    {"implement", "review", "correct", "draft_pr", "observe_pr", "review_evidence"}
+)
+
+_HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
+_MAX_APPROVED_PRS = 50
+_MAX_REPLACEMENT_ENTRIES = 200
+
+
+@dataclass(frozen=True)
+class ApprovedPullRequest:
+    """One owner-approved pull request for read-only observation/review.
+
+    ``head_sha`` pins the exact head that was approved. ``baseline_ids_sha256``
+    binds the baseline failing-test set (so a swapped baseline is detected).
+    ``declared_replacements`` lets the OWNER declare that a baseline test id was
+    deliberately replaced by new ids; PR text and CI logs can never declare it.
+    """
+
+    number: int
+    head_sha: str
+    baseline_ids_sha256: str | None = None
+    declared_replacements: tuple[tuple[str, tuple[str, ...]], ...] = ()
+
+    def canonical(self) -> dict[str, Any]:
+        return {
+            "number": self.number,
+            "head_sha": self.head_sha,
+            "baseline_ids_sha256": self.baseline_ids_sha256,
+            "declared_replacements": [
+                [old, sorted(new)] for old, new in sorted(self.declared_replacements)
+            ],
+        }
+
+
 @dataclass(frozen=True)
 class TaskRequest:
     """A request to run a task; checked against a manifest before any work."""
@@ -84,6 +123,9 @@ class ApprovalManifest:
     authorized_at: str
     source_path: Path
     base_branch: str = "main"
+    # A2-A: owner-approved pull requests for read-only observation. Empty for
+    # every A1 manifest (and then excluded from the fingerprint).
+    approved_pull_requests: tuple[ApprovedPullRequest, ...] = ()
 
     # --- scope verification ------------------------------------------------
 
@@ -120,16 +162,24 @@ class ApprovalManifest:
         must be re-authorized.
         """
 
+        payload: dict[str, Any] = {
+            "scope_id": self.scope_id,
+            "repository": self.repository,
+            "base_sha": self.base_sha,
+            "target_branch": self.target_branch,
+            "base_branch": self.base_branch,
+            "allowed_paths": sorted(self.allowed_paths),
+            "allowed_actions": sorted(self.allowed_actions),
+        }
+        # A2-A: only present when PRs are approved, so every pre-existing A1
+        # manifest keeps its exact historical fingerprint.
+        if self.approved_pull_requests:
+            payload["approved_pull_requests"] = [
+                p.canonical()
+                for p in sorted(self.approved_pull_requests, key=lambda p: p.number)
+            ]
         canonical = json.dumps(
-            {
-                "scope_id": self.scope_id,
-                "repository": self.repository,
-                "base_sha": self.base_sha,
-                "target_branch": self.target_branch,
-                "base_branch": self.base_branch,
-                "allowed_paths": sorted(self.allowed_paths),
-                "allowed_actions": sorted(self.allowed_actions),
-            },
+            payload,
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
@@ -205,6 +255,22 @@ class ApprovalManifest:
     def assert_action_allowed(self, action: str) -> None:
         if action not in self.allowed_actions:
             raise errors.UnauthorizedOperation(f"action not authorized: {action}")
+
+    def assert_pull_request_approved(self, number: int, head_sha: str) -> ApprovedPullRequest:
+        """Return the approval for PR ``number`` at exactly ``head_sha``.
+
+        An unlisted PR is ``PullRequestNotApproved``; a listed PR whose head
+        differs from the approved head is ``ObservedHeadChanged``.
+        """
+
+        for approval in self.approved_pull_requests:
+            if approval.number == number:
+                if approval.head_sha != head_sha:
+                    raise errors.ObservedHeadChanged(
+                        f"PR #{number} head {head_sha[:12]} != approved {approval.head_sha[:12]}"
+                    )
+                return approval
+        raise errors.PullRequestNotApproved(f"PR #{number} is not in the owner-approved manifest")
 
 
 def load_manifest(path: Path | str, config: Config) -> ApprovalManifest:
@@ -285,10 +351,20 @@ def load_manifest(path: Path | str, config: Config) -> ApprovalManifest:
     allowed_paths = _require_str_list(raw, "allowed_paths")
     allowed_actions = _require_str_list(raw, "allowed_actions")
 
+    # Closed vocabulary: an unknown action (including anything like "merge",
+    # "mark_ready" or "deploy") is rejected outright, never silently ignored.
+    unknown_actions = sorted(set(allowed_actions) - KNOWN_ACTIONS)
+    if unknown_actions:
+        raise errors.ApprovalInvalid(
+            "manifest lists unknown or forbidden action(s): " + ", ".join(unknown_actions)
+        )
+
     # Optional field with a safe default; if present it must be a non-empty str.
     base_branch = "main"
     if "base_branch" in raw:
         base_branch = _require_nonempty_str(raw, "base_branch")
+
+    approved_prs = _parse_approved_pull_requests(raw)
 
     return ApprovalManifest(
         scope_id=scope_id,
@@ -301,7 +377,62 @@ def load_manifest(path: Path | str, config: Config) -> ApprovalManifest:
         authorized_at=authorized_at,
         source_path=resolved,
         base_branch=base_branch,
+        approved_pull_requests=approved_prs,
     )
+
+
+def _parse_approved_pull_requests(raw: dict[str, Any]) -> tuple[ApprovedPullRequest, ...]:
+    """Strictly parse the optional ``approved_pull_requests`` list (A2-A)."""
+
+    if "approved_pull_requests" not in raw:
+        return ()
+    items = raw["approved_pull_requests"]
+    if not isinstance(items, list) or not items or len(items) > _MAX_APPROVED_PRS:
+        raise errors.ApprovalInvalid(
+            f"approved_pull_requests must be a non-empty list of at most {_MAX_APPROVED_PRS}"
+        )
+    allowed_keys = {"number", "head_sha", "baseline_ids_sha256", "declared_replacements"}
+    out: list[ApprovedPullRequest] = []
+    seen: set[int] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            raise errors.ApprovalInvalid("approved_pull_requests entries must be objects")
+        extra = sorted(set(item) - allowed_keys)
+        if extra:
+            raise errors.ApprovalInvalid(f"approved_pull_requests entry has unknown key(s): {extra}")
+        number = item.get("number")
+        if not isinstance(number, int) or isinstance(number, bool) or number <= 0:
+            raise errors.ApprovalInvalid("approved PR number must be a positive integer")
+        if number in seen:
+            raise errors.ApprovalInvalid(f"approved PR #{number} listed more than once")
+        seen.add(number)
+        head_sha = item.get("head_sha")
+        if not isinstance(head_sha, str) or not _SHA_RE.match(head_sha):
+            raise errors.ApprovalInvalid("approved PR head_sha must be a 40-char lowercase hex SHA")
+        baseline = item.get("baseline_ids_sha256")
+        if baseline is not None and (not isinstance(baseline, str) or not _HEX64_RE.match(baseline)):
+            raise errors.ApprovalInvalid("baseline_ids_sha256 must be 64-char lowercase hex")
+        replacements: list[tuple[str, tuple[str, ...]]] = []
+        raw_repl = item.get("declared_replacements", {})
+        if not isinstance(raw_repl, dict) or len(raw_repl) > _MAX_REPLACEMENT_ENTRIES:
+            raise errors.ApprovalInvalid("declared_replacements must be an object (bounded size)")
+        for old, new in raw_repl.items():
+            if (
+                not isinstance(old, str) or not old.strip()
+                or not isinstance(new, list) or not new
+                or any(not isinstance(n, str) or not n.strip() for n in new)
+            ):
+                raise errors.ApprovalInvalid("declared_replacements entries must map id -> non-empty id list")
+            replacements.append((old.strip(), tuple(n.strip() for n in new)))
+        out.append(
+            ApprovedPullRequest(
+                number=number,
+                head_sha=head_sha,
+                baseline_ids_sha256=baseline,
+                declared_replacements=tuple(sorted(replacements)),
+            )
+        )
+    return tuple(out)
 
 
 def _realpath(path: Path | str) -> Path:
