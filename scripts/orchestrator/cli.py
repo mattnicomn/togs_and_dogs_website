@@ -25,6 +25,14 @@ from .loop import Orchestrator
 from .manifest import TaskRequest, load_manifest
 from .reports import milestone_report
 from .state import StateStore
+from . import redaction
+from .adapters.github_observer import FixtureGitHubObserver
+from .adapters.openai_evidence_reviewer import (
+    DeterministicMockTransport,
+    OpenAIEvidenceReviewer,
+    ReviewerConfig,
+)
+from .evidence_review import EvidenceRequest, EvidenceReviewRunner
 
 
 def _build_orchestrator(args: argparse.Namespace):
@@ -102,6 +110,48 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_a2a_review(args: argparse.Namespace) -> int:
+    """A2-A G1: fixture-backed observe -> evidence -> mock advisory review.
+
+    Fully offline: a local fixture directory stands in for GitHub and a
+    deterministic mock stands in for the reviewer. No network, no credentials.
+    """
+
+    try:
+        config = load_config(runtime_dir=args.runtime_dir, approvals_dir=args.approvals_dir)
+        manifest = load_manifest(args.manifest, config)
+        baseline = [
+            line.strip()
+            for line in Path(args.baseline_ids).read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        reviewer = OpenAIEvidenceReviewer(
+            DeterministicMockTransport(),
+            ReviewerConfig(model="mock-reviewer", price_in_per_mtok=1.0, price_out_per_mtok=4.0),
+        )
+        runner = EvidenceReviewRunner(
+            config=config,
+            manifest=manifest,
+            observer=FixtureGitHubObserver(args.fixture_dir),
+            reviewer=reviewer,
+            baseline_ids=baseline,
+        )
+        request = EvidenceRequest(
+            scope_id=manifest.scope_id,
+            repository=manifest.repository,
+            base_sha=manifest.base_sha,
+            target_branch=manifest.target_branch,
+            pr_number=args.pr_number,
+            expected_head_sha=args.expected_head_sha,
+        )
+        summary = runner.run_to_gate(request)
+    except errors.OrchestratorStop as stop:
+        print(f"STOP: {stop.reason_code}: {stop.detail}", file=sys.stderr)
+        return 2
+    print(json.dumps(redaction.redact_obj(summary), indent=2, sort_keys=True))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="petcare-orchestrator", description=__doc__)
     p.add_argument("--runtime-dir", default=None, help="agent-writable runtime dir (.orchestrator/)")
@@ -127,6 +177,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp_stat = sub.add_parser("status", help="print durable state")
     sp_stat.set_defaults(func=cmd_status)
+
+    sp_a2a = sub.add_parser(
+        "a2a-review",
+        help="A2-A G1: offline fixture-backed evidence packet + mock advisory review",
+    )
+    sp_a2a.add_argument("--manifest", required=True, help="path to owner approval manifest")
+    sp_a2a.add_argument("--fixture-dir", required=True, help="local fixture dir (stands in for GitHub)")
+    sp_a2a.add_argument("--baseline-ids", required=True, help="file of baseline failing test ids")
+    sp_a2a.add_argument("--pr-number", type=int, required=True)
+    sp_a2a.add_argument("--expected-head-sha", required=True)
+    sp_a2a.set_defaults(func=cmd_a2a_review)
 
     return p
 

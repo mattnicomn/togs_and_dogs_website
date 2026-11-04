@@ -1,0 +1,10 @@
+2026-01-01T00:00:00.0000000Z ============================= test session starts ==============================
+2026-01-01T00:00:00.1000000Z collected 2147 items
+2026-01-01T00:00:29.0000000Z =========================== short test summary info ============================
+2026-01-01T00:00:29.1000000Z FAILED tests/backend/test_r18l_client_booking_limits.py::test_booking_limit_below_limit_allowed - AssertionError: update_item call not found
+2026-01-01T00:00:29.1000001Z FAILED tests/backend/test_r18l_client_booking_limits.py::test_entitlement_enforcement_flag_behavior - AssertionError: update_item call not found
+2026-01-01T00:00:29.1000002Z FAILED tests/backend/test_r7a_optional_email.py::test_profile_only_client_can_be_created_without_email - assert 500 == 200
+2026-01-01T00:00:29.1000003Z FAILED tests/backend/test_r7a_optional_email.py::test_public_intake_still_requires_email - assert 500 == 400
+2026-01-01T00:00:29.1000004Z FAILED tests/backend/test_r7a_optional_email.py::test_duplicate_and_protected_checks_work_when_email_present - assert 500 == 409
+2026-01-01T00:00:29.1000005Z FAILED tests/backend/test_r7e_multi_day_jobs.py::test_multi_day_jobs_inherit_visit_window - KeyError: 'visit_window'
+2026-01-01T00:00:29.4000000Z ================ 6 failed, 2141 passed, 2152 warnings in 29.40s ================

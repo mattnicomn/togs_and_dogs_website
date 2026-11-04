@@ -1,0 +1,21 @@
+{
+  "_note": "A2-A G1 FIXTURE: sanitized public CI run metadata for PR #62 head 057de19c. Not live data.",
+  "repository": "mattnicomn/togs_and_dogs_website",
+  "head_sha": "057de19c01fbe24883192da3c68fbfda3bfadf1f",
+  "runs": [
+    {
+      "run_id": 41863562592,
+      "workflow": "CI",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "failure",
+      "head_sha": "057de19c01fbe24883192da3c68fbfda3bfadf1f",
+      "jobs": [
+        {"job_id": 126691735549, "name": "backend (pytest)", "status": "completed", "conclusion": "failure"},
+        {"job_id": 126691735906, "name": "web (lint, test, build)", "status": "completed", "conclusion": "failure"},
+        {"job_id": 126691736064, "name": "mobile (typecheck, test)", "status": "completed", "conclusion": "success"},
+        {"job_id": 126691736088, "name": "shared (contract validators)", "status": "completed", "conclusion": "success"}
+      ]
+    }
+  ]
+}
