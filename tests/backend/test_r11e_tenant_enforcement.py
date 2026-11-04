@@ -156,6 +156,65 @@ def make_job_record(company_id='tog_and_dogs', status='ASSIGNED'):
     }
 
 
+# ---------------------------------------------------------------------------
+# Test isolation (Gate C3b.3h.1)
+# ---------------------------------------------------------------------------
+#
+# The handlers run require_active_tenant() before the route logic, which looks
+# up TENANT#<company>/METADATA via common.db.get_item. The same-tenant success
+# tests set get_item.return_value to a request/pet record, so that record was
+# also returned for the entitlement lookup -> subscription_status absent ->
+# treated 'disabled' -> 403 TenantDisabled, masking the real same-tenant path.
+#
+# make_tenant_metadata + make_key_aware_get_item return ACTIVE tenant metadata
+# only for the TENANT#.../METADATA key and the record under test only for its
+# own PK/SK; every other key returns None (no success-shaped data leaks). The
+# real role, tenant-ownership, entitlement, and record logic still decide the
+# outcome.
+
+def make_tenant_metadata(company_id='tog_and_dogs'):
+    return {
+        'PK': f'TENANT#{company_id}',
+        'SK': 'METADATA',
+        'company_id': company_id,
+        'subscription_tier': 'starter',
+        'subscription_status': 'active',
+        'is_active': True,
+    }
+
+
+def make_key_aware_get_item(records=None, tenant_companies=('tog_and_dogs',)):
+    """records: iterable of dicts (each with PK/SK). Returns a get_item side_effect."""
+    tenants = {f'TENANT#{c}': make_tenant_metadata(c) for c in tenant_companies}
+    by_key = {}
+    for rec in (records or []):
+        if rec is not None:
+            by_key[(rec.get('PK'), rec.get('SK'))] = rec
+
+    def _side_effect(pk, sk=None, *args, **kwargs):
+        if pk in tenants and sk == 'METADATA':
+            return dict(tenants[pk])
+        rec = by_key.get((pk, sk))
+        return dict(rec) if rec is not None else None
+
+    return _side_effect
+
+
+@pytest.fixture(autouse=True)
+def no_network():
+    """Function-scoped, autouse guard: any UNMOCKED AWS/botocore call fails
+    loudly instead of silently reaching the network. The tested paths mock
+    get_item / table above this layer, so this only fires on a genuine leak.
+    Auto-restored per test."""
+    def _blocked(*args, **kwargs):
+        raise AssertionError(
+            "Unmocked AWS/botocore network call attempted in an isolated tenant-"
+            "enforcement test. Add an explicit scoped mock for the operation reached."
+        )
+    with patch('botocore.httpsession.URLLib3Session.send', _blocked):
+        yield
+
+
 # ===========================================================================
 # 1. review_handler — same-tenant access vs cross-tenant blocked
 # ===========================================================================
@@ -172,7 +231,11 @@ def test_review_handler_same_tenant_approved(mock_notify, mock_cascade, mock_get
     # Use PENDING_REVIEW -> DECLINED transition (simple, no side effects or M&G checks)
     req_item = make_req_record(company_id='tog_and_dogs', status='PENDING_REVIEW')
 
-    mock_get.return_value = req_item
+    # Key-aware: active tenant metadata for the entitlement precondition, the
+    # request record for its own key, None otherwise (no cross-tenant/unknown
+    # key receives success-shaped data). The real same-tenant transition logic
+    # then runs and must return 200.
+    mock_get.side_effect = make_key_aware_get_item(records=[req_item])
     mock_notify.return_value = {'success': True, 'message': 'ok'}
     mock_table.update_item.return_value = {}
 
@@ -549,7 +612,10 @@ def test_pet_handler_get_same_tenant_succeeds(mock_get, mock_table):
         'client_id': 'client-001'
     }
 
-    mock_get.return_value = pet_record
+    # Key-aware: active tenant metadata for the entitlement precondition and the
+    # pet record for its own key; the client-profile lookup goes through
+    # table.get_item (mocked below). Unknown keys return None.
+    mock_get.side_effect = make_key_aware_get_item(records=[pet_record])
     mock_table.get_item.return_value = {'Item': client_profile}
 
     event = make_event(role='admin', company_id='tog_and_dogs',
