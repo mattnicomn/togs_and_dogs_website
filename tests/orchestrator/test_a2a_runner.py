@@ -453,6 +453,7 @@ def _cli_args(runtime_dir, approvals_dir, path, head=s.HEAD):
         "a2a-review", "--manifest", str(path), "--fixture-dir", str(s.FIX),
         "--baseline-ids", str(s.FIX / "baseline_failed_ids.txt"),
         "--pr-number", str(s.PR), "--expected-head-sha", head,
+        "--offline-fixtures",
     ]
 
 

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from scripts.orchestrator import evidence
+from scripts.orchestrator.acl_guard import OfflineFixtureApprovalGuard
 from scripts.orchestrator.adapters.github_observer import FixtureGitHubObserver
 from scripts.orchestrator.adapters.openai_evidence_reviewer import (
     DeterministicMockTransport,
@@ -147,6 +148,7 @@ def make_runner(
     governor: Any = None,
     sleep: Callable[[float], None] | None = None,
     clock: Callable[[], float] | None = None,
+    approval_guard: Any = None,
 ):
     transport = transport if transport is not None else DeterministicMockTransport()
     kwargs: dict[str, Any] = {"sleep": sleep or (lambda s: None)}
@@ -159,6 +161,7 @@ def make_runner(
         observer=FixtureGitHubObserver(fixture_dir),
         reviewer=reviewer,
         baseline_ids=baseline if baseline is not None else baseline_ids(),
+        approval_guard=approval_guard if approval_guard is not None else OfflineFixtureApprovalGuard(),
         governor=governor,
     )
     return runner, transport

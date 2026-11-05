@@ -62,6 +62,26 @@ class ApprovalSourceNotConfigured(OrchestratorStop):
     reason_code = "APPROVAL_SOURCE_NOT_CONFIGURED"
 
 
+class ApprovalBoundaryViolation(ApprovalUntrustedSource):
+    """The OS-level approval boundary is provably breached: the agent identity
+    can write, replace, re-own or re-ACL the approval source (or an ancestor),
+    is not distinct from the owner, or the path escapes via a reparse point.
+
+    Subclasses :class:`ApprovalUntrustedSource` so existing handlers that stop
+    on an untrusted approval source also stop here.
+    """
+
+    reason_code = "APPROVAL_BOUNDARY_VIOLATION"
+
+
+class ApprovalBoundaryUnverifiable(ApprovalUntrustedSource):
+    """The approval boundary could not be positively verified (unreadable or
+    ambiguous ACL, NULL DACL, unsupported ACE, identity unreadable). Absence of
+    proof is a stop: the guard fails closed."""
+
+    reason_code = "APPROVAL_BOUNDARY_UNVERIFIABLE"
+
+
 class ResumeAuthorizationChanged(OrchestratorStop):
     """On resume, the persisted authorization no longer matches the manifest
     and request (identity, scope, SHA, branch, path scope, or actions)."""
