@@ -276,6 +276,7 @@ class ScriptedTransport:
     script: list[Any]
     requests: list[dict[str, Any]] = field(default_factory=list)
     calls: int = 0
+    offline_mock = True
 
     def send(self, request: dict[str, Any], *, timeout_s: float) -> TransportResponse:
         self.calls += 1
@@ -342,6 +343,7 @@ class DeterministicMockTransport:
     output_tokens: int = 300
     requests: list[dict[str, Any]] = field(default_factory=list)
     calls: int = 0
+    offline_mock = True
 
     def send(self, request: dict[str, Any], *, timeout_s: float) -> TransportResponse:
         self.calls += 1
@@ -401,6 +403,14 @@ class OpenAIEvidenceReviewer:
         self._clock = clock
 
     # request construction ---------------------------------------------------
+
+    @property
+    def is_offline_mock(self) -> bool:
+        """True only for transports that explicitly declare they are offline
+        mocks (no network, no credentials). Used to refuse pairing the
+        offline-fixture approval guard with anything that could be live."""
+
+        return getattr(self._transport, "offline_mock", False) is True
 
     def build_request(self, packet: Mapping[str, Any]) -> dict[str, Any]:
         """Build the provider-neutral request. It never contains tools."""

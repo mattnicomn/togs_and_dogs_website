@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -31,6 +32,12 @@ from .adapters.openai_evidence_reviewer import (
     DeterministicMockTransport,
     OpenAIEvidenceReviewer,
     ReviewerConfig,
+)
+from .acl_guard import (
+    ApprovalGuard,
+    BoundaryPolicy,
+    OfflineFixtureApprovalGuard,
+    ProductionApprovalGuard,
 )
 from .evidence_review import EvidenceRequest, EvidenceReviewRunner
 
@@ -110,6 +117,35 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _build_approval_guard(args: argparse.Namespace) -> ApprovalGuard:
+    """Exactly one of ``--offline-fixtures`` / trusted-owner flags is required.
+
+    ``--offline-fixtures`` performs NO OS check and is only accepted by the
+    runner for fixture observers + mock transports (it can never authorize a
+    production run). The trusted-owner flags select the ENFORCED guard.
+    """
+
+    sids = list(args.trusted_owner_sid or ())
+    uids = list(args.trusted_owner_uid or ())
+    if args.offline_fixtures:
+        if sids or uids:
+            raise errors.ApprovalBoundaryViolation(
+                "--offline-fixtures cannot be combined with trusted-owner flags"
+            )
+        return OfflineFixtureApprovalGuard()
+    if not sids and not uids:
+        raise errors.ApprovalBoundaryUnverifiable(
+            "specify --trusted-owner-sid/--trusted-owner-uid (enforced) or --offline-fixtures"
+        )
+    try:
+        policy = BoundaryPolicy(
+            trusted_owner_sids=frozenset(sids), trusted_owner_uids=frozenset(uids)
+        )
+    except ValueError as exc:
+        raise errors.ApprovalBoundaryUnverifiable(str(exc)) from exc
+    return ProductionApprovalGuard(policy)
+
+
 def cmd_a2a_review(args: argparse.Namespace) -> int:
     """A2-A G1: fixture-backed observe -> evidence -> mock advisory review.
 
@@ -119,6 +155,11 @@ def cmd_a2a_review(args: argparse.Namespace) -> int:
 
     try:
         config = load_config(runtime_dir=args.runtime_dir, approvals_dir=args.approvals_dir)
+        guard = _build_approval_guard(args)
+        # Prove the OS boundary BEFORE the manifest content is even read.
+        # Lexical absolute path (not resolved): a symlink/junction component must
+        # stay visible to the guard instead of being silently followed.
+        guard.verify(os.path.abspath(args.manifest), config.approvals_dir)
         manifest = load_manifest(args.manifest, config)
         baseline = [
             line.strip()
@@ -135,6 +176,7 @@ def cmd_a2a_review(args: argparse.Namespace) -> int:
             observer=FixtureGitHubObserver(args.fixture_dir),
             reviewer=reviewer,
             baseline_ids=baseline,
+            approval_guard=guard,
         )
         request = EvidenceRequest(
             scope_id=manifest.scope_id,
@@ -187,6 +229,12 @@ def build_parser() -> argparse.ArgumentParser:
     sp_a2a.add_argument("--baseline-ids", required=True, help="file of baseline failing test ids")
     sp_a2a.add_argument("--pr-number", type=int, required=True)
     sp_a2a.add_argument("--expected-head-sha", required=True)
+    sp_a2a.add_argument("--offline-fixtures", action="store_true",
+                        help="offline fixtures only: NO OS approval-boundary check (refused with non-fixture adapters)")
+    sp_a2a.add_argument("--trusted-owner-sid", action="append",
+                        help="Windows SID of a trusted approval owner (repeatable); enables ENFORCED mode")
+    sp_a2a.add_argument("--trusted-owner-uid", action="append", type=int,
+                        help="POSIX uid of a trusted approval owner (repeatable); enables ENFORCED mode")
     sp_a2a.set_defaults(func=cmd_a2a_review)
 
     return p

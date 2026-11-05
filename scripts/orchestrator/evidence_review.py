@@ -40,6 +40,8 @@ from .adapters.github_observer import (
     WorkflowRunObservation,
 )
 from .adapters.openai_evidence_reviewer import OpenAIEvidenceReviewer
+from .acl_guard import ApprovalGuard, BoundaryReport
+from .adapters.github_observer import FixtureGitHubObserver
 from .budgets import BudgetGovernor, restore_governor
 from .config import Config
 from .logging_events import EventLogger
@@ -202,10 +204,19 @@ class EvidenceReviewRunner:
         observer: GitHubReadObserver,
         reviewer: OpenAIEvidenceReviewer,
         baseline_ids: Sequence[str],
+        approval_guard: ApprovalGuard,
         observer_name: str = "fixture",
         governor: BudgetGovernor | None = None,
         logger: EventLogger | None = None,
     ) -> None:
+        # The guard is REQUIRED (no default): there is no silent way to skip the
+        # OS approval-boundary check.
+        if not callable(getattr(approval_guard, "verify", None)) or not isinstance(
+            getattr(approval_guard, "mode", None), str
+        ):
+            raise TypeError("approval_guard must provide verify() and a mode")
+        self.approval_guard = approval_guard
+        self.boundary_report: BoundaryReport | None = None
         self.config = config
         self.manifest = manifest
         self.observer = observer
@@ -301,11 +312,40 @@ class EvidenceReviewRunner:
         self._persist(state)
         return state
 
+    # --- approval boundary (G1.6-B) -----------------------------------------
+
+    def _verify_boundary(self) -> None:
+        guard = self.approval_guard
+        try:
+            if getattr(guard, "offline_only", False):
+                if not isinstance(self.observer, FixtureGitHubObserver) or not getattr(
+                    self.reviewer, "is_offline_mock", False
+                ):
+                    raise errors.ApprovalBoundaryViolation(
+                        "the offline-fixture approval guard may only be used with "
+                        "fixture observers and mock reviewer transports"
+                    )
+            report = guard.verify(self.manifest.source_path, self.config.approvals_dir)
+            if not isinstance(report, BoundaryReport):
+                raise errors.ApprovalBoundaryUnverifiable("approval guard returned no report")
+            if not report.enforced and not getattr(guard, "offline_only", False):
+                raise errors.ApprovalBoundaryUnverifiable("non-offline guard did not enforce the boundary")
+        except errors.OrchestratorStop as stop:
+            self.logger.emit("approval_boundary_refused", reason=stop.reason_code, detail=stop.detail)
+            raise
+        self.boundary_report = report
+        self.logger.emit("approval_boundary", **report.to_dict())
+
     # --- public entry -----------------------------------------------------
 
     def run(self, request: EvidenceRequest) -> None:
         """Run (or resume). Always ends by raising: ``MilestoneOwnerStop`` is the
         successful terminal state; any other ``OrchestratorStop`` is a fail-closed halt."""
+
+        # G1.6-B: the OS approval boundary is proven BEFORE the lock, authorization,
+        # checkpoint load, observer call or provider call. A failure here performs
+        # no external operation and writes no run state.
+        self._verify_boundary()
 
         with RunLock(self.config.runtime_dir / "a2a.lock"):
             state: ReviewRunState | None = None
@@ -514,6 +554,7 @@ class EvidenceReviewRunner:
         return {
             "phase": state.phase,
             "owner_gate_required": True,
+            "approval_boundary": self.boundary_report.to_dict() if self.boundary_report else None,
             "pull_request": {"repository": state.repository, "number": state.pr_number, "head_sha": state.head_sha},
             "packet_fingerprint": state.packet_fingerprint,
             "comparison_counts": (self.packet or {}).get("comparison", {}).get("counts"),
