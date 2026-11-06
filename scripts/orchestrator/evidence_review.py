@@ -40,7 +40,7 @@ from .adapters.github_observer import (
     WorkflowRunObservation,
 )
 from .adapters.openai_evidence_reviewer import OpenAIEvidenceReviewer
-from .acl_guard import ApprovalGuard, BoundaryReport
+from .acl_guard import ApprovalGuard, ApprovedFileSnapshot, BoundaryReport, ProductionApprovalGuard
 from .adapters.github_observer import FixtureGitHubObserver
 from .budgets import BudgetGovernor, restore_governor
 from .config import Config
@@ -205,6 +205,7 @@ class EvidenceReviewRunner:
         reviewer: OpenAIEvidenceReviewer,
         baseline_ids: Sequence[str],
         approval_guard: ApprovalGuard,
+        approved_snapshot: ApprovedFileSnapshot | None = None,
         observer_name: str = "fixture",
         governor: BudgetGovernor | None = None,
         logger: EventLogger | None = None,
@@ -216,6 +217,7 @@ class EvidenceReviewRunner:
         ):
             raise TypeError("approval_guard must provide verify() and a mode")
         self.approval_guard = approval_guard
+        self.approved_snapshot = approved_snapshot
         self.boundary_report: BoundaryReport | None = None
         self.config = config
         self.manifest = manifest
@@ -325,6 +327,23 @@ class EvidenceReviewRunner:
                         "the offline-fixture approval guard may only be used with "
                         "fixture observers and mock reviewer transports"
                     )
+            if not getattr(guard, "offline_only", False):
+                # Only the built-in production guard may claim ENFORCED: it reads
+                # the genuine process token and cannot be handed mocked data.
+                if type(guard) is not ProductionApprovalGuard:
+                    raise errors.ApprovalBoundaryViolation(
+                        "only the built-in production approval guard can attest an enforced boundary"
+                    )
+                snap = self.approved_snapshot
+                if snap is None:
+                    raise errors.ApprovalBoundaryUnverifiable(
+                        "an enforced run requires the approval file to be read through a pinned snapshot"
+                    )
+                if self.manifest.source_sha256 is None or self.manifest.source_sha256 != snap.sha256:
+                    raise errors.ApprovalBoundaryViolation(
+                        "the loaded manifest is not the pinned approval file that was verified"
+                    )
+                snap.revalidate()  # same bytes, same file identity, path still names it
             report = guard.verify(self.manifest.source_path, self.config.approvals_dir)
             if not isinstance(report, BoundaryReport):
                 raise errors.ApprovalBoundaryUnverifiable("approval guard returned no report")

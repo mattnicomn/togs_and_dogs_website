@@ -38,6 +38,7 @@ from .acl_guard import (
     BoundaryPolicy,
     OfflineFixtureApprovalGuard,
     ProductionApprovalGuard,
+    VolumeBinding,
 )
 from .evidence_review import EvidenceRequest, EvidenceReviewRunner
 
@@ -138,8 +139,22 @@ def _build_approval_guard(args: argparse.Namespace) -> ApprovalGuard:
             "specify --trusted-owner-sid/--trusted-owner-uid (enforced) or --offline-fixtures"
         )
     try:
+        volumes: tuple[VolumeBinding, ...] = ()
+        if args.trusted_volume_guid:
+            serial = int(args.trusted_volume_serial, 0) if args.trusted_volume_serial else None
+            volumes = (
+                VolumeBinding(
+                    volume_guid=args.trusted_volume_guid,
+                    label=args.trusted_volume_label,
+                    serial=serial,
+                ),
+            )
         policy = BoundaryPolicy(
-            trusted_owner_sids=frozenset(sids), trusted_owner_uids=frozenset(uids)
+            trusted_owner_sids=frozenset(sids),
+            trusted_owner_uids=frozenset(uids),
+            expected_agent_sid=args.expected_agent_sid,
+            expected_agent_uid=args.expected_agent_uid,
+            trusted_volumes=volumes,
         )
     except ValueError as exc:
         raise errors.ApprovalBoundaryUnverifiable(str(exc)) from exc
@@ -153,14 +168,19 @@ def cmd_a2a_review(args: argparse.Namespace) -> int:
     deterministic mock stands in for the reviewer. No network, no credentials.
     """
 
+    snapshot = None
     try:
         config = load_config(runtime_dir=args.runtime_dir, approvals_dir=args.approvals_dir)
         guard = _build_approval_guard(args)
-        # Prove the OS boundary BEFORE the manifest content is even read.
-        # Lexical absolute path (not resolved): a symlink/junction component must
-        # stay visible to the guard instead of being silently followed.
+        # Prove the OS boundary BEFORE the manifest content is even read, and read
+        # the approval file ONCE through a pinned, identity-checked handle (the
+        # path is never re-opened). Lexical absolute path (not resolved): a
+        # symlink/junction component must stay visible to the guard.
         guard.verify(os.path.abspath(args.manifest), config.approvals_dir)
-        manifest = load_manifest(args.manifest, config)
+        snapshot = guard.read_approved(os.path.abspath(args.manifest), config.approvals_dir)
+        manifest = load_manifest(
+            args.manifest, config, content=snapshot.content if snapshot is not None else None
+        )
         baseline = [
             line.strip()
             for line in Path(args.baseline_ids).read_text(encoding="utf-8").splitlines()
@@ -177,6 +197,7 @@ def cmd_a2a_review(args: argparse.Namespace) -> int:
             reviewer=reviewer,
             baseline_ids=baseline,
             approval_guard=guard,
+            approved_snapshot=snapshot,
         )
         request = EvidenceRequest(
             scope_id=manifest.scope_id,
@@ -190,6 +211,9 @@ def cmd_a2a_review(args: argparse.Namespace) -> int:
     except errors.OrchestratorStop as stop:
         print(f"STOP: {stop.reason_code}: {stop.detail}", file=sys.stderr)
         return 2
+    finally:
+        if snapshot is not None:
+            snapshot.close()
     print(json.dumps(redaction.redact_obj(summary), indent=2, sort_keys=True))
     return 0
 
@@ -235,6 +259,14 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Windows SID of a trusted approval owner (repeatable); enables ENFORCED mode")
     sp_a2a.add_argument("--trusted-owner-uid", action="append", type=int,
                         help="POSIX uid of a trusted approval owner (repeatable); enables ENFORCED mode")
+    sp_a2a.add_argument("--expected-agent-sid", default=None,
+                        help="ENFORCED (Windows): SID the running process token MUST equal")
+    sp_a2a.add_argument("--expected-agent-uid", type=int, default=None,
+                        help="ENFORCED (POSIX): uid the running process MUST have")
+    sp_a2a.add_argument("--trusted-volume-guid", default=None,
+                        help="ENFORCED (Windows): volume GUID path of the trusted approval volume")
+    sp_a2a.add_argument("--trusted-volume-label", default=None, help="expected volume label (optional)")
+    sp_a2a.add_argument("--trusted-volume-serial", default=None, help="expected volume serial, e.g. 0x1234ABCD (optional)")
     sp_a2a.set_defaults(func=cmd_a2a_review)
 
     return p
