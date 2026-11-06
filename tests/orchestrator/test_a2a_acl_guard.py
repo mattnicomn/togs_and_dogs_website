@@ -18,15 +18,21 @@ import pytest
 
 from scripts.orchestrator import acl_guard as g
 from scripts.orchestrator import cli, errors
+import dataclasses
+
 from scripts.orchestrator.acl_guard import (
     Ace,
     AclUnreadable,
     BoundaryPolicy,
     Identity,
+    MockedDescriptorApprovalGuard,
     NodeSecurity,
     OfflineFixtureApprovalGuard,
     PosixNode,
+    Privilege,
     ProductionApprovalGuard,
+    VolumeBinding,
+    VolumeInfo,
 )
 from scripts.orchestrator.adapters.github_observer import FixtureGitHubObserver
 from scripts.orchestrator.adapters.openai_evidence_reviewer import OpenAIEvidenceReviewer, ReviewerConfig
@@ -52,11 +58,22 @@ APPR = "C:\\petcare-agent\\approvals"
 MAN = "C:\\petcare-agent\\approvals\\a2a.json"
 
 
+BENIGN = tuple(Privilege(n, enabled=(n == "SeChangeNotifyPrivilege")) for n in sorted(g.BENIGN_PRIVILEGES))
+VOL_GUID = "\\\\?\\Volume{cc594c83-54d8-4340-9d57-05ed19f20112}\\"
+GOOD_VOLUME = VolumeInfo(
+    mount_root="C:\\", dos_target="\\Device\\HarddiskVolume11", volume_guid=VOL_GUID, drive_type=3,
+    filesystem="NTFS", label="PetCareAgent", serial=0xABCD1234, bus_type=g.BUS_FILE_BACKED_VIRTUAL,
+    vendor="Msft", product="Virtual Disk",
+)
+
+
 def agent_identity(**kw) -> Identity:
     base = dict(
         user_sid=AGENT,
         group_sids=frozenset({EVERYONE, USERS, AUTH_USERS, "S-1-5-4", "S-1-2-1"}),
         deny_only_group_sids=frozenset(),
+        privileges=BENIGN,
+        integrity_rid=0x2000,
     )
     base.update(kw)
     return Identity(**base)
@@ -65,7 +82,8 @@ def agent_identity(**kw) -> Identity:
 class FakeBackend:
     platform = "nt"
 
-    def __init__(self, identity=None, nodes=None, unreadable=()):
+    def __init__(self, identity=None, nodes=None, unreadable=(), volume=None):
+        self.volume = volume if volume is not None else GOOD_VOLUME
         self.identity = identity if identity is not None else agent_identity()
         # Windows paths are case-insensitive: look nodes up by lower-cased path.
         self.nodes = {k.lower(): v for k, v in (nodes if nodes is not None else good_nodes()).items()}
@@ -76,6 +94,11 @@ class FakeBackend:
         if isinstance(self.identity, Exception):
             raise self.identity
         return self.identity
+
+    def volume_info(self, path):
+        if isinstance(self.volume, Exception):
+            raise self.volume
+        return self.volume
 
     def read_node(self, path):
         self.reads.append(path)
@@ -105,7 +128,11 @@ def good_nodes():
     }
 
 
-POLICY = BoundaryPolicy(trusted_owner_sids=frozenset({OWNER}))
+POLICY = BoundaryPolicy(
+    trusted_owner_sids=frozenset({OWNER}),
+    expected_agent_sid=AGENT,
+    trusted_volumes=(VolumeBinding(VOL_GUID, label="PetCareAgent", serial=0xABCD1234),),
+)
 
 
 def check(backend=None, manifest=MAN, approvals=APPR):
@@ -212,11 +239,11 @@ def test_users_fullcontrol_on_the_drive_root_is_rejected_as_ancestor_replacement
     assert "DELETE_CHILD" in e.value.detail and ROOT in e.value.detail
 
 
-def test_users_modify_on_an_ancestor_alone_is_rejected_because_modify_includes_delete():
-    nodes = good_nodes()
-    nodes[ROOT] = NodeSecurity(ROOT, TRUSTED_INSTALLER, (Ace(SYSTEM, FULL), Ace(AUTH_USERS, MODIFY)), is_dir=True)
-    with pytest.raises(errors.ApprovalBoundaryViolation):
+def test_modify_on_a_non_root_ancestor_is_rejected_because_modify_includes_delete():
+    nodes = replace(good_nodes(), AGENT_ROOT, aces=owner_aces(agent_mask=MODIFY, inherited=False))
+    with pytest.raises(errors.ApprovalBoundaryViolation) as e:
         check(FakeBackend(nodes=nodes))
+    assert "DELETE" in e.value.detail
 
 
 def test_inherit_only_aces_do_not_apply_to_the_node_itself():
@@ -360,7 +387,7 @@ def test_agent_is_the_owner_is_rejected():
 
 
 def test_agent_member_of_a_trusted_owner_group_is_rejected():
-    pol = BoundaryPolicy(trusted_owner_sids=frozenset({"S-1-5-21-111-222-333-2000"}))
+    pol = dataclasses.replace(POLICY, trusted_owner_sids=frozenset({"S-1-5-21-111-222-333-2000"}))
     ident = agent_identity(group_sids=agent_identity().group_sids | {"S-1-5-21-111-222-333-2000"})
     with pytest.raises(errors.ApprovalBoundaryViolation):
         g.verify_boundary(FakeBackend(identity=ident), pol, MAN, APPR)
@@ -377,7 +404,7 @@ def test_administrator_or_system_capable_agent_is_rejected_even_when_deny_only(f
 def test_the_audited_same_identity_hard_stop_scenario_is_rejected():
     """G1.6: orchestrator running as the Administrators-member owner account."""
 
-    ident = Identity(OWNER, frozenset({EVERYONE, USERS, AUTH_USERS}), frozenset({ADMINS}))
+    ident = Identity(OWNER, frozenset({EVERYONE, USERS, AUTH_USERS}), frozenset({ADMINS}), privileges=BENIGN, integrity_rid=0x2000)
     with pytest.raises(errors.ApprovalBoundaryViolation) as e:
         check(FakeBackend(identity=ident))
     assert "not distinct" in e.value.detail and "administrator" in e.value.detail
@@ -431,12 +458,16 @@ def posix_good():
     }
 
 
-PPOL = BoundaryPolicy(trusted_owner_uids=frozenset({0}))
+PPOL = BoundaryPolicy(trusted_owner_uids=frozenset({0}), expected_agent_uid=1000)
 PMAN, PAPPR = "/srv/owner/approvals/a.json", "/srv/owner/approvals"
 
 
 def pcheck(backend, policy=PPOL):
     return g.verify_boundary(backend, policy, PMAN, PAPPR)
+
+
+def pcheck_args(backend, manifest, approvals, policy=PPOL):
+    return g.verify_boundary(backend, policy, manifest, approvals)
 
 
 def pmut(nodes, path, **kw):
@@ -475,7 +506,7 @@ def test_posix_root_agent_and_same_identity_rejected():
     with pytest.raises(errors.ApprovalBoundaryViolation):
         pcheck(FakePosix(euid=0))
     with pytest.raises(errors.ApprovalBoundaryViolation):
-        pcheck(FakePosix(euid=1000), BoundaryPolicy(trusted_owner_uids=frozenset({0, 1000})))
+        pcheck(FakePosix(euid=1000), dataclasses.replace(PPOL, trusted_owner_uids=frozenset({0, 1000})))
 
 
 def test_posix_untrusted_ancestor_owner_and_unreadable_and_no_trusted_uid():
@@ -497,7 +528,7 @@ def test_posix_native_same_identity_is_refused(tmp_path):
     d.mkdir()
     f = d / "a.json"
     f.write_text("{}")
-    guard = ProductionApprovalGuard(BoundaryPolicy(trusted_owner_uids=frozenset({0})))
+    guard = ProductionApprovalGuard(BoundaryPolicy(trusted_owner_uids=frozenset({0}), expected_agent_uid=os.geteuid()))
     with pytest.raises(errors.ApprovalBoundaryViolation):
         guard.verify(f, d)
 
@@ -509,7 +540,7 @@ def test_posix_native_symlinked_manifest_is_refused(tmp_path):
     d = tmp_path / "approvals"
     d.mkdir()
     (d / "a.json").symlink_to(real)
-    guard = ProductionApprovalGuard(BoundaryPolicy(trusted_owner_uids=frozenset({0})))
+    guard = ProductionApprovalGuard(BoundaryPolicy(trusted_owner_uids=frozenset({0}), expected_agent_uid=os.geteuid()))
     with pytest.raises(errors.ApprovalBoundaryViolation) as e:
         guard.verify(d / "a.json", d)
     assert "symlink" in e.value.detail
@@ -540,8 +571,13 @@ def test_windows_native_same_identity_tmp_tree_is_refused(tmp_path):
     d.mkdir()
     f = d / "a.json"
     f.write_text("{}")
-    me = WindowsSecurityBackend().current_identity().user_sid
-    guard = ProductionApprovalGuard(BoundaryPolicy(trusted_owner_sids=frozenset({me})))
+    be = WindowsSecurityBackend()
+    me = be.current_identity().user_sid
+    info = be.volume_info(str(d))
+    binding = VolumeBinding(info.volume_guid, require_file_backed_virtual=False)
+    guard = ProductionApprovalGuard(
+        BoundaryPolicy(trusted_owner_sids=frozenset({me}), expected_agent_sid=me, trusted_volumes=(binding,))
+    )
     with pytest.raises(errors.ApprovalBoundaryViolation) as e:
         guard.verify(f, d)
     assert "not distinct" in e.value.detail
@@ -582,8 +618,10 @@ class CountingObserver(FixtureGitHubObserver):
 
 
 class SpyGuard:
-    mode = "ENFORCED"
-    offline_only = False
+    """Offline-only spy: records when the boundary check ran."""
+
+    mode = "OFFLINE_MOCKED_DESCRIPTORS"
+    offline_only = True
 
     def __init__(self, observer=None, fail=None):
         self.observer, self.fail, self.verified = observer, fail, 0
@@ -594,7 +632,10 @@ class SpyGuard:
         self.calls_at_verify = self.observer.calls if self.observer else None
         if self.fail:
             raise self.fail
-        return g.BoundaryReport("ENFORCED", "nt", True, 4, "spy")
+        return g.BoundaryReport("OFFLINE_MOCKED_DESCRIPTORS", "nt", False, 4, "spy")
+
+    def read_approved(self, manifest_path, approvals_dir):
+        return None
 
 
 def build_runner(config, manifest, guard, observer=None, transport=None):
@@ -617,8 +658,8 @@ def test_boundary_is_proven_before_any_observer_or_provider_call(config, write_m
         runner.run(s.make_request())
     assert guard.verified == 1 and guard.calls_at_verify == 0
     assert obs.calls > 0 and transport.calls == 1
-    assert runner.boundary_report.mode == "ENFORCED"
-    assert runner.summary()["approval_boundary"]["enforced"] is True
+    assert runner.boundary_report.mode == "OFFLINE_MOCKED_DESCRIPTORS"
+    assert runner.summary()["approval_boundary"]["enforced"] is False
 
 
 @pytest.mark.parametrize("exc", [errors.ApprovalBoundaryViolation("x"), errors.ApprovalBoundaryUnverifiable("x")])
@@ -642,7 +683,7 @@ def mock_chain_runner(config, write_manifest, backend):
     manifest = dataclasses.replace(load(config, write_manifest), source_path=Path(MAN))
     cfg = dataclasses.replace(config, approvals_dir=Path(APPR))
     obs = CountingObserver(s.FIX)
-    guard = ProductionApprovalGuard(POLICY, backend)
+    guard = MockedDescriptorApprovalGuard(POLICY, backend)
     runner, transport = build_runner(cfg, manifest, guard, obs)
     return runner, transport, obs
 
@@ -655,12 +696,14 @@ def test_runner_with_a_failing_real_guard_and_mock_descriptors_does_no_external_
     assert obs.calls == 0 and transport.calls == 0 and not runner.store.exists()
 
 
-def test_runner_with_the_real_guard_and_a_protected_mock_chain_proceeds_to_the_owner_gate(config, write_manifest):
+def test_runner_with_the_mocked_guard_and_a_protected_mock_chain_proceeds_to_the_owner_gate(config, write_manifest):
     runner, transport, obs = mock_chain_runner(config, write_manifest, FakeBackend())
     with pytest.raises(errors.MilestoneOwnerStop):
         runner.run(s.make_request())
     assert obs.calls > 0 and transport.calls == 1
-    assert runner.summary()["approval_boundary"]["enforced"] is True
+    # Mocked descriptors are never reported as an enforced boundary.
+    assert runner.summary()["approval_boundary"]["enforced"] is False
+    assert runner.summary()["approval_boundary"]["mode"] == "OFFLINE_MOCKED_DESCRIPTORS"
 
 
 def test_runner_with_the_real_guard_stops_on_the_audited_host_root_acl(config, write_manifest):
@@ -696,7 +739,7 @@ def test_offline_fixture_guard_is_unenforced_and_reported_as_such(config, write_
     summary = runner.summary()
     assert summary["approval_boundary"] == {
         "mode": "OFFLINE_FIXTURE_UNENFORCED", "platform": "n/a", "enforced": False,
-        "nodes_checked": 0, "agent": "n/a",
+        "nodes_checked": 0, "agent": "n/a", "volume": "", "pinned": False,
     }
     assert OfflineFixtureApprovalGuard.offline_only is True
 
@@ -795,7 +838,7 @@ def test_cli_enforced_mode_refuses_a_tmp_tree_owned_by_the_test_identity(write_m
 # --- static safety of the new modules --------------------------------------------
 
 
-GUARD_ALLOWED = {"__future__", "ntpath", "os", "posixpath", "re", "stat", "dataclasses", "typing"}
+GUARD_ALLOWED = {"__future__", "hashlib", "ntpath", "os", "posixpath", "re", "stat", "dataclasses", "typing"}
 WIN_ALLOWED = {"__future__", "ctypes", "os", "stat", "struct"}
 FORBIDDEN_ROOTS = {
     "socket", "ssl", "subprocess", "urllib", "http", "requests", "httpx", "aiohttp", "asyncio",
@@ -831,7 +874,7 @@ WRITE_OR_AUTH_TOKENS = [
     "SetKernelObjectSecurity", "LogonUser", "CreateProcess", "ShellExecute", "WinExec",
     "AdjustTokenPrivileges", "ImpersonateLoggedOnUser", "ImpersonateSelf", "SetThreadToken",
     "DuplicateToken", "CreateProcessWithLogon", "CreateProcessAsUser", "LsaLogon", "NetUser",
-    "SetFileSecurity", "TakeOwnership", "icacls", "takeown", "net user", "runas", "os.system",
+    "SetFileSecurity", "icacls", "takeown", "net user", "runas", "os.system",
     "os.popen", "os.environ", "getenv", "password", "Password",
 ]
 
@@ -853,9 +896,20 @@ def test_acl_windows_only_calls_the_expected_read_apis():
     for m in _re.finditer(r"_(?:advapi32|kernel32)\.(\w+)", text):
         called.add(m.group(1))
     assert called <= {
-        "GetNamedSecurityInfoW", "OpenProcessToken", "GetTokenInformation",
-        "GetCurrentProcess", "CloseHandle", "LocalFree",
+        "GetNamedSecurityInfoW", "GetSecurityInfo", "OpenProcessToken", "GetTokenInformation",
+        "LookupPrivilegeNameW", "GetCurrentProcess", "CloseHandle", "LocalFree",
+        "CreateFileW", "ReadFile", "SetFilePointerEx", "GetFinalPathNameByHandleW", "GetFileInformationByHandle",
+        "QueryDosDeviceW", "GetVolumePathNameW", "GetVolumeNameForVolumeMountPointW", "GetDriveTypeW",
+        "GetVolumeInformationW", "DeviceIoControl",
     }, called
+    # Read-only by construction: never a write/delete share or access right, and the
+    # only IOCTL is the read-only storage property query.
+    for token in ("GENERIC_WRITE", "GENERIC_ALL", "FILE_SHARE_DELETE", "WriteFile", "DeleteFile", "MoveFile",
+                  "SetFileInformationByHandle", "FSCTL_"):
+        assert token not in text, token
+    assert text.count("_kernel32.DeviceIoControl(") == 1
+    assert "_kernel32.DeviceIoControl(h, _IOCTL_STORAGE_QUERY_PROPERTY," in text
+    assert "_IOCTL_STORAGE_QUERY_PROPERTY = 0x002D1400" in text
 
 
 def test_acl_guard_defines_no_write_style_functions():

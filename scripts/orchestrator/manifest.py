@@ -126,6 +126,9 @@ class ApprovalManifest:
     # A2-A: owner-approved pull requests for read-only observation. Empty for
     # every A1 manifest (and then excluded from the fingerprint).
     approved_pull_requests: tuple[ApprovedPullRequest, ...] = ()
+    # G1.6-C2: SHA-256 of the exact bytes parsed, set only when the manifest was
+    # loaded from a pinned snapshot. NOT part of the authorization fingerprint.
+    source_sha256: str | None = None
 
     # --- scope verification ------------------------------------------------
 
@@ -273,7 +276,7 @@ class ApprovalManifest:
         raise errors.PullRequestNotApproved(f"PR #{number} is not in the owner-approved manifest")
 
 
-def load_manifest(path: Path | str, config: Config) -> ApprovalManifest:
+def load_manifest(path: Path | str, config: Config, *, content: bytes | None = None) -> ApprovalManifest:
     """Load and structurally validate a manifest from an owner-controlled path.
 
     Fail-closed checks, in order (Finding 1 — owner approval trust):
@@ -326,9 +329,16 @@ def load_manifest(path: Path | str, config: Config) -> ApprovalManifest:
         raise errors.ApprovalMissing(f"no manifest at {resolved}")
 
     # (3) Structure.
+    source_sha256: str | None = None
     try:
-        raw: Any = json.loads(resolved.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        if content is not None:
+            # G1.6-C2: the bytes were read from a pinned, identity-checked handle;
+            # the path is NOT re-opened, so it cannot be swapped in between.
+            source_sha256 = hashlib.sha256(content).hexdigest()
+            raw: Any = json.loads(content.decode("utf-8"))
+        else:
+            raw = json.loads(resolved.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
         raise errors.ApprovalInvalid(f"manifest unreadable/not JSON: {exc}") from exc
 
     if not isinstance(raw, dict):
@@ -378,6 +388,7 @@ def load_manifest(path: Path | str, config: Config) -> ApprovalManifest:
         source_path=resolved,
         base_branch=base_branch,
         approved_pull_requests=approved_prs,
+        source_sha256=source_sha256,
     )
 
 
