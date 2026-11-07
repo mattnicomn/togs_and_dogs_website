@@ -27,13 +27,14 @@ import posixpath
 import shutil
 import stat
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any, Callable, ClassVar, Mapping, Protocol, Sequence
 
 from . import acl_guard, c3_package, c3_runtime, errors
 
-APPROVAL_SCHEMA = "petcare.c3.probe-approval/v1"
+# v2: adds the owner-pinned ``interpreter_tree_sha256`` (G0-R-B, finding #4).
+APPROVAL_SCHEMA = "petcare.c3.probe-approval/v2"
 REPORT_SCHEMA = "petcare.c3.probe-report/v1"
 PHASES = ("PLAN", "READONLY", "NEGATIVE")
 SCOPE_ID = "G1.6-C3"
@@ -62,6 +63,7 @@ class ProbeApproval:
     package_manifest_sha256: str
     min_free_bytes: Mapping[str, int]
     negative_authorized: bool
+    interpreter_tree_sha256: str  # owner-pinned digest of the trusted interpreter tree
     source_sha256: str = ""      # digest of the exact approval bytes that were parsed
 
     def phase_allows(self, requested: str) -> bool:
@@ -71,8 +73,12 @@ class ProbeApproval:
 _APPROVAL_KEYS = {
     "schema", "scope_id", "phase", "authorized_by", "authorized_at", "expires_at", "expected_agent_sid",
     "trusted_owner_sids", "trusted_volume", "container", "production_paths", "package_manifest_sha256",
-    "min_free_bytes", "negative_authorized",
+    "min_free_bytes", "negative_authorized", "interpreter_tree_sha256",
 }
+
+
+def _is_hex64(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value)
 
 
 def _parse_time(value: Any) -> datetime:
@@ -128,8 +134,11 @@ def parse_probe_approval(data: bytes | None, *, now: datetime) -> ProbeApproval:
     if not isinstance(prod, dict) or set(prod) != set(PRODUCTION_KEYS) or not all(isinstance(v, str) for v in prod.values()):
         raise errors.ApprovalInvalid("production_paths must name exactly the protected production locations")
     digest = doc["package_manifest_sha256"]
-    if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+    if not _is_hex64(digest):
         raise errors.ApprovalInvalid("package_manifest_sha256 must be 64 lowercase hex characters")
+    interp_digest = doc["interpreter_tree_sha256"]
+    if not _is_hex64(interp_digest):
+        raise errors.ApprovalInvalid("interpreter_tree_sha256 must be 64 lowercase hex characters")
     free = doc["min_free_bytes"]
     if (not isinstance(free, dict) or not free
             or not all(isinstance(k, str) and isinstance(v, int) and not isinstance(v, bool) and v > 0 for k, v in free.items())):
@@ -151,7 +160,7 @@ def parse_probe_approval(data: bytes | None, *, now: datetime) -> ProbeApproval:
         authorized_at=doc["authorized_at"], expires_at=expires, expected_agent_sid=doc["expected_agent_sid"],
         trusted_owner_sids=frozenset(owners), trusted_volume=binding, container=container,
         production_paths=dict(prod), package_manifest_sha256=digest, min_free_bytes=dict(free),
-        negative_authorized=neg, source_sha256=c3_package.sha256_hex(data),
+        negative_authorized=neg, interpreter_tree_sha256=interp_digest, source_sha256=c3_package.sha256_hex(data),
     )
 
 
@@ -708,6 +717,18 @@ S4U_SPEC: Mapping[str, Any] = {
         "cleanup re-checks each entry immediately before removal but is not handle-relative",
         "no guard expectation exists for D:\\PetCareVault / the VHDX (needs a second volume binding); P05/P06 open probes cover it",
         "launcher-before-import trust and signature-report production are specified, not implemented",
+        # Finding #26 (OPEN - documented, not resolved).
+        "package paths are validated with WINDOWS rules on every platform (c3_package.validate_rel_path): reserved "
+        "device names (con, aux, nul, com1 ...), 8.3-style '~N' components, trailing dots/spaces, alternate streams "
+        "and git core.quotePath-escaped names are all refused with the same PACKAGE_INTEGRITY_FAILURE reason as "
+        "tampering. This fails closed but cannot tell an innocent repository name from a hostile one, and a repository "
+        "containing such a name cannot be packaged; listings must be produced with -z or core.quotePath=false. "
+        "Unicode control/format characters (e.g. U+202E) are also refused (G0-R-B); confusable or homoglyph names are "
+        "NOT detected",
+        "the ProvenanceEvidence seal only blocks naive construction; code running in the probe process can forge it, "
+        "so the binding that counts is the live interpreter re-scan against the owner-pinned interpreter_tree_sha256",
+        "the package manifest object is caller-supplied but authenticated only by equality of its digest with the "
+        "approved package_manifest_sha256; the installed application tree itself is re-scanned live in ENFORCED mode",
     ],
     "open_questions_for_G2": [
         "Does the agent account hold the 'Log on as a batch job' right? (unreadable without elevation)",
@@ -792,7 +813,9 @@ class ProbeContext:
     guard: Any
     policy: TargetPolicy
     package_manifest: c3_package.PackageManifest
-    observed_tree: Mapping[str, tuple[str, int]]
+    # OFFLINE_MOCKED fixture only. In ENFORCED mode this MUST be None: the probe
+    # re-scans the installed application tree itself (finding #3).
+    observed_tree: Mapping[str, tuple[str, int]] | None
     now: datetime
     mode: str = "ENFORCED"                      # or OFFLINE_MOCKED
     # Evidence sources. In ENFORCED mode these MUST stay None: the probe then builds
@@ -804,7 +827,10 @@ class ProbeContext:
     executor: OperationExecutor | None = None
     fs: FsAdapter | None = None
     cases: Sequence[NegativeCase] | None = None
-    # Enforced-mode trust evidence.
+    # Enforced-mode trust inputs. ``runtime_env`` is NEVER accepted in ENFORCED mode
+    # (the probe captures the live interpreter itself); it exists only so a caller's
+    # attempt to supply one is detected and refused. ``runtime_policy`` is
+    # configuration and is bound to the approval (trusted root = approved ``bin``).
     runtime_env: c3_runtime.EnvironmentSnapshot | None = None
     runtime_policy: c3_runtime.RuntimePolicy | None = None
     provenance: c3_runtime.ProvenanceEvidence | None = None
@@ -849,6 +875,94 @@ def run_probe(ctx: ProbeContext, phase: str) -> dict[str, Any]:
     rep = _Report(mode=ctx.mode, phase=phase)
     _run(ctx, phase, rep)
     return rep.to_dict()
+
+
+def _reconstruct_pinned_approval(ctx: ProbeContext) -> ProbeApproval:
+    """Finding #1. Rebuild the authorization from the EXACT pinned owner bytes and
+    require the approval in use to be identical to it. A caller-built or edited
+    ``ProbeApproval`` (even one carrying the right ``source_sha256``) is refused."""
+
+    snap = ctx.approval_snapshot
+    if snap is None:
+        raise errors.ApprovalBoundaryUnverifiable(
+            "enforced mode requires the approval to be read through the pinned production guard")
+    if type(snap) is not acl_guard.ApprovedFileSnapshot:
+        raise errors.ApprovalBoundaryViolation("the approval snapshot is not a genuine pinned snapshot")
+    report = getattr(snap, "report", None)
+    if not isinstance(report, acl_guard.BoundaryReport) or report.enforced is not True or report.pinned is not True:
+        raise errors.ApprovalBoundaryViolation("the approval snapshot was not produced by an enforced, pinned guard read")
+    content = snap.content
+    if not isinstance(content, bytes):
+        raise errors.ApprovalBoundaryViolation("the approval snapshot carries no byte content")
+    digest = c3_package.sha256_hex(content)
+    if snap.sha256 != digest:
+        raise errors.ApprovalBoundaryViolation("the approval snapshot digest does not match its bytes")
+    snap.revalidate()  # pinned handle identity, current bytes and path must still agree
+    rebuilt = parse_probe_approval(content, now=ctx.now)  # malformed / expired / unknown keys -> typed stop
+    if rebuilt.source_sha256 != digest:
+        raise errors.ApprovalBoundaryViolation("the reconstructed approval digest differs from the pinned bytes")
+    if type(ctx.approval) is not ProbeApproval or ctx.approval != rebuilt:
+        raise errors.ApprovalBoundaryViolation("the approval in use is not the pinned owner-protected file")
+    try:
+        snap_dir = ntpath.normcase(ntpath.dirname(acl_guard.canonical_windows_path(snap.path)))
+        appr_dir = ntpath.normcase(acl_guard.canonical_windows_path(rebuilt.production_paths["approvals"]))
+    except acl_guard.PathRejected as exc:
+        raise errors.ApprovalBoundaryViolation(f"the pinned approval path is unsafe: {exc}") from None
+    if snap_dir != appr_dir:
+        raise errors.ApprovalBoundaryViolation("the pinned approval file is not in the approved approvals directory")
+    return rebuilt
+
+
+def _bound_runtime_roots(ctx: ProbeContext) -> tuple[str, str]:
+    """Finding #3. The runtime policy is configuration, so bind it to the approval:
+    the trusted root IS the approved, owner-protected ``bin``; the pinned interpreter
+    is ``<bin>\\python\\python.exe``; every approved agent-writable location is
+    declared agent-writable. Returns (interpreter root, application root)."""
+
+    rp = ctx.runtime_policy
+    if not isinstance(rp, c3_runtime.RuntimePolicy) or rp.platform != "nt":
+        raise errors.RuntimeUntrusted("enforced mode requires a Windows runtime policy")
+    prod = ctx.approval.production_paths
+    try:
+        bin_root = acl_guard.canonical_windows_path(prod["bin"])
+        writable = [acl_guard.canonical_windows_path(prod[k]) for k in AGENT_WRITABLE_PRODUCTION]
+    except acl_guard.PathRejected as exc:
+        raise errors.RuntimeUntrusted(f"approved runtime location is unsafe: {exc}") from None
+    nc = ntpath.normcase
+    if nc(rp.trusted_root) != nc(bin_root):
+        raise errors.RuntimeUntrusted("the runtime policy's trusted root is not the approved bin directory")
+    interp_root = bin_root.rstrip("\\") + "\\python"
+    app_root = bin_root.rstrip("\\") + "\\app"
+    if rp.expected_executable is None or nc(rp.expected_executable) != nc(interp_root + "\\python.exe"):
+        raise errors.RuntimeUntrusted("the runtime policy does not pin <bin>\\python\\python.exe")
+    declared = {nc(w) for w in rp.agent_writable_roots}
+    missing = [w for w in writable if nc(w) not in declared]
+    if missing:
+        raise errors.RuntimeUntrusted("the runtime policy omits approved agent-writable locations")
+    return interp_root, app_root
+
+
+def _observe_live(interp_root: str, app_root: str) -> tuple[c3_runtime.EnvironmentSnapshot, dict[str, str], dict[str, tuple[str, int]]]:
+    """Finding #3. Trusted LIVE inspection only: the current interpreter's own state
+    and read-only re-scans of the interpreter and application trees. Anything that
+    cannot be established fails closed."""
+
+    try:
+        env = c3_runtime.capture_environment()
+    except Exception as exc:  # noqa: BLE001 - an unobservable runtime is untrusted, whatever the cause
+        raise errors.RuntimeUntrusted(f"the live runtime could not be observed ({type(exc).__name__})") from None
+    if not isinstance(env, c3_runtime.EnvironmentSnapshot):
+        raise errors.RuntimeUntrusted("the live runtime observation is malformed")
+    interp_scan = c3_package.scan_tree(interp_root)   # PackageIntegrityFailure if unreadable/linked/odd
+    app_scan = c3_package.scan_tree(app_root)
+    interp: dict[str, str] = {}
+    for rel, value in interp_scan.items():
+        if not (isinstance(value, tuple) and len(value) == 2 and isinstance(value[0], str)):
+            raise errors.RuntimeUntrusted("the live interpreter tree observation is malformed")
+        interp[rel] = value[0]
+    if not interp or not app_scan:
+        raise errors.RuntimeUntrusted("the live interpreter or application tree is empty")
+    return env, interp, dict(app_scan)
 
 
 def _check_bindings(ctx: ProbeContext) -> None:
@@ -927,35 +1041,41 @@ def _run(ctx: ProbeContext, phase: str, rep: "_Report") -> None:
             rep.verdict = "PASS_PLAN_ONLY"
             return
 
-        # 1. Mode gating: ENFORCED needs the production guard, a verified runtime and verified provenance.
+        # 1. Mode gating. ENFORCED: the production guard, the approval reconstructed from
+        #    the pinned bytes, and LIVE observations only (runtime, interpreter, app tree).
         if ctx.mode == "ENFORCED":
             if type(ctx.guard) is not acl_guard.ProductionApprovalGuard:
                 raise errors.ApprovalBoundaryViolation("enforced mode requires the built-in production guard")
-            if ctx.runtime_env is None or ctx.runtime_policy is None:
-                raise errors.RuntimeUntrusted("enforced mode requires a runtime snapshot and policy")
-            c3_runtime.require_trusted_runtime(ctx.runtime_env, ctx.runtime_policy, ctx.provenance)
-            rep.check("runtime", "PASS", "isolated trusted runtime with verified provenance evidence")
-            snap = ctx.approval_snapshot
-            if snap is None:
-                raise errors.ApprovalBoundaryUnverifiable(
-                    "enforced mode requires the approval to be read through the pinned production guard")
-            if not ctx.approval.source_sha256 or ctx.approval.source_sha256 != snap.sha256:
-                raise errors.ApprovalBoundaryViolation("the approval in use is not the pinned owner-protected file")
-            snap.revalidate()
-            rep.check("approval_pinned", "PASS", "approval bytes equal the pinned, revalidated snapshot")
+            supplied = [n for n, v in (("runtime_env", ctx.runtime_env), ("observed_tree", ctx.observed_tree)) if v is not None]
+            if supplied:
+                raise errors.ApprovalBoundaryViolation(
+                    "enforced mode does not accept caller-supplied observations: " + ", ".join(supplied))
+            deps = _resolve_dependencies(ctx)  # refuses injected providers before ANY live observation
+            ctx = replace(ctx, approval=_reconstruct_pinned_approval(ctx))
+            rep.check("approval_pinned", "PASS", "approval reconstructed from the pinned, revalidated owner bytes")
+            interp_root, app_root = _bound_runtime_roots(ctx)
+            live_env, live_interp, observed_tree = _observe_live(interp_root, app_root)
+            c3_runtime.require_trusted_runtime(
+                live_env, ctx.runtime_policy, ctx.provenance,  # type: ignore[arg-type]  # proven by _bound_runtime_roots
+                observed_interpreter=live_interp, pinned_tree_sha256=ctx.approval.interpreter_tree_sha256,
+            )
+            rep.check("runtime", "PASS", "live isolated runtime; provenance equals the live, owner-pinned interpreter tree")
         elif ctx.mode == "OFFLINE_MOCKED":
             if not getattr(ctx.guard, "offline_only", False):
                 raise errors.ApprovalBoundaryViolation("mocked mode requires an offline-only guard")
+            if ctx.observed_tree is None:
+                raise errors.ProbeAborted("mocked mode requires an observed-tree fixture")
+            observed_tree = ctx.observed_tree
+            deps = _resolve_dependencies(ctx)
             rep.check("runtime", "SKIPPED", "mocked mode: runtime trust is not asserted")
         else:
             raise errors.ApprovalInvalid("unknown probe mode")
-        deps = _resolve_dependencies(ctx)
         _check_bindings(ctx)
         rep.check("bindings", "PASS", "approval, target policy and guard policy agree")
         tick()
 
-        # 2. Package integrity.
-        c3_package.verify_observed_tree(ctx.package_manifest, ctx.observed_tree)
+        # 2. Package integrity (ENFORCED: against the live re-scan of the installed app tree).
+        c3_package.verify_observed_tree(ctx.package_manifest, observed_tree)
         rep.check("package", "PASS", f"{len(ctx.package_manifest.files)} files match manifest")
 
         # 3. Executing identity facts (token read; no logon).

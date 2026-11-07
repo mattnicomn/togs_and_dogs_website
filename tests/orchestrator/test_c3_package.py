@@ -97,6 +97,40 @@ def test_unsafe_package_paths_are_refused(bad):
         pkg.validate_rel_path(bad)
 
 
+# --- finding #26 (OPEN, documented): Windows path rules on every platform -------------------------
+
+AMBIGUOUS_FORMS = [
+    "aux.ts", "nul.json", "src/con", "src/com1.txt", "lpt9.log", "vendor/FOO~1/x.py", "docs/notes.", "docs/notes ",
+    "data/file.txt:stream", "data/file.txt::$DATA", '"caf\\303\\251.txt"', "caf\\303\\251.txt", "a/./b", "a/../../etc",
+    "./a", "a//b", "//server/share/x", "\\\\?\\C:\\x", "C:x", "a\x00b", " a", "a\t",
+    "\u202ex.py", "src/\u200bmain.py", "a\u0085b", "a\x1bb", "\ufeffa.py",
+]
+
+
+@pytest.mark.parametrize("bad", AMBIGUOUS_FORMS)
+def test_ambiguous_or_windows_unsafe_paths_fail_closed_everywhere(bad):
+    with pytest.raises(errors.PackageIntegrityFailure):
+        pkg.validate_rel_path(bad)
+    blob = pkg.git_blob_id(b"x")
+    with pytest.raises(errors.PackageIntegrityFailure):
+        pkg.parse_ls_tree(f"100644 blob {blob}\t{bad}\n")
+    with pytest.raises(errors.PackageIntegrityFailure):
+        pkg.build_manifest({bad: b"x"}, source_commit=COMMIT, tree_listing=f"100644 blob {blob}\tok.txt\n")
+
+
+def test_an_innocent_windows_reserved_name_is_refused_too_documented_limitation():
+    # Finding #26 is NOT resolved: a legitimate repository file named like a Windows
+    # device fails closed with the SAME reason code as tampering. This test pins that
+    # behaviour (fail closed) and the fact that it is recorded as a known G0 limit.
+    files = {"web/aux.ts": b"export {}\n"}
+    with pytest.raises(errors.PackageIntegrityFailure) as e:
+        pkg.build_manifest(files, source_commit=COMMIT, tree_listing=listing(files))
+    assert e.value.reason_code == "PACKAGE_INTEGRITY_FAILURE"
+    from scripts.orchestrator import c3_probe
+    limits = " ".join(c3_probe.S4U_SPEC["known_g0_limits"])
+    assert "validate_rel_path" in limits and "cannot tell an innocent repository name from a hostile one" in limits
+
+
 def test_case_insensitive_path_collisions_are_refused():
     files = {"scripts/A.py": b"1", "scripts/a.py": b"2"}
     with pytest.raises(errors.PackageIntegrityFailure) as e:

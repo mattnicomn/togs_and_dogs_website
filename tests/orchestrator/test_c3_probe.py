@@ -39,6 +39,25 @@ COMMIT = "a6b6c66cef916eec4182053a398a9d2106eda5ff"
 LISTING = f"100644 blob {pkg.git_blob_id(FILES['scripts/orchestrator/a.py'])}\tscripts/orchestrator/a.py\n"
 MANIFEST = pkg.build_manifest(FILES, source_commit=COMMIT, tree_listing=LISTING)
 OBSERVED_TREE = {f.path: (f.sha256, f.size) for f in MANIFEST.files}
+# The synthetic trusted interpreter tree (from the runtime tests) and its owner-pinned digest.
+INTERP_HASHES = dict(rtt.OBSERVED)
+INTERP_DIGEST = rt.interpreter_tree_digest(INTERP_HASHES)
+INTERP_SCAN = {k: (v, len(rtt.TREE[k])) for k, v in INTERP_HASHES.items()}
+
+
+@pytest.fixture(autouse=True)
+def _no_real_host_tree_reads(monkeypatch):
+    """Hermetic: the ENFORCED live re-scan must never read the real P:/D: volumes
+    from a test. Temp-directory scans (CLI tests) still use the real scanner."""
+
+    real = pkg.scan_tree
+
+    def guarded(root, **kw):
+        if isinstance(root, str) and len(root) >= 2 and root[1] == ":" and root[0].upper() in "PD":
+            raise errors.PackageIntegrityFailure("test isolation: host volume scan refused")
+        return real(root, **kw)
+
+    monkeypatch.setattr(pkg, "scan_tree", guarded)
 
 
 def approval_doc(**over) -> dict:
@@ -49,6 +68,7 @@ def approval_doc(**over) -> dict:
         "trusted_volume": {"guid": VOL_GUID, "label": "PetCareAgent", "serial": 0xABCD1234},
         "container": CONTAINER, "production_paths": dict(PROD), "package_manifest_sha256": MANIFEST.digest(),
         "min_free_bytes": {"P:\\": 5 * 2**30, "D:\\": 20 * 2**30}, "negative_authorized": True,
+        "interpreter_tree_sha256": INTERP_DIGEST,
     }
     doc.update(over)
     return doc
@@ -724,42 +744,269 @@ def test_unknown_mode_and_phase_fail():
     assert probe.run_probe(ctx(), "EXECUTE")["verdict"] == "FAIL"
 
 
-def test_enforced_mode_with_an_untrusted_runtime_is_unverified_and_never_reaches_the_guard():
-    prod_guard = g.ProductionApprovalGuard(POLICY_G)
-    snap = rt.capture_environment()                      # the pytest process: not isolated, not trusted
-    rpol = rt.RuntimePolicy("nt" if snap.platform == "nt" else "posix", snap.prefix)
-    rep = probe.run_probe(ctx(mode="ENFORCED", guard=prod_guard, runtime_env=snap, runtime_policy=rpol, provenance=EVIDENCE), "READONLY")
-    assert rep["verdict"] == "UNVERIFIED" and rep["reason_code"] == "RUNTIME_UNTRUSTED"
-    rep2 = probe.run_probe(ctx(mode="ENFORCED", guard=prod_guard, runtime_env=snap, runtime_policy=rpol, provenance=None), "READONLY")
-    assert rep2["verdict"] == "UNVERIFIED"
-    rep3 = probe.run_probe(ctx(mode="ENFORCED", guard=prod_guard), "READONLY")  # no runtime snapshot at all
-    assert rep3["verdict"] == "UNVERIFIED"
-    # a trusted-looking environment still needs real provenance evidence, never a flag
-    rep4 = probe.run_probe(ctx(mode="ENFORCED", guard=prod_guard, runtime_env=rtt.env(), runtime_policy=rtt.POLICY, provenance=True), "READONLY")  # type: ignore[arg-type]
-    assert rep4["verdict"] == "UNVERIFIED" and rep4["reason_code"] == "RUNTIME_UNTRUSTED"
+EVIDENCE = rtt.verify()   # genuine evidence for the synthetic interpreter tree INTERP_HASHES
 
 
-EVIDENCE = rt.ProvenanceEvidence(verified_binaries=("python.exe",), attested_files=1, tree_digest="0" * 64)
+def pinned_snapshot(data: bytes, *, path="P:\\approvals\\c3-probe.json", sha=None, report=None) -> g.ApprovedFileSnapshot:
+    pinned = hard.FakePinned(content=data)
+    return g.ApprovedFileSnapshot(
+        path=path, content=data, sha256=sha if sha is not None else pkg.sha256_hex(data), identity=pinned.identity,
+        pinned=pinned, report=report or g.BoundaryReport("ENFORCED", "nt", True, 4, "t", "v", True),
+    )
 
 
 def enforced_ctx(**over) -> probe.ProbeContext:
-    """An ENFORCED context whose runtime/approval evidence is synthetic but valid; the
-    evidence sources are left None so the probe must build the REAL ones itself."""
+    """An ENFORCED context with a valid pinned approval. Evidence SOURCES and live
+    observations are left None so the probe must establish them itself."""
 
     data = json.dumps(approval_doc()).encode()
     approval = probe.parse_probe_approval(data, now=NOW)
-    pinned = hard.FakePinned(content=data)
-    snap = g.ApprovedFileSnapshot(
-        path="P:\\approvals\\c3-probe.json", content=data, sha256=approval.source_sha256, identity=pinned.identity,
-        pinned=pinned, report=g.BoundaryReport("ENFORCED", "nt", True, 4, "t", "v", True),
-    )
     values = dict(
         approval=approval, guard=g.ProductionApprovalGuard(POLICY_G), policy=policy(), package_manifest=MANIFEST,
-        observed_tree=OBSERVED_TREE, now=NOW, mode="ENFORCED", runtime_env=rtt.env(), runtime_policy=rtt.POLICY,
-        provenance=EVIDENCE, approval_snapshot=snap,
+        observed_tree=None, now=NOW, mode="ENFORCED", runtime_policy=rtt.POLICY,
+        provenance=EVIDENCE, approval_snapshot=pinned_snapshot(data),
     )
     values.update(over)
     return probe.ProbeContext(**values)
+
+
+class LiveHost:
+    """Stand-in for the LIVE inspection sources (patched at the module boundary, the
+    only place ENFORCED mode reads them). Records every call, so tests can prove that
+    nothing was observed before authorization/approval checks completed."""
+
+    def __init__(self, monkeypatch, *, env=None, interp=None, app=None, env_error=None, scan_error=None):
+        self.env_calls, self.scans = 0, []
+        self._env = env if env is not None else rtt.env()
+        self._trees = {"P:\\bin\\python": INTERP_SCAN if interp is None else interp,
+                       "P:\\bin\\app": OBSERVED_TREE if app is None else app}
+
+        def capture():
+            self.env_calls += 1
+            if env_error:
+                raise env_error
+            return self._env
+
+        def scan(root, **kw):
+            self.scans.append(root)
+            if scan_error:
+                raise scan_error
+            if root not in self._trees:
+                raise errors.PackageIntegrityFailure(f"unexpected live scan root {root}")
+            return dict(self._trees[root])
+
+        monkeypatch.setattr(rt, "capture_environment", capture)
+        monkeypatch.setattr(pkg, "scan_tree", scan)
+
+    @property
+    def touched(self) -> bool:
+        return bool(self.env_calls or self.scans)
+
+
+def reason(rep) -> str:
+    return json.dumps(rep)
+
+
+def test_enforced_mode_with_the_live_pytest_runtime_is_unverified_and_never_reaches_the_guard(monkeypatch):
+    # The REAL capture_environment() runs: this pytest process is not the isolated trusted runtime.
+    real_capture = rt.capture_environment
+    host = LiveHost(monkeypatch)
+    monkeypatch.setattr(rt, "capture_environment", real_capture)
+    rep = probe.run_probe(enforced_ctx(), "READONLY")
+    assert rep["verdict"] == "UNVERIFIED" and rep["reason_code"] == "RUNTIME_UNTRUSTED", rep
+    assert not any(c["id"].startswith("guard:") for c in rep["checks"])
+    assert host.scans == ["P:\\bin\\python", "P:\\bin\\app"]
+
+
+@pytest.mark.parametrize("bad", [None, True, "verified"])
+def test_enforced_mode_needs_genuine_provenance_evidence_not_a_flag(monkeypatch, bad):
+    LiveHost(monkeypatch)
+    rep = probe.run_probe(enforced_ctx(provenance=bad), "READONLY")
+    assert rep["verdict"] == "UNVERIFIED" and rep["reason_code"] == "RUNTIME_UNTRUSTED"
+
+
+def test_enforced_live_path_passes_runtime_and_package_then_stops_at_the_real_token(monkeypatch):
+    # End-to-end wiring of the live observations: with a trusted-looking live runtime and
+    # live trees that equal the approved digests, runtime + package checks PASS, and the run
+    # then stops at the REAL token of this (non-agent) process. No guard verdict is produced.
+    host = LiveHost(monkeypatch)
+    rep = probe.run_probe(enforced_ctx(), "READONLY")
+    ids = {c["id"]: c["status"] for c in rep["checks"]}
+    assert ids.get("approval_pinned") == "PASS" and ids.get("runtime") == "PASS" and ids.get("package") == "PASS", rep
+    assert rep["verdict"] in ("FAIL", "UNVERIFIED") and ids.get("identity") != "PASS"
+    assert not any(k.startswith("guard:") and v == "PASS" for k, v in ids.items())
+    assert host.env_calls == 1 and host.scans == ["P:\\bin\\python", "P:\\bin\\app"]
+
+
+# --- finding #1: the authorization is rebuilt from the pinned bytes -------------------------------
+
+
+def test_a_forged_approval_object_with_the_pinned_digest_is_refused(monkeypatch):
+    host = LiveHost(monkeypatch)
+    c = enforced_ctx()
+    for forged in (
+        dataclasses.replace(c.approval, authorized_by="Someone Else"),            # digest kept, content forged
+        dataclasses.replace(c.approval, production_paths=dict(PROD, bin="P:\\worktrees")),
+        dataclasses.replace(c.approval, interpreter_tree_sha256="1" * 64),
+        dataclasses.replace(c.approval, expected_agent_sid=OWNER),
+    ):
+        assert forged.source_sha256 == c.approval.source_sha256
+        rep = probe.run_probe(dataclasses.replace(c, approval=forged), "READONLY")
+        assert rep["verdict"] == "FAIL" and "not the pinned owner-protected file" in reason(rep), rep
+    assert not host.touched
+
+
+def test_a_caller_subclassed_approval_object_is_refused(monkeypatch):
+    host = LiveHost(monkeypatch)
+    c = enforced_ctx()
+    Sub = type("Sub", (probe.ProbeApproval,), {})
+    sub = Sub(**{f.name: getattr(c.approval, f.name) for f in dataclasses.fields(probe.ProbeApproval)})
+    rep = probe.run_probe(dataclasses.replace(c, approval=sub), "READONLY")
+    assert rep["verdict"] == "FAIL" and "not the pinned owner-protected file" in reason(rep)
+    assert not host.touched
+
+
+def test_mismatched_pinned_bytes_are_refused(monkeypatch):
+    host = LiveHost(monkeypatch)
+    good = json.dumps(approval_doc()).encode()
+    other = json.dumps(approval_doc(authorized_by="Someone Else")).encode()
+    cases = {
+        "digest does not match its bytes": pinned_snapshot(good, sha="0" * 64),
+        "not the pinned owner-protected file": pinned_snapshot(other),           # valid, but not the approval in use
+        "enforced, pinned guard read": pinned_snapshot(good, report=g.BoundaryReport("OFFLINE_MOCKED", "nt", False, 4, "t", "v", True)),
+        "enforced, pinned guard read ": pinned_snapshot(good, report=g.BoundaryReport("ENFORCED", "nt", True, 4, "t", "v", False)),
+        "not in the approved approvals directory": pinned_snapshot(good, path="P:\\worktrees\\c3-probe.json"),
+        "pinned approval path is unsafe": pinned_snapshot(good, path="P:\\approvals\\c3-probe.json:hidden"),
+    }
+    for expect, snap in cases.items():
+        rep = probe.run_probe(enforced_ctx(approval_snapshot=snap), "READONLY")
+        assert rep["verdict"] == "FAIL" and expect.strip() in reason(rep), (expect, rep)
+    assert not host.touched
+
+
+def test_pinned_bytes_that_do_not_parse_or_have_expired_are_refused(monkeypatch):
+    host = LiveHost(monkeypatch)
+    for data in (b"not json", json.dumps(approval_doc(expires_at="2026-11-07T11:59:00Z")).encode(),
+                 json.dumps({**approval_doc(), "extra": 1}).encode()):
+        rep = probe.run_probe(enforced_ctx(approval_snapshot=pinned_snapshot(data)), "READONLY")
+        assert rep["verdict"] == "FAIL" and rep["reason_code"] in ("APPROVAL_INVALID", "APPROVAL_BOUNDARY_VIOLATION"), rep
+    assert not host.touched
+
+
+def test_a_duck_typed_snapshot_is_refused(monkeypatch):
+    host = LiveHost(monkeypatch)
+    real = enforced_ctx().approval_snapshot
+    duck = type("Duck", (), {"content": real.content, "sha256": real.sha256, "path": real.path, "report": real.report,
+                             "revalidate": lambda self: None})()
+    rep = probe.run_probe(enforced_ctx(approval_snapshot=duck), "READONLY")
+    assert rep["verdict"] == "FAIL" and "not a genuine pinned snapshot" in reason(rep)
+    assert not host.touched
+
+
+# --- finding #3: observations come only from live inspection -------------------------------------
+
+
+@pytest.mark.parametrize("supplied", [{"runtime_env": "env"}, {"observed_tree": OBSERVED_TREE}])
+def test_caller_supplied_observations_are_refused_in_enforced_mode(monkeypatch, supplied):
+    host = LiveHost(monkeypatch)
+    value = dict(supplied)
+    if "runtime_env" in value:
+        value["runtime_env"] = rtt.env()   # a perfectly "trusted" snapshot is still not accepted from the caller
+    rep = probe.run_probe(enforced_ctx(**value), "READONLY")
+    assert rep["verdict"] == "FAIL" and "caller-supplied observations" in reason(rep)
+    assert not host.touched
+
+
+@pytest.mark.parametrize(
+    "rpol, expect",
+    [
+        (rt.RuntimePolicy(platform="nt", trusted_root="P:\\runtime\\py", agent_writable_roots=("P:\\worktrees", "P:\\evidence"),
+                          expected_executable="P:\\runtime\\py\\python\\python.exe"), "not the approved bin"),
+        (rt.RuntimePolicy(platform="nt", trusted_root="P:\\bin", agent_writable_roots=rtt.WRITABLE), "does not pin"),
+        (rt.RuntimePolicy(platform="nt", trusted_root="P:\\bin", agent_writable_roots=("P:\\worktrees",),
+                          expected_executable="P:\\bin\\python\\python.exe"), "omits approved agent-writable"),
+        (rt.RuntimePolicy(platform="nt", trusted_root="P:\\bin", agent_writable_roots=rtt.WRITABLE,
+                          expected_executable="P:\\bin\\other\\python.exe"), "does not pin"),
+        (rt.RuntimePolicy(platform="posix", trusted_root="/opt/py"), "Windows runtime policy"),
+        (None, "Windows runtime policy"),
+    ],
+)
+def test_the_runtime_policy_is_bound_to_the_approval(monkeypatch, rpol, expect):
+    host = LiveHost(monkeypatch)
+    rep = probe.run_probe(enforced_ctx(runtime_policy=rpol), "READONLY")
+    assert rep["verdict"] == "UNVERIFIED" and rep["reason_code"] == "RUNTIME_UNTRUSTED" and expect in reason(rep), rep
+    assert not host.touched
+
+
+def test_unobservable_live_state_fails_closed(monkeypatch):
+    LiveHost(monkeypatch, env_error=OSError("boom"))
+    rep = probe.run_probe(enforced_ctx(), "READONLY")
+    assert rep["verdict"] == "UNVERIFIED" and rep["reason_code"] == "RUNTIME_UNTRUSTED" and "could not be observed" in reason(rep)
+
+    LiveHost(monkeypatch, env="not-a-snapshot")
+    rep = probe.run_probe(enforced_ctx(), "READONLY")
+    assert rep["verdict"] == "UNVERIFIED" and "malformed" in reason(rep)
+
+    LiveHost(monkeypatch, scan_error=errors.PackageIntegrityFailure("cannot stat the export root"))
+    rep = probe.run_probe(enforced_ctx(), "READONLY")
+    assert rep["verdict"] == "FAIL" and rep["reason_code"] == "PACKAGE_INTEGRITY_FAILURE"
+
+    LiveHost(monkeypatch, interp={})
+    rep = probe.run_probe(enforced_ctx(), "READONLY")
+    assert rep["verdict"] == "UNVERIFIED" and "empty" in reason(rep)
+
+    LiveHost(monkeypatch, interp={"python.exe": "not-a-tuple"})
+    assert probe.run_probe(enforced_ctx(), "READONLY")["verdict"] == "UNVERIFIED"
+
+
+def test_the_live_application_tree_not_a_fixture_decides_package_integrity(monkeypatch):
+    tampered = dict(OBSERVED_TREE, **{"scripts/orchestrator/a.py": ("0" * 64, 1)})
+    LiveHost(monkeypatch, app=tampered)
+    rep = probe.run_probe(enforced_ctx(), "READONLY")
+    assert rep["verdict"] == "FAIL" and rep["reason_code"] == "PACKAGE_INTEGRITY_FAILURE"
+    assert dict((c["id"], c["status"]) for c in rep["checks"]).get("runtime") == "PASS"
+
+
+def test_mocked_mode_without_an_observed_tree_fixture_fails():
+    rep = probe.run_probe(ctx(observed_tree=None), "READONLY")
+    assert rep["verdict"] == "FAIL" and rep["reason_code"] == "PROBE_ABORTED"
+
+
+# --- finding #4: provenance is bound to the live, owner-pinned interpreter tree --------------------
+
+
+def test_stale_provenance_for_a_different_interpreter_tree_is_refused(monkeypatch):
+    changed = dict(INTERP_SCAN, **{"python313._pth": (rtt.sha(b"edited"), 6)})
+    LiveHost(monkeypatch, interp=changed)
+    rep = probe.run_probe(enforced_ctx(), "READONLY")
+    assert rep["verdict"] == "FAIL" and rep["reason_code"] == "PACKAGE_INTEGRITY_FAILURE" and "stale or substituted" in reason(rep)
+
+
+def test_an_extra_or_missing_live_interpreter_file_is_refused(monkeypatch):
+    LiveHost(monkeypatch, interp=dict(INTERP_SCAN, **{"evil.pth": (rtt.sha(b"x"), 1)}))
+    assert probe.run_probe(enforced_ctx(), "READONLY")["reason_code"] == "PACKAGE_INTEGRITY_FAILURE"
+    LiveHost(monkeypatch, interp={k: v for k, v in INTERP_SCAN.items() if k != "python313.zip"})
+    assert probe.run_probe(enforced_ctx(), "READONLY")["reason_code"] == "PACKAGE_INTEGRITY_FAILURE"
+
+
+def test_consistent_evidence_for_a_tree_the_owner_did_not_pin_is_refused(monkeypatch):
+    # Live tree and evidence agree with each other, but not with the approval's pinned digest.
+    other_tree = dict(rtt.TREE, **{"python313._pth": b"other"})
+    other_hashes = {k: rtt.sha(v) for k, v in other_tree.items()}
+    other_ev = rtt.verify(observed_sha256=other_hashes, references=other_hashes,
+                          signature_report=json.dumps({"schema": rt.SIGNATURE_SCHEMA, "entries": [
+                              {"path": k, "sha256": other_hashes[k], "status": "Valid", "signer": "Python Software Foundation"}
+                              for k in sorted(rtt.BINARIES)]}).encode())
+    LiveHost(monkeypatch, interp={k: (v, 1) for k, v in other_hashes.items()})
+    rep = probe.run_probe(enforced_ctx(provenance=other_ev), "READONLY")
+    assert rep["verdict"] == "FAIL" and "not the owner-pinned interpreter tree" in reason(rep), rep
+
+
+def test_forged_provenance_evidence_cannot_be_constructed_or_patched():
+    with pytest.raises(ValueError):
+        rt.ProvenanceEvidence(verified_binaries=("python.exe",), attested_files=1, tree_digest=INTERP_DIGEST)
+    with pytest.raises(ValueError):
+        dataclasses.replace(EVIDENCE, tree_digest="0" * 64)          # inconsistent with its own file hashes
 
 
 @pytest.mark.parametrize(
@@ -779,9 +1026,10 @@ def test_enforced_mode_rejects_every_injected_evidence_source(inject):
     assert "injected evidence" in json.dumps(rep)
 
 
-def test_enforced_mode_reads_the_live_token_and_refuses_a_non_agent_process():
+def test_enforced_mode_reads_the_live_token_and_refuses_a_non_agent_process(monkeypatch):
     # No injection: the probe builds the REAL identity source. This pytest process is not the
     # approved agent, so the run fails before any boundary or filesystem work.
+    LiveHost(monkeypatch)
     rep = probe.run_probe(enforced_ctx(), "READONLY")
     assert rep["verdict"] in ("FAIL", "UNVERIFIED") and rep["reason_code"] in (
         "APPROVAL_BOUNDARY_VIOLATION", "APPROVAL_BOUNDARY_UNVERIFIABLE", "PROBE_ABORTED") or rep["reason_code"].startswith("UNEXPECTED_")
@@ -1085,7 +1333,7 @@ def test_the_cli_never_claims_provenance(capsys):
 PKG = Path(__file__).resolve().parents[2] / "scripts" / "orchestrator"
 NEW = [PKG / "c3_package.py", PKG / "c3_runtime.py", PKG / "c3_probe.py"]
 ALLOWED = {"__future__", "argparse", "dataclasses", "datetime", "enum", "hashlib", "json", "ntpath", "os", "posixpath", "re",
-           "shutil", "stat", "sys", "time", "typing", "_winapi"}
+           "shutil", "stat", "sys", "time", "typing", "unicodedata", "_winapi"}
 FORBIDDEN = {"subprocess", "socket", "ssl", "urllib", "http", "requests", "httpx", "ctypes", "tempfile", "asyncio",
              "multiprocessing", "ftplib", "smtplib", "winreg", "zipfile", "tarfile", "importlib", "runpy"}
 TOKENS = ["os.system", "Popen", "schtasks", "Register-ScheduledTask", "runas", "net user", "urlopen", "SetNamedSecurityInfo",

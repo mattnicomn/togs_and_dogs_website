@@ -23,6 +23,7 @@ import json
 import os
 import re
 import stat
+import unicodedata
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -54,6 +55,10 @@ def validate_rel_path(rel: Any) -> str:
         raise errors.PackageIntegrityFailure("empty or padded package path")
     if "\\" in rel or rel.startswith("/") or "\x00" in rel:
         raise errors.PackageIntegrityFailure("package paths must be relative and use forward slashes")
+    # Control and invisible format characters (e.g. U+202E RIGHT-TO-LEFT OVERRIDE) make a
+    # name display differently from what it is; refuse them rather than guess (finding #26).
+    if any(unicodedata.category(ch) in ("Cc", "Cf", "Cs") for ch in rel):
+        raise errors.PackageIntegrityFailure("package path contains a control, format or surrogate character")
     try:
         canon = acl_guard.canonical_windows_path("C:\\" + rel.replace("/", "\\"))
     except acl_guard.PathRejected as exc:

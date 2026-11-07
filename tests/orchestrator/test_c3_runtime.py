@@ -47,7 +47,8 @@ def test_the_exact_trusted_runtime_snapshot_is_accepted():
 
 def test_enforced_operation_requires_provenance_evidence_with_no_override():
     with pytest.raises(errors.RuntimeUntrusted) as e:
-        rt.require_trusted_runtime(env(), POLICY, None)
+        rt.require_trusted_runtime(env(), POLICY, None, observed_interpreter=OBSERVED,
+                                   pinned_tree_sha256=rt.interpreter_tree_digest(OBSERVED))
     assert "provenance" in e.value.detail
 
 
@@ -217,17 +218,101 @@ def test_fully_attested_interpreter_provenance_is_accepted_and_yields_evidence()
     assert verify(observed_sha256=changed, references=dict(REFS, **{"python313._pth": sha(b"different")})).tree_digest != ev.tree_digest
 
 
+PINNED = rt.interpreter_tree_digest(OBSERVED)
+
+
+def gate(ev, *, environment=None, observed=None, pinned=None):
+    return rt.require_trusted_runtime(
+        environment or env(), POLICY, ev,
+        observed_interpreter=OBSERVED if observed is None else observed, pinned_tree_sha256=PINNED if pinned is None else pinned,
+    )
+
+
 def test_the_runtime_gate_takes_evidence_not_a_boolean():
     ev = verify()
-    rt.require_trusted_runtime(env(), POLICY, ev)
+    gate(ev)
     for bad in (None, True, False, "verified", 1, {"verified_binaries": ["python.exe"]}):
         with pytest.raises(errors.RuntimeUntrusted):
-            rt.require_trusted_runtime(env(), POLICY, bad)  # type: ignore[arg-type]
+            gate(bad)  # type: ignore[arg-type]
     with pytest.raises(ValueError):
         rt.ProvenanceEvidence(verified_binaries=(), attested_files=0, tree_digest="0" * 64)
     # evidence does not excuse an untrusted environment
     with pytest.raises(errors.RuntimeUntrusted):
-        rt.require_trusted_runtime(env(cwd="C:\\Users\\mattn"), POLICY, ev)
+        gate(ev, environment=env(cwd="C:\\Users\\mattn"))
+
+
+def test_evidence_records_every_attested_file_hash():
+    ev = verify()
+    assert dict(ev.file_hashes) == OBSERVED and ev.attested_files == len(OBSERVED) and ev.tree_digest == PINNED
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        dict(verified_binaries=("python.exe",), attested_files=1, tree_digest="0" * 64),
+        dict(verified_binaries=("python.exe",), attested_files=len(OBSERVED), tree_digest=PINNED,
+             file_hashes=tuple(sorted(OBSERVED.items()))),                     # internally consistent, but unsealed
+        dict(verified_binaries=("python.exe",), attested_files=1, tree_digest=PINNED, _seal=object()),
+    ],
+)
+def test_caller_constructed_provenance_evidence_is_refused(kwargs):
+    with pytest.raises(ValueError):
+        rt.ProvenanceEvidence(**kwargs)
+
+
+def test_patched_evidence_must_stay_internally_consistent():
+    ev = verify()
+    with pytest.raises(ValueError):
+        dataclasses.replace(ev, tree_digest="0" * 64)
+    with pytest.raises(ValueError):
+        dataclasses.replace(ev, attested_files=ev.attested_files + 1)
+    with pytest.raises(ValueError):
+        dataclasses.replace(ev, verified_binaries=ev.verified_binaries + ("ghost.dll",))
+
+
+def test_the_gate_binds_evidence_to_the_live_tree_and_the_pinned_digest():
+    ev = verify()
+    edited = dict(OBSERVED, **{"python313._pth": sha(b"edited")})
+    with pytest.raises(errors.PackageIntegrityFailure, match="stale or substituted"):
+        gate(ev, observed=edited, pinned=rt.interpreter_tree_digest(edited))
+    with pytest.raises(errors.PackageIntegrityFailure):
+        gate(ev, observed=dict(OBSERVED, **{"evil.pth": sha(b"x")}))
+    with pytest.raises(errors.PackageIntegrityFailure):
+        gate(ev, observed={k: v for k, v in OBSERVED.items() if k != "python313.zip"})
+    with pytest.raises(errors.PackageIntegrityFailure, match="owner-pinned"):
+        gate(ev, pinned="1" * 64)
+    # a self-consistent rewrite of the evidence for another tree still fails against the live tree
+    forged = dataclasses.replace(ev, file_hashes=tuple(sorted(edited.items())), tree_digest=rt.interpreter_tree_digest(edited))
+    with pytest.raises(errors.PackageIntegrityFailure):
+        gate(forged)
+
+
+def test_the_gate_requires_every_live_binary_to_be_attested():
+    ev = verify()
+    partial = dataclasses.replace(ev, verified_binaries=ev.verified_binaries[:1])
+    with pytest.raises(errors.RuntimeUntrusted, match="every executable binary"):
+        gate(partial)
+
+
+@pytest.mark.parametrize("pinned", ["", "0" * 63, "G" * 64, "A" * 64, None])
+def test_the_gate_requires_a_wellformed_pinned_digest(pinned):
+    with pytest.raises(errors.RuntimeUntrusted):
+        rt.require_trusted_runtime(env(), POLICY, verify(), observed_interpreter=OBSERVED, pinned_tree_sha256=pinned)  # type: ignore[arg-type]
+
+
+def test_the_gate_requires_a_live_observation():
+    for observed in ({}, None, [("python.exe", OBSERVED["python.exe"])]):
+        with pytest.raises(errors.RuntimeUntrusted):
+            rt.require_trusted_runtime(env(), POLICY, verify(), observed_interpreter=observed, pinned_tree_sha256=PINNED)  # type: ignore[arg-type]
+
+
+def test_the_tree_digest_is_canonical_and_strict():
+    assert rt.interpreter_tree_digest(OBSERVED) == rt.interpreter_tree_digest(dict(reversed(list(OBSERVED.items()))))
+    with pytest.raises(errors.RuntimeUntrusted):
+        rt.interpreter_tree_digest({})
+    for bad in ({"python.exe": "ABC"}, {"python.exe": "0" * 64 + "0"}, {"python.exe": 5}):
+        with pytest.raises(errors.PackageIntegrityFailure):
+            rt.interpreter_tree_digest(bad)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("name", ["python313._pth", "python313.zip"])
