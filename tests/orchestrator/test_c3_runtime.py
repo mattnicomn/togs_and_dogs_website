@@ -444,3 +444,59 @@ def test_provenance_policy_requires_named_valid_binaries():
         rt.ProvenancePolicy(required_binaries=())
     with pytest.raises(errors.PackageIntegrityFailure):
         rt.ProvenancePolicy(required_binaries=("../python.exe",))
+
+
+# --- G0-R-C: the runtime security rules are fixed; evidence must be genuine -------------------------------------
+
+
+@pytest.mark.parametrize(
+    "weaken",
+    [
+        {"required_flags": ()},
+        {"required_flags": ("isolated",)},
+        {"allowed_meta_path": rt.DEFAULT_META_PATH | {"evil.Finder"}},
+        {"allowed_path_hooks": rt.DEFAULT_PATH_HOOKS | {"evil.hook"}},
+        {"expected_executable": None},
+        {"agent_writable_roots": ()},
+    ],
+)
+def test_the_gate_refuses_a_policy_that_weakens_the_fixed_rules(weaken):
+    weak = dataclasses.replace(POLICY, **weaken)
+    with pytest.raises(errors.RuntimeUntrusted, match="weakens the fixed runtime security rules"):
+        rt.require_trusted_runtime(env(), weak, verify(), observed_interpreter=OBSERVED, pinned_tree_sha256=PINNED)
+
+
+def test_a_stricter_policy_is_still_accepted():
+    strict = dataclasses.replace(POLICY, required_flags=rt.DEFAULT_REQUIRED_FLAGS + ("no_site",),
+                                 allowed_path_hooks=frozenset())
+    rt.require_trusted_runtime(env(path_hooks=()), strict, verify(), observed_interpreter=OBSERVED, pinned_tree_sha256=PINNED)
+
+
+def test_the_gate_refuses_subclassed_snapshots_and_policies():
+    SubPol = type("SubPol", (rt.RuntimePolicy,), {})
+    SubEnv = type("SubEnv", (rt.EnvironmentSnapshot,), {})
+    sub_pol = SubPol(**{f.name: getattr(POLICY, f.name) for f in dataclasses.fields(rt.RuntimePolicy)})
+    sub_env = SubEnv(**{f.name: getattr(env(), f.name) for f in dataclasses.fields(rt.EnvironmentSnapshot)})
+    for e, p in ((sub_env, POLICY), (env(), sub_pol)):
+        with pytest.raises(errors.RuntimeUntrusted, match="not a genuine object"):
+            rt.require_trusted_runtime(e, p, verify(), observed_interpreter=OBSERVED, pinned_tree_sha256=PINNED)
+
+
+def test_only_genuine_plain_evidence_is_accepted():
+    ev = verify()
+    assert rt.is_genuine_evidence(ev)
+    Sub = type("Sub", (rt.ProvenanceEvidence,), {})
+    sub = Sub(**{f.name: getattr(ev, f.name) for f in dataclasses.fields(rt.ProvenanceEvidence)})
+    impure_list = dataclasses.replace(ev, verified_binaries=list(ev.verified_binaries))
+    SubStr = type("SubStr", (str,), {})
+    impure_elems = dataclasses.replace(ev, verified_binaries=tuple(SubStr(b) for b in ev.verified_binaries))
+    impure_hash = dataclasses.replace(ev, file_hashes=tuple((SubStr(p), h) for p, h in ev.file_hashes))
+    for bad in (sub, impure_list, impure_elems, impure_hash, None, True, "verified", object()):
+        assert not rt.is_genuine_evidence(bad)
+        with pytest.raises(errors.RuntimeUntrusted):
+            rt.require_trusted_runtime(env(), POLICY, bad, observed_interpreter=OBSERVED, pinned_tree_sha256=PINNED)
+
+
+def test_the_signature_report_docstring_does_not_claim_an_approval_field():
+    doc = rt.ingest_signature_report.__doc__ or ""
+    assert "records the report's digest in the approval" not in doc and "does NOT pin the report's digest" in doc

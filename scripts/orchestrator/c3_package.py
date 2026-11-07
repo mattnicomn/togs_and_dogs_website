@@ -220,15 +220,22 @@ def scan_tree(root: str, *, keep_bytes: bool = False) -> dict[str, Any]:
         raise errors.PackageIntegrityFailure("the export root is a link, reparse point or not a directory")
     out: dict[str, Any] = {}
     total = 0
+    # Directory traversal is PATH-based (no handle-relative enumeration in the Windows
+    # standard library): this is BLOCKING for G1 (see c3_probe.S4U_SPEC["blocking_g1"]).
+    # Detection only: each directory's identity is re-checked before and after it is
+    # enumerated and once more after the whole walk; any change fails closed.
+    seen_dirs: dict[str, tuple[int, int, int, bool]] = {"": _dir_identity(root_stat)}
     stack = [""]
     while stack:
         rel_dir = stack.pop()
         base = os.path.join(root, rel_dir) if rel_dir else root
+        _recheck_dir(base, rel_dir, seen_dirs[rel_dir])
         try:
             with os.scandir(base) as it:
                 children = sorted(it, key=lambda e: e.name)
         except OSError as exc:
             raise errors.PackageIntegrityFailure(f"cannot list {rel_dir or '.'}: {exc.__class__.__name__}") from exc
+        _recheck_dir(base, rel_dir, seen_dirs[rel_dir])
         for entry in children:
             rel = f"{rel_dir}/{entry.name}" if rel_dir else entry.name
             validate_rel_path(rel)  # directories too: an unsafe empty directory name is also refused
@@ -237,6 +244,7 @@ def scan_tree(root: str, *, keep_bytes: bool = False) -> dict[str, Any]:
             if _is_reparse(st):
                 raise errors.PackageIntegrityFailure(f"symlink or reparse point refused: {rel}")
             if stat.S_ISDIR(st.st_mode):
+                seen_dirs[rel] = _dir_identity(st)
                 stack.append(rel)
             elif stat.S_ISREG(st.st_mode):
                 if len(out) >= MAX_FILES:
@@ -267,4 +275,19 @@ def scan_tree(root: str, *, keep_bytes: bool = False) -> dict[str, Any]:
                 out[rel] = data if keep_bytes else (sha256_hex(data), len(data))
             else:
                 raise errors.PackageIntegrityFailure(f"special file refused: {rel}")
+    for rel_dir, ident in seen_dirs.items():  # a directory replaced while its files were read
+        _recheck_dir(os.path.join(root, rel_dir) if rel_dir else root, rel_dir, ident)
     return out
+
+
+def _dir_identity(st: os.stat_result) -> tuple[int, int, int, bool]:
+    return (st.st_dev, st.st_ino, stat.S_IFMT(st.st_mode), _is_reparse(st))
+
+
+def _recheck_dir(path: str, rel: str, expected: tuple[int, int, int, bool]) -> None:
+    try:
+        st = os.lstat(path)
+    except OSError as exc:
+        raise errors.PackageIntegrityFailure(f"directory vanished during the scan: {rel or '.'}") from exc
+    if _dir_identity(st) != expected or not stat.S_ISDIR(st.st_mode) or _is_reparse(st):
+        raise errors.PackageIntegrityFailure(f"directory changed during the scan: {rel or '.'}")

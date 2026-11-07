@@ -131,6 +131,112 @@ def test_an_innocent_windows_reserved_name_is_refused_too_documented_limitation(
     assert "validate_rel_path" in limits and "cannot tell an innocent repository name from a hostile one" in limits
 
 
+def test_the_documentation_states_only_quotepath_false_listings_are_supported():
+    from scripts.orchestrator import c3_probe
+    limits = " ".join(c3_probe.S4U_SPEC["known_g0_limits"])
+    assert "listings must be produced with -z" not in limits
+    assert "'-z' output is NOT parsed and fails closed" in limits and "core.quotePath=false" in limits
+    # ... and that claim is true: a real NUL-delimited listing fails closed.
+    blob = pkg.git_blob_id(b"x")
+    z_listing = f"100644 blob {blob}\ta.txt\x00100644 blob {blob}\tb.txt\x00"
+    with pytest.raises(errors.PackageIntegrityFailure):
+        pkg.parse_ls_tree(z_listing)
+
+
+def test_the_documentation_does_not_claim_a_caller_manifest_object_is_authenticated():
+    from scripts.orchestrator import c3_probe
+    limits = " ".join(c3_probe.S4U_SPEC["known_g0_limits"])
+    assert "manifest object is caller-supplied but authenticated" not in limits
+    assert "rebuilds the package manifest from canonical bytes" in limits
+
+
+def test_the_directory_walk_race_is_classified_blocking_for_g1_not_accepted_or_fixed():
+    from scripts.orchestrator import c3_probe
+    blocking = " ".join(c3_probe.S4U_SPEC["blocking_g1"])
+    assert "scan_tree" in blocking and "by PATH" in blocking and "is NOT detected" in blocking
+    assert "scan_tree" not in " ".join(c3_probe.S4U_SPEC["known_g0_limits"])
+
+
+class _ShiftedStat:
+    """An lstat result whose directory identity differs (a swapped directory)."""
+
+    def __init__(self, real):
+        self._real = real
+
+    def __getattr__(self, name):
+        if name == "st_ino":
+            return self._real.st_ino + 1
+        return getattr(self._real, name)
+
+
+@pytest.mark.parametrize("nth", [1, 2, 3])
+def test_a_directory_swapped_during_the_walk_fails_closed(tmp_path, monkeypatch, nth):
+    # nth = which observation of 'sub' reports a different directory object:
+    # before its enumeration, right after it, or in the final post-walk re-check.
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "f.txt").write_bytes(b"x")
+    target = os.path.normcase(str(tmp_path / "sub"))
+    real_lstat = os.lstat
+    seen = {"n": 0}
+
+    def lstat(path, *a, **k):
+        st = real_lstat(path, *a, **k)
+        if os.path.normcase(os.fspath(path)) == target:
+            seen["n"] += 1
+            if seen["n"] == nth + 1:      # observation 1 is the parent's listing of 'sub'
+                return _ShiftedStat(st)
+        return st
+
+    monkeypatch.setattr(os, "lstat", lstat)
+    with pytest.raises(errors.PackageIntegrityFailure, match="directory changed during the scan"):
+        pkg.scan_tree(str(tmp_path))
+
+
+def test_the_export_root_swapped_after_the_walk_fails_closed(tmp_path, monkeypatch):
+    (tmp_path / "f.txt").write_bytes(b"x")
+    root = os.path.normcase(str(tmp_path))
+    real_lstat = os.lstat
+    seen = {"n": 0}
+
+    def lstat(path, *a, **k):
+        st = real_lstat(path, *a, **k)
+        if os.path.normcase(os.fspath(path)) == root:
+            seen["n"] += 1
+            if seen["n"] >= 4:
+                return _ShiftedStat(st)
+        return st
+
+    monkeypatch.setattr(os, "lstat", lstat)
+    with pytest.raises(errors.PackageIntegrityFailure, match="directory changed during the scan"):
+        pkg.scan_tree(str(tmp_path))
+
+
+def test_a_directory_that_vanishes_during_the_walk_fails_closed(tmp_path, monkeypatch):
+    (tmp_path / "sub").mkdir()
+    target = os.path.normcase(str(tmp_path / "sub"))
+    real_lstat = os.lstat
+    seen = {"n": 0}
+
+    def lstat(path, *a, **k):
+        if os.path.normcase(os.fspath(path)) == target:
+            seen["n"] += 1
+            if seen["n"] >= 2:
+                raise FileNotFoundError(path)
+        return real_lstat(path, *a, **k)
+
+    monkeypatch.setattr(os, "lstat", lstat)
+    with pytest.raises(errors.PackageIntegrityFailure, match="vanished"):
+        pkg.scan_tree(str(tmp_path))
+
+
+def test_an_unchanged_tree_still_scans_cleanly(tmp_path):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a" / "b").mkdir()
+    (tmp_path / "a" / "b" / "c.txt").write_bytes(b"c")
+    (tmp_path / "d.txt").write_bytes(b"d")
+    assert sorted(pkg.scan_tree(str(tmp_path))) == ["a/b/c.txt", "d.txt"]
+
+
 def test_case_insensitive_path_collisions_are_refused():
     files = {"scripts/A.py": b"1", "scripts/a.py": b"2"}
     with pytest.raises(errors.PackageIntegrityFailure) as e:

@@ -257,8 +257,9 @@ def ingest_signature_report(data: bytes, observed_sha256: Mapping[str, str]) -> 
     read-only step and BIND each entry to the observed file hash, so a report
     cannot vouch for a file other than the one on disk. The report itself is
     only as trustworthy as the step that produced it: G1 produces it with the
-    host's own signature verifier on the exact installed bytes and the owner
-    records the report's digest in the approval."""
+    host's own signature verifier on the exact installed bytes. The probe
+    approval does NOT pin the report's digest; it pins the resulting
+    interpreter tree digest (``interpreter_tree_sha256``)."""
 
     try:
         doc = json.loads(data.decode("utf-8"))
@@ -392,6 +393,21 @@ def verify_interpreter_provenance(
     )
 
 
+def is_genuine_evidence(evidence: Any) -> bool:
+    """True only for evidence produced by :func:`verify_interpreter_provenance`:
+    the exact class, the module seal, and plain builtin field values (so no
+    caller-defined ``__eq__``/``__iter__``/``__hash__`` can run when it is compared)."""
+
+    if type(evidence) is not ProvenanceEvidence or evidence._seal is not _EVIDENCE_SEAL:
+        return False
+    fh, vb = evidence.file_hashes, evidence.verified_binaries
+    if type(fh) is not tuple or type(vb) is not tuple or type(evidence.tree_digest) is not str or type(evidence.attested_files) is not int:
+        return False
+    if not all(type(p) is tuple and len(p) == 2 and type(p[0]) is str and type(p[1]) is str for p in fh):
+        return False
+    return all(type(b) is str for b in vb)
+
+
 def require_trusted_runtime(
     env: EnvironmentSnapshot,
     policy: RuntimePolicy,
@@ -411,8 +427,16 @@ def require_trusted_runtime(
     * the live environment snapshot is the isolated trusted runtime.
     """
 
-    if not isinstance(evidence, ProvenanceEvidence) or evidence._seal is not _EVIDENCE_SEAL:
+    if not is_genuine_evidence(evidence):
         raise errors.RuntimeUntrusted("interpreter provenance evidence is missing")
+    if type(env) is not EnvironmentSnapshot or type(policy) is not RuntimePolicy:
+        raise errors.RuntimeUntrusted("the runtime snapshot or policy is not a genuine object")
+    # The security RULES are fixed: a policy may only be at least as strict as the defaults.
+    if (not set(DEFAULT_REQUIRED_FLAGS) <= set(policy.required_flags)
+            or not set(policy.allowed_meta_path) <= DEFAULT_META_PATH
+            or not set(policy.allowed_path_hooks) <= DEFAULT_PATH_HOOKS
+            or policy.expected_executable is None or not policy.agent_writable_roots):
+        raise errors.RuntimeUntrusted("the runtime policy weakens the fixed runtime security rules")
     if not isinstance(pinned_tree_sha256, str) or not _HEX64.match(pinned_tree_sha256):
         raise errors.RuntimeUntrusted("no owner-pinned interpreter tree digest is available")
     if not isinstance(observed_interpreter, Mapping) or not observed_interpreter:

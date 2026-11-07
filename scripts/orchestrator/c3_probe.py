@@ -28,13 +28,14 @@ import shutil
 import stat
 import time
 from dataclasses import dataclass, field, replace
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable, ClassVar, Mapping, Protocol, Sequence
 
 from . import acl_guard, c3_package, c3_runtime, errors
 
 # v2: adds the owner-pinned ``interpreter_tree_sha256`` (G0-R-B, finding #4).
-APPROVAL_SCHEMA = "petcare.c3.probe-approval/v2"
+# v3: adds the owner-bounded ``max_run_seconds`` (G0-R-C: the deadline is policy, not caller input).
+APPROVAL_SCHEMA = "petcare.c3.probe-approval/v3"
 REPORT_SCHEMA = "petcare.c3.probe-report/v1"
 PHASES = ("PLAN", "READONLY", "NEGATIVE")
 SCOPE_ID = "G1.6-C3"
@@ -63,6 +64,7 @@ class ProbeApproval:
     package_manifest_sha256: str
     min_free_bytes: Mapping[str, int]
     negative_authorized: bool
+    max_run_seconds: int          # owner-bounded execution limit (1..MAX_RUN_SECONDS)
     interpreter_tree_sha256: str  # owner-pinned digest of the trusted interpreter tree
     source_sha256: str = ""      # digest of the exact approval bytes that were parsed
 
@@ -73,7 +75,7 @@ class ProbeApproval:
 _APPROVAL_KEYS = {
     "schema", "scope_id", "phase", "authorized_by", "authorized_at", "expires_at", "expected_agent_sid",
     "trusted_owner_sids", "trusted_volume", "container", "production_paths", "package_manifest_sha256",
-    "min_free_bytes", "negative_authorized", "interpreter_tree_sha256",
+    "min_free_bytes", "negative_authorized", "interpreter_tree_sha256", "max_run_seconds",
 }
 
 
@@ -139,6 +141,9 @@ def parse_probe_approval(data: bytes | None, *, now: datetime) -> ProbeApproval:
     interp_digest = doc["interpreter_tree_sha256"]
     if not _is_hex64(interp_digest):
         raise errors.ApprovalInvalid("interpreter_tree_sha256 must be 64 lowercase hex characters")
+    max_run = doc["max_run_seconds"]
+    if isinstance(max_run, bool) or not isinstance(max_run, int) or not 0 < max_run <= MAX_RUN_SECONDS:
+        raise errors.ApprovalInvalid(f"max_run_seconds must be an integer between 1 and {MAX_RUN_SECONDS}")
     free = doc["min_free_bytes"]
     if (not isinstance(free, dict) or not free
             or not all(isinstance(k, str) and isinstance(v, int) and not isinstance(v, bool) and v > 0 for k, v in free.items())):
@@ -160,7 +165,8 @@ def parse_probe_approval(data: bytes | None, *, now: datetime) -> ProbeApproval:
         authorized_at=doc["authorized_at"], expires_at=expires, expected_agent_sid=doc["expected_agent_sid"],
         trusted_owner_sids=frozenset(owners), trusted_volume=binding, container=container,
         production_paths=dict(prod), package_manifest_sha256=digest, min_free_bytes=dict(free),
-        negative_authorized=neg, interpreter_tree_sha256=interp_digest, source_sha256=c3_package.sha256_hex(data),
+        negative_authorized=neg, max_run_seconds=max_run, interpreter_tree_sha256=interp_digest,
+        source_sha256=c3_package.sha256_hex(data),
     )
 
 
@@ -710,6 +716,7 @@ S4U_SPEC: Mapping[str, Any] = {
         "every interpreter file (not only .exe/.dll/.pyd) has an owner-recorded reference hash",
         "system DLLs are loaded from System32 only (the Windows backend uses LOAD_LIBRARY_SEARCH_SYSTEM32)",
         "trust is established by an owner-controlled launcher BEFORE the probe's own imports run",
+        "the launcher calls run_enforced_probe with configuration and canonical manifest bytes it obtained itself",
         "the tree listing for the pinned commit comes from the owner's trusted object database (blob ids are SHA-1)",
     ],
     "known_g0_limits": [
@@ -722,13 +729,31 @@ S4U_SPEC: Mapping[str, Any] = {
         "device names (con, aux, nul, com1 ...), 8.3-style '~N' components, trailing dots/spaces, alternate streams "
         "and git core.quotePath-escaped names are all refused with the same PACKAGE_INTEGRITY_FAILURE reason as "
         "tampering. This fails closed but cannot tell an innocent repository name from a hostile one, and a repository "
-        "containing such a name cannot be packaged; listings must be produced with -z or core.quotePath=false. "
+        "containing such a name cannot be packaged. Only line-oriented, tab-separated 'git ls-tree -r' output "
+        "produced with core.quotePath=false is supported; NUL-delimited '-z' output is NOT parsed and fails closed. "
         "Unicode control/format characters (e.g. U+202E) are also refused (G0-R-B); confusable or homoglyph names are "
         "NOT detected",
-        "the ProvenanceEvidence seal only blocks naive construction; code running in the probe process can forge it, "
-        "so the binding that counts is the live interpreter re-scan against the owner-pinned interpreter_tree_sha256",
-        "the package manifest object is caller-supplied but authenticated only by equality of its digest with the "
-        "approved package_manifest_sha256; the installed application tree itself is re-scanned live in ENFORCED mode",
+        "the ProvenanceEvidence seal and the ENFORCED time sources (_wall_now/_monotonic) are module objects: they "
+        "block caller input and naive construction, but code already running in the probe process can replace them, "
+        "so the binding that counts is the live interpreter re-scan against the owner-pinned interpreter_tree_sha256 "
+        "and, ultimately, launcher-before-import trust (G1)",
+        "ENFORCED rebuilds the package manifest from canonical bytes whose sha256 equals the approved "
+        "package_manifest_sha256 (no caller manifest object is used); the installed application tree is re-scanned "
+        "live. The manifest's source_commit/listing relationship is still not bound to a trusted object database (G1)",
+        "the trusted owner SIDs, agent SID and volume binding passed to run_enforced_probe are deployment "
+        "configuration: they must equal the values in the owner-protected approval, but their own provenance is the "
+        "G1 launcher's responsibility",
+    ],
+    # Limits that MUST be resolved before G1 is authorized (not accepted, not fixed).
+    "blocking_g1": [
+        "scan_tree (c3_package) enumerates directories by PATH, not through pinned no-follow directory handles: the "
+        "Python standard library offers no handle-relative directory enumeration on Windows (no dir_fd / fd-scandir) "
+        "and this module may not use ctypes. G0-R-C adds detection only (each directory's identity and reparse state "
+        "is re-checked before enumeration, after enumeration and after the whole walk, and every file handle must "
+        "match its lstat identity); a directory swapped and restored inside those windows is NOT detected. Because "
+        "this walk produces the ENFORCED interpreter and application attestation, G1 must provide a handle-relative "
+        "walk (e.g. NtCreateFile relative to a pinned directory handle in the Windows backend) or an equivalent "
+        "owner-controlled guarantee that <bin> cannot change during the run",
     ],
     "open_questions_for_G2": [
         "Does the agent account hold the 'Log on as a batch job' right? (unreadable without elevation)",
@@ -809,32 +834,26 @@ def validate_task_definition(task: Mapping[str, Any], *, expected_agent_sid: str
 
 @dataclass
 class ProbeContext:
+    """OFFLINE_MOCKED runs only.
+
+    ENFORCED runs never take a caller-built context: they go through
+    :func:`run_enforced_probe`, which accepts plain configuration values and
+    builds every trust input itself (G0-R-C). A context with ``mode`` left at
+    ``"ENFORCED"`` is refused before anything in it is used.
+    """
+
     approval: ProbeApproval
     guard: Any
     policy: TargetPolicy
     package_manifest: c3_package.PackageManifest
-    # OFFLINE_MOCKED fixture only. In ENFORCED mode this MUST be None: the probe
-    # re-scans the installed application tree itself (finding #3).
     observed_tree: Mapping[str, tuple[str, int]] | None
     now: datetime
-    mode: str = "ENFORCED"                      # or OFFLINE_MOCKED
-    # Evidence sources. In ENFORCED mode these MUST stay None: the probe then builds
-    # the real ones itself (live token, real filesystem, real access opener, the
-    # frozen catalogue), so a passing enforced report cannot be fabricated by
-    # injecting providers. They exist for OFFLINE_MOCKED mode only.
+    mode: str = "ENFORCED"                      # must be set to OFFLINE_MOCKED explicitly
     identity_provider: Callable[[], acl_guard.Identity] | None = None
     free_space: Callable[[str], int | None] | None = None
     executor: OperationExecutor | None = None
     fs: FsAdapter | None = None
     cases: Sequence[NegativeCase] | None = None
-    # Enforced-mode trust inputs. ``runtime_env`` is NEVER accepted in ENFORCED mode
-    # (the probe captures the live interpreter itself); it exists only so a caller's
-    # attempt to supply one is detected and refused. ``runtime_policy`` is
-    # configuration and is bound to the approval (trusted root = approved ``bin``).
-    runtime_env: c3_runtime.EnvironmentSnapshot | None = None
-    runtime_policy: c3_runtime.RuntimePolicy | None = None
-    provenance: c3_runtime.ProvenanceEvidence | None = None
-    approval_snapshot: acl_guard.ApprovedFileSnapshot | None = None
     max_seconds: float = MAX_RUN_SECONDS
     clock: Callable[[], float] = time.monotonic
 
@@ -844,6 +863,16 @@ def real_free_space(root: str) -> int | None:
         return int(shutil.disk_usage(root).free)
     except OSError:
         return None
+
+
+# Trusted time sources for ENFORCED runs. They are module functions (not caller
+# input). Code running inside the probe process could still replace them; that is
+# the same in-process residual recorded for the provenance seal.
+def _wall_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+_monotonic = time.monotonic
 
 
 @dataclass
@@ -868,128 +897,6 @@ class _Report:
         }
 
 
-def run_probe(ctx: ProbeContext, phase: str) -> dict[str, Any]:
-    """Run the probe up to ``phase``. Returns a report; any typed stop ends the
-    run with a FAIL/UNVERIFIED verdict (never an exception to the caller)."""
-
-    rep = _Report(mode=ctx.mode, phase=phase)
-    _run(ctx, phase, rep)
-    return rep.to_dict()
-
-
-def _reconstruct_pinned_approval(ctx: ProbeContext) -> ProbeApproval:
-    """Finding #1. Rebuild the authorization from the EXACT pinned owner bytes and
-    require the approval in use to be identical to it. A caller-built or edited
-    ``ProbeApproval`` (even one carrying the right ``source_sha256``) is refused."""
-
-    snap = ctx.approval_snapshot
-    if snap is None:
-        raise errors.ApprovalBoundaryUnverifiable(
-            "enforced mode requires the approval to be read through the pinned production guard")
-    if type(snap) is not acl_guard.ApprovedFileSnapshot:
-        raise errors.ApprovalBoundaryViolation("the approval snapshot is not a genuine pinned snapshot")
-    report = getattr(snap, "report", None)
-    if not isinstance(report, acl_guard.BoundaryReport) or report.enforced is not True or report.pinned is not True:
-        raise errors.ApprovalBoundaryViolation("the approval snapshot was not produced by an enforced, pinned guard read")
-    content = snap.content
-    if not isinstance(content, bytes):
-        raise errors.ApprovalBoundaryViolation("the approval snapshot carries no byte content")
-    digest = c3_package.sha256_hex(content)
-    if snap.sha256 != digest:
-        raise errors.ApprovalBoundaryViolation("the approval snapshot digest does not match its bytes")
-    snap.revalidate()  # pinned handle identity, current bytes and path must still agree
-    rebuilt = parse_probe_approval(content, now=ctx.now)  # malformed / expired / unknown keys -> typed stop
-    if rebuilt.source_sha256 != digest:
-        raise errors.ApprovalBoundaryViolation("the reconstructed approval digest differs from the pinned bytes")
-    if type(ctx.approval) is not ProbeApproval or ctx.approval != rebuilt:
-        raise errors.ApprovalBoundaryViolation("the approval in use is not the pinned owner-protected file")
-    try:
-        snap_dir = ntpath.normcase(ntpath.dirname(acl_guard.canonical_windows_path(snap.path)))
-        appr_dir = ntpath.normcase(acl_guard.canonical_windows_path(rebuilt.production_paths["approvals"]))
-    except acl_guard.PathRejected as exc:
-        raise errors.ApprovalBoundaryViolation(f"the pinned approval path is unsafe: {exc}") from None
-    if snap_dir != appr_dir:
-        raise errors.ApprovalBoundaryViolation("the pinned approval file is not in the approved approvals directory")
-    return rebuilt
-
-
-def _bound_runtime_roots(ctx: ProbeContext) -> tuple[str, str]:
-    """Finding #3. The runtime policy is configuration, so bind it to the approval:
-    the trusted root IS the approved, owner-protected ``bin``; the pinned interpreter
-    is ``<bin>\\python\\python.exe``; every approved agent-writable location is
-    declared agent-writable. Returns (interpreter root, application root)."""
-
-    rp = ctx.runtime_policy
-    if not isinstance(rp, c3_runtime.RuntimePolicy) or rp.platform != "nt":
-        raise errors.RuntimeUntrusted("enforced mode requires a Windows runtime policy")
-    prod = ctx.approval.production_paths
-    try:
-        bin_root = acl_guard.canonical_windows_path(prod["bin"])
-        writable = [acl_guard.canonical_windows_path(prod[k]) for k in AGENT_WRITABLE_PRODUCTION]
-    except acl_guard.PathRejected as exc:
-        raise errors.RuntimeUntrusted(f"approved runtime location is unsafe: {exc}") from None
-    nc = ntpath.normcase
-    if nc(rp.trusted_root) != nc(bin_root):
-        raise errors.RuntimeUntrusted("the runtime policy's trusted root is not the approved bin directory")
-    interp_root = bin_root.rstrip("\\") + "\\python"
-    app_root = bin_root.rstrip("\\") + "\\app"
-    if rp.expected_executable is None or nc(rp.expected_executable) != nc(interp_root + "\\python.exe"):
-        raise errors.RuntimeUntrusted("the runtime policy does not pin <bin>\\python\\python.exe")
-    declared = {nc(w) for w in rp.agent_writable_roots}
-    missing = [w for w in writable if nc(w) not in declared]
-    if missing:
-        raise errors.RuntimeUntrusted("the runtime policy omits approved agent-writable locations")
-    return interp_root, app_root
-
-
-def _observe_live(interp_root: str, app_root: str) -> tuple[c3_runtime.EnvironmentSnapshot, dict[str, str], dict[str, tuple[str, int]]]:
-    """Finding #3. Trusted LIVE inspection only: the current interpreter's own state
-    and read-only re-scans of the interpreter and application trees. Anything that
-    cannot be established fails closed."""
-
-    try:
-        env = c3_runtime.capture_environment()
-    except Exception as exc:  # noqa: BLE001 - an unobservable runtime is untrusted, whatever the cause
-        raise errors.RuntimeUntrusted(f"the live runtime could not be observed ({type(exc).__name__})") from None
-    if not isinstance(env, c3_runtime.EnvironmentSnapshot):
-        raise errors.RuntimeUntrusted("the live runtime observation is malformed")
-    interp_scan = c3_package.scan_tree(interp_root)   # PackageIntegrityFailure if unreadable/linked/odd
-    app_scan = c3_package.scan_tree(app_root)
-    interp: dict[str, str] = {}
-    for rel, value in interp_scan.items():
-        if not (isinstance(value, tuple) and len(value) == 2 and isinstance(value[0], str)):
-            raise errors.RuntimeUntrusted("the live interpreter tree observation is malformed")
-        interp[rel] = value[0]
-    if not interp or not app_scan:
-        raise errors.RuntimeUntrusted("the live interpreter or application tree is empty")
-    return env, interp, dict(app_scan)
-
-
-def _check_bindings(ctx: ProbeContext) -> None:
-    """The approval is the single source of truth: the active target policy and the
-    boundary guard's policy must be exactly what the owner approved."""
-
-    approval = ctx.approval
-    if ctx.policy.container != approval.container:
-        raise errors.ApprovalInvalid("the approved container differs from the active target policy")
-    for key, value in approval.production_paths.items():
-        canon = ctx.policy._canon(value)
-        if key == "root":
-            if canon != ctx.policy.volume_root():
-                raise errors.ApprovalInvalid("the approved volume root differs from the container's volume")
-        elif ctx.policy.classify(canon) is not TargetClass.PRODUCTION:
-            raise errors.ApprovalInvalid(f"approved production path '{key}' is not a production root of the active policy")
-    guard_policy = getattr(ctx.guard, "policy", None)
-    if not isinstance(guard_policy, acl_guard.BoundaryPolicy):
-        raise errors.ApprovalBoundaryUnverifiable("the guard does not expose its policy for binding")
-    if guard_policy.expected_agent_sid != approval.expected_agent_sid:
-        raise errors.ApprovalBoundaryViolation("the guard's expected agent differs from the approved agent")
-    if guard_policy.trusted_owner_sids != approval.trusted_owner_sids:
-        raise errors.ApprovalBoundaryViolation("the guard's trusted owners differ from the approved owners")
-    if approval.trusted_volume not in guard_policy.trusted_volumes:
-        raise errors.ApprovalBoundaryViolation("the approved trusted volume is not bound by the guard")
-
-
 @dataclass
 class _Deps:
     identity: Callable[[], acl_guard.Identity]
@@ -999,130 +906,336 @@ class _Deps:
     cases: Sequence[NegativeCase]
 
 
-def _resolve_dependencies(ctx: ProbeContext) -> _Deps:
-    if ctx.mode == "ENFORCED":
-        injected = [n for n, v in (("identity_provider", ctx.identity_provider), ("free_space", ctx.free_space),
-                                   ("executor", ctx.executor), ("fs", ctx.fs), ("cases", ctx.cases)) if v is not None]
-        if injected:
-            raise errors.ApprovalBoundaryViolation("enforced mode does not accept injected evidence sources: " + ", ".join(injected))
-        backend = acl_guard.default_backend()
-        return _Deps(
+@dataclass
+class _Trusted:
+    """Everything the shared execution steps need, produced by ONE authorization
+    function: :func:`_authorize_enforced` (built internally) or
+    :func:`_authorize_mocked` (offline fixtures)."""
+
+    enforced: bool
+    approval: ProbeApproval
+    policy: TargetPolicy
+    guard: Any
+    manifest: c3_package.PackageManifest
+    observed_tree: Mapping[str, tuple[str, int]]
+    deps: _Deps
+    wall_now: Callable[[], datetime]
+    tick: Callable[[], None]
+    snapshot: acl_guard.ApprovedFileSnapshot | None = None
+    ran_negative: bool = False
+
+
+def run_probe(ctx: ProbeContext, phase: str) -> dict[str, Any]:
+    """OFFLINE_MOCKED run. Returns a report; any typed stop ends the run with a
+    FAIL/UNVERIFIED verdict (never an exception to the caller)."""
+
+    rep = _Report(mode=ctx.mode if isinstance(ctx.mode, str) else "?", phase=phase if isinstance(phase, str) else "?")
+    _drive(rep, phase, lambda: _authorize_mocked(ctx, phase, rep))
+    return rep.to_dict()
+
+
+_ENFORCED_PHASES = ("READONLY", "NEGATIVE")
+
+
+def run_enforced_probe(
+    phase: str,
+    *,
+    approval_path: str,
+    expected_agent_sid: str,
+    trusted_owner_sids: tuple[str, ...],
+    volume_guid: str,
+    volume_label: str,
+    volume_serial: int,
+    package_manifest_bytes: bytes,
+    provenance: c3_runtime.ProvenanceEvidence,
+) -> dict[str, Any]:
+    """ENFORCED run (G0-R-C). Only plain configuration values are accepted:
+    exact ``str`` / ``int`` / ``bytes`` / ``tuple`` of ``str``, plus genuine sealed
+    provenance evidence. There is no clock, deadline, approval object, snapshot,
+    manifest object, target policy, guard, runtime policy, provider or observation
+    parameter: the probe derives all of them itself, and no caller-defined method
+    is ever invoked. Returns a report; never raises to the caller."""
+
+    rep = _Report(mode="ENFORCED", phase=phase if type(phase) is str else "?")
+    cfg = dict(approval_path=approval_path, expected_agent_sid=expected_agent_sid, trusted_owner_sids=trusted_owner_sids,
+               volume_guid=volume_guid, volume_label=volume_label, volume_serial=volume_serial,
+               package_manifest_bytes=package_manifest_bytes, provenance=provenance)
+    _drive(rep, phase, lambda: _authorize_enforced(phase, cfg, rep))
+    return rep.to_dict()
+
+
+def _plain_text(name: str, value: Any) -> str:
+    if type(value) is not str or not value:
+        raise errors.ApprovalBoundaryViolation(f"{name} must be plain, non-empty text")
+    return value
+
+
+def _authorize_enforced(phase: Any, cfg: Mapping[str, Any], rep: _Report) -> _Trusted:
+    start = _monotonic()
+    if type(phase) is not str or phase not in _ENFORCED_PHASES:
+        raise errors.ApprovalInvalid("ENFORCED runs only the READONLY or NEGATIVE phase (PLAN is offline)")
+
+    # 1. Plain inputs only: exact builtin types, so no caller-defined method can run.
+    approval_path = _plain_text("approval_path", cfg["approval_path"])
+    agent_sid = _plain_text("expected_agent_sid", cfg["expected_agent_sid"])
+    vol_guid = _plain_text("volume_guid", cfg["volume_guid"])
+    vol_label = _plain_text("volume_label", cfg["volume_label"])
+    owners = cfg["trusted_owner_sids"]
+    if type(owners) is not tuple or not owners or any(type(s) is not str for s in owners):
+        raise errors.ApprovalBoundaryViolation("trusted_owner_sids must be a non-empty tuple of plain text SIDs")
+    if type(cfg["volume_serial"]) is not int:
+        raise errors.ApprovalBoundaryViolation("volume_serial must be a plain integer")
+    manifest_bytes = cfg["package_manifest_bytes"]
+    if type(manifest_bytes) is not bytes:
+        raise errors.ApprovalBoundaryViolation("the package manifest must be supplied as canonical bytes")
+    provenance = cfg["provenance"]
+    if not c3_runtime.is_genuine_evidence(provenance):
+        raise errors.RuntimeUntrusted("interpreter provenance evidence is missing or not genuine")
+
+    # 2. The exact volume binding and the boundary policy, built here (one volume only).
+    try:
+        binding = acl_guard.VolumeBinding(vol_guid, label=vol_label, serial=cfg["volume_serial"])
+        boundary = acl_guard.BoundaryPolicy(
+            trusted_owner_sids=frozenset(owners), expected_agent_sid=agent_sid, trusted_volumes=(binding,))
+        approval_file = acl_guard.canonical_windows_path(approval_path)
+    except (ValueError, TypeError, acl_guard.PathRejected) as exc:
+        raise errors.ApprovalInvalid(f"enforced configuration rejected: {exc}") from None
+    approvals_dir = ntpath.dirname(approval_file)
+    backend = acl_guard.default_backend()
+    if getattr(backend, "platform", None) != "nt":
+        raise errors.ApprovalBoundaryUnverifiable("ENFORCED runs require the Windows security backend")
+
+    # 3. The approval is read ONCE through the production pinned read (boundary chain,
+    #    exact volume binding, pinned handle identity) and parsed from those bytes with
+    #    the trusted wall clock. Nothing caller-supplied describes the approval.
+    snap = acl_guard.read_pinned_approval(backend, boundary, approval_file, approvals_dir, enforced=True)
+    try:
+        content = snap.content
+        if type(content) is not bytes or c3_package.sha256_hex(content) != snap.sha256:
+            raise errors.ApprovalBoundaryViolation("the pinned approval bytes are inconsistent")
+        approval = parse_probe_approval(content, now=_wall_now())
+        if approval.expected_agent_sid != agent_sid or approval.trusted_owner_sids != frozenset(owners):
+            raise errors.ApprovalBoundaryViolation("the approval names a different agent or owners than the enforced boundary")
+        if approval.trusted_volume != binding:
+            raise errors.ApprovalBoundaryViolation("the approval's trusted volume differs from the exact enforced binding")
+        appr_dir = acl_guard.canonical_windows_path(approval.production_paths["approvals"])
+        if ntpath.normcase(appr_dir) != ntpath.normcase(approvals_dir):
+            raise errors.ApprovalBoundaryViolation("the approval file is not in the approved approvals directory")
+        if not approval.phase_allows(phase):
+            raise errors.ApprovalInvalid("the approval does not authorize this phase")
+        deadline = start + approval.max_run_seconds
+
+        def tick() -> None:
+            if _monotonic() > deadline:
+                raise errors.ProbeAborted(f"DEADLINE_EXCEEDED after {approval.max_run_seconds}s")
+
+        rep.check("approval_pinned", "PASS", f"read through the pinned production guard; phase {approval.phase}")
+
+        # 4. The package manifest is rebuilt from canonical bytes whose digest is approved.
+        if c3_package.sha256_hex(manifest_bytes) != approval.package_manifest_sha256:
+            raise errors.PackageIntegrityFailure("the package manifest bytes are not the approved manifest")
+        manifest = c3_package.PackageManifest.from_bytes(manifest_bytes)
+        if manifest.to_bytes() != manifest_bytes:
+            raise errors.PackageIntegrityFailure("the package manifest bytes are not in canonical form")
+
+        # 5. Target policy, guard and runtime rules are derived from the approval.
+        policy = TargetPolicy(
+            container=approval.container,
+            production_roots=tuple(approval.production_paths[k] for k in PRODUCTION_KEYS if k != "root"), platform="nt")
+        guard = acl_guard.ProductionApprovalGuard(boundary)
+        _check_bindings(approval, policy, guard)
+        runtime_policy, interp_root, app_root = _enforced_runtime_policy(approval)
+        rep.check("bindings", "PASS", "approval, exact volume binding, target policy and guard agree")
+        tick()
+
+        # 6. Only now: live observations (environment, interpreter tree, application tree).
+        live_env, live_interp, observed_tree = _observe_live(interp_root, app_root)
+        c3_runtime.require_trusted_runtime(
+            live_env, runtime_policy, provenance,
+            observed_interpreter=live_interp, pinned_tree_sha256=approval.interpreter_tree_sha256,
+        )
+        rep.check("runtime", "PASS", "live isolated runtime; provenance equals the live, owner-pinned interpreter tree")
+        tick()
+        deps = _Deps(
             identity=backend.current_identity, free_space=real_free_space, fs=OsFsAdapter(),
-            executor=OsOperationExecutor(ctx.policy, open_access=getattr(backend, "probe_open_access", None)),
+            executor=OsOperationExecutor(policy, open_access=getattr(backend, "probe_open_access", None)),
             cases=NEGATIVE_CASES,
         )
-    if ctx.identity_provider is None or ctx.free_space is None:
-        raise errors.ProbeAborted("mocked mode requires an identity provider and a free-space provider")
-    return _Deps(ctx.identity_provider, ctx.free_space, ctx.fs, ctx.executor,
-                 ctx.cases if ctx.cases is not None else NEGATIVE_CASES)
+        return _Trusted(enforced=True, approval=approval, policy=policy, guard=guard, manifest=manifest,
+                        observed_tree=observed_tree, deps=deps, wall_now=_wall_now, tick=tick, snapshot=snap)
+    except BaseException:
+        snap.close()
+        raise
 
 
-def _run(ctx: ProbeContext, phase: str, rep: "_Report") -> None:
-    ran_negative = False
-    deps: _Deps | None = None
+def _enforced_runtime_policy(approval: ProbeApproval) -> tuple[c3_runtime.RuntimePolicy, str, str]:
+    """The runtime security rules are FIXED (the module defaults: required isolation
+    flags, standard finders and path hooks). Only the locations come from the
+    approval: trusted root = approved ``bin``; interpreter = ``<bin>\\python\\python.exe``;
+    every approved agent-writable location is declared agent-writable."""
+
+    prod = approval.production_paths
+    try:
+        bin_root = acl_guard.canonical_windows_path(prod["bin"])
+        writable = tuple(acl_guard.canonical_windows_path(prod[k]) for k in AGENT_WRITABLE_PRODUCTION)
+        interp_root = bin_root.rstrip("\\") + "\\python"
+        app_root = bin_root.rstrip("\\") + "\\app"
+        policy = c3_runtime.RuntimePolicy(platform="nt", trusted_root=bin_root, agent_writable_roots=writable,
+                                          expected_executable=interp_root + "\\python.exe")
+    except (ValueError, acl_guard.PathRejected) as exc:
+        raise errors.RuntimeUntrusted(f"approved runtime location is unsafe: {exc}") from None
+    return policy, interp_root, app_root
+
+
+def _observe_live(interp_root: str, app_root: str) -> tuple[c3_runtime.EnvironmentSnapshot, dict[str, str], dict[str, tuple[str, int]]]:
+    """Trusted LIVE inspection only: the current interpreter's own state and
+    read-only re-scans of the interpreter and application trees. Anything that
+    cannot be established fails closed."""
+
+    try:
+        env = c3_runtime.capture_environment()
+    except Exception as exc:  # noqa: BLE001 - an unobservable runtime is untrusted, whatever the cause
+        raise errors.RuntimeUntrusted(f"the live runtime could not be observed ({type(exc).__name__})") from None
+    if type(env) is not c3_runtime.EnvironmentSnapshot:
+        raise errors.RuntimeUntrusted("the live runtime observation is malformed")
+    interp_scan = c3_package.scan_tree(interp_root)   # PackageIntegrityFailure if unreadable/linked/odd/changed
+    app_scan = c3_package.scan_tree(app_root)
+    interp: dict[str, str] = {}
+    for rel, value in interp_scan.items():
+        if not (type(value) is tuple and len(value) == 2 and type(value[0]) is str):
+            raise errors.RuntimeUntrusted("the live interpreter tree observation is malformed")
+        interp[rel] = value[0]
+    if not interp or not app_scan:
+        raise errors.RuntimeUntrusted("the live interpreter or application tree is empty")
+    return env, interp, dict(app_scan)
+
+
+def _check_bindings(approval: ProbeApproval, policy: TargetPolicy, guard: Any) -> None:
+    """The approval is the single source of truth: the active target policy and the
+    boundary guard's policy must be exactly what the owner approved, with EXACTLY
+    the approved volume binding (no additional trusted volume)."""
+
+    if policy.container != approval.container:
+        raise errors.ApprovalInvalid("the approved container differs from the active target policy")
+    for key, value in approval.production_paths.items():
+        canon = policy._canon(value)
+        if key == "root":
+            if canon != policy.volume_root():
+                raise errors.ApprovalInvalid("the approved volume root differs from the container's volume")
+        elif policy.classify(canon) is not TargetClass.PRODUCTION:
+            raise errors.ApprovalInvalid(f"approved production path '{key}' is not a production root of the active policy")
+    guard_policy = getattr(guard, "policy", None)
+    if type(guard_policy) is not acl_guard.BoundaryPolicy:
+        raise errors.ApprovalBoundaryUnverifiable("the guard does not expose its policy for binding")
+    if guard_policy.expected_agent_sid != approval.expected_agent_sid:
+        raise errors.ApprovalBoundaryViolation("the guard's expected agent differs from the approved agent")
+    if guard_policy.trusted_owner_sids != approval.trusted_owner_sids:
+        raise errors.ApprovalBoundaryViolation("the guard's trusted owners differ from the approved owners")
+    if guard_policy.trusted_volumes != (approval.trusted_volume,):
+        raise errors.ApprovalBoundaryViolation("the guard must bind exactly the approved volume and no other")
+
+
+def _authorize_mocked(ctx: ProbeContext, phase: str, rep: _Report) -> _Trusted | None:
+    if ctx.mode == "ENFORCED":
+        raise errors.ApprovalBoundaryViolation(
+            "ENFORCED runs only through run_enforced_probe; a caller-built context is never trusted")
+    if ctx.mode != "OFFLINE_MOCKED":
+        raise errors.ApprovalInvalid("unknown probe mode")
     deadline = ctx.clock() + ctx.max_seconds
 
     def tick() -> None:
         if ctx.clock() > deadline:
             raise errors.ProbeAborted(f"DEADLINE_EXCEEDED after {ctx.max_seconds:.0f}s")
 
+    if phase not in PHASES:
+        raise errors.ApprovalInvalid("unknown probe phase")
+    if not ctx.approval.phase_allows(phase):
+        raise errors.ApprovalInvalid("the approval does not authorize this phase")
+    if ctx.approval.expires_at <= ctx.now:
+        raise errors.ApprovalInvalid("probe approval has expired")
+    if ctx.approval.package_manifest_sha256 != ctx.package_manifest.digest():
+        raise errors.PackageIntegrityFailure("the approval is bound to a different package manifest")
+    rep.check("approval", "PASS", f"phase {ctx.approval.phase}, expires {ctx.approval.expires_at.isoformat()}")
+    if phase == "PLAN":
+        rep.verdict = "PASS_PLAN_ONLY"
+        return None
+    if not getattr(ctx.guard, "offline_only", False):
+        raise errors.ApprovalBoundaryViolation("mocked mode requires an offline-only guard")
+    if ctx.observed_tree is None:
+        raise errors.ProbeAborted("mocked mode requires an observed-tree fixture")
+    if ctx.identity_provider is None or ctx.free_space is None:
+        raise errors.ProbeAborted("mocked mode requires an identity provider and a free-space provider")
+    deps = _Deps(ctx.identity_provider, ctx.free_space, ctx.fs, ctx.executor,
+                 ctx.cases if ctx.cases is not None else NEGATIVE_CASES)
+    rep.check("runtime", "SKIPPED", "mocked mode: runtime trust is not asserted")
+    _check_bindings(ctx.approval, ctx.policy, ctx.guard)
+    rep.check("bindings", "PASS", "approval, target policy and guard policy agree")
+    tick()
+    return _Trusted(enforced=False, approval=ctx.approval, policy=ctx.policy, guard=ctx.guard, manifest=ctx.package_manifest,
+                    observed_tree=ctx.observed_tree, deps=deps, wall_now=lambda: ctx.now, tick=tick)
+
+
+def _execute(run: _Trusted, phase: str, rep: _Report) -> None:
+    deps = run.deps
+    # 2. Package integrity (ENFORCED: against the live re-scan of the installed app tree).
+    c3_package.verify_observed_tree(run.manifest, run.observed_tree)
+    rep.check("package", "PASS", f"{len(run.manifest.files)} files match manifest")
+
+    # 3. Executing identity facts (token read; no logon).
+    ident = deps.identity()
+    if ident.user_sid != run.approval.expected_agent_sid:
+        raise errors.ApprovalBoundaryViolation("the executing token is not the approved agent identity")
+    _assert_identity_safe(ident, run.approval)
+    rep.identity = {
+        "user": acl_guard.short_sid(ident.user_sid),
+        "groups": len(ident.group_sids),
+        "deny_only_groups": len(ident.deny_only_group_sids),
+        "integrity_rid": ident.integrity_rid,
+        "privileges": None if ident.privileges is None else [(p.name, p.enabled) for p in ident.privileges],
+    }
+    rep.check("identity", "PASS", "token user equals the approved agent")
+
+    # 4. Free space.
+    check_free_space(run.approval.min_free_bytes, deps.free_space)
+    rep.check("free_space", "PASS", ",".join(sorted(run.approval.min_free_bytes)))
+    run.tick()
+
+    # 5. Boundary verdicts on REAL locations (the guard also binds the volume identity).
+    prod = run.approval.production_paths
+    for key, expect_ok in (("approvals", True), ("bin", True)) + tuple((k, False) for k in AGENT_WRITABLE_PRODUCTION):
+        _guard_expectation(run.guard, rep, f"guard:{key}", prod[key], expect_ok)
+        run.tick()
+    if phase == "READONLY":
+        rep.verdict = "PASS" if run.enforced else "PASS_OFFLINE_MOCKED"
+        return
+
+    # 6. NEGATIVE phase: authorization (fresh clock), pinned snapshot, executor, twin, then the cases.
+    require_negative_authorization(run.approval, run.wall_now())
+    if run.snapshot is not None:
+        run.snapshot.revalidate()
+    if deps.executor is None or deps.fs is None:
+        raise errors.ProbeAborted("negative phase requires an executor and a filesystem adapter")
+    if deps.fs.lstat_kind(run.policy.container) != "dir":
+        raise errors.ProbeAborted("the disposable twin tree is missing")
+    container = run.policy.container
+    sep = "\\" if run.policy.platform == "nt" else "/"
+    for rel, expect_ok in (("twin/approvals", True), ("twin/bin", True), ("twin/worktrees", False)):
+        _guard_expectation(run.guard, rep, f"guard:{rel}", container + sep + rel.replace("/", sep), expect_ok)
+    run.ran_negative = True
+    for out in run_negative_cases(deps.cases, approval=run.approval, policy=run.policy, executor=deps.executor,
+                                  now=run.wall_now(), tick=run.tick):
+        rep.negative.append({"id": out.case_id, "expected": out.expected, "observed": out.observed, "ok": str(out.ok)})
+    run.tick()  # the final operation is bounded too (finding #17)
+    rep.verdict = "PASS" if run.enforced else "PASS_OFFLINE_MOCKED"
+
+
+def _drive(rep: _Report, phase: str, authorize: Callable[[], "_Trusted | None"]) -> None:
+    run: _Trusted | None = None
     try:
-        # 0. Authorization first: nothing below runs unless this passes.
-        if phase not in PHASES:
-            raise errors.ApprovalInvalid("unknown probe phase")
-        if not ctx.approval.phase_allows(phase):
-            raise errors.ApprovalInvalid("the approval does not authorize this phase")
-        if ctx.approval.expires_at <= ctx.now:
-            raise errors.ApprovalInvalid("probe approval has expired")
-        if ctx.approval.package_manifest_sha256 != ctx.package_manifest.digest():
-            raise errors.PackageIntegrityFailure("the approval is bound to a different package manifest")
-        rep.check("approval", "PASS", f"phase {ctx.approval.phase}, expires {ctx.approval.expires_at.isoformat()}")
-        if phase == "PLAN":
-            rep.verdict = "PASS_PLAN_ONLY"
+        run = authorize()
+        if run is None:
             return
-
-        # 1. Mode gating. ENFORCED: the production guard, the approval reconstructed from
-        #    the pinned bytes, and LIVE observations only (runtime, interpreter, app tree).
-        if ctx.mode == "ENFORCED":
-            if type(ctx.guard) is not acl_guard.ProductionApprovalGuard:
-                raise errors.ApprovalBoundaryViolation("enforced mode requires the built-in production guard")
-            supplied = [n for n, v in (("runtime_env", ctx.runtime_env), ("observed_tree", ctx.observed_tree)) if v is not None]
-            if supplied:
-                raise errors.ApprovalBoundaryViolation(
-                    "enforced mode does not accept caller-supplied observations: " + ", ".join(supplied))
-            deps = _resolve_dependencies(ctx)  # refuses injected providers before ANY live observation
-            ctx = replace(ctx, approval=_reconstruct_pinned_approval(ctx))
-            rep.check("approval_pinned", "PASS", "approval reconstructed from the pinned, revalidated owner bytes")
-            interp_root, app_root = _bound_runtime_roots(ctx)
-            live_env, live_interp, observed_tree = _observe_live(interp_root, app_root)
-            c3_runtime.require_trusted_runtime(
-                live_env, ctx.runtime_policy, ctx.provenance,  # type: ignore[arg-type]  # proven by _bound_runtime_roots
-                observed_interpreter=live_interp, pinned_tree_sha256=ctx.approval.interpreter_tree_sha256,
-            )
-            rep.check("runtime", "PASS", "live isolated runtime; provenance equals the live, owner-pinned interpreter tree")
-        elif ctx.mode == "OFFLINE_MOCKED":
-            if not getattr(ctx.guard, "offline_only", False):
-                raise errors.ApprovalBoundaryViolation("mocked mode requires an offline-only guard")
-            if ctx.observed_tree is None:
-                raise errors.ProbeAborted("mocked mode requires an observed-tree fixture")
-            observed_tree = ctx.observed_tree
-            deps = _resolve_dependencies(ctx)
-            rep.check("runtime", "SKIPPED", "mocked mode: runtime trust is not asserted")
-        else:
-            raise errors.ApprovalInvalid("unknown probe mode")
-        _check_bindings(ctx)
-        rep.check("bindings", "PASS", "approval, target policy and guard policy agree")
-        tick()
-
-        # 2. Package integrity (ENFORCED: against the live re-scan of the installed app tree).
-        c3_package.verify_observed_tree(ctx.package_manifest, observed_tree)
-        rep.check("package", "PASS", f"{len(ctx.package_manifest.files)} files match manifest")
-
-        # 3. Executing identity facts (token read; no logon).
-        ident = deps.identity()
-        if ident.user_sid != ctx.approval.expected_agent_sid:
-            raise errors.ApprovalBoundaryViolation("the executing token is not the approved agent identity")
-        _assert_identity_safe(ident, ctx.approval)
-        rep.identity = {
-            "user": acl_guard.short_sid(ident.user_sid),
-            "groups": len(ident.group_sids),
-            "deny_only_groups": len(ident.deny_only_group_sids),
-            "integrity_rid": ident.integrity_rid,
-            "privileges": None if ident.privileges is None else [(p.name, p.enabled) for p in ident.privileges],
-        }
-        rep.check("identity", "PASS", "token user equals the approved agent")
-
-        # 4. Free space.
-        check_free_space(ctx.approval.min_free_bytes, deps.free_space)
-        rep.check("free_space", "PASS", ",".join(sorted(ctx.approval.min_free_bytes)))
-        tick()
-
-        # 5. Boundary verdicts on REAL locations (the guard also binds the volume identity).
-        prod = ctx.approval.production_paths
-        for key, expect_ok in (("approvals", True), ("bin", True)) + tuple((k, False) for k in AGENT_WRITABLE_PRODUCTION):
-            _guard_expectation(ctx, rep, f"guard:{key}", prod[key], expect_ok)
-            tick()
-        if phase == "READONLY":
-            rep.verdict = "PASS" if ctx.mode == "ENFORCED" else "PASS_OFFLINE_MOCKED"
-            return
-
-        # 6. NEGATIVE phase: authorization, executor, twin presence, then the cases.
-        require_negative_authorization(ctx.approval, ctx.now)
-        if ctx.mode == "ENFORCED":
-            ctx.approval_snapshot.revalidate()  # type: ignore[union-attr]  # presence proven above
-        if deps.executor is None or deps.fs is None:
-            raise errors.ProbeAborted("negative phase requires an executor and a filesystem adapter")
-        if deps.fs.lstat_kind(ctx.policy.container) != "dir":
-            raise errors.ProbeAborted("the disposable twin tree is missing")
-        container = ctx.policy.container
-        sep = "\\" if ctx.policy.platform == "nt" else "/"
-        for rel, expect_ok in (("twin/approvals", True), ("twin/bin", True), ("twin/worktrees", False)):
-            _guard_expectation(ctx, rep, f"guard:{rel}", container + sep + rel.replace("/", sep), expect_ok)
-        ran_negative = True
-        for out in run_negative_cases(deps.cases, approval=ctx.approval, policy=ctx.policy, executor=deps.executor,
-                                      now=ctx.now, tick=tick):
-            rep.negative.append({"id": out.case_id, "expected": out.expected, "observed": out.observed, "ok": str(out.ok)})
-        rep.verdict = "PASS" if ctx.mode == "ENFORCED" else "PASS_OFFLINE_MOCKED"
+        _execute(run, phase, rep)
     except errors.OrchestratorStop as stop:
         rep.reason_code = stop.reason_code
         rep.check("stop", "FAIL", stop.detail)
@@ -1133,23 +1246,39 @@ def _run(ctx: ProbeContext, phase: str, rep: "_Report") -> None:
         rep.check("stop", "FAIL", f"unexpected {type(exc).__name__}")
         rep.verdict = "UNVERIFIED"
     finally:
-        if ran_negative and deps is not None and deps.fs is not None:
-            try:
-                r = cleanup_container(ctx.policy, deps.fs)
-                rep.cleanup = {"already_clean": r.already_clean, "removed": r.removed, "failures": list(r.failures)}
-                if not r.clean and rep.verdict.startswith("PASS"):
-                    rep.verdict = "FAIL"
-                    rep.reason_code = "CLEANUP_INCOMPLETE"
-            except errors.OrchestratorStop as stop:
-                rep.cleanup = {"error": stop.reason_code}
-                if rep.verdict.startswith("PASS"):
-                    rep.verdict = "FAIL"
-                    rep.reason_code = stop.reason_code
-            except Exception as exc:  # noqa: BLE001 - cleanup problems must be reported, never raised
-                rep.cleanup = {"error": f"UNEXPECTED_{type(exc).__name__}"}
-                if rep.verdict.startswith("PASS"):
-                    rep.verdict = "FAIL"
-                    rep.reason_code = "CLEANUP_INCOMPLETE"
+        try:
+            if run is not None and run.ran_negative and run.deps.fs is not None:
+                _cleanup(run, rep)
+        finally:
+            if run is not None and run.snapshot is not None:
+                run.snapshot.close()
+
+
+def _cleanup(run: _Trusted, rep: _Report) -> None:
+    def fail(code: str) -> None:
+        if rep.verdict.startswith("PASS"):
+            rep.verdict = "FAIL"
+            rep.reason_code = code
+
+    if run.snapshot is not None:
+        # Re-confirm the authorization before the removal pass; cleanup still runs
+        # (it only ever touches the approved container), but the run cannot PASS.
+        try:
+            run.snapshot.revalidate()
+        except errors.OrchestratorStop as stop:
+            rep.check("approval_before_cleanup", "FAIL", stop.detail)
+            fail(stop.reason_code)
+    try:
+        r = cleanup_container(run.policy, run.deps.fs)  # type: ignore[arg-type]  # presence checked by the caller
+        rep.cleanup = {"already_clean": r.already_clean, "removed": r.removed, "failures": list(r.failures)}
+        if not r.clean:
+            fail("CLEANUP_INCOMPLETE")
+    except errors.OrchestratorStop as stop:
+        rep.cleanup = {"error": stop.reason_code}
+        fail(stop.reason_code)
+    except Exception as exc:  # noqa: BLE001 - cleanup problems must be reported, never raised
+        rep.cleanup = {"error": f"UNEXPECTED_{type(exc).__name__}"}
+        fail("CLEANUP_INCOMPLETE")
 
 
 def _assert_identity_safe(ident: acl_guard.Identity, approval: ProbeApproval) -> None:
@@ -1170,9 +1299,9 @@ def _assert_identity_safe(ident: acl_guard.Identity, approval: ProbeApproval) ->
         raise errors.ApprovalBoundaryViolation("the executing token runs at high integrity")
 
 
-def _guard_expectation(ctx: ProbeContext, rep: _Report, check_id: str, path: str, expect_ok: bool) -> None:
+def _guard_expectation(guard: Any, rep: _Report, check_id: str, path: str, expect_ok: bool) -> None:
     try:
-        ctx.guard.verify(None, path)
+        guard.verify(None, path)
         accepted = True
     except errors.ApprovalBoundaryUnverifiable:
         raise
