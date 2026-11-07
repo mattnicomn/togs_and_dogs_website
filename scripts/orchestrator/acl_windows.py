@@ -58,8 +58,11 @@ _FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
 _IOCTL_STORAGE_QUERY_PROPERTY = 0x002D1400
 _INVALID_HANDLES = (None, 0, 0xFFFFFFFF, 0xFFFFFFFFFFFFFFFF)
 
-_advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
-_kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+# System libraries are resolved from System32 ONLY (LOAD_LIBRARY_SEARCH_SYSTEM32),
+# never through the application directory, PATH or the current directory.
+_LOAD_SYSTEM32 = 0x00000800
+_advapi32 = ctypes.WinDLL("advapi32", use_last_error=True, winmode=_LOAD_SYSTEM32)
+_kernel32 = ctypes.WinDLL("kernel32", use_last_error=True, winmode=_LOAD_SYSTEM32)
 
 _advapi32.GetNamedSecurityInfoW.argtypes = [
     wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
@@ -326,6 +329,54 @@ class _WinPinned:
             _kernel32.CloseHandle(self._h)
 
 
+_authz = ctypes.WinDLL("authz", use_last_error=True, winmode=_LOAD_SYSTEM32)
+_SHARE_READ_WRITE = 0x3  # a probe open must not block readers/writers, and never grants delete sharing
+# The ONLY rights a probe may request: pure query/denial evidence. Generic rights,
+# MAXIMUM_ALLOWED, SYNCHRONIZE-only and every unknown bit are refused.
+_PROBE_ALLOWED_RIGHTS = 0x1 | 0x2 | 0x4 | 0x10 | 0x40 | 0x100 | 0x10000 | 0x20000 | 0x40000 | 0x80000
+_FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+_MAXIMUM_ALLOWED = 0x02000000
+_ERROR_ACCESS_DENIED = 5
+
+_authz.AuthzInitializeResourceManager.argtypes = [
+    wintypes.DWORD, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_void_p),
+]
+_authz.AuthzInitializeResourceManager.restype = wintypes.BOOL
+_authz.AuthzInitializeContextFromSid.argtypes = [
+    wintypes.DWORD, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, _Luid, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p),
+]
+_authz.AuthzInitializeContextFromSid.restype = wintypes.BOOL
+_authz.AuthzAddSidsToContext.argtypes = [
+    ctypes.c_void_p, ctypes.POINTER(_SidAndAttributes), wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(ctypes.c_void_p),
+]
+_authz.AuthzAddSidsToContext.restype = wintypes.BOOL
+_authz.AuthzFreeContext.argtypes = [ctypes.c_void_p]
+_authz.AuthzFreeResourceManager.argtypes = [ctypes.c_void_p]
+_advapi32.ConvertStringSidToSidW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_void_p)]
+_advapi32.ConvertStringSidToSidW.restype = wintypes.BOOL
+
+
+class _AuthzRequest(ctypes.Structure):
+    _fields_ = [
+        ("DesiredAccess", wintypes.DWORD), ("PrincipalSelfSid", ctypes.c_void_p), ("ObjectTypeList", ctypes.c_void_p),
+        ("ObjectTypeListLength", wintypes.DWORD), ("OptionalArguments", ctypes.c_void_p),
+    ]
+
+
+class _AuthzReply(ctypes.Structure):
+    _fields_ = [
+        ("ResultListLength", wintypes.DWORD), ("GrantedAccessMask", ctypes.POINTER(wintypes.DWORD)),
+        ("SaclEvaluationResults", ctypes.POINTER(wintypes.DWORD)), ("Error", ctypes.POINTER(wintypes.DWORD)),
+    ]
+
+
+_authz.AuthzAccessCheck.argtypes = [
+    wintypes.DWORD, ctypes.c_void_p, ctypes.POINTER(_AuthzRequest), ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p,
+    wintypes.DWORD, ctypes.POINTER(_AuthzReply), ctypes.POINTER(ctypes.c_void_p),
+]
+_authz.AuthzAccessCheck.restype = wintypes.BOOL
+
+
 class WindowsSecurityBackend:
     platform = "nt"
 
@@ -511,3 +562,88 @@ class WindowsSecurityBackend:
         except BaseException:
             _kernel32.CloseHandle(h)
             raise
+
+    # --- read-only access evidence (G1.6-C3) -----------------------------------
+
+    def probe_open_access(self, path: str, access_mask: int) -> tuple[bool, bool, str]:
+        """Open an EXISTING object requesting ``access_mask`` and close it again.
+
+        Never creates, truncates, writes, deletes or changes anything: it only
+        reports whether the access check would grant those rights to the current
+        token. Returns ``(granted, denied, error)``.
+        """
+
+        if (not isinstance(access_mask, int) or isinstance(access_mask, bool) or access_mask <= 0
+                or access_mask & ~_PROBE_ALLOWED_RIGHTS):
+            raise AclUnreadable("access mask is outside the allowed probe rights")
+        h = _kernel32.CreateFileW(
+            path, access_mask, _SHARE_READ_WRITE, None, _OPEN_EXISTING,
+            _FILE_FLAG_BACKUP_SEMANTICS | _FILE_FLAG_OPEN_REPARSE_POINT, None,
+        )
+        if not _is_bad_handle(h):
+            _kernel32.CloseHandle(h)
+            return True, False, ""
+        err = ctypes.get_last_error()
+        return False, err == _ERROR_ACCESS_DENIED, f"WinError {err}"
+
+    def effective_access(self, path: str, identity: Identity) -> int:
+        """Windows' own effective-access result (MAXIMUM_ALLOWED) for the SIDs in
+        ``identity``, computed with the Authz API from explicit SIDs. Pure
+        computation: no logon, no token duplication, no change to any object.
+
+        The result is a LOWER BOUND for the real token: only the SIDs supplied
+        (user + enabled groups) are considered, and privilege-derived access is
+        not. Never use it as a ceiling on what a token can do."""
+
+        owner, dacl, sd = ctypes.c_void_p(), ctypes.c_void_p(), ctypes.c_void_p()
+        rc = _advapi32.GetNamedSecurityInfoW(
+            path, _SE_FILE_OBJECT, _OWNER_SECURITY_INFORMATION | _DACL_SECURITY_INFORMATION,
+            ctypes.byref(owner), None, ctypes.byref(dacl), None, ctypes.byref(sd),
+        )
+        if rc != 0:
+            raise AclUnreadable(f"GetNamedSecurityInfo error {rc}")
+        rm, base_ctx, ctx = ctypes.c_void_p(), ctypes.c_void_p(), ctypes.c_void_p()
+        sids: list[ctypes.c_void_p] = []
+        try:
+            if not _authz.AuthzInitializeResourceManager(0x1, None, None, None, "c3-readonly", ctypes.byref(rm)):
+                raise AclUnreadable("AuthzInitializeResourceManager failed")
+
+            def sid_ptr(text: str) -> ctypes.c_void_p:
+                p = ctypes.c_void_p()
+                if not _advapi32.ConvertStringSidToSidW(text, ctypes.byref(p)):
+                    raise AclUnreadable("ConvertStringSidToSid failed")
+                sids.append(p)
+                return p
+
+            if not _authz.AuthzInitializeContextFromSid(0x2, sid_ptr(identity.user_sid), rm, None, _Luid(0, 0), None, ctypes.byref(base_ctx)):
+                raise AclUnreadable("AuthzInitializeContextFromSid failed")
+            groups = sorted(identity.group_sids)
+            arr = (_SidAndAttributes * max(len(groups), 1))()
+            for i, g in enumerate(groups):
+                arr[i].Sid = sid_ptr(g).value
+                arr[i].Attributes = 0x7
+            if not _authz.AuthzAddSidsToContext(base_ctx, arr, len(groups), None, 0, ctypes.byref(ctx)):
+                raise AclUnreadable("AuthzAddSidsToContext failed")
+            request = _AuthzRequest(_MAXIMUM_ALLOWED, None, None, 0, None)
+            mask, err, sacl = wintypes.DWORD(0), wintypes.DWORD(0), wintypes.DWORD(0)
+            reply = _AuthzReply(1, ctypes.pointer(mask), ctypes.pointer(sacl), ctypes.pointer(err))
+            # No cached-results handle is requested (NULL), so nothing is leaked.
+            if not _authz.AuthzAccessCheck(0, ctx, ctypes.byref(request), None, sd, None, 0, ctypes.byref(reply), None):
+                raise AclUnreadable("AuthzAccessCheck failed")
+            # With MAXIMUM_ALLOWED, Windows reports ERROR_ACCESS_DENIED (5) as the per-result
+            # error exactly when NO right is granted: that is a valid "mask 0" answer. Any other
+            # error - or "denied" together with a non-zero mask - is unknown, never "no access".
+            if err.value not in (0, _ERROR_ACCESS_DENIED) or (err.value == _ERROR_ACCESS_DENIED and mask.value != 0):
+                raise AclUnreadable(f"AuthzAccessCheck result error {err.value}")
+            return int(mask.value)
+        finally:
+            for handle in (ctx, base_ctx):
+                if handle.value:
+                    _authz.AuthzFreeContext(handle)
+            if rm.value:
+                _authz.AuthzFreeResourceManager(rm)
+            for p in sids:
+                if p.value:
+                    _kernel32.LocalFree(p)
+            if sd.value:
+                _kernel32.LocalFree(sd)
