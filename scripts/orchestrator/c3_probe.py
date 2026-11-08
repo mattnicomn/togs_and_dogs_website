@@ -79,6 +79,30 @@ _APPROVAL_KEYS = {
 }
 
 
+MAX_FREE_FLOOR_BYTES = 2**50  # 1 PiB: anything larger is a malformed threshold
+_DRIVE_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def _is_drive_root(value: Any) -> bool:
+    """Exactly ``X:\\`` with an upper-case letter: no relative, UNC, device,
+    ``\\\\?\\`` / ``\\\\.\\``, forward-slash, lower-case or padded form."""
+
+    return type(value) is str and len(value) == 3 and value[0] in _DRIVE_LETTERS and value[1:] == ":\\"
+
+
+def _validate_free_floor(free: Any, approved_root: str, error: type[errors.OrchestratorStop]) -> None:
+    """The free-space configuration is untrusted until this passes: exactly ONE key,
+    the approved volume root, mapped to a plain positive integer threshold."""
+
+    if type(free) is not dict:
+        raise error("min_free_bytes must be an object")
+    if not _is_drive_root(approved_root) or list(free) != [approved_root]:
+        raise error(f"min_free_bytes must name exactly the approved volume root {approved_root!r} and nothing else")
+    need = free[approved_root]
+    if type(need) is not int or not 0 < need <= MAX_FREE_FLOOR_BYTES:
+        raise error(f"min_free_bytes threshold must be an integer between 1 and {MAX_FREE_FLOOR_BYTES}")
+
+
 def _is_hex64(value: Any) -> bool:
     return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value)
 
@@ -144,10 +168,18 @@ def parse_probe_approval(data: bytes | None, *, now: datetime) -> ProbeApproval:
     max_run = doc["max_run_seconds"]
     if isinstance(max_run, bool) or not isinstance(max_run, int) or not 0 < max_run <= MAX_RUN_SECONDS:
         raise errors.ApprovalInvalid(f"max_run_seconds must be an integer between 1 and {MAX_RUN_SECONDS}")
+    # G0-R-D: the free-space floor may only name the drive root of the ONE approved,
+    # verified volume (the volume the pinned approval read binds). No other key form is
+    # accepted and nothing is normalised: the root must already be exactly "X:\".
+    # The exact "X:\" shape of the root is enforced by _validate_free_floor below.
+    root = prod["root"]
+    for key in ("approvals", "bin", "worktrees", "runtime", "evidence"):
+        if prod[key][:3] != root:
+            raise errors.ApprovalInvalid(f"production_paths.{key} must be on the approved volume root {root}")
+    if not isinstance(doc["container"], str) or doc["container"][:3] != root:
+        raise errors.ApprovalInvalid("the container must be on the approved volume root")
+    _validate_free_floor(doc["min_free_bytes"], root, errors.ApprovalInvalid)
     free = doc["min_free_bytes"]
-    if (not isinstance(free, dict) or not free
-            or not all(isinstance(k, str) and isinstance(v, int) and not isinstance(v, bool) and v > 0 for k, v in free.items())):
-        raise errors.ApprovalInvalid("min_free_bytes must map volume roots to positive integers")
     try:
         binding = acl_guard.VolumeBinding(vol["guid"], label=vol["label"], serial=vol["serial"])
         acl_guard.BoundaryPolicy(trusted_owner_sids=frozenset(owners), expected_agent_sid=doc["expected_agent_sid"])
@@ -682,9 +714,13 @@ class OsOperationExecutor:
 # --- preflight helpers ----------------------------------------------------------------------
 
 
-def check_free_space(minimums: Mapping[str, int], provider: Callable[[str], int | None]) -> list[str]:
-    """Return the verified roots; unreadable or low space aborts (fail closed)."""
+def check_free_space(minimums: Mapping[str, int], provider: Callable[[str], int | None], *, approved_root: str) -> list[str]:
+    """Return the verified roots; unreadable or low space aborts (fail closed).
 
+    The WHOLE configuration is re-validated against the approved volume root before
+    the provider (``shutil.disk_usage`` in ENFORCED runs) is called even once."""
+
+    _validate_free_floor(minimums, approved_root, errors.ProbeAborted)
     ok: list[str] = []
     for root, need in minimums.items():
         free = provider(root)
@@ -740,6 +776,14 @@ S4U_SPEC: Mapping[str, Any] = {
         "ENFORCED rebuilds the package manifest from canonical bytes whose sha256 equals the approved "
         "package_manifest_sha256 (no caller manifest object is used); the installed application tree is re-scanned "
         "live. The manifest's source_commit/listing relationship is still not bound to a trusted object database (G1)",
+        # G0-R-D: free space and guard-refusal reasons.
+        "the free-space floor covers ONLY the approved volume root (production_paths.root, exactly 'X:\\', the volume "
+        "the pinned approval read verifies); min_free_bytes must name exactly that key with a 1..2**50 integer and is "
+        "re-validated before any disk_usage call. The D:\\ vault / VHDX host volume has NO free-space floor until a "
+        "second volume binding exists (G3 prerequisite, together with the VHDX growth risk)",
+        "an expected guard denial is accepted only when the guard's structured reasons are exactly one AGENT_RIGHTS "
+        "violation on the queried path and nothing unverifiable; the human detail text is no longer matched. The "
+        "reason codes distinguish only AGENT_RIGHTS from OTHER (finer owner/volume/identity codes are not modelled)",
         "the trusted owner SIDs, agent SID and volume binding passed to run_enforced_probe are deployment "
         "configuration: they must equal the values in the owner-protected approval, but their own provenance is the "
         "G1 launcher's responsibility",
@@ -1021,6 +1065,9 @@ def _authorize_enforced(phase: Any, cfg: Mapping[str, Any], rep: _Report) -> _Tr
         appr_dir = acl_guard.canonical_windows_path(approval.production_paths["approvals"])
         if ntpath.normcase(appr_dir) != ntpath.normcase(approvals_dir):
             raise errors.ApprovalBoundaryViolation("the approval file is not in the approved approvals directory")
+        # The free-space root is bound to the volume the pinned read just verified: parsing
+        # requires approvals[:3] == root exactly, and the check above makes approvals_dir
+        # (canonical, upper-case drive) the same directory, so root IS the verified volume.
         if not approval.phase_allows(phase):
             raise errors.ApprovalInvalid("the approval does not authorize this phase")
         deadline = start + approval.max_run_seconds
@@ -1196,7 +1243,7 @@ def _execute(run: _Trusted, phase: str, rep: _Report) -> None:
     rep.check("identity", "PASS", "token user equals the approved agent")
 
     # 4. Free space.
-    check_free_space(run.approval.min_free_bytes, deps.free_space)
+    check_free_space(run.approval.min_free_bytes, deps.free_space, approved_root=run.approval.production_paths["root"])
     rep.check("free_space", "PASS", ",".join(sorted(run.approval.min_free_bytes)))
     run.tick()
 
@@ -1299,6 +1346,23 @@ def _assert_identity_safe(ident: acl_guard.Identity, approval: ProbeApproval) ->
         raise errors.ApprovalBoundaryViolation("the executing token runs at high integrity")
 
 
+def _is_exact_rights_denial(stop: errors.ApprovalBoundaryViolation, path: str) -> bool:
+    """G0-R-D: an expected denial is accepted ONLY when the guard's structured
+    reasons are exactly one agent-rights violation on the queried path itself and
+    nothing else (no owner, volume, identity, reparse or ancestor violation and no
+    unverifiable item). A message substring is never evidence."""
+
+    codes = getattr(stop, "violation_codes", None)
+    if type(codes) is not tuple or len(codes) != 1 or getattr(stop, "unverified_count", None) != 0:
+        return False
+    code, where = codes[0]
+    try:
+        same = ntpath.normcase(acl_guard.canonical_windows_path(where)) == ntpath.normcase(acl_guard.canonical_windows_path(path))
+    except acl_guard.PathRejected:
+        return False
+    return code == acl_guard.VIOLATION_AGENT_RIGHTS and same
+
+
 def _guard_expectation(guard: Any, rep: _Report, check_id: str, path: str, expect_ok: bool) -> None:
     try:
         guard.verify(None, path)
@@ -1307,7 +1371,7 @@ def _guard_expectation(guard: Any, rep: _Report, check_id: str, path: str, expec
         raise
     except errors.ApprovalBoundaryViolation as stop:
         accepted = False
-        if not expect_ok and "agent holds" not in stop.detail:
+        if not expect_ok and not _is_exact_rights_denial(stop, path):
             # A refusal for the WRONG reason (volume, identity, reparse, owner ...) is not
             # evidence that the agent lacks write rights here; it is a stop.
             rep.check(check_id, "FAIL", "refused, but not because the agent lacks write rights")

@@ -434,20 +434,31 @@ def _parents(pm: Any, path: str) -> list[str]:
 # --- the evaluation -----------------------------------------------------------
 
 
+VIOLATION_AGENT_RIGHTS = "AGENT_RIGHTS"
+VIOLATION_OTHER = "OTHER"
+
+
 class _Findings:
     def __init__(self) -> None:
         self.violations: list[str] = []
         self.unverifiable: list[str] = []
+        # Structured (code, path) for EVERY violation, never truncated. Only the
+        # agent-rights denial has its own code; everything else is OTHER.
+        self.codes: list[tuple[str, str]] = []
 
-    def violate(self, msg: str) -> None:
+    def violate(self, msg: str, *, code: str = VIOLATION_OTHER, path: str = "") -> None:
         self.violations.append(msg)
+        self.codes.append((code, path))
 
     def unverified(self, msg: str) -> None:
         self.unverifiable.append(msg)
 
     def raise_if_any(self) -> None:
         if self.violations:
-            raise errors.ApprovalBoundaryViolation("; ".join(self.violations[:6]))
+            exc = errors.ApprovalBoundaryViolation("; ".join(self.violations[:6]))
+            exc.violation_codes = tuple(self.codes)  # type: ignore[attr-defined]
+            exc.unverified_count = len(self.unverifiable)  # type: ignore[attr-defined]
+            raise exc
         if self.unverifiable:
             raise errors.ApprovalBoundaryUnverifiable("; ".join(self.unverifiable[:6]))
 
@@ -555,7 +566,7 @@ def _eval_windows_node(
         dangerous &= ~DELETE
     bad = mask & dangerous
     if bad:
-        findings.violate(f"{path}: agent holds {rights_names(bad)}")
+        findings.violate(f"{path}: agent holds {rights_names(bad)}", code=VIOLATION_AGENT_RIGHTS, path=path)
 
 
 def _split_chain(pm: Any, platform: str, mp: str | None, appr: str, findings: _Findings) -> list[str] | None:

@@ -67,7 +67,7 @@ def approval_doc(**over) -> dict:
         "expected_agent_sid": AGENT, "trusted_owner_sids": [OWNER, base.ADMINS],
         "trusted_volume": {"guid": VOL_GUID, "label": "PetCareAgent", "serial": 0xABCD1234},
         "container": CONTAINER, "production_paths": dict(PROD), "package_manifest_sha256": MANIFEST.digest(),
-        "min_free_bytes": {"P:\\": 5 * 2**30, "D:\\": 20 * 2**30}, "negative_authorized": True,
+        "min_free_bytes": {"P:\\": 5 * 2**30}, "negative_authorized": True,
         "interpreter_tree_sha256": INTERP_DIGEST, "max_run_seconds": probe.MAX_RUN_SECONDS,
     }
     doc.update(over)
@@ -376,7 +376,7 @@ def test_unauthorized_real_directory_mutation_requests_are_refused_before_any_ca
 
 
 def test_a_production_probe_whose_path_is_not_production_is_refused():
-    approval = parse(production_paths=dict(PROD, approvals="C:\\Users\\mattn"))
+    approval = dataclasses.replace(parse(), production_paths=dict(PROD, approvals="C:\\Users\\mattn"))
     ex = FakeExecutor()
     with pytest.raises(errors.SacrificialTargetRefused):
         run_cases(ex, approval=approval)
@@ -577,15 +577,92 @@ def test_real_cleanup_in_a_temp_dir_removes_a_link_without_touching_its_target(t
 
 
 def test_free_space_checks_fail_closed():
-    need = {"P:\\": 5, "D:\\": 20}
-    assert probe.check_free_space(need, lambda r: 100) == ["P:\\", "D:\\"]
+    need = {"P:\\": 5}
+    assert probe.check_free_space(need, lambda r: 100, approved_root="P:\\") == ["P:\\"]
     with pytest.raises(errors.ProbeAborted) as e:
-        probe.check_free_space(need, lambda r: 1)
+        probe.check_free_space(need, lambda r: 1, approved_root="P:\\")
     assert "FREE_SPACE_LOW" in e.value.detail
     for bad in (None, True, "100", 1.5):
         with pytest.raises(errors.ProbeAborted) as e2:
-            probe.check_free_space(need, lambda r, b=bad: b)
+            probe.check_free_space(need, lambda r, b=bad: b, approved_root="P:\\")
         assert "UNVERIFIABLE" in e2.value.detail
+
+
+# --- G0-R-D: the free-space configuration is untrusted until validated -------------------------------------------------
+
+BAD_FREE_KEYS = [
+    {"P:\\": 1, "D:\\": 1},              # extra key (unbound vault volume)
+    {"D:\\": 1},                          # substituted drive root
+    {"Q:\\": 1},                          # arbitrary drive root
+    {"p:\\": 1},                          # case alias
+    {"P:/": 1}, {"P:": 1}, {"P:\\\\": 1}, {"P:\\.": 1}, {" P:\\": 1}, {"P:\\ ": 1},   # malformed separators / padding
+    {"P:\\x": 1}, {"P:\\approvals": 1},  # not a root
+    {"\\\\server\\share\\": 1}, {"\\\\server\\share": 1}, {"//server/share/": 1},   # UNC / network
+    {"\\\\?\\P:\\": 1}, {"\\\\.\\P:\\": 1}, {"\\\\?\\Volume{cc594c83-54d8-4340-9d57-05ed19f20112}\\": 1},  # device
+    {"..\\": 1}, {".": 1}, {"relative\\dir": 1}, {"": 1},   # relative
+    {},                                   # missing the required key
+]
+BAD_FREE_VALUES = [0, -1, True, False, 1.5, "5", None, [1], probe.MAX_FREE_FLOOR_BYTES + 1]
+
+
+@pytest.mark.parametrize("free", BAD_FREE_KEYS)
+def test_free_space_keys_other_than_the_approved_root_are_refused_at_parse(free):
+    with pytest.raises(errors.ApprovalInvalid):
+        parse(min_free_bytes=free)
+
+
+@pytest.mark.parametrize("value", BAD_FREE_VALUES)
+def test_invalid_free_space_thresholds_are_refused_at_parse(value):
+    with pytest.raises(errors.ApprovalInvalid):
+        parse(min_free_bytes={"P:\\": value})
+
+
+def test_the_largest_allowed_threshold_is_accepted():
+    assert parse(min_free_bytes={"P:\\": probe.MAX_FREE_FLOOR_BYTES}).min_free_bytes == {"P:\\": probe.MAX_FREE_FLOOR_BYTES}
+
+
+@pytest.mark.parametrize("root", ["p:\\", "P:", "P:/", "\\\\?\\P:\\", "\\\\server\\share\\", "PP:\\", "1:\\"])
+def test_the_approved_volume_root_must_be_an_exact_drive_root(root):
+    with pytest.raises(errors.ApprovalInvalid):
+        parse(production_paths=dict(PROD, root=root), min_free_bytes={root: 1})
+
+
+@pytest.mark.parametrize(
+    "over",
+    [
+        {"production_paths": dict(PROD, approvals="Q:\\approvals")},
+        {"production_paths": dict(PROD, bin="Q:\\bin")},
+        {"production_paths": dict(PROD, evidence="p:\\evidence")},
+        {"container": "Q:\\_c3"},
+    ],
+)
+def test_free_space_root_mappings_inconsistent_with_the_approved_volume_are_refused(over):
+    with pytest.raises(errors.ApprovalInvalid):
+        parse(**over)
+
+
+@pytest.mark.parametrize("free", BAD_FREE_KEYS + [{"P:\\": v} for v in BAD_FREE_VALUES] + ["not-a-dict", None, [("P:\\", 1)]])
+def test_check_free_space_validates_the_whole_set_before_calling_the_provider(free):
+    calls = Counter(lambda r: 10**12)
+    with pytest.raises(errors.ProbeAborted):
+        probe.check_free_space(free, calls, approved_root="P:\\")
+    assert calls.n == 0
+
+
+@pytest.mark.parametrize("approved_root", ["D:\\", "p:\\", "\\\\server\\share\\", "", None])
+def test_check_free_space_refuses_an_unapproved_root_binding(approved_root):
+    calls = Counter(lambda r: 10**12)
+    with pytest.raises(errors.ProbeAborted):
+        probe.check_free_space({"P:\\": 1}, calls, approved_root=approved_root)
+    assert calls.n == 0
+
+
+@pytest.mark.parametrize("free", [{"D:\\": 1}, {"P:\\": 1, "\\\\server\\share\\": 1}, {"P:\\": True}])
+def test_a_mocked_run_with_a_tampered_free_space_set_never_reaches_disk_usage(free):
+    # The approval object is edited AFTER parsing; execution re-validates before the provider.
+    calls = Counter(lambda r: 10**12)
+    rep = probe.run_probe(ctx(approval=dataclasses.replace(parse(), min_free_bytes=free), free_space=calls), "READONLY")
+    assert rep["verdict"] == "FAIL" and calls.n == 0 and "min_free_bytes" in json.dumps(rep)
 
 
 # --- running the probe (mocked) ---------------------------------------------------------------------------------------------
@@ -1290,9 +1367,13 @@ def test_the_approval_is_bound_to_the_active_policies():
 
 
 def test_approved_production_paths_must_be_production_roots_of_the_policy():
-    hostile = parse(production_paths=dict(PROD, approvals="C:\\Users\\mattn\\Documents"))
+    # G0-R-D refuses these at parse time; the later binding layer must still refuse an edited object.
+    for prod in (dict(PROD, approvals="C:\\Users\\mattn\\Documents"), dict(PROD, root="D:\\")):
+        with pytest.raises(errors.ApprovalInvalid):
+            parse(production_paths=prod)
+    hostile = dataclasses.replace(parse(), production_paths=dict(PROD, approvals="C:\\Users\\mattn\\Documents"))
     assert probe.run_probe(ctx(approval=hostile), "READONLY")["reason_code"] == "APPROVAL_INVALID"
-    wrong_root = parse(production_paths=dict(PROD, root="D:\\"))
+    wrong_root = dataclasses.replace(parse(), production_paths=dict(PROD, root="D:\\"))
     assert probe.run_probe(ctx(approval=wrong_root), "READONLY")["reason_code"] == "APPROVAL_INVALID"
 
 
@@ -1719,3 +1800,165 @@ def test_windows_native_open_access_and_authz_use_system32_only_and_never_share_
     src = (PKG / "acl_windows.py").read_text(encoding="utf-8")
     assert src.count("winmode=_LOAD_SYSTEM32") == 3 and "_SHARE_READ_WRITE = 0x3" in src
     assert "0x7" not in src.split("_SHARE_READ_WRITE")[1].split("\n")[0]
+
+
+# --- G0-R-D: free space in ENFORCED runs --------------------------------------------------------------------
+
+
+class _DiskSpy:
+    def __init__(self):
+        self.roots = []
+
+    def __call__(self, root):
+        self.roots.append(root)
+        return 10**12
+
+
+def test_an_enforced_run_measures_free_space_only_on_the_verified_volume_root(monkeypatch):
+    EnforcedHost(monkeypatch)
+    spy = _DiskSpy()
+    monkeypatch.setattr(probe, "real_free_space", spy)
+    rep = enforced()
+    assert rep["verdict"] == "PASS", rep
+    assert spy.roots == ["P:\\"]
+
+
+@pytest.mark.parametrize("free", [{"\\\\server\\share\\": 1}, {"P:\\": 1, "D:\\": 1}, {"relative": 1}, {"P:\\": 0}])
+def test_an_enforced_approval_with_a_bad_free_space_set_never_reaches_disk_usage(monkeypatch, free):
+    host = EnforcedHost(monkeypatch, doc=approval_doc(min_free_bytes=free))
+    spy = _DiskSpy()
+    monkeypatch.setattr(probe, "real_free_space", spy)
+    real_du = []
+    monkeypatch.setattr(probe.shutil, "disk_usage", lambda p: real_du.append(p))
+    rep = enforced()
+    assert rep["verdict"] == "FAIL" and rep["reason_code"] == "APPROVAL_INVALID", rep
+    assert spy.roots == [] and real_du == [] and not host.observed
+
+
+def test_the_real_free_space_provider_is_only_reached_after_validation(monkeypatch):
+    # The genuine real_free_space (shutil.disk_usage) is never called for a refused configuration.
+    real_du = []
+    monkeypatch.setattr(probe.shutil, "disk_usage", lambda p: real_du.append(p))
+    with pytest.raises(errors.ProbeAborted):
+        probe.check_free_space({"\\\\server\\share\\": 1}, probe.real_free_space, approved_root="P:\\")
+    assert real_du == []
+
+
+# --- G0-R-D: an expected guard denial must be exactly the agent-rights reason --------------------------------
+
+
+def _worktrees(c, owner, mask, **kw):
+    path = PROD["worktrees"]
+    c.guard._backend.nodes[path.lower()] = g.NodeSecurity(
+        path, owner, (g.Ace(base.SYSTEM, 0x1F01FF, inherited=True), g.Ace(AGENT, mask)), is_dir=True, **kw)
+
+
+def test_a_mixed_wrong_owner_and_rights_refusal_is_not_the_expected_denial():
+    c = ctx()
+    _worktrees(c, "S-1-5-21-9-9-9-1001", probe.AGENT_MODIFY)   # untrusted owner AND agent write rights
+    rep = probe.run_probe(c, "READONLY")
+    assert rep["verdict"] == "FAIL" and "GUARD_REFUSAL_WRONG_REASON guard:worktrees" in json.dumps(rep), rep
+
+
+def test_a_reparse_refusal_with_rights_is_not_the_expected_denial():
+    c = ctx()
+    _worktrees(c, base.ADMINS, probe.AGENT_MODIFY, is_reparse=True)
+    rep = probe.run_probe(c, "READONLY")
+    assert rep["verdict"] == "FAIL" and "GUARD_REFUSAL_WRONG_REASON" in json.dumps(rep)
+
+
+def test_a_wrong_owner_refusal_alone_is_not_the_expected_denial():
+    c = ctx()
+    _worktrees(c, "S-1-5-21-9-9-9-1001", probe.AGENT_RX)
+    rep = probe.run_probe(c, "READONLY")
+    assert rep["verdict"] == "FAIL" and "GUARD_REFUSAL_WRONG_REASON" in json.dumps(rep)
+
+
+def test_the_plain_rights_denial_is_still_accepted():
+    rep = probe.run_probe(ctx(), "READONLY")
+    assert rep["verdict"] == "PASS_OFFLINE_MOCKED"
+    assert {c["id"]: c["status"] for c in rep["checks"]}["guard:worktrees"] == "PASS"
+
+
+def _violation(codes, unverified=0):
+    exc = errors.ApprovalBoundaryViolation("P:\\worktrees: agent holds DELETE")
+    if codes is not None:
+        exc.violation_codes = codes
+    exc.unverified_count = unverified
+    return exc
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        _violation(None),                                                                 # message only: never evidence
+        _violation(()),
+        _violation((("AGENT_RIGHTS", "P:\\"),)),                                          # an ancestor, not the target
+        _violation((("AGENT_RIGHTS", "P:\\worktrees\\x"),)),
+        _violation((("OTHER", "P:\\worktrees"),)),
+        _violation((("AGENT_RIGHTS", "P:\\worktrees"), ("OTHER", ""))),                  # combined reasons
+        _violation((("AGENT_RIGHTS", "P:\\worktrees"), ("AGENT_RIGHTS", "P:\\"))),
+        _violation((("AGENT_RIGHTS", "P:\\worktrees"),), unverified=1),                  # plus something unverifiable
+        _violation([("AGENT_RIGHTS", "P:\\worktrees")]),                                 # not a tuple
+        _violation((("AGENT_RIGHTS", "P:\\worktrees:ads"),)),
+    ],
+)
+def test_only_an_exact_single_rights_violation_on_the_target_counts(exc):
+    assert probe._is_exact_rights_denial(exc, "P:\\worktrees") is False
+
+
+def test_an_exact_single_rights_violation_on_the_target_counts():
+    assert probe._is_exact_rights_denial(_violation((("AGENT_RIGHTS", "P:\\worktrees"),)), "P:\\worktrees") is True
+    assert probe._is_exact_rights_denial(_violation((("AGENT_RIGHTS", "p:\\WORKTREES"),)), "P:\\worktrees") is True
+
+
+def test_the_guard_reports_every_violation_untruncated_with_structured_codes():
+    f = g._Findings()
+    for i in range(9):
+        f.violate(f"v{i}")
+    f.violate("P:\\x: agent holds DELETE", code=g.VIOLATION_AGENT_RIGHTS, path="P:\\x")
+    with pytest.raises(errors.ApprovalBoundaryViolation) as e:
+        f.raise_if_any()
+    assert len(e.value.violation_codes) == 10 and e.value.violation_codes[-1] == ("AGENT_RIGHTS", "P:\\x")
+    assert "agent holds" not in e.value.detail          # truncated text: the codes are the evidence
+    assert e.value.unverified_count == 0
+
+
+def test_the_g0_limits_describe_the_free_space_and_guard_reason_rules():
+    limits = " ".join(probe.S4U_SPEC["known_g0_limits"])
+    assert "free-space floor covers ONLY the approved volume root" in limits and "NO free-space floor" in limits
+    assert "structured reasons are exactly one AGENT_RIGHTS" in limits
+    assert "scan_tree" in " ".join(probe.S4U_SPEC["blocking_g1"])
+
+
+@pytest.mark.parametrize("root", ["p:\\", "P:", "PP:\\", "1:\\", "P:/"])
+def test_a_consistently_rebased_approval_on_a_non_canonical_root_is_refused(root):
+    # Every path uses the same (bad) root form, so only the exact drive-root rule can refuse it.
+    rebase = lambda p: root + p[3:] if p.startswith("P:\\") else p  # noqa: E731
+    prod = {k: (root if k == "root" else rebase(v)) for k, v in PROD.items()}
+    with pytest.raises(errors.ApprovalInvalid):
+        parse(production_paths=prod, container=rebase(CONTAINER), min_free_bytes={root: 1})
+    calls = Counter(lambda r: 10**12)
+    with pytest.raises(errors.ProbeAborted):
+        probe.check_free_space({root: 1}, calls, approved_root=root)
+    assert calls.n == 0
+
+
+def test_a_lower_case_approval_path_still_measures_only_the_verified_volume_root(monkeypatch):
+    # The approval path is canonicalised (upper-case drive) for the pinned read; the
+    # free-space root stays the approved, verified "P:\" and nothing else.
+    EnforcedHost(monkeypatch)
+    spy = _DiskSpy()
+    monkeypatch.setattr(probe, "real_free_space", spy)
+    rep = enforced(approval_path="p:\\approvals\\c3-probe.json")
+    assert rep["verdict"] == "PASS" and spy.roots == ["P:\\"], rep
+
+
+def test_an_extra_unverifiable_item_spoils_an_otherwise_exact_rights_denial():
+    f = g._Findings()
+    f.violate("P:\\worktrees: agent holds DELETE", code=g.VIOLATION_AGENT_RIGHTS, path="P:\\worktrees")
+    f.unverified("P:\\: unreadable")
+    with pytest.raises(errors.ApprovalBoundaryViolation) as e:
+        f.raise_if_any()
+    assert e.value.unverified_count == 1
+    assert probe._is_exact_rights_denial(e.value, "P:\\worktrees") is False
