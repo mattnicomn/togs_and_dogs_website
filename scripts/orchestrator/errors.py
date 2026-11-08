@@ -82,6 +82,36 @@ class ApprovalBoundaryUnverifiable(ApprovalUntrustedSource):
     reason_code = "APPROVAL_BOUNDARY_UNVERIFIABLE"
 
 
+class RuntimeUntrusted(OrchestratorStop):
+    """The executing Python runtime, its search path, environment, working
+    directory or loaded modules are not provably the owner-approved, immutable
+    trusted runtime (or its binary provenance is missing/ambiguous)."""
+
+    reason_code = "RUNTIME_UNTRUSTED"
+
+
+class PackageIntegrityFailure(OrchestratorStop):
+    """A source export or installed tree does not match its pinned manifest
+    (missing, extra, changed, unsafe-path or non-deterministic content)."""
+
+    reason_code = "PACKAGE_INTEGRITY_FAILURE"
+
+
+class SacrificialTargetRefused(OrchestratorStop):
+    """An operation targeted something other than an approved disposable object
+    (real approvals/bin/worktrees/runtime/evidence, the VHDX, a repository, an
+    owner profile, a path escape or a reparse point)."""
+
+    reason_code = "SACRIFICIAL_TARGET_REFUSED"
+
+
+class ProbeAborted(OrchestratorStop):
+    """The probe stopped on an unexpected result (unexpected access success,
+    failed control, unverifiable precondition, exceeded bound)."""
+
+    reason_code = "PROBE_ABORTED"
+
+
 class ResumeAuthorizationChanged(OrchestratorStop):
     """On resume, the persisted authorization no longer matches the manifest
     and request (identity, scope, SHA, branch, path scope, or actions)."""

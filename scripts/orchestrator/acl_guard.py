@@ -317,6 +317,9 @@ class BoundaryReport:
     agent: str = ""
     volume: str = ""
     pinned: bool = False
+    # Digest of every chain descriptor that was evaluated (owner, DACL, reparse state).
+    # Deliberately NOT in to_dict(): it is compared between two passes, not reported.
+    chain_digest: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -431,20 +434,31 @@ def _parents(pm: Any, path: str) -> list[str]:
 # --- the evaluation -----------------------------------------------------------
 
 
+VIOLATION_AGENT_RIGHTS = "AGENT_RIGHTS"
+VIOLATION_OTHER = "OTHER"
+
+
 class _Findings:
     def __init__(self) -> None:
         self.violations: list[str] = []
         self.unverifiable: list[str] = []
+        # Structured (code, path) for EVERY violation, never truncated. Only the
+        # agent-rights denial has its own code; everything else is OTHER.
+        self.codes: list[tuple[str, str]] = []
 
-    def violate(self, msg: str) -> None:
+    def violate(self, msg: str, *, code: str = VIOLATION_OTHER, path: str = "") -> None:
         self.violations.append(msg)
+        self.codes.append((code, path))
 
     def unverified(self, msg: str) -> None:
         self.unverifiable.append(msg)
 
     def raise_if_any(self) -> None:
         if self.violations:
-            raise errors.ApprovalBoundaryViolation("; ".join(self.violations[:6]))
+            exc = errors.ApprovalBoundaryViolation("; ".join(self.violations[:6]))
+            exc.violation_codes = tuple(self.codes)  # type: ignore[attr-defined]
+            exc.unverified_count = len(self.unverifiable)  # type: ignore[attr-defined]
+            raise exc
         if self.unverifiable:
             raise errors.ApprovalBoundaryUnverifiable("; ".join(self.unverifiable[:6]))
 
@@ -552,7 +566,7 @@ def _eval_windows_node(
         dangerous &= ~DELETE
     bad = mask & dangerous
     if bad:
-        findings.violate(f"{path}: agent holds {rights_names(bad)}")
+        findings.violate(f"{path}: agent holds {rights_names(bad)}", code=VIOLATION_AGENT_RIGHTS, path=path)
 
 
 def _split_chain(pm: Any, platform: str, mp: str | None, appr: str, findings: _Findings) -> list[str] | None:
@@ -597,15 +611,16 @@ def _verify_windows(
         mp = canonical_windows_path(manifest_path) if manifest_path is not None else None
     except PathRejected as exc:
         findings.violate(f"path rejected: {exc}")
-        return 0, agent, ""
+        return 0, agent, "", ""
 
     targets = _split_chain(pm, "nt", mp, appr, findings)
     if targets is None:
-        return 0, agent, ""
+        return 0, agent, "", ""
     volume = _check_volume(backend, policy, appr, findings)
     ancestors = _parents(pm, appr)[1:]
 
     checked = 0
+    seen: list[str] = []
     for path in targets + ancestors:
         is_target = path in targets
         try:
@@ -614,11 +629,12 @@ def _verify_windows(
             findings.unverified(f"{path}: unreadable ({exc})")
             continue
         checked += 1
+        seen.append(repr(node))
         _eval_windows_node(
             findings, path, node, is_target=is_target,
             is_root=(pm.dirname(path) == path), policy=policy, ident=ident,
         )
-    return checked, agent, volume
+    return checked, agent, volume, hashlib.sha256("\n".join(seen).encode("utf-8")).hexdigest()
 
 
 def _eval_posix_node(
@@ -670,13 +686,14 @@ def _verify_posix(
         mp = canonical_posix_path(manifest_path) if manifest_path is not None else None
     except PathRejected as exc:
         findings.violate(f"path rejected: {exc}")
-        return 0, agent, ""
+        return 0, agent, "", ""
     targets = _split_chain(pm, "posix", mp, appr, findings)
     if targets is None:
-        return 0, agent, ""
+        return 0, agent, "", ""
     ancestors = _parents(pm, appr)[1:]
 
     checked = 0
+    seen: list[str] = []
     for path in targets + ancestors:
         try:
             node = backend.read_node(path)
@@ -684,8 +701,9 @@ def _verify_posix(
             findings.unverified(f"{path}: unreadable ({exc})")
             continue
         checked += 1
+        seen.append(repr(node))
         _eval_posix_node(findings, path, node, is_target=path in targets, euid=euid, policy=policy)
-    return checked, agent, ""
+    return checked, agent, "", hashlib.sha256("\n".join(seen).encode("utf-8")).hexdigest()
 
 
 def verify_boundary(
@@ -708,15 +726,18 @@ def verify_boundary(
     platform = getattr(backend, "platform", None)
     try:
         if platform == "nt":
-            checked, agent, volume = _verify_windows(backend, policy, mp, ad, findings)
+            checked, agent, volume, digest = _verify_windows(backend, policy, mp, ad, findings)
         elif platform == "posix":
-            checked, agent, volume = _verify_posix(backend, policy, mp, ad, findings)
+            checked, agent, volume, digest = _verify_posix(backend, policy, mp, ad, findings)
         else:
             raise errors.ApprovalBoundaryUnverifiable("unsupported platform for boundary verification")
     except AclUnreadable as exc:
         raise errors.ApprovalBoundaryUnverifiable(f"security descriptor unreadable: {exc}") from exc
     findings.raise_if_any()
-    return BoundaryReport(MODE_ENFORCED if enforced else MODE_OFFLINE_MOCKED, platform, enforced, checked, agent, volume)
+    return BoundaryReport(
+        MODE_ENFORCED if enforced else MODE_OFFLINE_MOCKED, platform, enforced, checked, agent, volume,
+        chain_digest=digest,
+    )
 
 
 # --- pinned approval read (file identity / TOCTOU) -----------------------------
@@ -826,7 +847,7 @@ def read_pinned_approval(
         if not pinned.path_matches():
             raise errors.ApprovalBoundaryViolation("the approval path no longer names the opened file")
         second = verify_boundary(backend, policy, mp_raw, ad_raw, enforced=enforced)
-        if second.nodes_checked != first.nodes_checked:
+        if second.nodes_checked != first.nodes_checked or second.chain_digest != first.chain_digest:
             raise errors.ApprovalBoundaryViolation("the approval chain changed while it was being read")
     except AclUnreadable as exc:
         pinned.close()
@@ -969,6 +990,10 @@ class ProductionApprovalGuard:
             raise TypeError("policy must be a BoundaryPolicy")
         self._policy = policy
 
+    @property
+    def policy(self) -> BoundaryPolicy:
+        return self._policy
+
     def verify(self, manifest_path: Any, approvals_dir: Any) -> BoundaryReport:
         return verify_boundary(default_backend(), self._policy, manifest_path, approvals_dir, enforced=True)
 
@@ -991,6 +1016,10 @@ class MockedDescriptorApprovalGuard:
             raise TypeError("policy must be a BoundaryPolicy")
         self._policy = policy
         self._backend = backend
+
+    @property
+    def policy(self) -> BoundaryPolicy:
+        return self._policy
 
     def verify(self, manifest_path: Any, approvals_dir: Any) -> BoundaryReport:
         return verify_boundary(self._backend, self._policy, manifest_path, approvals_dir, enforced=False)

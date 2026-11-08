@@ -893,7 +893,7 @@ def test_acl_windows_only_calls_the_expected_read_apis():
     called = set()
     import re as _re
 
-    for m in _re.finditer(r"_(?:advapi32|kernel32)\.(\w+)", text):
+    for m in _re.finditer(r"_(?:advapi32|kernel32|authz)\.(\w+)", text):
         called.add(m.group(1))
     assert called <= {
         "GetNamedSecurityInfoW", "GetSecurityInfo", "OpenProcessToken", "GetTokenInformation",
@@ -901,6 +901,9 @@ def test_acl_windows_only_calls_the_expected_read_apis():
         "CreateFileW", "ReadFile", "SetFilePointerEx", "GetFinalPathNameByHandleW", "GetFileInformationByHandle",
         "QueryDosDeviceW", "GetVolumePathNameW", "GetVolumeNameForVolumeMountPointW", "GetDriveTypeW",
         "GetVolumeInformationW", "DeviceIoControl",
+        # read-only effective-access computation (Authz) from explicit SIDs
+        "ConvertStringSidToSidW", "AuthzInitializeResourceManager", "AuthzInitializeContextFromSid",
+        "AuthzAddSidsToContext", "AuthzAccessCheck", "AuthzFreeContext", "AuthzFreeResourceManager",
     }, called
     # Read-only by construction: never a write/delete share or access right, and the
     # only IOCTL is the read-only storage property query.
