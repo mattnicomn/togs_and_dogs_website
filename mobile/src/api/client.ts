@@ -3,6 +3,9 @@ import { getIdToken, isTokenExpired } from '../auth/storage';
 import { refreshSession } from '../auth/cognito';
 import { API_PATHS, buildPath } from '../contracts/generatedContracts';
 import type {
+  AdminQuoteSendResponse,
+  AdminQuoteUpdatePayload,
+  AdminQuoteUpdateResponse,
   ClientQuote,
   ClientQuoteAcceptResponse,
   ClientQuoteDeclineResponse,
@@ -132,6 +135,22 @@ export const completeJob = (jobId: string, requestId: string, visitNotes = "") =
 
 export const startJob = (jobId: string, requestId: string) =>
   request(API_PATHS.admin.jobStart, 'POST', { job_id: jobId, request_id: requestId }, true);
+
+// S1: Owner/admin canonical quote draft/update and send.
+// The deployed PATCH is last-write-wins (no expected_revision contract). Only the
+// send route has a server-side conditional write (409). Callers must not retry a
+// potentially successful mutation.
+
+// PATCH /admin/requests/{requestId}/quote — create/update the DRAFT quote.
+export const updateAdminQuote = (
+  requestId: string,
+  payload: AdminQuoteUpdatePayload,
+): Promise<AdminQuoteUpdateResponse> =>
+  request(buildPath(API_PATHS.admin.updateQuote, { requestId }), 'PATCH', payload, true);
+
+// POST /admin/requests/{requestId}/quote/send — DRAFT -> SENT. No request body.
+export const sendAdminQuote = (requestId: string): Promise<AdminQuoteSendResponse> =>
+  request(buildPath(API_PATHS.admin.sendQuote, { requestId }), 'POST', null, true);
 
 // Phase 24A-4: Client pets listing (read-only)
 export const getClientPets = () => request(API_PATHS.client.getPets, 'GET', null, true);
