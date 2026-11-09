@@ -23,6 +23,49 @@ export interface PetRequest {
   job_completion_summary?: { jobs?: JobOccurrence[] };
   visit_windows?: string[];
   occurrence_hydration_failed?: boolean;
+  // S1: canonical commercial quote fields carried on the raw admin REQUEST read.
+  quote_status?: string | null;
+  quote_revision?: number | null;
+  quote_amount_cents?: number | null;
+  currency?: string | null;
+  deposit_amount_cents?: number | null;
+  payment_requirement?: string | null;
+  quote_notes_client?: string | null;
+  quote_notes_internal?: string | null;
+  internal_pricing_notes?: string | null;
+  quote_sent_at?: string | null;
+  quote_accepted_at?: string | null;
+}
+
+/** S1: body of PATCH /admin/requests/{id}/quote (hard allowlist; integer cents). */
+export interface AdminQuoteUpdatePayload {
+  quote_amount_cents?: number;
+  currency: string;
+  deposit_amount_cents: number;
+  payment_requirement: 'NONE' | 'DEPOSIT' | 'FULL';
+  quote_notes_client: string;
+  quote_notes_internal: string;
+  internal_pricing_notes: string;
+}
+
+/** S1: partial responses; never used as editor truth (the request is re-read instead). */
+export interface AdminQuoteUpdateResponse {
+  message: string;
+  request_id: string;
+  quote_status: string;
+  quote_revision: number;
+  quote_amount_cents: number;
+  currency: string;
+  status?: string;
+}
+
+export interface AdminQuoteSendResponse {
+  message: string;
+  request_id: string;
+  quote_status: string;
+  quote_revision: number;
+  quote_amount_cents: number;
+  status?: string;
 }
 
 export interface JobOccurrence {

@@ -22,6 +22,7 @@ import { StaffPickerSheet } from '../components/StaffPickerSheet';
 import { getServiceTypeLabel } from '../utils/serviceLabels';
 import { projectOccurrences, resolveActionJobId } from '../utils/occurrences';
 import { approvalConfirmation, bookingNextStep, bookingPetLabel, canOfferApproval, canReviewBooking } from '../utils/bookingWorkflow';
+import { AdminQuoteEditor, mergeQuoteRefresh } from '../components/AdminQuoteEditor';
 
 export const RequestDetailScreen = ({ route, navigation }: any) => {
   const { logout, role } = useAuth();
@@ -610,6 +611,17 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
               </View>
             )}
           </View>
+
+          {/* S1: owner/admin quote create/edit/send (renders nothing for other roles) */}
+          <AdminQuoteEditor
+            request={request}
+            role={role}
+            onRequestRefreshed={(fresh: any) => {
+              if (!mountedRef.current || fresh?.request_id !== request.request_id) return;
+              setRequest((previous: any) => mergeQuoteRefresh(previous, fresh));
+            }}
+            onSessionExpired={logout}
+          />
 
           {/* Visit Notes (Read-only if present) */}
           {request.visit_notes && (

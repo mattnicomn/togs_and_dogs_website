@@ -19,7 +19,7 @@ export const bookingNextStep = (status: string) => {
   if (status === 'APPROVED') return 'Choose a staff member after visit setup finishes. Refresh if the visits are still initializing.';
   if (status === 'ASSIGNED') return 'Load the visits below and select the exact visit. Changing staff does not start or complete a visit.';
   if (['COMPLETED', 'CANCELLED', 'ARCHIVED', 'DECLINED'].includes(status)) return 'Review the booking history. No approval or visit execution is offered for this booking state.';
-  if (status === 'QUOTE_NEEDED') return 'Prepare and send the quote in the web quote editor. Mobile cannot edit or send owner quotes here.';
+  if (status === 'QUOTE_NEEDED') return 'Prepare the quote in the Quote section on this screen: save the draft, then send it to the client. The client response appears there once sent.';
   if (status === 'PROFILE_CREATED') return 'Profile Created is a workflow status, not proof of a client account or invitation. Verify the client profile, account link and invitation in web client management.';
   return null;
 };

@@ -12,7 +12,8 @@ describe('booking copy with legacy/missing fields', () => {
     expect(request.timeframe).toBe('AFTERNOON');
   });
   it('keeps quote preparation and account invitation as explicit web handoffs', () => {
-    expect(bookingNextStep('QUOTE_NEEDED')).toContain('web quote editor');
+    expect(bookingNextStep('QUOTE_NEEDED')).toContain('Quote section on this screen');
+    expect(bookingNextStep('QUOTE_NEEDED')).not.toMatch(/web quote editor|cannot edit or send/i);
     expect(bookingNextStep('PROFILE_CREATED')).toContain('not proof');
   });
 });
