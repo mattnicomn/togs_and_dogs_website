@@ -86,16 +86,17 @@ describe('Android booking workflow remediation', () => {
     expect(v.queryByText('Approve Booking')).toBeNull();
     expect(mockReview).not.toHaveBeenCalled();
   });
-  it('hydrates visits without mutation and keeps owner execution unavailable', async () => {
+  it('hydrates visits without mutation; owner execution requires an exact selected child (S1-VISIT-RBAC-A1)', async () => {
     mockRead.mockResolvedValue(booking({ job_ids: ['a', 'b'], job_completion_summary: { jobs: [child('a'), child('b', { occurrence_date: '2026-10-30' })] } }));
-    const v = await screen(booking());
+    const v = await screen(booking({ job_ids: ['a', 'b'] }));
     expect(v.getByText('Change Staff')).toBeTruthy();
+    expect(v.queryByText('Start Visit')).toBeNull(); // no exact child selected yet
     await fireEvent.press(v.getByText('Load / refresh visits'));
     await fireEvent.press(await v.findByText('Visit 2: 2026-10-30 · ANYTIME · ASSIGNED'));
     expect(v.getByText('Selected visit: 2026-10-30 · ANYTIME · ASSIGNED')).toBeTruthy();
-    expect(v.queryByText('Start Visit')).toBeNull();
-    expect(v.queryByText('Complete Visit')).toBeNull();
-    expect(mockStart).not.toHaveBeenCalled(); expect(mockComplete).not.toHaveBeenCalled();
+    expect(v.getByText('Start Visit')).toBeTruthy();
+    expect(v.queryByText('Complete Visit')).toBeNull(); // Start precedes Complete
+    expect(mockStart).not.toHaveBeenCalled(); expect(mockComplete).not.toHaveBeenCalled(); // hydration/selection never mutate
   });
   it('selects and starts only the authoritative second child as staff', async () => {
     mockRole = 'staff';
@@ -258,11 +259,24 @@ describe('Android booking workflow remediation', () => {
     await fireEvent.press(v.getByText('Confirm Approve Pet Booking?'));
     await waitFor(() => expect(mockReview).toHaveBeenCalledWith('req-test', 'client-test', 'APPROVED'));
   });
-  it.each(['owner', 'admin', 'client', 'unknown', null])('never exposes staff execution to %s after child selection', async role => {
+  it.each(['client', 'unknown', null])('never exposes visit execution or notes to %s', async role => {
     const v = await hydratedVisits(true, role);
-    if (role === 'owner' || role === 'admin') await fireEvent.press(v.getByText(/^Visit 1:/));
     expect(v.queryByText('Start Visit')).toBeNull();
     expect(v.queryByText('Complete Visit')).toBeNull();
+    expect(v.queryByPlaceholderText('How did the visit go? Any observations...')).toBeNull();
     expect(mockStart).not.toHaveBeenCalled(); expect(mockComplete).not.toHaveBeenCalled();
+  });
+  it.each(['owner', 'admin'])('lets %s complete exactly the selected started child with its own draft (S1-VISIT-RBAC-A1)', async role => {
+    const v = await hydratedVisits(true, role);
+    await fireEvent.press(v.getByText(/^Visit 2:/));
+    await fireEvent.changeText(v.getByPlaceholderText('How did the visit go? Any observations...'), `${role} note`);
+    await fireEvent.press(v.getByText('Complete Visit'));
+    expect(v.getByText(/Selected Visit Date: 2026-10-30/)).toBeTruthy();
+    expect(v.getByText(/Only the exact selected visit is submitted/)).toBeTruthy();
+    await fireEvent.press(v.getByText('Confirm Mark Visit Completed?'));
+    await waitFor(() => expect(mockComplete).toHaveBeenCalledWith('b', 'req-test', `${role} note`));
+    expect(mockComplete).toHaveBeenCalledTimes(1);
+    expect(mockStart).not.toHaveBeenCalled();
+    expect(mockReview).not.toHaveBeenCalled();
   });
 });

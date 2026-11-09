@@ -454,9 +454,15 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
   const canApprove = canManage && canOfferApproval(request.status);
   const nextStep = canManage ? bookingNextStep(request.status) : null;
   const canReadVisits = canManage || role === 'staff';
+  // S1-VISIT-RBAC-A1: visit execution (Start, Complete, visit notes) is offered to an
+  // explicit allowlist: owner, admin and staff. Client, unknown, empty and null roles
+  // never receive these controls (no negative/fallback gate). The backend remains the
+  // authority: it requires staff to be the assigned worker (403 otherwise) and lets
+  // owner/admin act without being the assigned worker.
+  const canExecuteVisits = role === 'owner' || role === 'admin' || role === 'staff';
   const parentVisitView = !initialOccurrence && !jobId;
   const visits = visitsLoaded ? projectOccurrences(request) : [];
-  const showFooter = (canManage && (canApprove || isPending || isMeetGreetPending || isApproved || isAssigned)) || (role === 'staff' && isAssigned);
+  const showFooter = (canManage && (canApprove || isPending || isMeetGreetPending || isApproved || isAssigned)) || (canExecuteVisits && isAssigned);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -478,7 +484,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
           {canReadVisits && (request.status === 'ASSIGNED' || isApproved || visitsLoaded) && (
             <View style={styles.card}>
               <Text style={styles.sectionHeader}>Visits in this booking</Text>
-              <Text>Select an exact visit to view its details. Start and Complete remain staff actions; Change Staff changes assignment, not visit progress.</Text>
+              <Text>Select an exact visit before starting or completing it. Owners, admins and the assigned staff member can start and complete visits; Change Staff changes assignment, not visit progress.</Text>
               <TouchableOpacity accessibilityRole="button" onPress={refreshBooking} disabled={isRefreshing || isMutating}>
                 <Text>{isRefreshing ? 'Loading visits…' : 'Load / refresh visits'}</Text>
               </TouchableOpacity>
@@ -760,8 +766,8 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
             </View>
           )}
 
-          {/* Optional Visit Notes Input for Staff (only when status is ASSIGNED and role is staff) */}
-          {isAssigned && role === 'staff' && (
+          {/* Optional Visit Notes Input (ASSIGNED visit; same owner/admin/staff allowlist as Start/Complete) */}
+          {isAssigned && canExecuteVisits && (
             <View style={styles.card}>
               <Text style={styles.sectionHeader}>Visit Notes (optional)</Text>
               <Text>Unsaved notes stay with this visit while this screen is open. Select an exact visit before writing.</Text>
@@ -803,7 +809,7 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
         {/* Sticky Action Footer */}
         {showFooter && (
           <View style={styles.actionFooter}>
-            {role === 'staff' && isAssigned && !hasExactJob && (
+            {canExecuteVisits && isAssigned && !hasExactJob && (
               <View style={styles.footerErrorContainer}>
                 <Text style={styles.footerErrorText}>{actionResolution.error}</Text>
               </View>
@@ -875,13 +881,13 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
               </TouchableOpacity>
             )}
 
-            {isAssigned && role === 'staff' && hasExactJob && !isStarted && !occurrence?.legacy && (
+            {isAssigned && canExecuteVisits && hasExactJob && !isStarted && !occurrence?.legacy && (
               <TouchableOpacity style={styles.completeBtn} onPress={handleStart} disabled={isMutating || isRefreshing || !hasExactJob}>
                 <Text style={styles.completeBtnText}>Start Visit</Text>
               </TouchableOpacity>
             )}
 
-            {isAssigned && role === 'staff' && hasExactJob && canComplete && (
+            {isAssigned && canExecuteVisits && hasExactJob && canComplete && (
               <TouchableOpacity
                 style={styles.completeBtn}
                 onPress={() => setShowCompleteConfirmModal(true)}
