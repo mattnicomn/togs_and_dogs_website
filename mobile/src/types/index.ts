@@ -59,6 +59,23 @@ export interface AdminQuoteUpdateResponse {
   status?: string;
 }
 
+/** S2: the only decision literals the cancellation-decision route recognizes. */
+export type CancellationDecision = 'APPROVE' | 'DENY';
+
+/** S2: response of PUT /admin/cancel/decision (never used as the final truth; re-read instead). */
+export interface CancellationDecisionResponse {
+  message?: string;
+  new_status?: string;
+  sns_message_id?: string | null;
+}
+
+/** S2: entry the backend appends to REQUEST.sync_failures (calendar cleanup, SNS, ...). */
+export interface SyncFailureEntry {
+  type?: string;
+  error?: string;
+  timestamp?: string;
+}
+
 export interface AdminQuoteSendResponse {
   message: string;
   request_id: string;

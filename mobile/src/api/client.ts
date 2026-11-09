@@ -6,6 +6,8 @@ import type {
   AdminQuoteSendResponse,
   AdminQuoteUpdatePayload,
   AdminQuoteUpdateResponse,
+  CancellationDecision,
+  CancellationDecisionResponse,
   ClientQuote,
   ClientQuoteAcceptResponse,
   ClientQuoteDeclineResponse,
@@ -151,6 +153,24 @@ export const updateAdminQuote = (
 // POST /admin/requests/{requestId}/quote/send — DRAFT -> SENT. No request body.
 export const sendAdminQuote = (requestId: string): Promise<AdminQuoteSendResponse> =>
   request(buildPath(API_PATHS.admin.sendQuote, { requestId }), 'POST', null, true);
+
+// S2: Owner/admin cancellation decision.
+// PUT /admin/cancel/decision with exactly { request_id, client_id, decision, note }.
+// `decision` is constrained to the literals the backend recognizes. The backend has no
+// status precondition or concurrency guard for this route, so callers must re-read and
+// verify CANCELLATION_REQUESTED first, and must never retry automatically.
+export const processCancellationDecision = (
+  requestId: string,
+  clientId: string,
+  decision: CancellationDecision,
+  note = '',
+): Promise<CancellationDecisionResponse> =>
+  request(API_PATHS.admin.cancelDecision, 'PUT', {
+    request_id: requestId,
+    client_id: clientId,
+    decision,
+    note,
+  }, true);
 
 // Phase 24A-4: Client pets listing (read-only)
 export const getClientPets = () => request(API_PATHS.client.getPets, 'GET', null, true);
