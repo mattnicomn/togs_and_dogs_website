@@ -26,7 +26,9 @@ No backend, web, infrastructure, dependency, lockfile, app-config or canonical-d
 - **Money:** `^\d+(\.\d{1,2})?$` string parsing to integer cents (no floating point; safe-integer bound), mirroring the web W2B rule. Deposit is required and `0 < deposit ≤ total` when the requirement is `DEPOSIT`; it is cleared to 0 for `NONE`/`FULL`. Currency must be a 3-letter code.
 - **Fields:** amount, currency, payment requirement (NONE/DEPOSIT/FULL), deposit, client-facing notes, internal notes, internal pricing notes.
 - **Send:** only for a saved DRAFT with a positive persisted amount and no unsaved changes; requires confirmation; the copy states that sending does not approve or schedule the booking.
-- **Client-side stale check (not server-enforced):** before every save/send the request is re-read and its canonical quote fields compared with what is displayed. Any difference (including a quote sent or edited elsewhere) refuses the action, loads the latest data and explains why. The PATCH itself remains last-write-wins on the server; a write between this check and the PATCH cannot be detected.
+- **Initial authoritative hydration (S1-R1):** when the editor opens it performs one `GET /admin/requests/{id}` and keeps its own authoritative quote snapshot. The navigation/list `request` is never used for quote state, so an incomplete list payload cannot cause a false "changed" refusal. Until hydration succeeds, no inputs, Save or Send are shown ("Loading the latest quote…"). A failed hydration shows a truthful message (network, 401 logout path, 403, 404) and an explicit read-only **Retry loading quote**; nothing is retried automatically.
+- **Client-side stale check (not server-enforced):** before every save/send the request is re-read and its canonical quote fields compared with the version the user's edits are based on. Any difference (including a quote sent or edited elsewhere) refuses the action and explains why. The PATCH itself remains last-write-wins on the server; a write between this check and the PATCH cannot be detected.
+- **Unsaved input is never silently overwritten (S1-R1):** background refreshes (for example PR #46 "Refresh booking") and error reloads follow the server only when the user has no unsaved edits, or when the edits already equal the new server state. If the server quote moved while the user has edits, the edits are kept, Save/Send are blocked, and the user explicitly chooses **Keep my changes** (saving will replace the latest saved quote) or **Discard my changes**. Payloads without canonical quote state are ignored rather than treated as "no quote".
 - **Reconciliation:** after success the request is re-read and only quote fields plus the derived status mirror are merged into the screen, preserving PR #46's visit, occurrence and draft-note state. If that refresh fails, the user is told the save/send **succeeded** but could not be refreshed.
 - **Errors (`ApiError.status`):** 400 shows the server message; 401 uses the existing logout path; 403 permission; 404 not found; 409 reload and explain; network/5xx/unexpected are treated as *unknown outcome*: a read-only reload is attempted and the user is told to verify. No mutation is ever retried automatically; Save/Send are locked while in flight.
 - **PR #46 integration:** `QUOTE_NEEDED` next-step copy now points to the on-screen Quote section instead of the web editor. All PR #46 M&G, approval, visit-selection, draft-note and Start/Complete behavior is unchanged.
@@ -34,15 +36,15 @@ No backend, web, infrastructure, dependency, lockfile, app-config or canonical-d
 ## Validation
 
 - Isolated Node 22.23.4 (matches CI); `npm ci` from the committed lockfile; no dependency changes.
-- Focused suites (`quoteMoney`, `adminQuoteApi`, `AdminQuoteEditor`, `RequestDetailAdminQuote`, `bookingWorkflowCopy`, `AndroidBookingWorkflow`): **6/6 suites, 143/143 tests PASS**.
-- `npm run typecheck`: **PASS** (0 errors).
-- Full `npm run test:ci`: **39/39 suites, 440/440 tests PASS** (PR #46 baseline 35 suites / 334 tests, plus 4 new suites and 106 new tests; zero failed, skipped or todo). Existing React act/open-handle notices persist; no suppression or timeout increase was introduced.
+- S1 (`134ba5a`): focused 6/6 suites, 143/143; full **39/39 suites, 440/440** (PR #46 baseline 35 / 334 plus 4 suites / 106 tests).
+- S1-R1 (first-save reliability correction): focused suites (`quoteMoney`, `adminQuoteApi`, `AdminQuoteEditor`, `RequestDetailAdminQuote`, `bookingWorkflowCopy`, `AndroidBookingWorkflow`) **6/6 suites, 167/167 PASS**; `npm run typecheck` **PASS** (0 errors); full `npm run test:ci` **39/39 suites, 464/464 PASS** (24 tests added for hydration, retry, edit preservation, conflict choice and first-save/send from an incomplete list payload). Zero failed, skipped or todo; zero React `act()` warnings in the full log. PR #46's `AndroidBookingWorkflow` (30 tests) passes unchanged. No suppression or timeout increase was introduced.
 - Author-agent self-review only; no independent review is claimed.
 
 ## Known limitations
 
 - Concurrency protection for draft saves is client-side only (see above). Concurrent web and mobile edits within the same moment can still overwrite each other on the server.
-- If the request object passed to the detail screen lacks quote fields that the authoritative read returns, the first save is refused as "changed" and the latest data is loaded; a second attempt proceeds. Not verified against production list responses.
+- Opening the request detail as owner/admin now issues one additional authoritative read for the quote. The production admin list/detail response shapes remain unverified on a device.
+- "Keep my changes" is an explicit, client-side decision to overwrite the latest saved draft; the server does not enforce a revision guard.
 - No Resend, no revise-after-DECLINED, no NOT_REQUIRED toggle, no payment recording, no quote notifications.
 - Not exercised on an emulator or device; UI layout is unverified.
 
@@ -50,7 +52,8 @@ No backend, web, infrastructure, dependency, lockfile, app-config or canonical-d
 
 | Gate | Status |
 | --- | --- |
-| Local TypeScript and Jest | PASS — tsc 0 errors; 440/440 tests across 39 suites |
+| Local TypeScript and Jest | PASS — tsc 0 errors; 464/464 tests across 39 suites (S1-R1) |
+| GitHub CI workflow | UNVERIFIED — `ci.yml` runs only for PRs targeting `main`; this PR is stacked on PR #46 |
 | Android emulator / device acceptance | NOT RUN — requires separate authorization |
 | Production behavior against `test_tenant_alpha` | NOT RUN — requires separate authorization |
 | Build / distribution / Ryan testing | NOT AUTHORIZED OR PERFORMED |

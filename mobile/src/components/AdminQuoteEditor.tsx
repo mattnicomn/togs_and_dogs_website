@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { COLORS } from '../theme/colors';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -7,21 +7,29 @@ import { centsToDollars, formatQuoteMoney, parseDollarsToCents } from '../utils/
 import type { AdminQuoteUpdatePayload } from '../types';
 
 /**
- * S1: owner/admin mobile quote editor (create/edit a DRAFT quote and send it).
+ * S1 / S1-R1: owner/admin mobile quote editor (create/edit a DRAFT quote and send it).
  *
  * Uses the already-deployed admin quote contract:
  *   PATCH /admin/requests/{id}/quote        (last-write-wins; NO expected_revision)
  *   POST  /admin/requests/{id}/quote/send   (DRAFT -> SENT; server 409 on a concurrent change)
+ *   GET   /admin/requests/{id}?clientId=    (authoritative REQUEST incl. quote fields)
  *
  * Safety model:
  *  - Owner/admin only; every other role (staff, client, unknown, null) renders nothing.
  *    The backend remains the authoritative 403 boundary.
+ *  - S1-R1: the editor never trusts the navigation/list `request` for quote state. On open
+ *    it performs an authoritative read ("hydration") and keeps its own server snapshot.
+ *    No inputs, Save or Send are available until hydration succeeds; a failed hydration
+ *    shows a truthful error and an explicit, read-only Retry.
  *  - Editable only when there is no canonical quote yet or it is DRAFT. SENT, ACCEPTED,
  *    DECLINED, NOT_REQUIRED, SUPERSEDED and unknown states are display-only, so mobile
  *    can never create a new commercial revision or reset an acceptance.
- *  - Before every save/send the authoritative request is re-read and compared with what
- *    is displayed. A difference is refused and the latest data is loaded. This is a
- *    CLIENT-SIDE check only; the PATCH endpoint is not server-enforced for staleness.
+ *  - Before every save/send the request is re-read and compared with the version the
+ *    user's edits are based on. A difference is refused. This is a CLIENT-SIDE check only;
+ *    the PATCH endpoint does not enforce a revision guard on the server.
+ *  - Unsaved edits are never silently overwritten by a refresh. If the server quote moved
+ *    while the user has edits, the edits are kept and the user explicitly chooses to keep
+ *    them (and save over the latest version) or discard them.
  *  - A mutation is never retried automatically. When the outcome is uncertain (network
  *    failure / 5xx) the quote is re-read (a safe GET) and the user is told to verify.
  *  - After a successful mutation the request is re-read; if that re-read fails the user
@@ -52,6 +60,16 @@ export const quoteFingerprint = (r: any): string =>
     r?.internal_pricing_notes ?? '',
   ]);
 
+const QUOTE_KEYS = [
+  'quote_status', 'quote_revision', 'quote_amount_cents', 'currency', 'deposit_amount_cents',
+  'payment_requirement', 'quote_notes_client', 'quote_notes_internal', 'internal_pricing_notes',
+  'quote_sent_at', 'quote_accepted_at',
+];
+
+/** True when a record actually carries canonical quote state (not an incomplete list item). */
+const carriesQuoteState = (r: any) =>
+  r?.quote_status !== undefined && r?.quote_status !== null;
+
 interface FormState {
   amount: string;
   currency: string;
@@ -72,6 +90,28 @@ const formFromRecord = (r: any): FormState => ({
   pricingNotes: r?.internal_pricing_notes || '',
 });
 
+const centsOrNaN = (raw: string) => {
+  if (raw.trim() === '') return 0;
+  const p = parseDollarsToCents(raw);
+  return p.ok ? p.cents : NaN;
+};
+
+/** Whether `form` differs from the persisted quote in `record` (by integer cents, not strings). */
+const formDiffersFrom = (form: FormState, record: any): boolean => {
+  const persistedAmount = record?.quote_amount_cents != null ? Number(record.quote_amount_cents) : 0;
+  const persistedDeposit = record?.deposit_amount_cents != null ? Number(record.deposit_amount_cents) : 0;
+  const a = centsOrNaN(form.amount);
+  if (Number.isNaN(a) || a !== persistedAmount) return true;
+  if ((form.currency || 'USD').trim().toUpperCase() !== (record?.currency || 'USD')) return true;
+  if (form.paymentRequirement !== (record?.payment_requirement || 'NONE')) return true;
+  const d = centsOrNaN(form.deposit);
+  if (Number.isNaN(d) || d !== persistedDeposit) return true;
+  if (form.notesClient !== (record?.quote_notes_client || '')) return true;
+  if (form.notesInternal !== (record?.quote_notes_internal || '')) return true;
+  if (form.pricingNotes !== (record?.internal_pricing_notes || '')) return true;
+  return false;
+};
+
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: 'Draft (not sent)',
   SENT: 'Sent to client',
@@ -81,6 +121,8 @@ const STATUS_LABEL: Record<string, string> = {
   SUPERSEDED: 'Superseded',
 };
 
+type Hydration = 'loading' | 'ready' | 'failed';
+
 interface InnerProps {
   request: any;
   onRequestRefreshed: (fresh: any) => void;
@@ -89,64 +131,150 @@ interface InnerProps {
 
 const AdminQuoteEditorInner: React.FC<InnerProps> = ({ request, onRequestRefreshed, onSessionExpired }) => {
   const requestId: string = request?.request_id;
-  const status: string | null = request?.quote_status ?? null;
-  const noQuote = status === null;
-  const isEditable = noQuote || status === 'DRAFT';
-  const fingerprint = quoteFingerprint(request);
+  const clientId: string = request?.client_id;
 
-  const [form, setForm] = useState<FormState>(() => formFromRecord(request));
+  // Authoritative server snapshot (S1-R1). All gating, dirty checks and the stale check
+  // use this, never the navigation/list `request` prop.
+  const [hydration, setHydration] = useState<Hydration>('loading');
+  const [hydrationError, setHydrationError] = useState('');
+  const [server, setServer] = useState<any>(null);
+  const [form, setForm] = useState<FormState>(() => formFromRecord(null));
+  // Fingerprint of the server version the current form edits are based on.
+  const [baseFp, setBaseFp] = useState<string>('');
+  const [conflict, setConflict] = useState(false);
+
   const [busy, setBusy] = useState<null | 'save' | 'send'>(null);
   const [fieldError, setFieldError] = useState('');
   const [error, setError] = useState('');
   const [warning, setWarning] = useState('');
   const [notice, setNotice] = useState('');
   const [showSendConfirm, setShowSendConfirm] = useState(false);
+
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
+  const hydrateSeqRef = useRef(0);
+  // Refs mirror state so async handlers decide on the latest values.
+  const serverRef = useRef<any>(null);
+  const formRef = useRef<FormState>(form);
+  const baseFpRef = useRef<string>('');
+  formRef.current = form;
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      hydrateSeqRef.current += 1;
     };
   }, []);
 
-  // Re-initialise the form whenever the authoritative record changes (after a
-  // save/send refresh or a conflict reload).
-  useEffect(() => {
-    setForm(formFromRecord(request));
-  }, [fingerprint]); // intentionally keyed on the canonical quote fingerprint only
-
-  const edit = (patch: Partial<FormState>) => {
-    setForm(prev => ({ ...prev, ...patch }));
+  const clearMessages = () => {
     setFieldError('');
     setError('');
     setWarning('');
     setNotice('');
   };
 
-  // ---- persisted values / dirty detection (by integer cents, not by string) ----
-  const persistedAmountCents = request?.quote_amount_cents != null ? Number(request.quote_amount_cents) : 0;
-  const persistedDepositCents = request?.deposit_amount_cents != null ? Number(request.deposit_amount_cents) : 0;
-  const persistedAmountPositive = Number.isSafeInteger(persistedAmountCents) && persistedAmountCents > 0;
-
-  const centsOrNaN = (raw: string) => {
-    if (raw.trim() === '') return 0;
-    const p = parseDollarsToCents(raw);
-    return p.ok ? p.cents : NaN;
+  /** Adopt `fresh` and reset the form to it (used after hydration and successful mutations). */
+  const adoptAndReset = (fresh: any) => {
+    const fp = quoteFingerprint(fresh);
+    serverRef.current = fresh;
+    baseFpRef.current = fp;
+    setServer(fresh);
+    setBaseFp(fp);
+    setForm(formFromRecord(fresh));
+    setConflict(false);
   };
-  const isDirty = (() => {
-    const a = centsOrNaN(form.amount);
-    if (Number.isNaN(a) || a !== persistedAmountCents) return true;
-    if ((form.currency || 'USD').trim().toUpperCase() !== (request?.currency || 'USD')) return true;
-    if (form.paymentRequirement !== (request?.payment_requirement || 'NONE')) return true;
-    const d = centsOrNaN(form.deposit);
-    if (Number.isNaN(d) || d !== persistedDepositCents) return true;
-    if (form.notesClient !== (request?.quote_notes_client || '')) return true;
-    if (form.notesInternal !== (request?.quote_notes_internal || '')) return true;
-    if (form.pricingNotes !== (request?.internal_pricing_notes || '')) return true;
-    return false;
-  })();
+
+  /**
+   * Adopt `fresh` WITHOUT discarding unsaved input. If the user has no edits against the
+   * version they started from, the form follows the server. If they do, edits are kept;
+   * when the server moved underneath them, a conflict is raised for an explicit choice.
+   * Returns 'reset' | 'kept' | 'conflict'.
+   */
+  const adoptPreservingEdits = (fresh: any): 'reset' | 'kept' | 'conflict' => {
+    const hasEdits = formDiffersFrom(formRef.current, serverRef.current);
+    // No edits, or the edits already equal the new server state (e.g. an uncertain
+    // save that actually landed): follow the server; nothing would be lost.
+    if (!hasEdits || !formDiffersFrom(formRef.current, fresh)) {
+      adoptAndReset(fresh);
+      return 'reset';
+    }
+    serverRef.current = fresh;
+    setServer(fresh);
+    if (quoteFingerprint(fresh) !== baseFpRef.current) {
+      setConflict(true);
+      return 'conflict';
+    }
+    return 'kept';
+  };
+
+  const readAuthoritative = async (): Promise<any> => {
+    const fresh = await getAdminRequest(requestId, clientId);
+    if (!fresh || fresh.request_id !== requestId) {
+      throw new Error('Booking identity could not be confirmed.');
+    }
+    return fresh;
+  };
+
+  // ---- initial / explicit-retry hydration (read-only) ------------------------------
+  const hydrate = useCallback(async () => {
+    const seq = ++hydrateSeqRef.current;
+    setHydration('loading');
+    setHydrationError('');
+    try {
+      const fresh = await readAuthoritative();
+      if (!mountedRef.current || seq !== hydrateSeqRef.current) return;
+      adoptAndReset(fresh);
+      setHydration('ready');
+      onRequestRefreshed(fresh);
+    } catch (err: any) {
+      if (!mountedRef.current || seq !== hydrateSeqRef.current) return;
+      setHydration('failed');
+      if (err?.status === 401) {
+        setHydrationError('Your session expired. Please sign in again.');
+        if (onSessionExpired) await onSessionExpired();
+        return;
+      }
+      setHydrationError(
+        err?.status === 403
+          ? "You don't have permission to view this quote."
+          : err?.status === 404
+            ? 'This request could not be found.'
+            : "We couldn't load the latest quote, so editing is unavailable. Nothing has been changed."
+      );
+    }
+  }, [requestId, clientId]); // keyed on request identity only; callbacks are read at call time
+
+  useEffect(() => {
+    hydrate();
+  }, [hydrate]);
+
+  // ---- background refresh from the screen (e.g. PR #46 "Refresh booking") ----------
+  // Only records that actually carry canonical quote state are considered, so an
+  // incomplete list payload can never wipe or "stale" the hydrated snapshot.
+  const propFp = quoteFingerprint(request);
+  useEffect(() => {
+    if (hydration !== 'ready' || busyRef.current) return;
+    if (!carriesQuoteState(request)) return;
+    if (propFp === quoteFingerprint(serverRef.current)) return;
+    const outcome = adoptPreservingEdits(request);
+    if (outcome === 'conflict') {
+      setWarning('The saved quote was updated elsewhere. Your unsaved changes were kept; choose whether to keep or discard them.');
+    }
+  }, [propFp, hydration]); // keyed on the prop's canonical quote fingerprint only
+
+  const edit = (patch: Partial<FormState>) => {
+    setForm(prev => ({ ...prev, ...patch }));
+    clearMessages();
+  };
+
+  // ---- derived state from the authoritative snapshot ------------------------------
+  const status: string | null = server?.quote_status ?? null;
+  const noQuote = status === null;
+  const isEditable = noQuote || status === 'DRAFT';
+  const isDirty = hydration === 'ready' && formDiffersFrom(form, server);
+  const persistedAmountCents = server?.quote_amount_cents != null ? Number(server.quote_amount_cents) : 0;
+  const persistedAmountPositive = Number.isSafeInteger(persistedAmountCents) && persistedAmountCents > 0;
 
   // ---- payload ----------------------------------------------------------------
   const buildPayload = (): { payload: AdminQuoteUpdatePayload } | { error: string } => {
@@ -178,16 +306,7 @@ const AdminQuoteEditorInner: React.FC<InnerProps> = ({ request, onRequestRefresh
     return { payload: payload as AdminQuoteUpdatePayload };
   };
 
-  // ---- authoritative reads ------------------------------------------------------
-  const readAuthoritative = async (): Promise<any> => {
-    const fresh = await getAdminRequest(request.request_id, request.client_id);
-    if (!fresh || fresh.request_id !== request.request_id) {
-      throw new Error('Booking identity could not be confirmed.');
-    }
-    return fresh;
-  };
-
-  /** Pre-mutation guard. Returns true only when the displayed quote matches the server. */
+  /** Pre-mutation guard: the server must still equal the version the edits are based on. */
   const guardAgainstStale = async (): Promise<boolean> => {
     let fresh: any;
     try {
@@ -199,11 +318,15 @@ const AdminQuoteEditorInner: React.FC<InnerProps> = ({ request, onRequestRefresh
       return false;
     }
     if (!mountedRef.current) return false;
-    if (quoteFingerprint(fresh) !== fingerprint) {
+    if (quoteFingerprint(fresh) !== baseFpRef.current) {
+      const outcome = adoptPreservingEdits(fresh);
       onRequestRefreshed(fresh);
       setError(
-        'This quote changed since it was loaded (for example on the web or another device). '
-        + 'The latest version is now shown and nothing was changed. Review it and try again.'
+        outcome === 'conflict'
+          ? 'This quote changed since it was loaded (for example on the web or another device). '
+            + 'Nothing was changed. Your unsaved changes were kept; choose whether to keep or discard them.'
+          : 'This quote changed since it was loaded (for example on the web or another device). '
+            + 'The latest version is now shown and nothing was changed. Review it and try again.'
       );
       return false;
     }
@@ -215,6 +338,7 @@ const AdminQuoteEditorInner: React.FC<InnerProps> = ({ request, onRequestRefresh
     try {
       const fresh = await readAuthoritative();
       if (!mountedRef.current) return;
+      adoptAndReset(fresh);
       onRequestRefreshed(fresh);
       setNotice(done);
     } catch {
@@ -223,10 +347,12 @@ const AdminQuoteEditorInner: React.FC<InnerProps> = ({ request, onRequestRefresh
     }
   };
 
+  /** Safe read-only reload after an error; never discards unsaved input. */
   const reloadLatestQuietly = async (): Promise<boolean> => {
     try {
       const fresh = await readAuthoritative();
       if (!mountedRef.current) return false;
+      adoptPreservingEdits(fresh);
       onRequestRefreshed(fresh);
       return true;
     } catch {
@@ -267,11 +393,8 @@ const AdminQuoteEditorInner: React.FC<InnerProps> = ({ request, onRequestRefresh
 
   // ---- actions --------------------------------------------------------------------
   const handleSave = async () => {
-    if (busyRef.current || !isEditable) return;
-    setFieldError('');
-    setError('');
-    setWarning('');
-    setNotice('');
+    if (busyRef.current || hydration !== 'ready' || !isEditable || conflict) return;
+    clearMessages();
     const built = buildPayload();
     if ('error' in built) {
       setFieldError(built.error);
@@ -294,9 +417,11 @@ const AdminQuoteEditorInner: React.FC<InnerProps> = ({ request, onRequestRefresh
     }
   };
 
-  const canSend = isEditable && status === 'DRAFT' && !isDirty && persistedAmountPositive && !busy;
+  const canSend = hydration === 'ready' && isEditable && status === 'DRAFT' && !isDirty
+    && !conflict && persistedAmountPositive && !busy;
   const sendBlockedReason = (() => {
     if (status !== 'DRAFT') return null;
+    if (conflict) return 'Keep or discard your changes before sending.';
     if (isDirty) return 'Save your changes before sending.';
     if (!persistedAmountPositive) return 'Set a quote amount greater than 0 and save before sending.';
     return null;
@@ -305,9 +430,7 @@ const AdminQuoteEditorInner: React.FC<InnerProps> = ({ request, onRequestRefresh
   const handleSend = async () => {
     setShowSendConfirm(false);
     if (busyRef.current || !canSend) return;
-    setError('');
-    setWarning('');
-    setNotice('');
+    clearMessages();
     busyRef.current = true;
     setBusy('send');
     try {
@@ -325,8 +448,24 @@ const AdminQuoteEditorInner: React.FC<InnerProps> = ({ request, onRequestRefresh
     }
   };
 
+  /** Explicit choice: keep my edits and base them on the latest server version. */
+  const keepMyChanges = () => {
+    const fp = quoteFingerprint(serverRef.current);
+    baseFpRef.current = fp;
+    setBaseFp(fp);
+    setConflict(false);
+    clearMessages();
+    setNotice('Your changes are kept. Saving will replace the latest saved quote.');
+  };
+
+  /** Explicit choice: discard my edits and show the latest server version. */
+  const discardMyChanges = () => {
+    adoptAndReset(serverRef.current);
+    clearMessages();
+    setNotice('Your unsaved changes were discarded. The latest quote is shown.');
+  };
+
   // ---- render ---------------------------------------------------------------------
-  const statusText = noQuote ? 'No quote yet' : (STATUS_LABEL[status as string] || `Status unavailable (${status})`);
   const messages = (
     <>
       {!!fieldError && <Text accessibilityRole="alert" style={styles.errorText}>{fieldError}</Text>}
@@ -336,6 +475,34 @@ const AdminQuoteEditorInner: React.FC<InnerProps> = ({ request, onRequestRefresh
     </>
   );
 
+  if (hydration === 'loading') {
+    return (
+      <View style={styles.card} testID="admin-quote-loading">
+        <Text style={styles.sectionHeader} accessibilityRole="header">Quote</Text>
+        <Text style={styles.muted} accessibilityLiveRegion="polite">Loading the latest quote…</Text>
+      </View>
+    );
+  }
+
+  if (hydration === 'failed') {
+    return (
+      <View style={styles.card} testID="admin-quote-load-failed">
+        <Text style={styles.sectionHeader} accessibilityRole="header">Quote</Text>
+        <Text accessibilityRole="alert" style={styles.errorText}>{hydrationError}</Text>
+        <TouchableOpacity
+          style={styles.secondaryBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading quote"
+          onPress={hydrate}
+        >
+          <Text style={styles.secondaryBtnText}>Retry loading quote</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const statusText = noQuote ? 'No quote yet' : (STATUS_LABEL[status as string] || `Status unavailable (${status})`);
+
   if (!isEditable) {
     return (
       <View style={styles.card} testID="admin-quote-readonly">
@@ -343,18 +510,18 @@ const AdminQuoteEditorInner: React.FC<InnerProps> = ({ request, onRequestRefresh
         <Text style={styles.line}>Status: {statusText}</Text>
         {status !== 'NOT_REQUIRED' && (
           <>
-            <Text style={styles.line}>Total: {formatQuoteMoney(request?.quote_amount_cents, request?.currency)}</Text>
-            {request?.payment_requirement ? <Text style={styles.line}>Payment requirement: {request.payment_requirement}</Text> : null}
-            {request?.payment_requirement === 'DEPOSIT'
-              ? <Text style={styles.line}>Deposit: {formatQuoteMoney(request?.deposit_amount_cents, request?.currency)}</Text>
+            <Text style={styles.line}>Total: {formatQuoteMoney(server?.quote_amount_cents, server?.currency)}</Text>
+            {server?.payment_requirement ? <Text style={styles.line}>Payment requirement: {server.payment_requirement}</Text> : null}
+            {server?.payment_requirement === 'DEPOSIT'
+              ? <Text style={styles.line}>Deposit: {formatQuoteMoney(server?.deposit_amount_cents, server?.currency)}</Text>
               : null}
-            {request?.quote_notes_client ? <Text style={styles.line}>Client notes: {request.quote_notes_client}</Text> : null}
-            {request?.quote_notes_internal ? <Text style={styles.line}>Internal notes: {request.quote_notes_internal}</Text> : null}
-            {request?.internal_pricing_notes ? <Text style={styles.line}>Internal pricing notes: {request.internal_pricing_notes}</Text> : null}
+            {server?.quote_notes_client ? <Text style={styles.line}>Client notes: {server.quote_notes_client}</Text> : null}
+            {server?.quote_notes_internal ? <Text style={styles.line}>Internal notes: {server.quote_notes_internal}</Text> : null}
+            {server?.internal_pricing_notes ? <Text style={styles.line}>Internal pricing notes: {server.internal_pricing_notes}</Text> : null}
           </>
         )}
-        {request?.quote_sent_at ? <Text style={styles.muted}>Sent {request.quote_sent_at}</Text> : null}
-        {request?.quote_accepted_at ? <Text style={styles.muted}>Accepted {request.quote_accepted_at}</Text> : null}
+        {server?.quote_sent_at ? <Text style={styles.muted}>Sent {server.quote_sent_at}</Text> : null}
+        {server?.quote_accepted_at ? <Text style={styles.muted}>Accepted {server.quote_accepted_at}</Text> : null}
         <Text style={styles.muted}>
           This quote can't be changed on mobile once it has been sent or decided.
         </Text>
@@ -364,6 +531,7 @@ const AdminQuoteEditorInner: React.FC<InnerProps> = ({ request, onRequestRefresh
   }
 
   const inputsDisabled = !!busy;
+  const saveDisabled = inputsDisabled || !isDirty || conflict;
   return (
     <View style={styles.card} testID="admin-quote-editor">
       <Text style={styles.sectionHeader} accessibilityRole="header">Quote</Text>
@@ -460,12 +628,39 @@ const AdminQuoteEditorInner: React.FC<InnerProps> = ({ request, onRequestRefresh
 
       {messages}
 
+      {conflict && (
+        <View style={styles.conflictBox} testID="admin-quote-conflict">
+          <Text style={styles.line}>
+            The saved quote changed while you were editing. Latest saved total:{' '}
+            {formatQuoteMoney(server?.quote_amount_cents, server?.currency)}.
+          </Text>
+          <TouchableOpacity
+            style={styles.secondaryBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Keep my changes"
+            disabled={inputsDisabled}
+            onPress={keepMyChanges}
+          >
+            <Text style={styles.secondaryBtnText}>Keep my changes</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.secondaryBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Discard my changes"
+            disabled={inputsDisabled}
+            onPress={discardMyChanges}
+          >
+            <Text style={styles.secondaryBtnText}>Discard my changes</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <TouchableOpacity
-        style={[styles.primaryBtn, (inputsDisabled || !isDirty) && styles.btnDisabled]}
+        style={[styles.primaryBtn, saveDisabled && styles.btnDisabled]}
         accessibilityRole="button"
         accessibilityLabel="Save quote draft"
-        accessibilityState={{ disabled: inputsDisabled || !isDirty }}
-        disabled={inputsDisabled || !isDirty}
+        accessibilityState={{ disabled: saveDisabled }}
+        disabled={saveDisabled}
         onPress={handleSave}
       >
         <Text style={styles.primaryBtnText}>{busy === 'save' ? 'Saving…' : 'Save quote draft'}</Text>
@@ -490,7 +685,7 @@ const AdminQuoteEditorInner: React.FC<InnerProps> = ({ request, onRequestRefresh
       <ConfirmationModal
         visible={showSendConfirm}
         title="Send quote to client?"
-        message={`This sends the saved quote (${formatQuoteMoney(persistedAmountCents, request?.currency)}) to the client for acceptance. Sending does not approve or schedule the booking. A sent quote can't be edited on mobile.`}
+        message={`This sends the saved quote (${formatQuoteMoney(persistedAmountCents, server?.currency)}) to the client for acceptance. Sending does not approve or schedule the booking. A sent quote can't be edited on mobile.`}
         onConfirm={handleSend}
         onCancel={() => setShowSendConfirm(false)}
         isLoading={false}
@@ -498,12 +693,6 @@ const AdminQuoteEditorInner: React.FC<InnerProps> = ({ request, onRequestRefresh
     </View>
   );
 };
-
-const QUOTE_KEYS = [
-  'quote_status', 'quote_revision', 'quote_amount_cents', 'currency', 'deposit_amount_cents',
-  'payment_requirement', 'quote_notes_client', 'quote_notes_internal', 'internal_pricing_notes',
-  'quote_sent_at', 'quote_accepted_at',
-];
 
 /**
  * Copies ONLY the quote fields (plus the derived RequestStatus mirror) from an
@@ -526,7 +715,7 @@ interface Props {
   onSessionExpired?: () => void | Promise<void>;
 }
 
-/** Owner/admin gate. Staff, client, unknown and null roles render nothing. */
+/** Owner/admin gate. Staff, client, unknown and null roles render nothing and make no calls. */
 export const AdminQuoteEditor: React.FC<Props> = ({ role, ...rest }) => {
   if (!canEditQuotes(role) || !rest.request) return null;
   return <AdminQuoteEditorInner {...rest} />;
@@ -566,6 +755,13 @@ const styles = StyleSheet.create({
   chipSelected: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipText: { fontSize: 13, color: COLORS.text },
   chipTextSelected: { color: COLORS.white, fontWeight: '600' },
+  conflictBox: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+  },
   errorText: { color: COLORS.danger, fontSize: 13, marginTop: 8 },
   warningText: { color: COLORS.text, fontSize: 13, marginTop: 8, fontWeight: '600' },
   noticeText: { color: COLORS.success, fontSize: 13, marginTop: 8 },
