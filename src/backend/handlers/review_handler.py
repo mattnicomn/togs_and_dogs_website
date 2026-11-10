@@ -9,6 +9,38 @@ from common.google_calendar import sync_calendar_event, delete_event
 from common.email import send_transactional_email, get_approval_email_body, get_rejection_email_body
 from common.audit import log_action
 from common.notifications.service import notify_event
+from botocore.exceptions import ClientError
+
+# BE-CANCEL-1C: cancellation state is owned exclusively by the cancellation handler
+# (client request: POST /client/cancel; owner/admin decision: PUT /admin/cancel/decision),
+# which enforces the conditional decision gate, cycle identity and D1 restoration.
+# /admin/review must never enter or leave these states, for any role.
+CANCELLATION_REQUESTED_STATUS = 'CANCELLATION_REQUESTED'
+REVIEW_FORBIDDEN_TARGET_STATUSES = frozenset({'CANCELLATION_REQUESTED', 'CANCELLATION_DENIED'})
+CODE_CANCELLATION_TRANSITION_NOT_ALLOWED = 'CANCELLATION_TRANSITION_NOT_ALLOWED'
+
+
+def _cancellation_guard_violation(current_status, new_status):
+    """True when a review transition would enter or leave cancellation state."""
+    target = str(new_status or '').strip().upper()
+    current = str(current_status or '').strip().upper()
+    return target in REVIEW_FORBIDDEN_TARGET_STATUSES or current == CANCELLATION_REQUESTED_STATUS
+
+
+def _cancellation_conflict(event, current_status):
+    from common.response import format_response
+    return format_response(409, {
+        "error": ("Cancellation state can only be changed through the cancellation request "
+                  "and cancellation decision workflow."),
+        "code": CODE_CANCELLATION_TRANSITION_NOT_ALLOWED,
+        "current_status": current_status,
+    }, event)
+
+
+def _is_conditional_failure(exc):
+    return (isinstance(exc, ClientError)
+            and exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException')
+
 
 def handle_notifications(workflow_type, current_status, new_status, request_item, body):
     """
@@ -79,13 +111,76 @@ def handler(event, context):
 
         # 4. Handle VERIFY_MEET_GREET pseudo-status (updates Client Metadata)
         if new_status == 'VERIFY_MEET_GREET':
+            from common.auth import get_current_company_id, validate_tenant_ownership
             try:
-                from common.auth import get_current_company_id
                 company_id = get_current_company_id(event)
+            except PermissionError:
+                return error(403, "Forbidden", event)
 
+            # BE-CANCEL-1C-R1 (A): authorize tenant ownership BEFORE any write. A missing
+            # or foreign booking gets the same generic 403 (no stub REQ is created and no
+            # cross-tenant existence or status is disclosed).
+            if request_id:
+                if not request_item:
+                    return error(403, "Forbidden", event)
+                try:
+                    validate_tenant_ownership(request_item, event)
+                except PermissionError:
+                    print(f"SECURITY: Cross-tenant VERIFY_MEET_GREET attempt by {user_email} for REQ#{request_id}")
+                    return error(403, "Forbidden", event)
+                # BE-CANCEL-1C: never move a booking out of CANCELLATION_REQUESTED.
+                if str(request_item.get('status') or '').upper() == CANCELLATION_REQUESTED_STATUS:
+                    return _cancellation_conflict(event, request_item.get('status'))
+            else:
+                # Client-level verification: refuse client metadata owned by another tenant.
+                existing_meta = get_item(f"CLIENT#{client_id}", "METADATA") or {}
+                meta_company = existing_meta.get('company_id')
+                if meta_company and meta_company != company_id:
+                    print(f"SECURITY: Cross-tenant client-level VERIFY_MEET_GREET attempt by {user_email} for CLIENT#{client_id}")
+                    return error(403, "Forbidden", event)
+
+            booking_written = False
+            try:
+                # BE-CANCEL-1C-R1 (B): the guarded booking write runs FIRST. If it is
+                # rejected (cancellation race, booking deleted), no Meet & Greet metadata
+                # has been written.
+                if request_id:
+                    now = datetime.now(timezone.utc).isoformat()
+                    audit_note = {
+                        "action": "STATUS_CHANGE",
+                        "from": request_item.get('status', 'MEET_GREET_REQUIRED'),
+                        "to": "MG_COMPLETED",
+                        "timestamp": now,
+                        "reason": "M&G Verified",
+                        "metadata": {"request_id": request_id, "client_id": client_id}
+                    }
+                    try:
+                        table.update_item(
+                            Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                            UpdateExpression="SET #stat = :s, updated_at = :now, audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)",
+                            # Must still exist (no stub) and must not have become
+                            # CANCELLATION_REQUESTED after it was read.
+                            ConditionExpression="attribute_exists(PK) AND (attribute_not_exists(#stat) OR #stat <> :cancel_requested)",
+                            ExpressionAttributeNames={"#stat": "status"},
+                            ExpressionAttributeValues={
+                                ":s": "MG_COMPLETED",
+                                ":now": now,
+                                ":n": [audit_note],
+                                ":empty_list": [],
+                                ":cancel_requested": CANCELLATION_REQUESTED_STATUS,
+                            }
+                        )
+                    except Exception as cond_err:
+                        if _is_conditional_failure(cond_err):
+                            return _cancellation_conflict(event, request_item.get('status'))
+                        raise
+                    booking_written = True
+
+                # Client metadata: conditioned so a concurrent foreign-tenant owner can't be overwritten.
                 table.update_item(
                     Key={'PK': f"CLIENT#{client_id}", 'SK': "METADATA"},
                     UpdateExpression="SET meet_and_greet_completed = :t, entity_type = :et, company_id = :cid",
+                    ConditionExpression="attribute_not_exists(company_id) OR company_id = :cid",
                     ExpressionAttributeValues={":t": True, ":et": "CLIENT", ":cid": company_id}
                 )
 
@@ -98,29 +193,6 @@ def handler(event, context):
                     )
 
                 print(f"INFO: [Client:{client_id}] Meet & Greet manually verified by admin.")
-                
-                if request_id:
-                    now = datetime.now(timezone.utc).isoformat()
-                    audit_note = {
-                        "action": "STATUS_CHANGE",
-                        "from": request_item.get('status', 'MEET_GREET_REQUIRED'),
-                        "to": "MG_COMPLETED",
-                        "timestamp": now,
-                        "reason": "M&G Verified",
-                        "metadata": {"request_id": request_id, "client_id": client_id}
-                    }
-                    table.update_item(
-                        Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
-                        UpdateExpression="SET #stat = :s, updated_at = :now, audit_log = list_append(if_not_exists(audit_log, :empty_list), :n)",
-                        ExpressionAttributeNames={"#stat": "status"},
-                        ExpressionAttributeValues={
-                            ":s": "MG_COMPLETED",
-                            ":now": now,
-                            ":n": [audit_note],
-                            ":empty_list": []
-                        }
-                    )
-
 
                 return success({
                     "message": "Meet & Greet status updated successfully",
@@ -129,6 +201,14 @@ def handler(event, context):
                 }, event)
             except Exception as db_err:
                 print(f"ERROR: [Client:{client_id}] Failed to update M&G status: {db_err}")
+                if not booking_written and _is_conditional_failure(db_err):
+                    return error(403, "Forbidden", event)
+                if booking_written:
+                    # Not atomic: the booking advanced but the metadata write failed. The
+                    # SET operations are idempotent, so re-running verification repairs it.
+                    return internal_error(
+                        "Booking was marked Meet & Greet completed, but the Meet & Greet "
+                        "metadata update failed. Retry verification.", event)
                 return internal_error("Failed to update client metadata", event)
  
         # 1. Get current Request state
@@ -150,6 +230,14 @@ def handler(event, context):
         current_status = request_item.get('status') or 'PENDING_REVIEW'
         workflow_type = determine_workflow_type(request_item)
         print(f"INFO: [Req:{request_id}] Workflow: {workflow_type.value}, Transition: {current_status} -> {new_status}")
+
+        # BE-CANCEL-1C: no role may enter CANCELLATION_REQUESTED / CANCELLATION_DENIED or
+        # leave CANCELLATION_REQUESTED through /admin/review (checked after the existing
+        # RBAC and tenant checks, before any write).
+        if _cancellation_guard_violation(current_status, new_status):
+            print(f"REJECTED: [Req:{request_id}] Review cannot change cancellation state "
+                  f"({current_status} -> {new_status})")
+            return _cancellation_conflict(event, current_status)
         
         # 2. Validate transition
         if not is_valid_transition('REQUEST', current_status, new_status):
@@ -246,13 +334,24 @@ def handler(event, context):
                 update_expr += ", visit_notes = :vn"
                 expr_attr_vals[":vn"] = visit_notes
 
+        # BE-CANCEL-1C: the write is conditioned on the booking not having become
+        # CANCELLATION_REQUESTED after it was read, so review cannot race the
+        # cancellation workflow.
+        expr_attr_vals[":cancel_requested"] = CANCELLATION_REQUESTED_STATUS
         try:
-            table.update_item(
-                Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
-                UpdateExpression=update_expr,
-                ExpressionAttributeNames=expr_attr_names,
-                ExpressionAttributeValues=expr_attr_vals
-            )
+            try:
+                table.update_item(
+                    Key={'PK': f"REQ#{request_id}", 'SK': f"CLIENT#{client_id}"},
+                    UpdateExpression=update_expr,
+                    ConditionExpression="attribute_not_exists(#stat) OR #stat <> :cancel_requested",
+                    ExpressionAttributeNames=expr_attr_names,
+                    ExpressionAttributeValues=expr_attr_vals
+                )
+            except Exception as cond_err:
+                if _is_conditional_failure(cond_err):
+                    print(f"REJECTED: [Req:{request_id}] Booking entered CANCELLATION_REQUESTED during review")
+                    return _cancellation_conflict(event, CANCELLATION_REQUESTED_STATUS)
+                raise
             
             # Audit log
             log_action(
