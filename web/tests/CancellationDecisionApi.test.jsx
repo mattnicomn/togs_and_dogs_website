@@ -11,8 +11,8 @@ const okResponse = (body) => ({ ok: true, status: 200, json: async () => body })
 const errResponse = (status, body) => ({ ok: false, status, json: async () => body });
 
 describe('WEB-CANCEL-1 cancellation decision API client', () => {
-  beforeEach(() => { global.fetch = vi.fn(); });
-  afterEach(() => { delete global.fetch; });
+  beforeEach(() => { globalThis.fetch = vi.fn(); });
+  afterEach(() => { delete globalThis.fetch; });
 
   it('sends exactly { request_id, client_id, decision, note, cancellation_request_id } via PUT', async () => {
     fetch.mockResolvedValue(okResponse({ message: 'ok' }));

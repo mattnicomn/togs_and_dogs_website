@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { signIn, forgotPassword, confirmForgotPassword, getSession, getEffectiveRole } from '../api/auth';
 
@@ -43,7 +43,7 @@ import '../Admin.css';
 // ---------------------------------------------------------------------------
 const CANCELLATION_REQUESTED_STATUS = 'CANCELLATION_REQUESTED';
 const CANCELLATION_DECIDERS = ['owner', 'admin'];
-export const canDecideCancellation = (role) => CANCELLATION_DECIDERS.includes(role);
+const canDecideCancellation = (role) => CANCELLATION_DECIDERS.includes(role);
 
 const cancellationIds = (item) => {
   if (!item) return { reqId: null, clientId: null };
@@ -76,6 +76,26 @@ const CANCELLATION_STATUS_LABELS = {
 const cancellationStatusLabel = (s) => CANCELLATION_STATUS_LABELS[s] || (typeof s === 'string' && s ? s : 'unknown');
 
 const MAX_CANCELLATION_NOTE = 500;
+const MISSING_CANCELLATION_IDENTITY_MESSAGE = 'Missing request or client identity. No decision can be made.';
+
+const describeCancellationReadError = (err) => {
+  if (err?.status === 401) return 'Your session expired. Please sign in again.';
+  if (err?.status === 403) return "You don't have permission to view this booking's cancellation request.";
+  if (err?.status === 404) return 'This booking request could not be found.';
+  if (err?.identityMismatch) return 'Booking identity could not be confirmed. No decision can be made; reopen the booking.';
+  return "We couldn't load the latest cancellation request, so no decision is available. Nothing has been changed.";
+};
+
+/** Classify an authoritative record; returns a user message when it cannot be decided. */
+const cancellationBlockedReason = (fresh) => {
+  if (fresh.status !== CANCELLATION_REQUESTED_STATUS) {
+    return `This booking is not awaiting a cancellation decision (current status: ${cancellationStatusLabel(fresh.status)}).`;
+  }
+  if (!cancellationCycleId(fresh)) {
+    return 'This cancellation request has no cancellation identity, so it cannot be decided safely from the web. The owner must resolve it manually.';
+  }
+  return null;
+};
 
 export const CancellationDecisionModal = ({ request, role, onClose }) => {
   const { reqId, clientId } = cancellationIds(request);
@@ -94,70 +114,56 @@ export const CancellationDecisionModal = ({ request, role, onClose }) => {
     return () => { mountedRef.current = false; };
   }, []);
 
-  const readAuthoritative = async () => {
+  // A missing request/client identity is derived from props (never read, never decided).
+  const missingIdentity = !reqId || !clientId;
+  const allowed = canDecideCancellation(role);
+
+  const readAuthoritative = useCallback(async () => {
     const fresh = await getAdminRequest(reqId, clientId);
     if (!fresh || fresh.request_id !== reqId || fresh.client_id !== clientId) {
       throw Object.assign(new Error('Booking identity could not be confirmed.'), { identityMismatch: true });
     }
     return fresh;
-  };
+  }, [reqId, clientId]);
 
-  const describeReadError = (err) => {
-    if (err?.status === 401) return 'Your session expired. Please sign in again.';
-    if (err?.status === 403) return "You don't have permission to view this booking's cancellation request.";
-    if (err?.status === 404) return 'This booking request could not be found.';
-    if (err?.identityMismatch) return 'Booking identity could not be confirmed. No decision can be made; reopen the booking.';
-    return "We couldn't load the latest cancellation request, so no decision is available. Nothing has been changed.";
-  };
-
-  /** Classify an authoritative record; returns a user message when it cannot be decided. */
-  const blockedReason = (fresh) => {
-    if (fresh.status !== CANCELLATION_REQUESTED_STATUS) {
-      return `This booking is not awaiting a cancellation decision (current status: ${cancellationStatusLabel(fresh.status)}).`;
-    }
-    if (!cancellationCycleId(fresh)) {
-      return 'This cancellation request has no cancellation identity, so it cannot be decided safely from the web. The owner must resolve it manually.';
-    }
-    return null;
-  };
-
-  const adopt = (fresh) => {
+  const adopt = useCallback((fresh) => {
     snapshotRef.current = fresh;
     setSnapshot(fresh);
-  };
+  }, []);
 
-  const load = async () => {
+  /** Classify an authoritative read result (called only from the read's callbacks). */
+  const applyRead = useCallback((fresh) => {
+    if (!mountedRef.current) return;
+    adopt(fresh);
+    const reason = cancellationBlockedReason(fresh);
+    setError(reason || '');
+    setPhase(reason ? 'blocked' : 'ready');
+  }, [adopt]);
+
+  const applyReadError = useCallback((err) => {
+    if (!mountedRef.current) return;
+    setError(describeCancellationReadError(err));
+    setPhase('failed');
+  }, []);
+
+  const retryLoad = () => {
     setPhase('loading');
     setError('');
-    try {
-      const fresh = await readAuthoritative();
-      if (!mountedRef.current) return;
-      adopt(fresh);
-      const reason = blockedReason(fresh);
-      if (reason) {
-        setError(reason);
-        setPhase('blocked');
-      } else {
-        setPhase('ready');
-      }
-    } catch (err) {
-      if (!mountedRef.current) return;
-      setError(describeReadError(err));
-      setPhase('failed');
-    }
+    readAuthoritative().then(applyRead, applyReadError);
   };
 
+  // Initial authoritative read. State is only updated from the read's callbacks.
   useEffect(() => {
-    if (!canDecideCancellation(role)) return;
-    if (!reqId || !clientId) {
-      setError('Missing request or client identity. No decision can be made.');
-      setPhase('blocked');
-      return;
-    }
-    load();
-  }, [reqId, clientId, role]); // keyed on identity
+    if (!allowed || missingIdentity) return undefined;
+    let active = true;
+    readAuthoritative().then(
+      (fresh) => { if (active) applyRead(fresh); },
+      (err) => { if (active) applyReadError(err); },
+    );
+    return () => { active = false; };
+  }, [allowed, missingIdentity, readAuthoritative, applyRead, applyReadError]);
 
-  if (!canDecideCancellation(role)) return null;
+  if (!allowed) return null;
 
   const choose = (decision) => {
     if (decision !== 'APPROVE' && decision !== 'DENY') return;
@@ -192,12 +198,12 @@ export const CancellationDecisionModal = ({ request, role, onClose }) => {
         current = await readAuthoritative();
       } catch (err) {
         if (!mountedRef.current) return;
-        setError(`${describeReadError(err)} No decision was submitted.`);
+        setError(`${describeCancellationReadError(err)} No decision was submitted.`);
         setPhase('failed');
         return;
       }
       if (!mountedRef.current) return;
-      const reason = blockedReason(current);
+      const reason = cancellationBlockedReason(current);
       if (reason || cancellationFingerprint(current) !== cancellationFingerprint(snapshotRef.current)) {
         adopt(current);
         if (reason) {
@@ -274,6 +280,19 @@ export const CancellationDecisionModal = ({ request, role, onClose }) => {
   const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 };
   const card = { background: 'var(--card-bg, #fff)', color: 'var(--text, #1f2937)', borderRadius: '12px', padding: '24px', width: 'min(520px, 92vw)', maxHeight: '90vh', overflowY: 'auto' };
 
+  if (missingIdentity) {
+    return createPortal(
+      <div style={overlay}>
+        <div role="dialog" aria-modal="true" aria-labelledby="cancellation-decision-title" style={card} data-testid="cancellation-decision-modal">
+          <h3 id="cancellation-decision-title" style={{ marginTop: 0 }}>Cancellation request</h3>
+          <p role="alert" style={{ color: 'var(--error, #b42318)' }}>{MISSING_CANCELLATION_IDENTITY_MESSAGE}</p>
+          <button type="button" className="button-secondary" onClick={onClose}>Close</button>
+        </div>
+      </div>,
+      document.body
+    );
+  }
+
   const content = (
     <div style={overlay}>
       <div role="dialog" aria-modal="true" aria-labelledby="cancellation-decision-title" style={card} data-testid="cancellation-decision-modal">
@@ -333,7 +352,7 @@ export const CancellationDecisionModal = ({ request, role, onClose }) => {
 
         {phase === 'failed' && (
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button type="button" className="button-secondary" onClick={load}>Retry loading</button>
+            <button type="button" className="button-secondary" onClick={retryLoad}>Retry loading</button>
             <button type="button" className="button-secondary" onClick={onClose}>Close</button>
           </div>
         )}
@@ -503,8 +522,28 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
 
 
   const [view, setView] = useState('SCHEDULER'); // SCHEDULER or LIST
-  const skipNextDataFetchRef = useRef(false);
+  // WEB-CANCEL-1 (scheduler refresh correction): Scheduler navigation suppresses one
+  // refresh in each of the two filter/view fetch effects (immediate and 100 ms debounced).
+  // Ordinary navigation suppresses both; the approval handoff suppresses only the immediate
+  // one and keeps the debounced read as its single reconciliation read (see
+  // navigateToScheduler). Each effect consumes only its own flag, so suppression does not
+  // depend on effect order. Set only when navigation changes view/statusFilter (both
+  // effects then re-run and consume their flag), so a flag can never go stale.
+  const skipNextDataFetchRef = useRef({ immediate: false, debounced: false });
   const approvalSchedulerHandoffRef = useRef(false);
+  // WEB-CANCEL-1: advanced only by a successful approval-to-Scheduler handoff; fetchAllData
+  // discards results from reads started under an earlier generation.
+  const fetchGenerationRef = useRef(0);
+  // WEB-CANCEL-1: set when an approval handoff requests its single authoritative Scheduler
+  // read. Consumed only inside the debounced refresh timer, together with a generation
+  // advance, so a cancelled timer keeps it for the re-armed timer.
+  const pendingReconcileRef = useRef(false);
+  // Latest committed view/filter. Handoffs resolve asynchronously (stale closures), so
+  // navigateToScheduler decides from this whether both fetch effects will actually re-run.
+  const viewFilterRef = useRef({ view: 'SCHEDULER', statusFilter: null });
+  // Bumped to re-run the debounced fetch effect for a handoff reconciliation even when the
+  // Scheduler/ALL view does not change.
+  const [reconcileRequest, setReconcileRequest] = useState(0);
   const activeTabRef = useRef(null);
   const staffDrawerTriggerRef = useRef(null);
   const staffDrawerCloseBtnRef = useRef(null);
@@ -1005,6 +1044,11 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
   };
 
   const fetchAllData = async (startKey = null) => {
+    // WEB-CANCEL-1: capture the handoff generation before any asynchronous work. A
+    // successful approval-to-Scheduler handoff advances it, so a read started earlier
+    // (e.g. an in-flight list page) is superseded and must not apply any of its results.
+    const generation = fetchGenerationRef.current;
+    const isSuperseded = () => generation !== fetchGenerationRef.current;
     try {
       setLoading(true);
       if (!startKey) {
@@ -1016,6 +1060,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
 
       if (view === 'SCHEDULER') {
         const data = await getAdminRequests('ALL');
+        if (isSuperseded()) return;
         setAllRequests(prev => {
           const combined = [...prev];
           (data.requests || []).forEach(newItem => {
@@ -1040,6 +1085,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
           data = await getAdminRequests(queryStatus, startKey, timeframeFilter);
         }
 
+        if (isSuperseded()) return;
         let rawItems = data.requests || [];
         setAllRequests(prev => {
           const combined = [...prev];
@@ -1054,9 +1100,10 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
         setLastKey(data.lastKey);
       }
     } catch (err) {
-      setError("Failed to fetch data: " + err.message);
+      if (!isSuperseded()) setError("Failed to fetch data: " + err.message);
     } finally {
-      setLoading(false);
+      // A superseded read leaves loading to the newer operation that replaced it.
+      if (!isSuperseded()) setLoading(false);
     }
   };
 
@@ -1593,14 +1640,35 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
   // Release 4B Hotfix: Reactive data fetching when filters change
   // This ensures the list stays populated when navigating between views.
   useEffect(() => {
+    if (skipNextDataFetchRef.current.debounced) {
+      // Local Scheduler navigation: the data is already loaded; skip this one refresh.
+      skipNextDataFetchRef.current.debounced = false;
+      return undefined;
+    }
     if (isAuthenticated && role) {
       // Small delay to prevent jitter during rapid state changes
       const timer = setTimeout(() => {
+        if (pendingReconcileRef.current) {
+          // WEB-CANCEL-1 approval handoff reconciliation: consume the marker and advance the
+          // generation together, immediately before the authoritative read starts, so every
+          // read started earlier (including ones started during job polling) is superseded.
+          pendingReconcileRef.current = false;
+          fetchGenerationRef.current += 1;
+        }
         fetchAllData();
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [statusFilter, view, timeframeFilter, isAuthenticated, role]);
+  }, [statusFilter, view, timeframeFilter, isAuthenticated, role, reconcileRequest]);
+
+  useEffect(() => {
+    viewFilterRef.current = { view, statusFilter };
+  }, [view, statusFilter]);
+
+  useEffect(() => {
+    // A pending reconciliation never survives a loss of authentication.
+    if (!isAuthenticated) pendingReconcileRef.current = false;
+  }, [isAuthenticated]);
 
 
   const handleLogin = async (e) => {
@@ -2344,8 +2412,8 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      if (skipNextDataFetchRef.current) {
-        skipNextDataFetchRef.current = false;
+      if (skipNextDataFetchRef.current.immediate) {
+        skipNextDataFetchRef.current.immediate = false;
         return;
       }
       fetchAllData();
@@ -3391,9 +3459,22 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
     )));
   };
 
-  const navigateToScheduler = () => {
-    if (view !== 'SCHEDULER' || statusFilter !== 'ALL') {
-      skipNextDataFetchRef.current = true;
+  // Ordinary navigation (reconcile = false) is purely local: both the immediate and the
+  // debounced refresh are suppressed. The approval handoff (reconcile = true) has just
+  // mutated a booking and merged only that one record, so it suppresses the redundant
+  // immediate read but keeps the debounced read: exactly one authoritative Scheduler read
+  // that also supersedes any late response from a list fetch started before navigation.
+  // With reconcile = true the read always happens, including when the Scheduler/ALL view is
+  // already showing (no view transition): the reconcileRequest bump re-runs the debounced
+  // effect with a fresh closure, and its timer consumes pendingReconcileRef.
+  const navigateToScheduler = ({ reconcile = false } = {}) => {
+    const current = viewFilterRef.current;
+    if (current.view !== 'SCHEDULER' || current.statusFilter !== 'ALL') {
+      skipNextDataFetchRef.current = { immediate: true, debounced: !reconcile };
+    }
+    if (reconcile) {
+      pendingReconcileRef.current = true;
+      setReconcileRequest(n => n + 1);
     }
     setView('SCHEDULER');
     setStatusFilter('ALL');
@@ -3437,6 +3518,11 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
 
     try {
       const response = await reviewRequest(reqId, clientId, 'APPROVED', note);
+      // Successful approval boundary: supersede any list/scheduler read started before it,
+      // so its late response cannot overwrite the approved record reconciled below.
+      fetchGenerationRef.current += 1;
+      // A marker left by an earlier handoff is superseded by this one.
+      pendingReconcileRef.current = false;
       const successMsg = response?.message || 'Approved successfully.';
       showNotification(
         getCalendarWarningMessage(response, successMsg),
@@ -3460,7 +3546,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
         console.warn('Approved request reconciliation failed:', refreshErr);
       }
 
-      navigateToScheduler();
+      navigateToScheduler({ reconcile: true });
       if (!jobReady) {
         showNotification(APPROVAL_JOB_INITIALIZATION_WARNING, 'warning');
       }

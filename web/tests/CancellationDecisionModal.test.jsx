@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CancellationDecisionModal, canDecideCancellation } from '../src/components/AdminDashboard';
+import { CancellationDecisionModal } from '../src/components/AdminDashboard';
 import { getAdminRequest, processCancellationDecision, reviewRequest } from '../src/api/client';
 
 vi.mock('../src/api/auth', () => ({
@@ -45,14 +45,9 @@ describe('WEB-CANCEL-1 cancellation decision modal', () => {
     vi.clearAllMocks();
   });
 
-  it('only owner and admin may decide', () => {
-    expect(canDecideCancellation('owner')).toBe(true);
-    expect(canDecideCancellation('admin')).toBe(true);
-    ['staff', 'client', 'platform_admin', 'unknown', '', null, undefined].forEach(r =>
-      expect(canDecideCancellation(r)).toBe(false));
-  });
-
-  it.each(['staff', 'client', 'unknown', null])('renders nothing and reads nothing for role %s', (role) => {
+  // Owner/admin allowlist (covered through the component; the helper is not exported).
+  it.each(['staff', 'client', 'platform_admin', 'unknown', 'OWNER', '', null, undefined])(
+    'renders nothing and reads nothing for role %p', (role) => {
     render(<CancellationDecisionModal request={pending()} role={role} onClose={vi.fn()} />);
     expect(screen.queryByTestId('cancellation-decision-modal')).toBeNull();
     expect(getAdminRequest).not.toHaveBeenCalled();

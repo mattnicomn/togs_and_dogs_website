@@ -175,14 +175,26 @@ describe('Phase 24A-2A Web API Client Behavioral Execution', () => {
   });
 
   it('processCancellationDecision sends PUT to /admin/cancel/decision with payload', async () => {
-    await processCancellationDecision('req-1', 'client-1', 'APPROVE', 'ok');
+    // WEB-CANCEL-1: the decision must carry the exact cancellation-cycle id.
+    const cycle = '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b';
+    await processCancellationDecision('req-1', 'client-1', 'APPROVE', 'ok', cycle);
     expect(fetchMock).toHaveBeenCalledWith(
       `${CONFIG.API_URL}/admin/cancel/decision`,
       expect.objectContaining({
         method: 'PUT',
-        body: JSON.stringify({ request_id: 'req-1', client_id: 'client-1', decision: 'APPROVE', note: 'ok' }),
+        headers: expect.objectContaining({ Authorization: 'mock-web-token' }),
+        body: JSON.stringify({
+          request_id: 'req-1', client_id: 'client-1', decision: 'APPROVE', note: 'ok',
+          cancellation_request_id: cycle,
+        }),
       })
     );
+  });
+
+  it('processCancellationDecision refuses to send a decision without a cycle id', async () => {
+    await expect(processCancellationDecision('req-1', 'client-1', 'APPROVE', 'ok'))
+      .rejects.toMatchObject({ code: 'MISSING_CANCELLATION_REQUEST_ID' });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('getExportData and getTenantInfo send GET to canonical admin endpoints', async () => {
