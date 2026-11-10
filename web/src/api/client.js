@@ -28,7 +28,10 @@ export const request = async (path, method = 'GET', data = null, isProtected = f
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     const errorMessage = errorData.error || errorData.message || `Request failed with status ${response.status}`;
-    throw new Error(errorMessage);
+    // WEB-CANCEL-1: keep the HTTP status on the error (message unchanged for all callers).
+    const err = new Error(errorMessage);
+    err.status = response.status;
+    throw err;
   }
   
   return response.json();
@@ -150,8 +153,59 @@ export const createPet = (data) =>
 export const requestCancellation = (requestId, clientId, reason) =>
   request(API_PATHS.client.requestCancellation, 'POST', { request_id: requestId, client_id: clientId, reason }, true);
 
-export const processCancellationDecision = (requestId, clientId, decision, note) =>
-  request(API_PATHS.admin.cancelDecision, 'PUT', { request_id: requestId, client_id: clientId, decision, note }, true);
+// WEB-CANCEL-1: authoritative single-request read (owner/admin/staff; tenant-checked
+// server-side). Used to verify a pending cancellation before and after a decision.
+export const getAdminRequest = (requestId, clientId) =>
+  request(`${buildPath(API_PATHS.admin.getRequest, { requestId })}?clientId=${encodeURIComponent(clientId)}`, 'GET', null, true);
+
+// WEB-CANCEL-1: errors carry the HTTP status and the server's machine-readable `code`
+// so callers can branch on 4xx/409 without parsing message text. The message is
+// unchanged from `request()` for every existing caller.
+export class CancellationDecisionError extends Error {
+  constructor(message, status, code) {
+    super(message);
+    this.name = 'CancellationDecisionError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+// WEB-CANCEL-1: owner/admin cancellation decision.
+// PUT /admin/cancel/decision with exactly
+//   { request_id, client_id, decision: 'APPROVE' | 'DENY', note, cancellation_request_id }.
+// The cycle id is required here (callers must take it from an authoritative read).
+// NOTE: the currently deployed backend may ignore cancellation_request_id; server-side
+// cycle enforcement requires the separately approved BE-CANCEL-1 backend release.
+// Never retried automatically.
+export const processCancellationDecision = async (requestId, clientId, decision, note, cancellationRequestId) => {
+  if (decision !== 'APPROVE' && decision !== 'DENY') {
+    throw new CancellationDecisionError("Decision must be exactly 'APPROVE' or 'DENY'.", 0, 'INVALID_DECISION');
+  }
+  if (typeof cancellationRequestId !== 'string' || !cancellationRequestId.trim()) {
+    throw new CancellationDecisionError('Missing cancellation request identity.', 0, 'MISSING_CANCELLATION_REQUEST_ID');
+  }
+  const token = await getIdToken();
+  const response = await fetch(`${CONFIG.API_URL}${API_PATHS.admin.cancelDecision}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: token } : {})
+    },
+    body: JSON.stringify({
+      request_id: requestId,
+      client_id: clientId,
+      decision,
+      note: typeof note === 'string' ? note : '',
+      cancellation_request_id: cancellationRequestId
+    })
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.error || errorData.message || `Request failed with status ${response.status}`;
+    throw new CancellationDecisionError(message, response.status, errorData.code);
+  }
+  return response.json();
+};
 
 // Operational Management
 export const performAdminAction = (pk, sk, action, records = null, extraData = null) => {

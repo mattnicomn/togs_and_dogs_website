@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { signIn, forgotPassword, confirmForgotPassword, getSession, getEffectiveRole } from '../api/auth';
 
-import { getAdminRequests, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData, createAdminBooking, listAdminClientPets, getTenantInfo } from '../api/client';
+import { getAdminRequests, getAdminRequest, reviewRequest, assignWorker, getGoogleStatus, initiateGoogleAuth, getPet, updatePet, createPet, processCancellationDecision, performAdminAction, purgeRecord, purgeRecordsBulk, getStaff, createStaff, updateStaff, disableStaff, onboardStaff, linkCognitoUser, resendInvite, resetStaffPassword, setStaffTempPassword, getClients, createClient, updateClient, disableClient, onboardClient, resendClientInvite, resetClientPassword, setClientTempPassword, linkClientCognitoUser, getExportData, createAdminBooking, listAdminClientPets, getTenantInfo } from '../api/client';
 import { SERVICE_TYPES } from '../generated/contracts';
 import * as XLSX from 'xlsx';
 
@@ -23,6 +23,328 @@ import ClientDetailDrawer from './ClientDetailDrawer';
 import ClientProfileCard from './ClientProfileCard';
 import StaffProfileCard from './StaffProfileCard';
 import '../Admin.css';
+
+// ---------------------------------------------------------------------------
+// WEB-CANCEL-1: owner/admin cancellation decision (explicit Approve / Deny / Dismiss).
+//
+// Safety model:
+//   - Owner/admin only (explicit allowlist); every other role renders nothing.
+//   - The decision is offered only after an authoritative read confirms the exact
+//     request/client identity, status CANCELLATION_REQUESTED and a non-empty
+//     cancellation_request_id. The record is re-read immediately before submitting;
+//     any change (status, cycle id, request time/reason) refuses the submission.
+//   - Explicit confirmation; exact 'APPROVE' / 'DENY' literals; one submission at a
+//     time; never retried. Dismiss never sends a decision.
+//   - Outcomes (success, 409, network/5xx/unknown) are reconciled with a safe read.
+//     Calendar cleanup and staff notification are never reported as successful
+//     without evidence; server-reported warnings are shown truthfully.
+//   - The currently deployed backend may ignore cancellation_request_id. Server-
+//     enforced cycle protection requires the separately approved backend release.
+// ---------------------------------------------------------------------------
+const CANCELLATION_REQUESTED_STATUS = 'CANCELLATION_REQUESTED';
+const CANCELLATION_DECIDERS = ['owner', 'admin'];
+export const canDecideCancellation = (role) => CANCELLATION_DECIDERS.includes(role);
+
+const cancellationIds = (item) => {
+  if (!item) return { reqId: null, clientId: null };
+  const pk = String(item.PK || '');
+  const sk = String(item.SK || '');
+  const reqId = item.request_id || (pk.startsWith('REQ#') ? pk.split('#')[1] : (sk.startsWith('REQ#') ? sk.split('#')[1] : null));
+  const clientId = item.client_id || (pk.startsWith('CLIENT#') ? pk.split('#')[1] : (sk.startsWith('CLIENT#') ? sk.split('#')[1] : null));
+  return { reqId, clientId };
+};
+
+const cancellationCycleId = (record) => {
+  const id = record?.cancellation_request_id;
+  return typeof id === 'string' && id.trim() ? id : null;
+};
+
+const cancellationFingerprint = (record) => JSON.stringify([
+  record?.status ?? null,
+  cancellationCycleId(record),
+  record?.cancellation_requested_at ?? null,
+  record?.cancellation_reason ?? null,
+]);
+
+const CANCELLATION_STATUS_LABELS = {
+  CANCELLATION_REQUESTED: 'Cancellation Requested',
+  CANCELLATION_DENIED: 'Cancellation Denied',
+  CANCELLED: 'Cancelled',
+  APPROVED: 'Approved',
+  ASSIGNED: 'Assigned',
+};
+const cancellationStatusLabel = (s) => CANCELLATION_STATUS_LABELS[s] || (typeof s === 'string' && s ? s : 'unknown');
+
+const MAX_CANCELLATION_NOTE = 500;
+
+export const CancellationDecisionModal = ({ request, role, onClose }) => {
+  const { reqId, clientId } = cancellationIds(request);
+  const [phase, setPhase] = useState('loading'); // loading | ready | blocked | failed | confirm | submitting | result
+  const [snapshot, setSnapshot] = useState(null);
+  const [pendingDecision, setPendingDecision] = useState(null);
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
+  const [resultLines, setResultLines] = useState([]);
+  const inFlightRef = useRef(false);
+  const mountedRef = useRef(true);
+  const snapshotRef = useRef(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  const readAuthoritative = async () => {
+    const fresh = await getAdminRequest(reqId, clientId);
+    if (!fresh || fresh.request_id !== reqId || fresh.client_id !== clientId) {
+      throw Object.assign(new Error('Booking identity could not be confirmed.'), { identityMismatch: true });
+    }
+    return fresh;
+  };
+
+  const describeReadError = (err) => {
+    if (err?.status === 401) return 'Your session expired. Please sign in again.';
+    if (err?.status === 403) return "You don't have permission to view this booking's cancellation request.";
+    if (err?.status === 404) return 'This booking request could not be found.';
+    if (err?.identityMismatch) return 'Booking identity could not be confirmed. No decision can be made; reopen the booking.';
+    return "We couldn't load the latest cancellation request, so no decision is available. Nothing has been changed.";
+  };
+
+  /** Classify an authoritative record; returns a user message when it cannot be decided. */
+  const blockedReason = (fresh) => {
+    if (fresh.status !== CANCELLATION_REQUESTED_STATUS) {
+      return `This booking is not awaiting a cancellation decision (current status: ${cancellationStatusLabel(fresh.status)}).`;
+    }
+    if (!cancellationCycleId(fresh)) {
+      return 'This cancellation request has no cancellation identity, so it cannot be decided safely from the web. The owner must resolve it manually.';
+    }
+    return null;
+  };
+
+  const adopt = (fresh) => {
+    snapshotRef.current = fresh;
+    setSnapshot(fresh);
+  };
+
+  const load = async () => {
+    setPhase('loading');
+    setError('');
+    try {
+      const fresh = await readAuthoritative();
+      if (!mountedRef.current) return;
+      adopt(fresh);
+      const reason = blockedReason(fresh);
+      if (reason) {
+        setError(reason);
+        setPhase('blocked');
+      } else {
+        setPhase('ready');
+      }
+    } catch (err) {
+      if (!mountedRef.current) return;
+      setError(describeReadError(err));
+      setPhase('failed');
+    }
+  };
+
+  useEffect(() => {
+    if (!canDecideCancellation(role)) return;
+    if (!reqId || !clientId) {
+      setError('Missing request or client identity. No decision can be made.');
+      setPhase('blocked');
+      return;
+    }
+    load();
+  }, [reqId, clientId, role]); // keyed on identity
+
+  if (!canDecideCancellation(role)) return null;
+
+  const choose = (decision) => {
+    if (decision !== 'APPROVE' && decision !== 'DENY') return;
+    setError('');
+    setPendingDecision(decision);
+    setPhase('confirm');
+  };
+
+  /** Safe read after a success, conflict or uncertain outcome. Returns the record or null. */
+  const reconcile = async () => {
+    try {
+      const fresh = await readAuthoritative();
+      if (mountedRef.current) adopt(fresh);
+      return fresh;
+    } catch {
+      return null;
+    }
+  };
+
+  const submit = async () => {
+    const decision = pendingDecision;
+    if (inFlightRef.current || phase !== 'confirm') return;
+    if (decision !== 'APPROVE' && decision !== 'DENY') return;
+    inFlightRef.current = true;
+    setPhase('submitting');
+    setError('');
+    const verb = decision === 'APPROVE' ? 'approve' : 'deny';
+    try {
+      // 1. Re-read immediately before mutating; refuse anything stale or changed.
+      let current;
+      try {
+        current = await readAuthoritative();
+      } catch (err) {
+        if (!mountedRef.current) return;
+        setError(`${describeReadError(err)} No decision was submitted.`);
+        setPhase('failed');
+        return;
+      }
+      if (!mountedRef.current) return;
+      const reason = blockedReason(current);
+      if (reason || cancellationFingerprint(current) !== cancellationFingerprint(snapshotRef.current)) {
+        adopt(current);
+        if (reason) {
+          setError(`${reason} No decision was submitted.`);
+          setPhase('blocked');
+        } else {
+          setError('This cancellation request changed since it was loaded. The latest details are shown and no decision was submitted. Review it and choose again.');
+          setPendingDecision(null);
+          setPhase('ready');
+        }
+        return;
+      }
+      const cycleId = cancellationCycleId(current);
+
+      // 2. The mutation. Exact literal + exact cycle id. Never retried.
+      let response;
+      try {
+        response = await processCancellationDecision(reqId, clientId, decision, note.trim(), cycleId);
+      } catch (err) {
+        if (!mountedRef.current) return;
+        const status = typeof err?.status === 'number' ? err.status : 0;
+        const message = String(err?.message || '').trim();
+        if (status === 401) { setError('Your session expired. Please sign in again. No decision was confirmed.'); setPhase('failed'); return; }
+        if (status === 403) { setError(`You don't have permission to ${verb} this cancellation.`); setPhase('failed'); return; }
+        if (status === 404) { setError('This booking request could not be found. No decision was applied.'); setPhase('failed'); return; }
+        if (status === 400) { setError(message || 'The cancellation decision was rejected.'); setPhase('confirm'); return; }
+        // 409, network, 5xx or unknown: the outcome may be unknown. Reconcile, never resubmit.
+        const fresh = await reconcile();
+        if (!mountedRef.current) return;
+        const latest = fresh ? ` The booking now shows ${cancellationStatusLabel(fresh.status)}.` : ' The latest booking state could not be loaded.';
+        if (status === 409) {
+          setError(`The decision was not applied: ${message || 'the booking changed before it could be applied.'}${latest}`);
+        } else {
+          setError(`We couldn't confirm whether your decision was applied.${latest} Check the booking before trying again.`);
+        }
+        setPendingDecision(null);
+        setResultLines([]);
+        setPhase('result');
+        return;
+      }
+
+      // 3. Success: reconcile from the authoritative record.
+      const fresh = await reconcile();
+      if (!mountedRef.current) return;
+      const lines = [];
+      const serverMessage = (typeof response?.message === 'string' && response.message.trim())
+        || (decision === 'APPROVE' ? 'Cancellation request approved.' : 'Cancellation request denied.');
+      lines.push(serverMessage);
+      if (fresh) {
+        const consistent = decision === 'APPROVE'
+          ? fresh.status === 'CANCELLED'
+          : fresh.status !== CANCELLATION_REQUESTED_STATUS && fresh.status !== 'CANCELLED';
+        lines.push(consistent
+          ? `Latest status: ${cancellationStatusLabel(fresh.status)}.`
+          : `The latest read shows ${cancellationStatusLabel(fresh.status)}, which does not match this decision. Review the booking before taking further action.`);
+      } else {
+        lines.push('The latest booking state could not be loaded. Refresh the list to confirm the current status.');
+      }
+      const warnings = Array.isArray(response?.warnings) ? response.warnings : [];
+      warnings.forEach(w => lines.push(`⚠️ ${w?.type || 'Follow-up step'} failed${w?.error ? `: ${String(w.error).slice(0, 200)}` : ''}`));
+      if (decision === 'APPROVE' && warnings.length === 0) {
+        lines.push('Calendar cleanup and staff notification are best-effort. No failures were reported, but delivery is not confirmed.');
+      }
+      setNote('');
+      setPendingDecision(null);
+      setResultLines(lines);
+      setPhase('result');
+    } finally {
+      inFlightRef.current = false;
+    }
+  };
+
+  const busy = phase === 'submitting' || phase === 'loading';
+  const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 };
+  const card = { background: 'var(--card-bg, #fff)', color: 'var(--text, #1f2937)', borderRadius: '12px', padding: '24px', width: 'min(520px, 92vw)', maxHeight: '90vh', overflowY: 'auto' };
+
+  const content = (
+    <div style={overlay}>
+      <div role="dialog" aria-modal="true" aria-labelledby="cancellation-decision-title" style={card} data-testid="cancellation-decision-modal">
+        <h3 id="cancellation-decision-title" style={{ marginTop: 0 }}>Cancellation request</h3>
+        {phase === 'loading' && <p>Checking the latest cancellation request…</p>}
+        {snapshot && phase !== 'loading' && (
+          <div style={{ marginBottom: '12px' }}>
+            <p style={{ margin: '4px 0' }}>Status: {cancellationStatusLabel(snapshot.status)}</p>
+            {snapshot.cancellation_reason ? <p style={{ margin: '4px 0' }}>Reason: {snapshot.cancellation_reason}</p> : null}
+            {snapshot.cancellation_requested_at ? <p style={{ margin: '4px 0', fontSize: '0.85rem' }}>Requested {snapshot.cancellation_requested_at}</p> : null}
+          </div>
+        )}
+        {!!error && <p role="alert" style={{ color: 'var(--error, #b42318)' }}>{error}</p>}
+        {phase === 'result' && resultLines.map((line, i) => <p key={`r-${i}`} role="status">{line}</p>)}
+
+        {(phase === 'ready' || phase === 'confirm' || phase === 'submitting') && (
+          <div className="field" style={{ marginBottom: '12px' }}>
+            <label htmlFor="cancellation-decision-note">Decision note (optional)</label>
+            <textarea
+              id="cancellation-decision-note"
+              maxLength={MAX_CANCELLATION_NOTE}
+              value={note}
+              disabled={busy}
+              onChange={e => setNote(e.target.value)}
+              rows={3}
+              style={{ width: '100%' }}
+            />
+          </div>
+        )}
+
+        {phase === 'ready' && (
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button type="button" className="button-primary" onClick={() => choose('APPROVE')}>Approve Cancellation</button>
+            <button type="button" className="button-secondary" onClick={() => choose('DENY')}>Deny Cancellation</button>
+            <button type="button" className="button-secondary" onClick={onClose}>Dismiss</button>
+          </div>
+        )}
+
+        {(phase === 'confirm' || phase === 'submitting') && (
+          <div>
+            <p>
+              {pendingDecision === 'APPROVE'
+                ? 'Approve this cancellation? The booking and its remaining visits are cancelled; completed visits are kept. Calendar cleanup and staff notification are best-effort.'
+                : 'Deny this cancellation? The booking returns to its previous status. Visits are not changed.'}
+            </p>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button type="button" className="button-primary" onClick={submit} disabled={phase === 'submitting'} aria-busy={phase === 'submitting'}>
+                {phase === 'submitting'
+                  ? 'Submitting…'
+                  : (pendingDecision === 'APPROVE' ? 'Confirm Approve Cancellation' : 'Confirm Deny Cancellation')}
+              </button>
+              <button type="button" className="button-secondary" onClick={() => { setPendingDecision(null); setPhase('ready'); setError(''); }} disabled={phase === 'submitting'}>Back</button>
+              <button type="button" className="button-secondary" onClick={onClose} disabled={phase === 'submitting'}>Dismiss</button>
+            </div>
+          </div>
+        )}
+
+        {phase === 'failed' && (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button type="button" className="button-secondary" onClick={load}>Retry loading</button>
+            <button type="button" className="button-secondary" onClick={onClose}>Close</button>
+          </div>
+        )}
+        {(phase === 'blocked' || phase === 'result') && (
+          <button type="button" className="button-secondary" onClick={onClose}>Close</button>
+        )}
+      </div>
+    </div>
+  );
+  return createPortal(content, document.body);
+};
 
 // Release 6H Phase 2: Removed hardcoded PROTECTED_SUBS/PROTECTED_EMAILS.
 // Protection is now determined by the backend-provided `is_protected` field on staff/client profiles.
@@ -215,6 +537,7 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
   const [purgeAnalysis, setPurgeAnalysis] = useState(null);
   const [workflowDropdownOpen, setWorkflowDropdownOpen] = useState(false);
   const [decisionModal, setDecisionModal] = useState(null);
+  const [cancellationDecisionTarget, setCancellationDecisionTarget] = useState(null); // WEB-CANCEL-1
   const [archiveConfirmModal, setArchiveConfirmModal] = useState(null); // { item }
   const [archiveReasonText, setArchiveReasonText] = useState('');
   const [lastKey, setLastKey] = useState(null);
@@ -2050,6 +2373,14 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
     if (action === 'ASSIGN' || action === 'VIEW_CALENDAR') {
       throw new Error(`${action} is a UI workflow action and cannot be submitted as a status transition.`);
     }
+    // WEB-CANCEL-1: cancellation decisions are never routed through /admin/review.
+    // A pending cancellation may only be decided with Review Cancellation (or moved by
+    // the separate Archive/Trash lifecycle actions, which are unchanged).
+    const pendingCancellation = (req?.status || '').toUpperCase() === 'CANCELLATION_REQUESTED';
+    if (['APPROVE_CANCEL', 'DENY_CANCEL', 'PROCESS_CANCELLATION'].includes(action)
+        || (pendingCancellation && !['ARCHIVE', 'DELETE', 'MARK_TEST', 'UNMARK_TEST'].includes(action))) {
+      throw new Error("Cancellation requests must be decided with Review Cancellation.");
+    }
 
     const statusMap = {
       'APPROVE': 'APPROVED',
@@ -2761,28 +3092,24 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
     }
   };
 
-  const handleProcessCancellation = async (req) => {
-    const decision = window.confirm("Approve this cancellation request?") ? 'APPROVE' : 'DENY';
-    const note = prompt("Administrative note (required for audit):", "");
-    if (note === null) return; // Cancelled prompt
-
-    const { reqId, clientId } = resolveIds(req);
-
-    if (!reqId || !clientId) {
-      alert("Error: Missing IDs for cancellation processing.");
+  // WEB-CANCEL-1: opens the explicit Approve / Deny / Dismiss decision modal. The old
+  // window.confirm mapping (Cancel => DENY) is removed; Dismiss never sends a decision.
+  const handleProcessCancellation = (req) => {
+    if (!canDecideCancellation(role)) {
+      showNotification("Only owners and admins can decide cancellation requests.", "error");
       return;
     }
-    
-    try {
-      setLoading(true);
-      const resp = await processCancellationDecision(reqId, clientId, decision, note);
-      showNotification(resp.message || "Cancellation processed.", "success");
-      fetchAllData();
-    } catch (err) {
-      showNotification("Cancellation process failed: " + err.message, "error");
-    } finally {
-      setLoading(false);
+    if ((req?.status || '').toUpperCase() !== 'CANCELLATION_REQUESTED') {
+      showNotification("This booking is not awaiting a cancellation decision.", "info");
+      return;
     }
+    setCancellationDecisionTarget(req);
+  };
+
+  const closeCancellationDecision = () => {
+    const wasOpen = !!cancellationDecisionTarget;
+    setCancellationDecisionTarget(null);
+    if (wasOpen) fetchAllData();
   };
 
   const handleAssignAction = async (item, workerId) => {
@@ -4336,6 +4663,13 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
         </aside>
 
         <main className="admin-main">
+          {cancellationDecisionTarget && (
+            <CancellationDecisionModal
+              request={cancellationDecisionTarget}
+              role={role}
+              onClose={closeCancellationDecision}
+            />
+          )}
           {view === 'SCHEDULER' ? (
             <MasterScheduler 
               items={visibleRecords} 
