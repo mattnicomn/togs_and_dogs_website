@@ -51,9 +51,14 @@ def world(monkeypatch):
     return records, table, sync, delete, detailed
 
 
-def populate(world, tenant, children=False):
+def status_for(handler):
+    # BE-CANCEL-1: a cancellation decision is only accepted while the request is pending.
+    return 'CANCELLATION_REQUESTED' if handler == 'cancellation' else 'SCHEDULED'
+
+
+def populate(world, tenant, children=False, status='SCHEDULED'):
     parent = {'PK': 'REQ#r', 'SK': 'CLIENT#c', 'company_id': tenant,
-              'status': 'SCHEDULED', 'workflow_type': 'VISIT_BOOKING',
+              'status': status, 'workflow_type': 'VISIT_BOOKING',
               'google_event_id': 'parent-event', 'client_id': 'c'}
     world[0]['REQ#r'] = parent
     if children:
@@ -77,7 +82,7 @@ def test_review_delete_explicit_validated_owner(world, tenant, children):
 @pytest.mark.parametrize('tenant', TENANTS)
 @pytest.mark.parametrize('children', [False, True])
 def test_cancellation_explicit_validated_owner(world, tenant, children):
-    populate(world, tenant, children)
+    populate(world, tenant, children, status=status_for('cancellation'))
     body = {'request_id': 'r', 'client_id': 'c', 'decision': 'APPROVE',
             'company_id': 'hostile_body_tenant'}
     response = cancellation.handle_admin_decision(body, event(tenant, body))
@@ -108,7 +113,7 @@ def test_sync_pins_persisted_owner_despite_body(world, tenant, handler, has_even
 @pytest.mark.parametrize('handler', ['review', 'cancellation', 'assignment'])
 @pytest.mark.parametrize('missing', [None, ''])
 def test_missing_persisted_owner_never_uses_primary(world, handler, missing):
-    populate(world, missing, handler == 'assignment')
+    populate(world, missing, handler == 'assignment', status=status_for(handler))
     body = {'request_id': 'r', 'req_id': 'r', 'client_id': 'c', 'job_id': 'j',
             'status': 'CANCELLED', 'decision': 'APPROVE',
             'worker_id': 'worker@example.invalid', 'company_id': 'tog_and_dogs'}
@@ -123,7 +128,7 @@ def test_missing_persisted_owner_never_uses_primary(world, handler, missing):
 
 @pytest.mark.parametrize('handler', ['review', 'cancellation', 'assignment'])
 def test_caller_mismatch_cannot_target_foreign_record(world, handler):
-    populate(world, 'tog_and_dogs', handler == 'assignment')
+    populate(world, 'tog_and_dogs', handler == 'assignment', status=status_for(handler))
     body = {'request_id': 'r', 'req_id': 'r', 'client_id': 'c', 'job_id': 'j',
             'status': 'CANCELLED', 'decision': 'APPROVE',
             'worker_id': 'worker@example.invalid', 'company_id': 'test_tenant_alpha'}
@@ -138,7 +143,7 @@ def test_caller_mismatch_cannot_target_foreign_record(world, handler):
 @pytest.mark.parametrize('handler', ['review', 'cancellation'])
 @pytest.mark.parametrize('child_owner', [None, '', 'tog_and_dogs'])
 def test_child_mismatch_retains_child_reference(world, handler, child_owner):
-    populate(world, 'test_tenant_alpha', True)
+    populate(world, 'test_tenant_alpha', True, status=status_for(handler))
     world[0]['JOB#j']['company_id'] = child_owner
     body = {'request_id': 'r', 'client_id': 'c', 'status': 'CANCELLED', 'decision': 'APPROVE'}
     evt = event('test_tenant_alpha', body)
@@ -156,7 +161,7 @@ def test_child_mismatch_retains_child_reference(world, handler, child_owner):
 @pytest.mark.parametrize('handler', ['review', 'cancellation'])
 @pytest.mark.parametrize('children', [False, True])
 def test_provider_denial_retains_references(world, handler, children):
-    populate(world, 'test_tenant_alpha', children)
+    populate(world, 'test_tenant_alpha', children, status=status_for(handler))
     world[3].return_value = False
     world[4].return_value = (False, False, 'PROVIDER_OWNERSHIP_MISMATCH')
     body = {'request_id': 'r', 'client_id': 'c', 'status': 'CANCELLED', 'decision': 'APPROVE'}

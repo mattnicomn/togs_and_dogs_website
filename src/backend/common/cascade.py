@@ -34,7 +34,8 @@ REQ_TO_JOB_STATUS_MAP = {
 }
 
 
-def cascade_status_to_job(request_item, new_req_status, updated_by='system', remove_worker=False):
+def cascade_status_to_job(request_item, new_req_status, updated_by='system', remove_worker=False,
+                          require_existing=False):
     """
     Cascades a status change from a parent REQ record to its linked JOB record(s).
 
@@ -43,9 +44,14 @@ def cascade_status_to_job(request_item, new_req_status, updated_by='system', rem
         new_req_status: The new status being applied to the REQ record.
         updated_by: Who triggered the change (for audit trail).
         remove_worker: If True, removes worker_id from the JOB record (used on rollback).
+        require_existing: BE-CANCEL-1A opt-in guard. When True, a referenced JOB that does
+            not exist is never written (UpdateItem would otherwise create a stub JOB), every
+            write is conditioned on the JOB still existing, and a JOB that became COMPLETED
+            after it was read is not overwritten. Missing JOB ids are reported in
+            ``missing_job_ids``. Default False keeps the legacy behaviour for other callers.
 
     Returns:
-        dict: {"success": bool, "message": str}
+        dict: {"success": bool, "message": str} (+ "missing_job_ids" when require_existing)
     """
     job_ids = request_item.get('job_ids') or []
     if not job_ids and request_item.get('job_id'):
@@ -64,12 +70,18 @@ def cascade_status_to_job(request_item, new_req_status, updated_by='system', rem
     
     success_count = 0
     fail_count = 0
+    missing_job_ids = []
 
     for job_id in job_ids:
         try:
             # Query child job to check status
             resp = table.get_item(Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{request_id}"})
             job_record = resp.get('Item')
+            if require_existing and not job_record:
+                # Never create a stub JOB for a dangling job_ids reference.
+                print(f"WARNING: [Cascade] JOB#{job_id} referenced by REQ#{request_id} does not exist; not written")
+                missing_job_ids.append(job_id)
+                continue
             current_job_status = job_record.get('status', 'JOB_CREATED') if job_record else 'JOB_CREATED'
 
             # Build update expression
@@ -96,11 +108,22 @@ def cascade_status_to_job(request_item, new_req_status, updated_by='system', rem
             if remove_worker and current_job_status != 'COMPLETED':
                 update_expr += " REMOVE worker_id, worker_name"
 
+            guard = {}
+            if require_existing:
+                # The JOB must still exist (no stub creation if it was deleted after the
+                # read) and, when we are changing status, must not have become COMPLETED.
+                condition = "attribute_exists(PK)"
+                if current_job_status != 'COMPLETED':
+                    condition += " AND (attribute_not_exists(#stat) OR #stat <> :completed)"
+                    expr_attr_vals[":completed"] = 'COMPLETED'
+                guard = {"ConditionExpression": condition}
+
             table.update_item(
                 Key={'PK': f"JOB#{job_id}", 'SK': f"REQ#{request_id}"},
                 UpdateExpression=update_expr,
                 **(dict(ExpressionAttributeNames=expr_attr_names) if expr_attr_names else {}),
-                ExpressionAttributeValues=expr_attr_vals
+                ExpressionAttributeValues=expr_attr_vals,
+                **guard
             )
 
             print(f"INFO: [Cascade] JOB#{job_id} updated (status={current_job_status if current_job_status == 'COMPLETED' else job_status})")
@@ -111,6 +134,13 @@ def cascade_status_to_job(request_item, new_req_status, updated_by='system', rem
             print(f"WARNING: [Cascade] Failed to update JOB#{job_id} for REQ#{request_id}: {e}")
             fail_count += 1
             
+    if require_existing:
+        result = {"success": fail_count == 0 and not missing_job_ids,
+                  "message": (f"Cascade: {success_count} succeeded, {fail_count} failed, "
+                              f"{len(missing_job_ids)} missing (not created)."),
+                  "missing_job_ids": missing_job_ids,
+                  "failed_count": fail_count}
+        return result
     if fail_count > 0:
         return {"success": False, "message": f"Cascade partially failed: {success_count} succeeded, {fail_count} failed."}
     return {"success": True, "message": f"Cascaded to {success_count} JOB(s)."}
