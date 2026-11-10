@@ -204,6 +204,64 @@ before both ship together.
 
 ## Deployment note (not authorized)
 
-Any future deploy should be an RC built on the currently deployed baseline plus this
-change, applied as a targeted cancellation-Lambda-only change with a convergence
-proof. Never run an untargeted apply. Requires explicit owner approval.
+BE-CANCEL-1 remains source-only and is not deployed. This section describes what a
+future release would have to cover. It is not a deployment authorization, and no plan,
+apply or convergence check has been run for it.
+
+### Scope: two Lambdas, not one
+
+A cancellation-Lambda-only deployment is insufficient. The change runs in two
+separately deployed Lambdas:
+
+- `cancellation_handler.py` (decision gate, cycle identity, D1 restoration,
+  missing-job safety) runs in the cancellation Lambda
+  (`handlers.cancellation_handler.handler`).
+- `review_handler.py` (BE-CANCEL-1C `/admin/review` cancellation-state guard and the
+  `VERIFY_MEET_GREET` corrections) runs in the separate review Lambda
+  (`handlers.review_handler.handler`).
+
+Deploying only the cancellation Lambda would leave the `/admin/review` bypass open in
+production: any role could still enter or leave cancellation state through review,
+outside the decision gate.
+
+`common/cascade.py` is also imported by `admin_handler.py` and `review_handler.py`.
+Its new behaviour is opt-in (`require_existing=False` remains the default), but it
+ships in the same backend package as every other Lambda.
+
+### Requirements for any future release candidate
+
+- Cover both the cancellation and the review Lambdas.
+- Reconcile the shared backend ZIP against the currently deployed artifact baseline.
+  All Lambdas build from one shared backend package, and the deployed functions are
+  not all on the same artifact. The RC must be built on the currently deployed
+  baseline plus this change, so the two target Lambdas receive no other unreleased
+  `main` behaviour, and every other Lambda stays on its current artifact.
+- Demonstrate exact targeted scope before apply: a targeted plan whose only changes
+  are the cancellation and review Lambda code updates, with no IAM, API Gateway,
+  tenant or other Lambda changes. Never run an untargeted apply.
+- Demonstrate convergence after any apply (targeted plan reports no changes) and
+  record both Lambdas' deployed code hashes.
+- Capture a verified rollback copy of each currently deployed target Lambda package
+  before any code update.
+- Each step (plan review, apply, production verification) requires its own separate,
+  explicit owner approval.
+
+### Release gates that remain open
+
+- Legacy pending cancellations without a `cancellation_request_id` (and without a
+  recorded prior status): DENY fails closed with 409 `LEGACY_PRIOR_STATUS_UNKNOWN`, and
+  WEB-CANCEL-1 refuses to decide a request without a cycle ID. These need an
+  owner-approved, read-only inventory and a separately approved resolution process
+  before release.
+- Mobile PR #69 DENY compatibility: `CancellationDecisionPanel` expects
+  `CANCELLATION_DENIED`, which this backend no longer writes (see above). A mobile
+  follow-up is required before both ship.
+- Production backend contract verification: after any approved deployment, verify on
+  owner-approved synthetic data that a matching `cancellation_request_id` is accepted,
+  a mismatched one returns 409 `CANCELLATION_CYCLE_MISMATCH`, DENY restores the prior
+  status, and `/admin/review` returns 409 `CANCELLATION_TRANSITION_NOT_ALLOWED` for
+  cancellation-state transitions.
+- WEB-CANCEL-1 ordering: WEB-CANCEL-1 (PR #72) requires `cancellation_request_id` on
+  every decision. It must not be deployed until this backend is deployed and the
+  production contract above is verified; otherwise every web cancellation decision is
+  blocked.
