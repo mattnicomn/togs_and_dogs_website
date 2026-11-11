@@ -23,6 +23,7 @@ import { getServiceTypeLabel } from '../utils/serviceLabels';
 import { projectOccurrences, resolveActionJobId } from '../utils/occurrences';
 import { approvalConfirmation, bookingNextStep, bookingPetLabel, canOfferApproval, canReviewBooking } from '../utils/bookingWorkflow';
 import { AdminQuoteEditor, mergeQuoteRefresh } from '../components/AdminQuoteEditor';
+import { CancellationDecisionPanel } from '../components/CancellationDecisionPanel';
 
 export const RequestDetailScreen = ({ route, navigation }: any) => {
   const { logout, role } = useAuth();
@@ -159,6 +160,21 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
       refreshLockRef.current = false;
       if (mountedRef.current && sequence === requestSequenceRef.current) setIsRefreshing(false);
     }
+  };
+
+  // S2: adopt an authoritative REQUEST read supplied by the cancellation panel. Same
+  // fail-closed rules as refreshBooking: identity must match exactly, and an exact
+  // routed visit is re-resolved from the fresh record (never guessed), so visit actions
+  // follow the server's child-job states after an Approve (CANCELLED) or Deny (ASSIGNED).
+  const adoptAuthoritativeRequest = (fresh: any) => {
+    if (!mountedRef.current || !fresh) return;
+    if (fresh.request_id !== request.request_id || fresh.client_id !== request.client_id) return;
+    setRequest(fresh);
+    if (initialOccurrence || jobId) {
+      const exactId = occurrence?.job_id || jobId;
+      const exact = projectOccurrences(fresh).find(item => item.job_id === exactId && !item.actionBlocked);
+      setOccurrence(exact || { job_id: '', request_id: fresh.request_id, actionBlocked: true, legacy: true });
+    } else setOccurrence(null);
   };
 
   const handleApprove = async () => {
@@ -502,6 +518,13 @@ export const RequestDetailScreen = ({ route, navigation }: any) => {
             </View>
           )}
           {refreshError && <Text accessibilityRole="alert" style={styles.errorText}>{refreshError}</Text>}
+          {/* S2: owner/admin cancellation decision (self-gating; renders nothing otherwise) */}
+          <CancellationDecisionPanel
+            request={request}
+            role={role}
+            onAuthoritativeRequest={adoptAuthoritativeRequest}
+            onSessionExpired={logout}
+          />
           {/* Core Status Summary */}
           <View style={styles.card}>
             {selectedDate && (
