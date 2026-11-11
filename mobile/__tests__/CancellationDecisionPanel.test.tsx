@@ -31,13 +31,26 @@ const fail = (e: any): Step => ({ fail: e });
 const queue = (...s: Step[]) => { reads.push(...s); };
 const apiErr = (status: number, message = `HTTP ${status}`) => Object.assign(new Error(message), { status });
 
+// D-4: BE-CANCEL-1 records a server-generated cycle id and the verified prior status.
+const CYCLE = '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b';
+const CYCLE_B = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
 const pending = (extra: any = {}) => ({
   request_id: 'req-1', client_id: 'client-1', status: 'CANCELLATION_REQUESTED',
   cancellation_reason: 'Family emergency', cancellation_requested_at: '2026-11-08T10:00:00Z',
+  cancellation_request_id: CYCLE, cancellation_prior_status: 'ASSIGNED',
   sync_failures: [], ...extra,
 });
+/** A pre-BE-CANCEL-1 pending request: no cycle id and no verified prior status. */
+const legacyPending = (extra: any = {}) => {
+  const { cancellation_request_id, cancellation_prior_status, ...rest } = pending(extra);
+  return rest;
+};
 const cancelled = (extra: any = {}) => pending({ status: 'CANCELLED', ...extra });
 const denied = (extra: any = {}) => pending({ status: 'CANCELLATION_DENIED', ...extra });
+/** BE-CANCEL-1 DENY: the booking is restored to its verified prior status. */
+const restored = (status: string, extra: any = {}) => pending({ status, ...extra });
+const conflict = (code?: string, message = 'Conflict') =>
+  Object.assign(new Error(message), { status: 409, ...(code ? { code } : {}) });
 
 let pushed: any[] = [];
 let setReq: (u: any) => void = () => {};
@@ -179,21 +192,42 @@ describe('S2 CancellationDecisionPanel: decisions', () => {
     expect(v.getByText(/Completed visits are kept/)).toBeTruthy();
     await fireEvent.press(v.getByText('Confirm Approve cancellation?'));
     await waitFor(() => expect(mockDecide).toHaveBeenCalledTimes(1));
-    expect(mockDecide).toHaveBeenCalledWith('req-1', 'client-1', 'APPROVE', 'Refund issued');
+    expect(mockDecide).toHaveBeenCalledWith('req-1', 'client-1', 'APPROVE', 'Refund issued', CYCLE);
     expect(await v.findByText(/Cancellation request approved\. No calendar-cleanup or staff-notification failures were recorded/)).toBeTruthy();
     expect(v.queryByLabelText('Approve Cancellation')).toBeNull(); // no second decision
     expect(pushed.map(p => p.status)).toEqual(['CANCELLED']);
     expect(mockRead).toHaveBeenCalledTimes(3); // hydrate + guard + refresh
   });
 
-  it('Deny: sends the exact DENY literal and reports the denied state', async () => {
-    mockDecide.mockResolvedValueOnce({ message: 'Cancellation request denied.', new_status: 'CANCELLATION_DENIED' });
+  it.each(['ASSIGNED', 'APPROVED'])('Deny: sends DENY + cycle id and reports restoration to the verified prior %s', async prior => {
+    mockDecide.mockResolvedValueOnce({ message: `Cancellation request denied. Booking status restored to ${prior}.`, new_status: prior });
+    const rec = pending({ cancellation_prior_status: prior });
+    const v = await mountReady(rec);
+    expect(v.getByLabelText('Deny Cancellation')).toBeTruthy();
+    queue(ok(rec), ok(restored(prior, { cancellation_prior_status: prior })));
+    await fireEvent.press(v.getByLabelText('Deny Cancellation'));
+    const label = prior === 'ASSIGNED' ? 'Assigned' : 'Approved';
+    expect(v.getByText(new RegExp(`returns it to its previous status \\(${label}\\)\\. Visits are not changed\\.`))).toBeTruthy();
+    await fireEvent.press(v.getByText('Confirm Deny cancellation?'));
+    await waitFor(() => expect(mockDecide).toHaveBeenCalledWith('req-1', 'client-1', 'DENY', '', CYCLE));
+    expect(await v.findByText(new RegExp(`The booking is back to ${label}\\. Visits were not changed\\.`))).toBeTruthy();
+    expect(v.queryByText(/The latest read shows status/)).toBeNull();
+    expect(pushed.map(p => p.status)).toEqual([prior]);
+    expect(mockDecide).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['CANCELLATION_DENIED', 'Cancellation Denied'],
+    ['APPROVED', 'Approved'], // a different restoration than the verified prior ASSIGNED
+    ['COMPLETED', 'COMPLETED'],
+  ])('Deny: a re-read showing %s is never reported as a successful denial', async (status, label) => {
+    mockDecide.mockResolvedValueOnce({ message: 'Cancellation request denied.' });
     const v = await mountReady();
-    queue(ok(pending()), ok(denied()));
+    queue(ok(pending()), ok(pending({ status })));
     await confirm(v, 'Deny');
-    await waitFor(() => expect(mockDecide).toHaveBeenCalledWith('req-1', 'client-1', 'DENY', ''));
-    expect(await v.findByText(/Cancellation request denied\. The booking stays active as Cancellation Denied\./)).toBeTruthy();
-    expect(pushed.map(p => p.status)).toEqual(['CANCELLATION_DENIED']);
+    expect(await v.findByText(new RegExp(`The latest read shows status ${label}, not Assigned`))).toBeTruthy();
+    expect(v.queryByText(/The booking is back to/)).toBeNull();
+    expect(mockDecide).toHaveBeenCalledTimes(1);
   });
 
   it('cancelling the confirmation submits nothing and reads nothing more', async () => {
@@ -368,10 +402,10 @@ describe('S2 CancellationDecisionPanel: mutation errors, never retried', () => {
     expect(mockDecide).toHaveBeenCalledTimes(1);
   });
 
-  it('409: reloads and explains, without resubmitting', async () => {
+  it('409 without a code: reloads and explains, without resubmitting', async () => {
     const v = await mountReady();
     queue(ok(pending()), ok(pending()));
-    mockDecide.mockRejectedValueOnce(apiErr(409, 'Conflict'));
+    mockDecide.mockRejectedValueOnce(conflict());
     await confirm(v, 'Deny');
     expect(await v.findByText(/booking changed before the decision could be applied/)).toBeTruthy();
     expect(mockDecide).toHaveBeenCalledTimes(1);
@@ -417,5 +451,139 @@ describe('S2 CancellationDecisionPanel: screen-driven state changes', () => {
     await act(async () => { setReq(pending()); });
     expect(await v.findByLabelText('Approve Cancellation')).toBeTruthy();
     expect(mockRead).toHaveBeenCalledTimes(1);
+  });
+});
+
+// =====================================================================================
+describe('D-4: cycle identity, verified prior status (O-1 A) and 409 classification', () => {
+  it('legacy request (no cycle id, no prior status): Deny is not offered; Approve sends no cycle id', async () => {
+    const v = await mountReady(legacyPending());
+    expect(v.queryByLabelText('Deny Cancellation')).toBeNull();
+    expect(v.getByTestId('cancellation-deny-unavailable')).toBeTruthy();
+    expect(v.getByText(/no verified prior booking status \(Approved or Assigned\).*Owner review is required\./)).toBeTruthy();
+    queue(ok(legacyPending()), ok(cancelled()));
+    await confirm(v, 'Approve');
+    await waitFor(() => expect(mockDecide).toHaveBeenCalledTimes(1));
+    expect(mockDecide.mock.calls[0]).toEqual(['req-1', 'client-1', 'APPROVE', '', undefined]);
+    expect(await v.findByText(/Cancellation request approved/)).toBeTruthy();
+  });
+
+  it('cycle id present but no prior status (repeat request on a legacy record): Approve sends the id; Deny unavailable', async () => {
+    const rec = pending({ cancellation_prior_status: undefined });
+    const v = await mountReady(rec);
+    expect(v.queryByLabelText('Deny Cancellation')).toBeNull();
+    queue(ok(rec), ok(cancelled()));
+    await confirm(v, 'Approve');
+    await waitFor(() => expect(mockDecide).toHaveBeenCalledWith('req-1', 'client-1', 'APPROVE', '', CYCLE));
+  });
+
+  it.each(['BOOKED', 'SCHEDULED', 'JOB_CREATED', 'CANCELLATION_DENIED', 'assigned', ''])(
+    'a non-verified prior status %p never enables Deny', async prior => {
+      const v = await mountReady(pending({ cancellation_prior_status: prior }));
+      expect(v.queryByLabelText('Deny Cancellation')).toBeNull();
+      expect(v.getByLabelText('Approve Cancellation')).toBeTruthy();
+    }
+  );
+
+  it('a cycle id that changed between hydration and submit refuses the submission', async () => {
+    const v = await mountReady();
+    queue(ok(pending({ cancellation_request_id: CYCLE_B })));
+    await confirm(v, 'Approve');
+    expect(await v.findByText(/changed since it was loaded/)).toBeTruthy();
+    expect(mockDecide).not.toHaveBeenCalled();
+  });
+
+  it('a cycle id that disappeared between hydration and submit refuses the submission', async () => {
+    const v = await mountReady();
+    queue(ok(pending({ cancellation_request_id: undefined })));
+    await confirm(v, 'Approve');
+    expect(await v.findByText(/changed since it was loaded/)).toBeTruthy();
+    expect(mockDecide).not.toHaveBeenCalled();
+  });
+
+  it('a prior status that changed between hydration and submit refuses the submission', async () => {
+    const v = await mountReady();
+    queue(ok(pending({ cancellation_prior_status: 'APPROVED' })));
+    await confirm(v, 'Deny');
+    expect(await v.findByText(/changed since it was loaded/)).toBeTruthy();
+    expect(mockDecide).not.toHaveBeenCalled();
+  });
+
+  it('409 LEGACY_PRIOR_STATUS_UNKNOWN: owner review message, Deny withdrawn, Approve kept, no resubmit', async () => {
+    const v = await mountReady();
+    queue(ok(pending()), ok(pending()));
+    mockDecide.mockRejectedValueOnce(conflict('LEGACY_PRIOR_STATUS_UNKNOWN', 'cannot be denied automatically'));
+    await confirm(v, 'Deny');
+    expect(await v.findByText(/cannot be denied automatically\. Owner review is required\. No decision was applied\./)).toBeTruthy();
+    expect(v.queryByLabelText('Deny Cancellation')).toBeNull();
+    expect(v.getByLabelText('Approve Cancellation')).toBeTruthy();
+    expect(v.queryByText(/booking changed before the decision could be applied/)).toBeNull();
+    expect(mockDecide).toHaveBeenCalledTimes(1);
+  });
+
+  it('409 CANCELLATION_CYCLE_MISMATCH: shows the current request; a later Approve uses the new cycle id', async () => {
+    const v = await mountReady();
+    queue(ok(pending()), ok(pending({ cancellation_request_id: CYCLE_B })));
+    mockDecide.mockRejectedValueOnce(conflict('CANCELLATION_CYCLE_MISMATCH'));
+    await confirm(v, 'Approve');
+    expect(await v.findByText(/decision was for an earlier cancellation request\. The current request is shown/)).toBeTruthy();
+    expect(mockDecide).toHaveBeenCalledTimes(1);
+    expect(pushed.map(p => p.cancellation_request_id)).toEqual([CYCLE_B]);
+    queue(ok(pending({ cancellation_request_id: CYCLE_B })), ok(cancelled()));
+    await confirm(v, 'Approve');
+    await waitFor(() => expect(mockDecide).toHaveBeenCalledTimes(2));
+    expect(mockDecide.mock.calls[1]).toEqual(['req-1', 'client-1', 'APPROVE', '', CYCLE_B]);
+  });
+
+  it('409 CANCELLATION_CYCLE_MISMATCH when the booking is no longer pending: no actions', async () => {
+    const v = await mountReady();
+    queue(ok(pending()), ok(cancelled({ cancellation_request_id: CYCLE_B })));
+    mockDecide.mockRejectedValueOnce(conflict('CANCELLATION_CYCLE_MISMATCH'));
+    await confirm(v, 'Deny');
+    expect(await v.findByText(/no longer awaiting a cancellation decision \(current status: Cancelled\)\. No decision was applied\./)).toBeTruthy();
+    expect(v.queryByLabelText('Approve Cancellation')).toBeNull();
+    expect(mockDecide).toHaveBeenCalledTimes(1);
+  });
+
+  it('409 CANCELLATION_STATE_CHANGED: latest details shown for review, no resubmit', async () => {
+    const v = await mountReady();
+    queue(ok(pending()), ok(pending({ cancellation_reason: 'Updated reason' })));
+    mockDecide.mockRejectedValueOnce(conflict('CANCELLATION_STATE_CHANGED'));
+    await confirm(v, 'Approve');
+    expect(await v.findByText(/This cancellation request changed before the decision could be applied\. The latest details are shown/)).toBeTruthy();
+    expect(v.getByText('Reason: Updated reason')).toBeTruthy();
+    expect(v.getByLabelText('Approve Cancellation')).toBeTruthy();
+    expect(mockDecide).toHaveBeenCalledTimes(1);
+  });
+
+  it('409 CANCELLATION_NOT_PENDING: shows the current status and offers no decision', async () => {
+    const v = await mountReady();
+    queue(ok(pending()), ok(restored('ASSIGNED')));
+    mockDecide.mockRejectedValueOnce(conflict('CANCELLATION_NOT_PENDING'));
+    await confirm(v, 'Approve');
+    expect(await v.findByText(/no longer awaiting a cancellation decision \(current status: Assigned\)\. No decision was applied\./)).toBeTruthy();
+    expect(v.queryByLabelText('Approve Cancellation')).toBeNull();
+    expect(v.queryByLabelText('Deny Cancellation')).toBeNull();
+    expect(pushed.map(p => p.status)).toEqual(['ASSIGNED']);
+    expect(mockDecide).toHaveBeenCalledTimes(1);
+  });
+
+  it('409 with a known code and a failing reload: actions withheld until an explicit reload', async () => {
+    const v = await mountReady();
+    queue(ok(pending()), fail(new Error('offline')));
+    mockDecide.mockRejectedValueOnce(conflict('CANCELLATION_STATE_CHANGED'));
+    await confirm(v, 'Approve');
+    expect(await v.findByText(/decision was not applied, and the latest booking could not be reloaded/)).toBeTruthy();
+    expect(v.queryByLabelText('Approve Cancellation')).toBeNull();
+    expect(mockDecide).toHaveBeenCalledTimes(1);
+  });
+
+  it('409 with an unknown code falls back to the generic safe-read path', async () => {
+    const v = await mountReady();
+    queue(ok(pending()), ok(pending()));
+    mockDecide.mockRejectedValueOnce(conflict('SOMETHING_NEW'));
+    await confirm(v, 'Approve');
+    expect(await v.findByText(/booking changed before the decision could be applied/)).toBeTruthy();
+    expect(mockDecide).toHaveBeenCalledTimes(1);
   });
 });

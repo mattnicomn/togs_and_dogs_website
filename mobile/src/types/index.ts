@@ -67,6 +67,12 @@ export interface CancellationDecisionResponse {
   message?: string;
   new_status?: string;
   sns_message_id?: string | null;
+  /** D-4 (BE-CANCEL-1): the decision literal that was applied. */
+  decision?: CancellationDecision;
+  /** D-4 (BE-CANCEL-1): true when the same decision was already applied to this cycle. */
+  idempotent_replay?: boolean;
+  /** D-4 (BE-CANCEL-1): follow-up failures (also appended to REQUEST.sync_failures). */
+  warnings?: Array<{ type?: string; error?: string }>;
 }
 
 /** S2: entry the backend appends to REQUEST.sync_failures (calendar cleanup, SNS, ...). */

@@ -2,8 +2,9 @@
  * S2: cancellation decision mounted in RequestDetailScreen.
  * After a decision the screen adopts the authoritative REQUEST (exact identity) and
  * re-resolves the exact routed visit, so visit actions follow the server's child-job
- * state (APPROVE -> jobs CANCELLED, DENY -> jobs ASSIGNED). PR #67's quote editor is
- * mocked out here (covered by its own suites).
+ * state (APPROVE -> jobs CANCELLED; D-4 / BE-CANCEL-1 DENY -> booking restored to its
+ * verified prior status, jobs unchanged). PR #67's quote editor is mocked out here
+ * (covered by its own suites).
  */
 import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
@@ -45,12 +46,15 @@ jest.mock('../src/components/ConfirmationModal', () => {
 
 import { RequestDetailScreen } from '../src/screens/RequestDetailScreen';
 
+const CYCLE = '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b';
 const child = (extra: any = {}) => ({ job_id: 'job-b', request_id: 'req-1', occurrence_date: '2026-09-02', occurrence_window: 'MORNING', status: 'ASSIGNED', ...extra });
 const booking = (extra: any = {}) => ({
   request_id: 'req-1', client_id: 'client-1', pet_name: 'Pet', client_name: 'Client',
   service_type: 'CHECK_IN', selected_dates: ['2026-09-01', '2026-09-02'], created_at: 'x',
   worker_id: 'staff@example.test', job_ids: ['job-a', 'job-b'],
   status: 'CANCELLATION_REQUESTED', cancellation_reason: 'Trip cancelled', cancellation_requested_at: '2026-11-08T10:00:00Z',
+  // D-4: BE-CANCEL-1 cycle id and verified prior status.
+  cancellation_request_id: CYCLE, cancellation_prior_status: 'ASSIGNED',
   sync_failures: [], ...extra,
 });
 const withJobs = (status: string, jobStatus: string) => booking({ status, job_completion_summary: { jobs: [child({ job_id: 'job-a', occurrence_date: '2026-09-01', status: jobStatus }), child({ status: jobStatus })] } });
@@ -95,7 +99,7 @@ describe('S2: cancellation decision in RequestDetailScreen', () => {
     expect(v.getByText('Start Visit')).toBeTruthy(); // routed exact ASSIGNED child before the decision
     await fireEvent.press(await v.findByLabelText('Approve Cancellation'));
     await fireEvent.press(v.getByText('Confirm Approve cancellation?'));
-    await waitFor(() => expect(mockDecide).toHaveBeenCalledWith('req-1', 'client-1', 'APPROVE', ''));
+    await waitFor(() => expect(mockDecide).toHaveBeenCalledWith('req-1', 'client-1', 'APPROVE', '', CYCLE));
     expect(await v.findByText(/Cancellation request approved\./)).toBeTruthy();
     expect(v.getByText('badge:CANCELLED')).toBeTruthy();
     expect(v.queryByText('Start Visit')).toBeNull();
@@ -105,20 +109,32 @@ describe('S2: cancellation decision in RequestDetailScreen', () => {
     expect(mockReview).not.toHaveBeenCalled(); // never touches booking approval
   });
 
-  it('DENY: screen adopts CANCELLATION_DENIED and the exact routed visit follows the server (ASSIGNED)', async () => {
+  it('DENY: screen adopts the restored ASSIGNED status and the exact routed visit is unchanged (no cascade)', async () => {
     mockRead
       .mockResolvedValueOnce(booking())
       .mockResolvedValueOnce(booking())
-      .mockResolvedValueOnce(withJobs('CANCELLATION_DENIED', 'ASSIGNED'));
-    mockDecide.mockResolvedValueOnce({ message: 'Cancellation request denied.', new_status: 'CANCELLATION_DENIED' });
+      .mockResolvedValueOnce(withJobs('ASSIGNED', 'ASSIGNED'));
+    mockDecide.mockResolvedValueOnce({ message: 'Cancellation request denied. Booking status restored to ASSIGNED.', new_status: 'ASSIGNED' });
     const v = await screen(booking(), { occurrence: child() });
     await fireEvent.press(await v.findByLabelText('Deny Cancellation'));
     await fireEvent.press(v.getByText('Confirm Deny cancellation?'));
-    await waitFor(() => expect(mockDecide).toHaveBeenCalledWith('req-1', 'client-1', 'DENY', ''));
-    expect(await v.findByText(/stays active as Cancellation Denied/)).toBeTruthy();
-    expect(v.getByText('badge:CANCELLATION_DENIED')).toBeTruthy();
+    await waitFor(() => expect(mockDecide).toHaveBeenCalledWith('req-1', 'client-1', 'DENY', '', CYCLE));
+    expect(await v.findByText(/The booking is back to Assigned\. Visits were not changed\./)).toBeTruthy();
+    expect(v.getByText('badge:ASSIGNED')).toBeTruthy();
+    expect(v.queryByText(/The latest read shows status/)).toBeNull();
     expect(v.getByText('Start Visit')).toBeTruthy(); // owner may still execute the exact ASSIGNED child (PR #68)
     expect(mockStart).not.toHaveBeenCalled();
+    expect(mockReview).not.toHaveBeenCalled();
+  });
+
+  it('legacy pending request without a verified prior status: Approve offered, Deny not offered', async () => {
+    const legacy = booking({ cancellation_request_id: undefined, cancellation_prior_status: undefined });
+    mockRead.mockResolvedValueOnce(legacy);
+    const v = await screen(legacy);
+    expect(await v.findByLabelText('Approve Cancellation')).toBeTruthy();
+    expect(v.queryByLabelText('Deny Cancellation')).toBeNull();
+    expect(v.getByText(/Owner review is required\./)).toBeTruthy();
+    expect(mockDecide).not.toHaveBeenCalled();
   });
 
   it('a stale request at submit time is refused and the screen shows the real status', async () => {
