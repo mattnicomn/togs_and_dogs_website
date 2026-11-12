@@ -26,6 +26,7 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 7. **`lessons-learned.md`** — Mistakes and patterns to avoid
 8. **`master-handoff-prompt.md`** — Copy/paste prompt for starting a new ChatGPT session
 9. **`continuity-maintenance-checklist.md`** — How to keep these docs accurate
+10. **[`december-11-delivery-checkpoint.md`](december-11-delivery-checkpoint.md)** — ACTIVE delivery checkpoint for the December 11, 2026 pilot target: verified PR snapshot, release board, critical path, next action and resume block (re-verify live state before acting)
 
 ---
 
