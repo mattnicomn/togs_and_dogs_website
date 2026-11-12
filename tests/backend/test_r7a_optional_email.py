@@ -7,6 +7,29 @@ from unittest.mock import patch, MagicMock, ANY
 from handlers.admin_handler import handler as admin_handler
 from handlers.intake_handler import handler as intake_handler
 
+# The admin and intake handlers load the tenant's TENANT#<id>/METADATA record through
+# common.db (entitlement/billing). A bare MagicMock table would hand MagicMock values to
+# the billing date parsing, so tests that patch common.db.table supply a realistic
+# active-tenant metadata item, matching the authoritative read path.
+def _active_tenant_metadata(company_id="tog_and_dogs"):
+    return {
+        "Item": {
+            "PK": f"TENANT#{company_id}",
+            "SK": "METADATA",
+            "company_id": company_id,
+            "subscription_tier": "professional",
+            "subscription_status": "active",
+            "is_active": True,
+        }
+    }
+
+# Public /requests resolves its tenant only from a trusted, server-configured
+# PUBLIC_INTAKE_DOMAIN_MAP keyed by requestContext.domainName (fail closed otherwise).
+PUBLIC_TEST_DOMAIN = "test-api.execute-api.us-east-1.amazonaws.com"
+PUBLIC_TEST_DOMAIN_MAP = json.dumps({
+    PUBLIC_TEST_DOMAIN: {"tenant_id": "tog_and_dogs", "active": True, "public_intake_enabled": True}
+})
+
 # --- Helper functions to mock events ---
 
 def create_admin_event(method, path, body=None, email="admin@usmissionhero.com"):
@@ -29,7 +52,8 @@ def create_admin_event(method, path, body=None, email="admin@usmissionhero.com")
 def create_public_event(method, path, body=None):
     return {
         "requestContext": {
-            "authorizer": {}
+            "authorizer": {},
+            "domainName": PUBLIC_TEST_DOMAIN
         },
         "httpMethod": method,
         "path": path,
@@ -47,6 +71,7 @@ def test_profile_only_client_can_be_created_without_email():
     })
     
     mock_table = MagicMock()
+    mock_table.get_item.return_value = _active_tenant_metadata()
     # Mock DynamoDB put_item success
     mock_table.put_item.return_value = {}
     
@@ -126,8 +151,9 @@ def test_manual_booking_can_be_created_for_a_client_without_email():
     assert saved_booking["start_date"] == "2026-06-01"
 
 
-def test_public_intake_still_requires_email():
+def test_public_intake_still_requires_email(monkeypatch):
     """Verify that the public customer intake form still strictly enforces email requirement."""
+    monkeypatch.setenv("PUBLIC_INTAKE_DOMAIN_MAP", PUBLIC_TEST_DOMAIN_MAP)
     event = create_public_event("POST", "/requests", {
         "client_name": "Public Submitter",
         "start_date": "2026-06-01",
@@ -135,7 +161,10 @@ def test_public_intake_still_requires_email():
         # client_email is missing
     })
     
-    resp = intake_handler(event, None)
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = _active_tenant_metadata()
+    with patch('common.db.table', mock_table):
+        resp = intake_handler(event, None)
     assert resp["statusCode"] == 400
     assert "Missing or invalid required fields" in resp["body"]
     assert "client_email" in resp["body"]
@@ -150,6 +179,7 @@ def test_duplicate_and_protected_checks_work_when_email_present():
     })
     
     mock_table_dup = MagicMock()
+    mock_table_dup.get_item.return_value = _active_tenant_metadata()
     mock_table_dup.query.return_value = {
         "Items": [
             {
@@ -170,10 +200,13 @@ def test_duplicate_and_protected_checks_work_when_email_present():
     # 2. Protected admin account check
     event_prot = create_admin_event("POST", "/admin/clients", {
         "display_name": "Fake Admin",
-        "email": "admin@toganddogs.com" # default protected fallback email
+        # The hardcoded, always-protected fallback identity in common.protected_accounts
+        # (_FALLBACK_EMAILS); it stays protected regardless of PROTECTED_ADMIN_EMAILS.
+        "email": "support@usmissionhero.com"
     })
     
     mock_table_prot = MagicMock()
+    mock_table_prot.get_item.return_value = _active_tenant_metadata()
     mock_table_prot.query.return_value = {"Items": []} # No duplicate active clients
     
     with patch('common.db.table', mock_table_prot):
