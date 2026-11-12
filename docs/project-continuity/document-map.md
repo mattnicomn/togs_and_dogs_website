@@ -261,3 +261,4 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 | `lessons-learned.md` | Patterns and anti-patterns |
 | `master-handoff-prompt.md` | New-session prompt (device/agent-independent) |
 | `continuity-maintenance-checklist.md` | How to keep these docs accurate |
+| [`december-11-delivery-checkpoint.md`](december-11-delivery-checkpoint.md) | ACTIVE December 11, 2026 delivery checkpoint (release board, critical path, next batch, resume block) |

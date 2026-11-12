@@ -13,6 +13,7 @@ FIRST: Read the following files in the repository before suggesting any actions:
 1. docs/project-continuity/current-state.md
 2. docs/project-continuity/guardrails.md
 3. docs/project-continuity/agent-operating-model.md
+4. docs/project-continuity/december-11-delivery-checkpoint.md (ACTIVE delivery checkpoint: release board, critical path, next action, resume block; its SHAs are a dated snapshot, re-verify live GitHub state; prior approvals are scoped and never inferred)
 
 STARTUP VERIFICATION:
 - Verify repository state: branch, HEAD commit, synchronization with origin/main, working tree status.
