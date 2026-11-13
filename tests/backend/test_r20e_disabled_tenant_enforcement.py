@@ -135,8 +135,20 @@ class TestHandlerRouteGating:
         assert body['is_blocked'] is True
         assert 'google_calendar_status' not in body
 
-    def test_tenant_info_active_full_status(self):
-        """tenant-info returns 200 with full status when tenant is active."""
+    @patch('botocore.httpsession.URLLib3Session.send',
+           side_effect=AssertionError('Unmocked AWS/botocore network call attempted in tenant-info test'))
+    @patch('handlers.google_auth_handler.secrets')
+    @patch('common.google_calendar._resolve_google_token_binding')
+    def test_tenant_info_active_full_status(self, mock_binding, mock_secrets, _no_net):
+        """tenant-info returns 200 with full status when tenant is active.
+
+        Gate C3b.3h.2: the google_calendar_status is derived by the real
+        get_status, which resolves the AC-9 per-tenant provider binding. An
+        active second tenant with no binding (resolver returns None) yields
+        NOT_CONNECTED, with no Secrets Manager read — exercising the real
+        status-resolution logic instead of the removed get_stored_tokens helper.
+        Disabled-tenant and entitlement assertions in this class are unchanged.
+        """
         self.mock_get_item.return_value = {
             'company_id': 'test_tenant_alpha',
             'display_name': 'Test Tenant Alpha',
@@ -148,7 +160,8 @@ class TestHandlerRouteGating:
             subscription_tier='starter',
             subscription_status='active'
         )
-        
+        mock_binding.return_value = None  # unbound second tenant -> NOT_CONNECTED
+
         event = make_event('/admin/tenant-info', http_method='GET', custom_company_id='test_tenant_alpha', groups=['owner'])
         resp = admin_handler(event, None)
         assert resp['statusCode'] == 200
@@ -158,6 +171,7 @@ class TestHandlerRouteGating:
         assert body['is_access_allowed'] is True
         assert body['is_blocked'] is False
         assert body['google_calendar_status'] == 'NOT_CONNECTED'
+        mock_secrets.get_secret_value.assert_not_called()
 
     def test_admin_handler_other_routes_blocked(self):
         """Other routes in admin_handler return 403 when tenant is disabled."""
@@ -226,17 +240,45 @@ class TestHandlerRouteGating:
         body = json.loads(resp['body'])
         assert body['error'] == 'TenantDisabled'
 
+    @patch('botocore.httpsession.URLLib3Session.send',
+           side_effect=AssertionError('Unmocked AWS/botocore network call attempted in scheduler test'))
     @patch('handlers.google_auth_handler.calendar_health_check')
-    def test_google_auth_handler_allowed_for_scheduler(self, mock_health_check):
-        """google_auth_handler allows scheduled EventBridge health check even if disabled."""
+    def test_google_auth_handler_allowed_for_scheduler(self, mock_health_check, _no_net):
+        """google_auth_handler allows the scheduled EventBridge health check even
+        when a tenant is disabled.
+
+        The implemented and deployed contract (infra/prod/main.tf EventBridge
+        target input) is source='aws.events', action='health_check'. The prior
+        fixture used source='aws.scheduler', which the handler correctly does NOT
+        recognize as the scheduled contract, so it fell through to the HTTP path
+        and returned 403. Using the real deployed source proves the legitimate
+        scheduled event reaches calendar_health_check and bypasses tenant gating.
+        """
+        mock_health_check.return_value = {'statusCode': 200, 'body': '{"status":"OK"}'}
+        event = {
+            'source': 'aws.events',
+            'action': 'health_check'
+        }
+        resp = google_auth_handler(event, None)
+        assert resp['statusCode'] == 200
+        mock_health_check.assert_called_once()
+
+    @patch('botocore.httpsession.URLLib3Session.send',
+           side_effect=AssertionError('Unmocked AWS/botocore network call attempted in scheduler test'))
+    @patch('handlers.google_auth_handler.calendar_health_check')
+    def test_google_auth_handler_unrecognized_scheduler_source_denied(self, mock_health_check, _no_net):
+        """An unrecognized scheduler source (e.g. 'aws.scheduler') must NOT be
+        treated as the authorized scheduled health contract. It falls through to
+        the HTTP path and is denied (fail-closed), and the health check is never
+        invoked. This preserves the scheduler-source authentication boundary."""
         mock_health_check.return_value = {'statusCode': 200, 'body': '{"status":"OK"}'}
         event = {
             'source': 'aws.scheduler',
             'action': 'health_check'
         }
         resp = google_auth_handler(event, None)
-        assert resp['statusCode'] == 200
-        mock_health_check.assert_called_once()
+        assert resp['statusCode'] == 403
+        mock_health_check.assert_not_called()
 
     def test_intake_handler_blocked(self):
         """intake_handler returns 403 when tenant is disabled."""

@@ -14,7 +14,7 @@ const formatCanonicalTime = (value) => {
   return `${hour % 12 || 12}:${minute} ${hour >= 12 ? 'PM' : 'AM'}`;
 };
 
-const MasterScheduler = ({ items, onAssign, onReview, onSelectPet, staffList = [] }) => {
+const MasterScheduler = ({ items, onReview, onSelectPet, staffList = [] }) => {
   const [viewMode, setViewMode] = useState('DAY'); // DAY or WEEK
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 480);
 

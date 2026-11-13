@@ -132,35 +132,12 @@ const ClientPortal = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState(null);
-  const [userRole, setUserRole] = useState(null);
-  const [tenantInfo, setTenantInfo] = useState(null);
+  const [, setUserRole] = useState(null);
+  const [tenantInfo] = useState(null);
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [error, setError] = useState(null);
 
   const tenantPresentation = deriveTenantPresentation(tenantInfo);
-
-  useEffect(() => {
-    checkSession();
-  }, []);
-
-  const checkSession = async () => {
-    try {
-      const s = await getSession();
-      if (s) {
-        const role = getEffectiveRole(s);
-        if (['owner', 'admin', 'client'].includes(role)) {
-          setSession(s);
-          setUserRole(role);
-          await fetchMyBookings(s, role);
-        } else {
-          setError("Access denied. Staff members must use the Staff Portal.");
-          setSession(null);
-        }
-      }
-    } catch (e) {
-      console.error("No session", e);
-    }
-  };
 
   const fetchMyBookings = async (activeSession, role) => {
     if (!activeSession) return;
@@ -185,6 +162,30 @@ const ClientPortal = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // Mount-only session check. Declared inside the effect because nothing else uses
+    // it; all state updates happen after the session read resolves.
+    const checkSession = async () => {
+      try {
+        const s = await getSession();
+        if (s) {
+          const role = getEffectiveRole(s);
+          if (['owner', 'admin', 'client'].includes(role)) {
+            setSession(s);
+            setUserRole(role);
+            await fetchMyBookings(s, role);
+          } else {
+            setError("Access denied. Staff members must use the Staff Portal.");
+            setSession(null);
+          }
+        }
+      } catch (e) {
+        console.error("No session", e);
+      }
+    };
+    checkSession();
+  }, []);
 
   const handleCancelRequest = async (req) => {
     const { reqId, clientId } = resolveIds(req);

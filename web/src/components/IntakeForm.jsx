@@ -93,7 +93,6 @@ const IntakeForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Release 2: Staff options for preferred sitter dropdown
   const [staffOptions, setStaffOptions] = useState([]);
-  const [staffOptionsLoading, setStaffOptionsLoading] = useState(false);
   // Workstream 1: authenticated client's existing pets (client-safe endpoint).
   const [clientPets, setClientPets] = useState([]);
   const [isClient, setIsClient] = useState(false);
@@ -127,7 +126,7 @@ const IntakeForm = () => {
     
     // Release 2: Load staff options for preferred sitter dropdown.
     // Uses a sanitized public endpoint that only returns display names.
-    setStaffOptionsLoading(true);
+    // (A loading flag for this request was set but never read, so it was removed.)
     getStaffOptions()
       .then(data => {
         setStaffOptions(data.staff_options || []);
@@ -135,8 +134,7 @@ const IntakeForm = () => {
       .catch(() => {
         // Fail gracefully — preferred sitter is optional
         setStaffOptions([]);
-      })
-      .finally(() => setStaffOptionsLoading(false));
+      });
   }, []);
 
   const validateStep = (currentStep = step) => {
