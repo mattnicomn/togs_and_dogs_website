@@ -26,7 +26,7 @@ describe('Responsive and Accessibility Coverage', () => {
   };
 
   it('1. client drawer uses expected modal/dialog semantics and markup sections', () => {
-    const { container } = render(
+    render(
       <ClientDetailDrawer
         client={clientData}
         pets={[]}
