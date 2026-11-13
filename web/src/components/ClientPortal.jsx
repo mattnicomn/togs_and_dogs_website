@@ -20,6 +20,16 @@ const formatDate = (dateObj, includeYear = false) => {
   return dateObj.toLocaleDateString('en-US', options);
 };
 
+// D-1: the denial date shown with the cancellation-denied notice. The API only sends
+// `cancellation_denied_at` as a normalized UTC ISO timestamp; anything missing or
+// unparseable is omitted rather than shown (the notice itself still renders).
+const formatDenialDate = (value) => {
+  if (typeof value !== 'string' || !value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return formatDate(parsed, true);
+};
+
 const getVisitWindowLabel = (windowVal) => {
   if (!windowVal) return 'Anytime';
   const friendly = {
@@ -427,6 +437,32 @@ const ClientPortal = () => {
                         <p className="booking-status-msg" style={{ marginTop: '8px' }}>
                           {status.msg}
                         </p>
+                      )}
+
+                      {/* D-1: shown only when the server derived cancellation_denied === true
+                          (a DENY on the current cancellation request). The normal status
+                          display above is unchanged; no admin note or other detail is shown. */}
+                      {req.cancellation_denied === true && (
+                        <div
+                          className="booking-denial-notice"
+                          role="note"
+                          data-testid="cancellation-denied-notice"
+                          style={{
+                            marginTop: '10px', padding: '8px 12px', borderRadius: '8px',
+                            borderLeft: '4px solid var(--border-soft, #888)',
+                            background: 'var(--bg-muted, rgba(255,255,255,0.05))'
+                          }}
+                        >
+                          <strong>Cancellation request declined</strong>
+                          <p style={{ margin: '4px 0 0 0' }}>
+                            {(() => {
+                              const deniedOn = formatDenialDate(req.cancellation_denied_at);
+                              return `Your cancellation request was declined${deniedOn ? ` on ${deniedOn}` : ''}. `
+                                + 'Your booking remains active. You can submit another cancellation request '
+                                + 'or contact the business for assistance.';
+                            })()}
+                          </p>
+                        </div>
                       )}
                     </div>
                   </div>

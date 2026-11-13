@@ -46,6 +46,8 @@ def test_18p_parent_only(mock_get_item, mock_log, mock_cascade, mock_role, mock_
         "request_id": "req-parent-only",
         "client_id": "client-123",
         "company_id": "tog_and_dogs",
+        # BE-CANCEL-1: a decision is only accepted while the request is pending.
+        "status": "CANCELLATION_REQUESTED",
         "google_event_id": "parent-event-id",
         "job_ids": ["job-1"]
     }
@@ -94,6 +96,8 @@ def test_18p_child_only(mock_get_item, mock_log, mock_cascade, mock_role, mock_n
         "request_id": "req-child-only",
         "client_id": "client-123",
         "company_id": "tog_and_dogs",
+        # BE-CANCEL-1: a decision is only accepted while the request is pending.
+        "status": "CANCELLATION_REQUESTED",
         "job_ids": ["job-1"]
     }
     job_items = {
@@ -138,6 +142,8 @@ def test_18p_duplicate_event_ids(mock_get_item, mock_log, mock_cascade, mock_rol
         "request_id": "req-dup",
         "client_id": "client-123",
         "company_id": "tog_and_dogs",
+        # BE-CANCEL-1: a decision is only accepted while the request is pending.
+        "status": "CANCELLATION_REQUESTED",
         "google_event_id": "shared-event-id",
         "job_ids": ["job-1"]
     }
@@ -190,6 +196,8 @@ def test_18p_different_event_ids(mock_get_item, mock_log, mock_cascade, mock_rol
         "request_id": "req-diff",
         "client_id": "client-123",
         "company_id": "tog_and_dogs",
+        # BE-CANCEL-1: a decision is only accepted while the request is pending.
+        "status": "CANCELLATION_REQUESTED",
         "google_event_id": "parent-event-id",
         "job_ids": ["job-1"]
     }
@@ -242,6 +250,8 @@ def test_18p_already_deleted(mock_get_item, mock_log, mock_cascade, mock_role, m
         "request_id": "req-404",
         "client_id": "client-123",
         "company_id": "tog_and_dogs",
+        # BE-CANCEL-1: a decision is only accepted while the request is pending.
+        "status": "CANCELLATION_REQUESTED",
         "google_event_id": "missing-event-id",
         "job_ids": []
     }
@@ -283,6 +293,8 @@ def test_18p_generic_api_error(mock_get_item, mock_log, mock_cascade, mock_role,
         "request_id": "req-error",
         "client_id": "client-123",
         "company_id": "tog_and_dogs",
+        # BE-CANCEL-1: a decision is only accepted while the request is pending.
+        "status": "CANCELLATION_REQUESTED",
         "google_event_id": "erroneous-event-id",
         "job_ids": []
     }
@@ -328,6 +340,8 @@ def test_18p_no_event_ids(mock_get_item, mock_log, mock_cascade, mock_role, mock
         "request_id": "req-none",
         "client_id": "client-123",
         "company_id": "tog_and_dogs",
+        # BE-CANCEL-1: a decision is only accepted while the request is pending.
+        "status": "CANCELLATION_REQUESTED",
         "job_ids": ["job-1"]
     }
     job_items = {
@@ -365,6 +379,7 @@ def test_18p_cancellation_transitions_and_cascade(mock_get_item, mock_log, mock_
         "request_id": "req-cascade",
         "client_id": "client-123",
         "company_id": "tog_and_dogs",
+        # BE-CANCEL-1: a decision is only accepted while the request is pending.
         "status": "CANCELLATION_REQUESTED",
         "job_ids": ["job-1"]
     }
@@ -423,6 +438,8 @@ def test_18p_notification_behavior(mock_get_item, mock_log, mock_cascade, mock_r
         "request_id": "req-notify",
         "client_id": "client-123",
         "company_id": "tog_and_dogs",
+        # BE-CANCEL-1: a decision is only accepted while the request is pending.
+        "status": "CANCELLATION_REQUESTED",
         # no worker_id, so no SMS notification sent
         "client_name": "Test Client",
         "start_date": "2026-07-20"
