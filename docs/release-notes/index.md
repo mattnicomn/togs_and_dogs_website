@@ -4,6 +4,8 @@ This index tracks the evolution of the Tog and Dogs application, including struc
 
 ## 🌟 Featured / Recent
 
+- [**Android Booking Workflow Remediation — LOCAL / DRAFT / NOT RELEASED**](android-booking-workflow-remediation.md) (2026-10-29) — M&G continuation, truthful quote/onboarding guidance, exact-child visit access and confirmation copy; backend/RBAC and legacy service/window contracts preserved. Acceptance tracker distinguishes local tests from unperformed Android build, distribution and Ryan testing.
+
 > PTM0-S1/F01 is complete. S2A.3 and S2D.1 are deployed, not fully
 > production-accepted. S2 acceptance is PARTIAL / PRELIMINARY — P1 only;
 > P2–P5 are deferred, not failed or passed. F02 and PTM-0 remain incomplete.
