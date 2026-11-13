@@ -4,6 +4,15 @@ import { createPaymentSession, sendPaymentEmail } from '../api/client';
 import { getKnownServiceTypeLabel } from '../utils/serviceLabels';
 import AdminQuoteEditor from './AdminQuoteEditor';
 
+// Release 12R: the payment amount a card starts with for a given pet prop (unchanged
+// rule: persisted payment cents first, then the legacy quote amount, else blank).
+const initialPaymentAmountFor = (pet) => {
+  const originItem = pet._originItem || {};
+  return originItem.payment_amount_cents
+    ? (originItem.payment_amount_cents / 100).toFixed(2)
+    : (pet.quote_amount ? parseFloat(pet.quote_amount).toFixed(2) : '');
+};
+
 const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList = [], onAssign, onAddPet, onPaymentSessionCreated, onQuoteUpdated }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
@@ -30,7 +39,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   const [isAssigning, setIsAssigning] = useState(false);
 
   // Release 12R: Stripe payment session states
-  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState(() => initialPaymentAmountFor(pet));
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [showConfirmPaymentGen, setShowConfirmPaymentGen] = useState(false);
@@ -43,14 +52,15 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   const [emailSendError, setEmailSendError] = useState('');
   const [secondsRemaining, setSecondsRemaining] = useState(0);
 
-  // Release 12R: Initialize and reset payment states when pet prop changes
-  // Note: activePet is derived later from _normalizePets(); use pet prop directly here
-  useEffect(() => {
-    const originItem = pet._originItem || {};
-    const initialAmount = originItem.payment_amount_cents 
-      ? (originItem.payment_amount_cents / 100).toFixed(2) 
-      : (pet.quote_amount ? parseFloat(pet.quote_amount).toFixed(2) : '');
-    setPaymentAmount(initialAmount);
+  // Release 12R: Initialize and reset payment states when the pet prop changes.
+  // Note: activePet is derived later from _normalizePets(); use pet prop directly here.
+  // The initial values come from the useState initializers above; a later change of
+  // the pet prop resets them during render (React's "adjust state when a prop
+  // changes" pattern) instead of one commit later from an effect.
+  const [paymentStatePet, setPaymentStatePet] = useState(pet);
+  if (paymentStatePet !== pet) {
+    setPaymentStatePet(pet);
+    setPaymentAmount(initialPaymentAmountFor(pet));
     setPaymentError('');
     setShowConfirmPaymentGen(false);
     setCopySuccess(false);
@@ -59,16 +69,20 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
     setShowConfirmEmailModal(false);
     setEmailSendSuccess(false);
     setEmailSendError('');
-  }, [pet]);
+  }
 
   // Release 12V: Countdown timer for rate limiting/disabled state (recently sent within 2 minutes)
   const lastSentAt = pet._originItem?.payment_email_sent_at;
   const clientEmail = pet._originItem?.client_email || pet.client_email || '';
+  // When the sent timestamp goes away the cooldown is cleared during render (as
+  // before, a timestamp change restarts the countdown; no timestamp means no wait).
+  const [countdownSentAt, setCountdownSentAt] = useState(lastSentAt);
+  if (countdownSentAt !== lastSentAt) {
+    setCountdownSentAt(lastSentAt);
+    if (!lastSentAt) setSecondsRemaining(0);
+  }
   useEffect(() => {
-    if (!lastSentAt) {
-      setSecondsRemaining(0);
-      return;
-    }
+    if (!lastSentAt) return;
     const updateCountdown = () => {
       const diffMs = Date.now() - new Date(lastSentAt).getTime();
       const remainingMs = 120000 - diffMs;
@@ -155,7 +169,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
     setEmailSendSuccess(false);
 
     try {
-      const response = await sendPaymentEmail(reqId, clientId);
+      await sendPaymentEmail(reqId, clientId);
       setEmailSendSuccess(true);
       setShowConfirmEmailModal(false);
       setSecondsRemaining(120); // Immediately trigger 2-minute cooldown locally
@@ -261,15 +275,25 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
   const canEditActivePet = petInfo.hasTrueRecords && !!activePet.pet_id && !activePet._fetchFailed;
 
   // Release 5B Hotfix 2: Auto-select newly added pet when _newPetIndex is set
-  useEffect(() => {
+  // Evaluated during render whenever (_newPetIndex, pet count) changes, including the
+  // first render, exactly like the previous effect's dependencies (React's "adjust
+  // state when a value changes" pattern; no extra commit with the old selection).
+  const autoSelectKey = `${pet._newPetIndex}|${allPets.length}`;
+  const [appliedAutoSelectKey, setAppliedAutoSelectKey] = useState(null);
+  if (appliedAutoSelectKey !== autoSelectKey) {
+    setAppliedAutoSelectKey(autoSelectKey);
     if (pet._newPetIndex !== undefined && pet._newPetIndex >= 0 && pet._newPetIndex < allPets.length) {
       setActivePetIndex(pet._newPetIndex);
     }
-  }, [pet._newPetIndex, allPets.length]);
+  }
 
   // Release 5A Hotfix 2: Reinitialize formData when active pet changes.
-  // Only runs when NOT in edit mode (edit mode blocks tab switching).
-  useEffect(() => {
+  // Only runs when NOT in edit mode (edit mode blocks tab switching). Evaluated during
+  // render whenever activePetIndex changes, including the first render, matching the
+  // previous [activePetIndex] effect.
+  const [formDataPetIndex, setFormDataPetIndex] = useState(null);
+  if (formDataPetIndex !== activePetIndex) {
+    setFormDataPetIndex(activePetIndex);
     if (!isEditing) {
       setFormData({
         health: {},
@@ -278,7 +302,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
         ...activePet
       });
     }
-  }, [activePetIndex]);
+  }
 
   // Release 4B: Improved name fallback logic
   // Prioritizes actual pet names over the client name (common in legacy records)
@@ -1314,7 +1338,7 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
                         setIsAssigning(true);
                         try {
                           await onAssign(pet._originItem, e.target.value);
-                        } catch(err) {
+                        } catch {
                           // Error handled by parent
                         } finally {
                           setIsAssigning(false);

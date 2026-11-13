@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'espree';
 import { sanitizePetDetails, sanitizePetsList } from '../src/utils/petHelpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -212,10 +213,151 @@ describe('AdminDashboard Code Structure Validation', () => {
   });
 
   it('should not declare any React hooks after the authentication check early return block', () => {
-    const earlyReturnIndex = code.indexOf('if (!isAuthenticated)');
-    const codeAfterEarlyReturn = code.substring(earlyReturnIndex);
-    const hooksRegex = /\b(useState|useEffect|useRef|useMemo|useCallback|useContext)\b/g;
-    const hooksFound = codeAfterEarlyReturn.match(hooksRegex);
-    assert.equal(hooksFound, null, 'No React hooks should be declared after the authentication check early return: ' + (hooksFound ? hooksFound.join(', ') : ''));
+    const hooksFound = findHooksAfterAuthEarlyReturn(code, 'AdminDashboard');
+    assert.deepEqual(hooksFound, [], 'No React hooks should be declared after the authentication check early return: ' + hooksFound.join(', '));
+  });
+});
+
+/**
+ * Structural hook-order check. Parses the source and locates the component-level
+ * authentication early return: an `if (!isAuthenticated)` statement directly in the
+ * component's own body whose block returns. A textual `if (!isAuthenticated)` nested
+ * inside an effect or callback is not that boundary. Every hook reference (useState,
+ * useEffect, useRef, useMemo, useCallback, useContext, bare or via `React.`) located at
+ * or after the boundary — to the end of the file, as before — is reported.
+ */
+const HOOK_NAMES = new Set(['useState', 'useEffect', 'useRef', 'useMemo', 'useCallback', 'useContext']);
+const FUNCTION_TYPES = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression']);
+
+const forEachChild = (node, visit) => {
+  for (const [key, value] of Object.entries(node)) {
+    if (key === 'parent') continue;
+    const children = Array.isArray(value) ? value : [value];
+    for (const child of children) {
+      if (child && typeof child.type === 'string') visit(child);
+    }
+  }
+};
+
+// True when `node` returns at its own level (does not look inside nested functions).
+const containsOwnReturn = (node) => {
+  if (node.type === 'ReturnStatement') return true;
+  if (FUNCTION_TYPES.has(node.type)) return false;
+  let found = false;
+  forEachChild(node, child => { if (!found && containsOwnReturn(child)) found = true; });
+  return found;
+};
+
+const isNotIsAuthenticated = (test) => (
+  test.type === 'UnaryExpression' && test.operator === '!'
+  && test.argument.type === 'Identifier' && test.argument.name === 'isAuthenticated'
+);
+
+const findComponentBody = (ast, componentName) => {
+  let body = null;
+  const visit = (node) => {
+    if (body) return;
+    if (node.type === 'VariableDeclarator' && node.id?.name === componentName
+      && FUNCTION_TYPES.has(node.init?.type) && node.init.body.type === 'BlockStatement') {
+      body = node.init.body;
+      return;
+    }
+    if (node.type === 'FunctionDeclaration' && node.id?.name === componentName) {
+      body = node.body;
+      return;
+    }
+    forEachChild(node, visit);
+  };
+  visit(ast);
+  return body;
+};
+
+const findHooksAfterAuthEarlyReturn = (source, componentName) => {
+  const ast = parse(source, {
+    ecmaVersion: 'latest',
+    sourceType: 'module',
+    ecmaFeatures: { jsx: true },
+    range: true,
+  });
+  const componentBody = findComponentBody(ast, componentName);
+  assert.ok(componentBody, `component ${componentName} must be found`);
+
+  const boundaries = componentBody.body.filter(stmt => (
+    stmt.type === 'IfStatement' && isNotIsAuthenticated(stmt.test) && containsOwnReturn(stmt.consequent)
+  ));
+  assert.equal(boundaries.length, 1, 'exactly one component-level `if (!isAuthenticated)` early return must exist');
+  const boundaryStart = boundaries[0].range[0];
+
+  const hooks = [];
+  const visit = (node) => {
+    if (node.range[0] >= boundaryStart || node.range[1] > boundaryStart) {
+      if (node.type === 'Identifier' && HOOK_NAMES.has(node.name) && node.range[0] >= boundaryStart) {
+        hooks.push(node.name);
+      }
+      forEachChild(node, visit);
+    }
+  };
+  visit(ast);
+  return hooks;
+};
+
+describe('structural hook-order check (fixtures)', () => {
+  const wrap = (bodyLines) => [
+    "import React, { useState, useEffect } from 'react';",
+    'const Probe = () => {',
+    ...bodyLines,
+    '};',
+    'export default Probe;',
+  ].join('\n');
+
+  it('ignores an `if (!isAuthenticated)` nested inside an effect before the real early return', () => {
+    const source = wrap([
+      '  const [isAuthenticated] = useState(false);',
+      '  useEffect(() => {',
+      '    if (!isAuthenticated) console.log("cleanup");',
+      '  }, [isAuthenticated]);',
+      '  const ready = useState(true);',
+      '  if (!isAuthenticated) {',
+      '    return <div>login</div>;',
+      '  }',
+      '  return <div>{String(ready)}</div>;',
+    ]);
+    assert.deepEqual(findHooksAfterAuthEarlyReturn(source, 'Probe'), []);
+  });
+
+  it('still reports a real hook declared after the component-level early return', () => {
+    const source = wrap([
+      '  const [isAuthenticated] = useState(false);',
+      '  if (!isAuthenticated) {',
+      '    return <div>login</div>;',
+      '  }',
+      '  const [late] = useState(0);',
+      '  React.useEffect(() => {}, []);',
+      '  return <div>{late}</div>;',
+    ]);
+    assert.deepEqual(findHooksAfterAuthEarlyReturn(source, 'Probe'), ['useState', 'useEffect']);
+  });
+
+  it('still reports a hook inside a nested callback after the early return', () => {
+    const source = wrap([
+      '  const [isAuthenticated] = useState(false);',
+      '  if (!isAuthenticated) {',
+      '    return <div>login</div>;',
+      '  }',
+      '  const render = () => useState(1);',
+      '  return <div>{String(render)}</div>;',
+    ]);
+    assert.deepEqual(findHooksAfterAuthEarlyReturn(source, 'Probe'), ['useState']);
+  });
+
+  it('fails closed when no component-level early return exists', () => {
+    const source = wrap([
+      '  const [isAuthenticated] = useState(false);',
+      '  useEffect(() => {',
+      '    if (!isAuthenticated) return;',
+      '  }, [isAuthenticated]);',
+      '  return <div />;',
+    ]);
+    assert.throws(() => findHooksAfterAuthEarlyReturn(source, 'Probe'), /exactly one component-level/);
   });
 });

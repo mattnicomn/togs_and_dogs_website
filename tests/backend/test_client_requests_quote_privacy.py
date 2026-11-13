@@ -34,6 +34,7 @@ from boto3.dynamodb.conditions import Attr
 from common.auth import (
     project_client_request_list_item,
     CLIENT_REQUEST_LIST_ALLOWLIST,
+    CLIENT_REQUEST_LIST_DERIVED_FIELDS,
 )
 
 # A real boto3 condition the handler can combine with & (the FakeTable.scan
@@ -226,8 +227,18 @@ def test_projection_never_reuses_raw_record_object():
     raw = _full_quote_request()
     projected = project_client_request_list_item(raw)
     assert projected is not raw
-    # Only allowlisted keys may be present.
-    assert set(projected).issubset(set(CLIENT_REQUEST_LIST_ALLOWLIST))
+    # Only allowlisted keys, plus the two explicit D-1 derived denial-marker keys, may be
+    # present. The derived keys are an explicit exception, never a raw-field pass-through.
+    assert set(projected).issubset(
+        set(CLIENT_REQUEST_LIST_ALLOWLIST) | set(CLIENT_REQUEST_LIST_DERIVED_FIELDS)
+    )
+
+
+def test_allowlist_contains_no_cancellation_fields():
+    """D-1: no raw cancellation attribute may ever be added to the allowlist; the only
+    cancellation keys the list can emit are the two derived ones."""
+    assert not [f for f in CLIENT_REQUEST_LIST_ALLOWLIST if f.startswith('cancellation')]
+    assert CLIENT_REQUEST_LIST_DERIVED_FIELDS == ('cancellation_denied', 'cancellation_denied_at')
 
 
 def test_projection_legacy_request_renders_without_quote_fields():

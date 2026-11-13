@@ -2,6 +2,7 @@ import pytest
 import json
 import os
 import uuid
+from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import patch, MagicMock, ANY
 from handlers.admin_handler import handler as admin_handler
@@ -96,6 +97,29 @@ def create_event(role, path, method="GET", body_dict=None, company_id="test_comp
         "path": path,
         "body": json.dumps(body_dict or {})
     }
+
+
+def _usage_month():
+    """The runtime keys the monthly booking counter on the CURRENT UTC month
+    (common.entitlement.increment_monthly_bookings with no date_str), not on the
+    booking's start_date."""
+    return datetime.now(timezone.utc).strftime('%Y-%m')
+
+
+def _assert_usage_increment(update_item_mock, months, company_id="test_company"):
+    """Exactly the atomic ADD on USAGE#<company>/BOOKINGS#<current month>. `months` holds
+    the month read before and after the handler call, so a UTC month rollover during the
+    call cannot make the assertion flaky."""
+    expected = [
+        {
+            "Key": {"PK": f"USAGE#{company_id}", "SK": f"BOOKINGS#{month}"},
+            "UpdateExpression": "ADD booking_count :val",
+            "ExpressionAttributeValues": {":val": 1},
+        }
+        for month in sorted(set(months))
+    ]
+    calls = [c.kwargs for c in update_item_mock.call_args_list]
+    assert any(e in calls for e in expected), f"usage increment not found; calls={calls}"
 
 
 # ---------------------------------------------------------------------------
@@ -318,15 +342,13 @@ def test_booking_limit_below_limit_allowed(mock_db):
     mock_db["table"].update_item.return_value = {}
     
     with patch('boto3.client'):
+        month_before = _usage_month()
         resp = intake_handler(event, None)
+        month_after = _usage_month()
         assert resp["statusCode"] == 200
         
-        # Verify atomic increment was called
-        mock_db["table"].update_item.assert_any_call(
-            Key={"PK": "USAGE#test_company", "SK": f"BOOKINGS#2026-06"},
-            UpdateExpression="ADD booking_count :val",
-            ExpressionAttributeValues={":val": 1}
-        )
+        # Verify atomic increment was called for the current usage month
+        _assert_usage_increment(mock_db["table"].update_item, [month_before, month_after])
 
 
 def test_booking_limit_at_limit_denied(mock_db):
@@ -459,15 +481,13 @@ def test_entitlement_enforcement_flag_behavior(mock_db):
     mock_db["table"].update_item.return_value = {}
     
     with patch('boto3.client'):
+        month_before = _usage_month()
         resp = intake_handler(event, None)
+        month_after = _usage_month()
         assert resp["statusCode"] == 200 # Allowed because enforcement is disabled
         
-        # But counter still increments for auditing/reporting
-        mock_db["table"].update_item.assert_any_call(
-            Key={"PK": "USAGE#test_company", "SK": f"BOOKINGS#2026-06"},
-            UpdateExpression="ADD booking_count :val",
-            ExpressionAttributeValues={":val": 1}
-        )
+        # But counter still increments for auditing/reporting (current usage month)
+        _assert_usage_increment(mock_db["table"].update_item, [month_before, month_after])
 
 
 def test_admin_created_booking_checks_booking_limit(mock_db):
