@@ -15,6 +15,16 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 
 | Topic | Location |
 |-------|----------|
+| Android S2 — owner/admin mobile cancellation decisions + D-4 `BE-CANCEL-1` compatibility (Draft PR #69 stacked on #68 `owner/admin/staff` Start/Complete → #67 → #46; integrated in full-stack Draft PR #78 `2ef5a1f43b256189860a9c5f97d87e274c338211`; source-accepted, NOT merged/built/distributed/deployed) | `docs/release-notes/android-s2-cancellation-decisions.md` |
+| Android S1 — owner/admin mobile quote editor + S1-R1 authoritative hydration (Draft PR #67 stacked on #46; followed by #68 `owner/admin/staff` visit Start/Complete; integrated in full-stack Draft PR #78 `2ef5a1f43b256189860a9c5f97d87e274c338211`; source-accepted, NOT merged/built/distributed/deployed) | `docs/release-notes/android-s1-admin-quote-editor.md` |
+| Android booking workflow remediation and acceptance tracker (Draft PR #46; standalone record preserved; quote handoff superseded by #67 and staff-only Start/Complete superseded by #68 in integrated Draft PR #78; NOT merged/built/distributed/deployed) | `docs/release-notes/android-booking-workflow-remediation.md` |
+| BE-CANCEL-1 — cancellation decision safety, cycle identity (`cancellation_request_id`), D1 Option A `DENY` restoration, `require_existing=True` cascade guard, and `/admin/review` guard (Draft PR #71; paired with #72 `WEB-CANCEL-1` modal in #77/#78; source-accepted, NOT merged/deployed) | `docs/release-notes/be-cancel-1-cancellation-decision-safety.md` |
+| D-1 — client-portal cancellation-denial marker projection and notice (Draft PR #73; integrated in #77/#78; source-accepted, NOT merged/deployed) | `docs/release-notes/d1-client-denial-marker.md` |
+| Workstream 3-C2 — `MANUAL_EXTERNAL` payment API route (`POST /admin/requests/{requestId}/external-payment`; deployed on `admin` Lambda `GlA3mUtq…` and API stage `n40vai`; single-settlement functional acceptance COMPLETE 2026-10-27) | `docs/release-notes/w3c2-manual-external-payment-route.md` |
+| Workstream 3-C1 — `MANUAL_EXTERNAL` payment adapter (`record_external_payment` with atomic `TransactWriteItems`; deployed inside `admin` Lambda via W3-C2, dormant on the other 12 Lambdas) | `docs/release-notes/w3c1-manual-external-adapter.md` |
+| Workstream 3-B — provider-neutral payment domain (PR #29 squash-merged into `main`; present inside `admin` Lambda via W3-C2, undeployed on the other 12 Lambdas) | `docs/release-notes/w3b-provider-neutral-payment-domain.md` |
+| PR #22 — client request quote-field privacy projection (`GET /client/requests` allowlist; deployed across all 13 Lambdas at `W6cqyudl…` on 2026-10-22) | `docs/release-notes/pr22-client-request-privacy-production-deployment.md` |
+| PR #19 — canonical quote cents read fix + M4-B verification (`QgEdTeYY…`, 2026-10-20; superseded on 2026-10-22 by PR #22 `W6cqyudl…`) | `docs/release-notes/pr19-canonical-quote-cents-production-deployment.md` |
 | Release notes index | `docs/release-notes/index.md` |
 | Individual release notes | `docs/release-notes/release-*.md` |
 | W4 Option A client workflow status presentation (frontend-only; PR #24 squash-merged into `main`, not deployed — `W4_OPTION_A_MERGED_NOT_DEPLOYED` / `W4_DEPLOYED=NO`) | `docs/release-notes/w4-client-workflow-status-presentation.md` |
@@ -261,3 +271,4 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 | `lessons-learned.md` | Patterns and anti-patterns |
 | `master-handoff-prompt.md` | New-session prompt (device/agent-independent) |
 | `continuity-maintenance-checklist.md` | How to keep these docs accurate |
+| [`december-11-delivery-checkpoint.md`](december-11-delivery-checkpoint.md) | ACTIVE December 11, 2026 delivery checkpoint (release board, critical path, next batch, resume block; reconciled in B4 with PR #74 and PR #78) |

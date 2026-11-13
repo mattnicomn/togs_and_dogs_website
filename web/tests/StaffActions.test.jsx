@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect } from 'vitest';
 
 describe('Staff Action Preservation and Guardrail Tests', () => {
   // Mock staff data
@@ -23,13 +23,6 @@ describe('Staff Action Preservation and Guardrail Tests', () => {
     staff_id: 'staff-normal',
     display_name: 'Normal Staff',
     role: 'staff'
-  };
-
-  const orphanedStaff = {
-    staff_id: 'staff-orphaned',
-    display_name: 'Orphaned Staff',
-    role: 'staff',
-    is_orphaned_identity: true
   };
 
   // Replicate AdminDashboard's executeStaffAction logic in a test helper

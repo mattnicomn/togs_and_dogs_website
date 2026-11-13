@@ -13,8 +13,23 @@ from common.check_in import (
     canonical_window_start,
     validate_booking_window_fields,
 )
+from common.service_contract import WINDOW_METADATA
 
 MAX_MULTI_DAY_OCCURRENCES = 14
+
+
+def _legacy_parent_visit_window(request_item):
+    """R7E: the parent's own ``visit_window`` for a legacy (non-canonical) multi-day child.
+
+    Returned only when it is exactly a window identifier defined by the shared
+    contract (``WINDOW_METADATA``, active or legacy lifecycle). Missing, empty,
+    non-string, differently-cased or unknown values return ``None``: nothing is
+    normalized, guessed or invented.
+    """
+    value = request_item.get('visit_window')
+    if isinstance(value, str) and value in WINDOW_METADATA:
+        return value
+    return None
 
 def _validate_job_owner(job, job_id, request_id, company_id):
     if (not isinstance(job, dict) or job.get('company_id') != company_id
@@ -282,6 +297,13 @@ def handler(event, context):
                 # Google Calendar accepts caller-selected IDs using base32hex
                 # characters. This stable ID makes insert replay conflict-safe.
                 item['calendar_event_id'] = f"td{uuid.UUID(job_id).hex}"
+            elif is_multi_day:
+                # R7E: legacy (non-canonical) multi-day children keep the parent's own
+                # visit_window when it is a valid contract window identifier. Canonical
+                # occurrence windows above are never touched by this branch.
+                legacy_window = _legacy_parent_visit_window(request_item)
+                if legacy_window is not None:
+                    item['visit_window'] = legacy_window
             
             if uses_child_calendar_sync:
                 item['occurrence_date'] = occurrence_date

@@ -218,7 +218,7 @@ export function AppContent() {
             return;
           }
         }
-      } catch (e) {
+      } catch {
         // Ignore
       }
       setIsPlatformAdmin(false);
@@ -227,7 +227,16 @@ export function AppContent() {
     checkUserSession();
   }, [location.pathname]);
 
+  // Tenant shell info is only valid on non-tenant admin routes. Anywhere else it is
+  // cleared during render, so a stale tenant can never be committed to the screen
+  // (previously this was cleared one commit later from an effect).
+  const usesShellTenantInfo = isAdminRoute && !isTenantRoute;
+  if (!usesShellTenantInfo && tenantInfo !== null) {
+    setTenantInfo(null);
+  }
+
   useEffect(() => {
+    if (!usesShellTenantInfo) return;
     const fetchTenant = async () => {
       try {
         const session = await getSession();
@@ -242,12 +251,8 @@ export function AppContent() {
         setTenantInfo(null);
       }
     };
-    if (isAdminRoute && !isTenantRoute) {
-      fetchTenant();
-    } else {
-      setTenantInfo(null);
-    }
-  }, [location.pathname, isAdminRoute, isTenantRoute]);
+    fetchTenant();
+  }, [location.pathname, usesShellTenantInfo]);
 
   return (
     <div className="app-container">

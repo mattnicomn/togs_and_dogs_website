@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, act, waitFor } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi, it, expect, beforeEach, afterEach } from 'vitest';
 import AdminDashboard from '../src/components/AdminDashboard';
 import * as client from '../src/api/client';
 import { getSession, getEffectiveRole } from '../src/api/auth';

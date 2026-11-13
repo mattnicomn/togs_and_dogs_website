@@ -8,22 +8,32 @@ const PlatformAuditLog = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchAuditLogs = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getPlatformAudit();
-      setAudits(data.audits || []);
-    } catch (err) {
-      console.error('Failed to load platform audit logs:', err);
-      setError(err.message || 'Failed to fetch audit history.');
-    } finally {
-      setLoading(false);
-    }
+  // Loads audit logs; state is only set once the request settles. The executor form
+  // turns a synchronous throw into a rejection, exactly as the previous async
+  // try/catch did.
+  const loadAuditLogs = () =>
+    new Promise((resolve) => resolve(getPlatformAudit()))
+      .then((data) => {
+        setAudits(data.audits || []);
+      })
+      .catch((err) => {
+        console.error('Failed to load platform audit logs:', err);
+        setError(err.message || 'Failed to fetch audit history.');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+
+  // Refresh/Retry: reset the loading/error state, then load.
+  const fetchAuditLogs = () => {
+    setLoading(true);
+    setError(null);
+    return loadAuditLogs();
   };
 
+  // Mount: loading already starts true and error null, so only the load is needed.
   useEffect(() => {
-    fetchAuditLogs();
+    loadAuditLogs();
   }, []);
 
   const formatDate = (dateStr) => {
@@ -37,7 +47,7 @@ const PlatformAuditLog = () => {
         minute: '2-digit',
         second: '2-digit'
       });
-    } catch (e) {
+    } catch {
       return dateStr;
     }
   };

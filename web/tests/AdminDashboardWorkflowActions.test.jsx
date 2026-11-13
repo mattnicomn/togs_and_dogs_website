@@ -137,6 +137,93 @@ const mockApprovalHandoffRefreshes = (originalRequest, refreshedRequests) => {
   });
 };
 
+// WEB-CANCEL-1 race harness. Reads are classified by the phase they START in, and the phase
+// advances to 'polling' only when the approval itself succeeds (the handoff's generation
+// boundary) — never by argument shape alone. Reads can be held open and released in any order.
+const deferred = () => {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+};
+
+const flushAsync = () => act(async () => {
+  for (let i = 0; i < 10; i += 1) await Promise.resolve();
+});
+
+const createApprovalRaceHarness = (intakeRecord, { reconciled, later } = {}) => {
+  const h = {
+    phase: 'setup',
+    jobPoll: deferred(),
+    jobPollRequests: 0,
+    held: [],
+    holdNextReconcilingRead: false,
+    reconcileReads: 0,
+    laterReads: 0,
+    unexpected: 0
+  };
+  const hold = (args) => {
+    const d = deferred();
+    h.held.push({ args, ...d });
+    return d.promise;
+  };
+  reviewRequest.mockImplementation(() => Promise.resolve().then(() => {
+    h.phase = 'polling';
+    return { message: 'Status updated.' };
+  }));
+  getAdminRequests.mockImplementation((...args) => {
+    const schedulerShape = args.length === 1 && args[0] === 'ALL';
+    if (h.phase === 'setup') return Promise.resolve({ requests: [intakeRecord] });
+    if (h.phase === 'polling') {
+      if (schedulerShape && h.jobPollRequests === 0) {
+        h.jobPollRequests += 1; // refetchUntilJobReady's first attempt
+        return h.jobPoll.promise;
+      }
+      return hold(args); // any read that starts while job polling is pending
+    }
+    if (h.phase === 'reconciling') {
+      if (h.holdNextReconcilingRead) {
+        h.holdNextReconcilingRead = false;
+        return hold(args);
+      }
+      h.reconcileReads += 1;
+      return Promise.resolve({ requests: [reconciled] });
+    }
+    if (h.phase === 'later') {
+      h.laterReads += 1;
+      return Promise.resolve({ requests: [later] });
+    }
+    h.unexpected += 1;
+    return Promise.resolve({ requests: [intakeRecord] });
+  });
+  return h;
+};
+
+// Renders the Request List (All Active) and waits, by observed calls rather than sleeps,
+// until the All Active click's immediate and debounced list reads have both started.
+const renderListForRace = async () => {
+  render(<AdminDashboard />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Request List' }));
+  const allActive = await screen.findByRole('button', { name: /All Active/ });
+  const before = getAdminRequests.mock.calls.length;
+  fireEvent.click(allActive);
+  await waitFor(() => expect(getAdminRequests.mock.calls.length - before).toBeGreaterThanOrEqual(2));
+  await screen.findByText(/Workflow Client/);
+};
+
+const startApprovalAndHoldJobPoll = async (h) => {
+  fireEvent.click(screen.getByRole('button', { name: /Actions for Workflow Pet/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Approve & Open Scheduler' }));
+  await waitFor(() => expect(h.jobPollRequests).toBe(1));
+  expect(reviewRequest).toHaveBeenCalledTimes(1);
+};
+
+const releaseHeld = (h, settle) => act(async () => {
+  h.held.forEach(settle);
+  await Promise.allSettled(h.held.map(r => r.promise));
+  for (let i = 0; i < 10; i += 1) await Promise.resolve();
+});
+
 describe('guided workflow action resolver', () => {
   it.each(['APPROVED', 'BOOKED', 'JOB_CREATED'])('%s resolves to the assignment UI handoff', status => {
     expect(resolveGuidedWorkflowAction({ status }, ['ASSIGN'])).toEqual({
@@ -247,6 +334,14 @@ describe('AdminDashboard E1 and E2 workflow handoffs', () => {
   it.each(['ASSIGNED', 'SCHEDULED'])('navigates %s locally to the scheduler without API or status mutation', async status => {
     await renderRequestList(makeBooking(status, { worker_id: 'sitter@example.test' }));
 
+    // Deterministic setup: the "All Active" click legitimately schedules a 100 ms
+    // debounced list refresh. Wait for it before clearing mocks so it can't leak into
+    // the post-navigation assertions below.
+    await waitFor(() => {
+      expect(getAdminRequests).toHaveBeenCalledWith('ALL', null, 'ALL');
+    });
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 250)); });
+
     getAdminRequests.mockClear();
     getStaff.mockClear();
     getClients.mockClear();
@@ -258,6 +353,10 @@ describe('AdminDashboard E1 and E2 workflow handoffs', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'View in Calendar' }));
     expect(await screen.findByRole('heading', { name: 'Master Scheduler' })).toBeInTheDocument();
 
+    // Wait past the 100 ms refresh debounce so a deferred refresh can't slip past a
+    // first-tick waitFor; the assertions below must hold after the window closes.
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 250)); });
+
     await waitFor(() => {
       expect(getAdminRequests).not.toHaveBeenCalled();
       expect(getStaff).not.toHaveBeenCalled();
@@ -266,6 +365,235 @@ describe('AdminDashboard E1 and E2 workflow handoffs', () => {
       expect(assignWorker).not.toHaveBeenCalled();
       expect(performAdminAction).not.toHaveBeenCalled();
       expect(initiateGoogleAuth).not.toHaveBeenCalled();
+    });
+  });
+
+  it('suppresses only the navigation refresh: later view changes still refresh normally', async () => {
+    await renderRequestList(makeBooking('ASSIGNED', { worker_id: 'sitter@example.test' }));
+    await waitFor(() => {
+      expect(getAdminRequests).toHaveBeenCalledWith('ALL', null, 'ALL');
+    });
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 250)); });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'View in Calendar' }));
+    expect(await screen.findByRole('heading', { name: 'Master Scheduler' })).toBeInTheDocument();
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 250)); });
+
+    getAdminRequests.mockClear();
+    getStaff.mockClear();
+    getClients.mockClear();
+
+    // A subsequent, user-initiated view change is an ordinary refresh and must still load.
+    fireEvent.click(await screen.findByRole('button', { name: 'Request List' }));
+    await waitFor(() => {
+      expect(getAdminRequests).toHaveBeenCalled();
+      expect(getStaff).toHaveBeenCalled();
+      expect(getClients).toHaveBeenCalled();
+    });
+    expect(reviewRequest).not.toHaveBeenCalled();
+    expect(assignWorker).not.toHaveBeenCalled();
+    expect(performAdminAction).not.toHaveBeenCalled();
+  });
+
+  it('ordinary filter changes still refresh through both fetch effects', async () => {
+    getAdminRequests.mockResolvedValue({ requests: [makeBooking('ASSIGNED', { worker_id: 'sitter@example.test' })] });
+    render(<AdminDashboard />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Request List' }));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 250)); });
+    getAdminRequests.mockClear();
+
+    fireEvent.click(await screen.findByRole('button', { name: /All Active/ }));
+    // Immediate effect fires at once; the debounced effect fires ~100 ms later. Both are
+    // ordinary (non-navigation) refreshes and must not be suppressed.
+    await waitFor(() => {
+      const listCalls = getAdminRequests.mock.calls.filter(args => args[0] === 'ALL' && args[2] === 'ALL');
+      expect(listCalls.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  it('approval handoff performs exactly one Scheduler read besides the job-readiness read', async () => {
+    const request = makeCustomerIntake();
+    await renderRequestList(request);
+    // Drain the debounced list refresh scheduled by the "All Active" click.
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 250)); });
+    getAdminRequests.mockClear();
+    mockApprovalHandoffRefreshes(request, [
+      { ...request, status: 'APPROVED', pet_name: 'Refreshed Workflow Pet', pet_names: 'Refreshed Workflow Pet', job_id: 'job-intake-1' }
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: /Actions for Workflow Pet/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve & Open Scheduler' }));
+    expect(await screen.findByRole('heading', { name: 'Master Scheduler' })).toBeInTheDocument();
+    expect(await screen.findByText(/Refreshed Workflow Pet/)).toBeInTheDocument();
+    // Let every immediate/debounced effect settle before counting reads.
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 400)); });
+
+    // One job-readiness read (job ready on first attempt) + exactly one reconciliation read.
+    expect(getAdminRequests.mock.calls.filter(args => args.length === 1)).toHaveLength(2);
+    // No list/filter-style reads (immediate navigation refresh stays suppressed).
+    expect(getAdminRequests.mock.calls.filter(args => args.length !== 1)).toHaveLength(0);
+    expect(reviewRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('a late stale list-page response cannot overwrite the refreshed booking after the handoff', async () => {
+    const request = makeCustomerIntake();
+    const refreshed = {
+      ...request, status: 'APPROVED', pet_name: 'Refreshed Workflow Pet', pet_names: 'Refreshed Workflow Pet', job_id: 'job-intake-1'
+    };
+    let releaseStalePage;
+    const stalePage = new Promise(resolve => { releaseStalePage = resolve; });
+    getAdminRequests.mockImplementation((...args) => {
+      if (args.length === 1) return Promise.resolve({ requests: [refreshed] });
+      if (args[1] === 'page-2') return stalePage; // held open: completes AFTER the handoff
+      return Promise.resolve({ requests: [request], lastKey: 'page-2' });
+    });
+    render(<AdminDashboard />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Request List' }));
+    fireEvent.click(await screen.findByRole('button', { name: /All Active/ }));
+    await screen.findByText(/Workflow Client/);
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 250)); });
+
+    // Start a paged list read that will complete out of order (after the handoff).
+    fireEvent.click(await screen.findByRole('button', { name: /Next Page/ }));
+    await waitFor(() => expect(getAdminRequests).toHaveBeenCalledWith('ALL', 'page-2', 'ALL'));
+
+    fireEvent.click(screen.getByRole('button', { name: /Actions for Workflow Pet/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve & Open Scheduler' }));
+    expect(await screen.findByRole('heading', { name: 'Master Scheduler' })).toBeInTheDocument();
+    expect(await screen.findByText(/Refreshed Workflow Pet/)).toBeInTheDocument();
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 250)); });
+
+    // Reversed completion order: the older list page now resolves with the pre-approval record.
+    await act(async () => {
+      releaseStalePage({ requests: [request] });
+      await stalePage;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+
+    expect(screen.getByText(/Refreshed Workflow Pet/)).toBeInTheDocument();
+  });
+
+  describe('approval handoff reconciliation versus reads started during job polling', () => {
+    const intakeRecord = makeCustomerIntake();
+    const reconciled = {
+      ...intakeRecord, status: 'APPROVED', pet_name: 'Refreshed Workflow Pet', pet_names: 'Refreshed Workflow Pet', job_id: 'job-intake-1'
+    };
+    // Older post-approval snapshot (approved; job not yet created).
+    const olderSnapshot = { ...intakeRecord, status: 'APPROVED' };
+    const resolveOlder = r => r.resolve({ requests: [olderSnapshot], lastKey: 'stale-key' });
+
+    it('list reads started during polling and resolving after reconciliation cannot overwrite the job-ready booking', async () => {
+      const h = createApprovalRaceHarness(intakeRecord, { reconciled });
+      await renderListForRace();
+      await startApprovalAndHoldJobPoll(h);
+      // SETUP: polling is genuinely pending; the handoff has not navigated yet.
+      expect(screen.queryByRole('heading', { name: 'Master Scheduler' })).toBeNull();
+
+      fireEvent.change(screen.getByDisplayValue('All Time'), { target: { value: 'DAILY' } });
+      // SETUP: the immediate and debounced list reads both started after the approval boundary.
+      await waitFor(() => expect(h.held).toHaveLength(2));
+      expect(h.held.every(r => r.args.includes('DAILY'))).toBe(true);
+      expect(screen.queryByRole('heading', { name: 'Master Scheduler' })).toBeNull();
+
+      h.phase = 'reconciling';
+      await act(async () => { h.jobPoll.resolve({ requests: [reconciled] }); });
+      expect(await screen.findByRole('heading', { name: 'Master Scheduler' })).toBeInTheDocument();
+      await waitFor(() => expect(h.reconcileReads).toBe(1));
+      expect((await screen.findAllByText(/Refreshed Workflow Pet/)).length).toBeGreaterThan(0);
+
+      // Reversed completion: the older list reads resolve last.
+      await releaseHeld(h, resolveOlder);
+      expect(screen.getAllByText(/Refreshed Workflow Pet/).length).toBeGreaterThan(0);
+      expect(h.reconcileReads).toBe(1);
+      expect(h.unexpected).toBe(0);
+    });
+
+    it('a failed superseded read neither reports an error nor clears the reconciled booking', async () => {
+      const h = createApprovalRaceHarness(intakeRecord, { reconciled });
+      await renderListForRace();
+      await startApprovalAndHoldJobPoll(h);
+      fireEvent.change(screen.getByDisplayValue('All Time'), { target: { value: 'DAILY' } });
+      await waitFor(() => expect(h.held).toHaveLength(2));
+
+      h.phase = 'reconciling';
+      await act(async () => { h.jobPoll.resolve({ requests: [reconciled] }); });
+      await waitFor(() => expect(h.reconcileReads).toBe(1));
+      expect((await screen.findAllByText(/Refreshed Workflow Pet/)).length).toBeGreaterThan(0);
+
+      await releaseHeld(h, r => r.reject(new Error('late network failure')));
+      expect(screen.queryByText(/Failed to fetch data/)).toBeNull();
+      expect(screen.getAllByText(/Refreshed Workflow Pet/).length).toBeGreaterThan(0);
+      expect(h.unexpected).toBe(0);
+    });
+
+    it('keeps the reconciliation pending when its debounced timer is cancelled by a filter change', async () => {
+      const h = createApprovalRaceHarness(intakeRecord, { reconciled });
+      await renderListForRace();
+      await startApprovalAndHoldJobPoll(h);
+
+      h.phase = 'reconciling';
+      h.holdNextReconcilingRead = true; // the immediate read caused by the filter change below
+      await act(async () => { h.jobPoll.resolve({ requests: [reconciled] }); });
+      expect(await screen.findByRole('heading', { name: 'Master Scheduler' })).toBeInTheDocument();
+      // SETUP: the reconciliation timer has not fired yet.
+      expect(h.reconcileReads).toBe(0);
+
+      // Cancels and re-arms the debounced timer; also starts an immediate read (held).
+      fireEvent.change(screen.getByDisplayValue('All Time'), { target: { value: 'DAILY' } });
+      await waitFor(() => expect(h.held).toHaveLength(1));
+      // The re-armed timer still performs the single authoritative reconciliation read.
+      await waitFor(() => expect(h.reconcileReads).toBe(1));
+      expect((await screen.findAllByText(/Refreshed Workflow Pet/)).length).toBeGreaterThan(0);
+
+      // The immediate read started before the reconciliation is superseded when it lands last.
+      await releaseHeld(h, resolveOlder);
+      expect(screen.getAllByText(/Refreshed Workflow Pet/).length).toBeGreaterThan(0);
+      expect(h.reconcileReads).toBe(1);
+      expect(h.unexpected).toBe(0);
+    });
+
+    it('reconciles exactly once when the Scheduler is already showing when polling completes', async () => {
+      const h = createApprovalRaceHarness(intakeRecord, { reconciled });
+      await renderListForRace();
+      await startApprovalAndHoldJobPoll(h);
+
+      // The user opens the Scheduler themselves while job polling is pending.
+      fireEvent.click(screen.getByRole('button', { name: 'Scheduler' }));
+      expect(await screen.findByRole('heading', { name: 'Master Scheduler' })).toBeInTheDocument();
+      // SETUP: that view change started the immediate and debounced reads (both held).
+      await waitFor(() => expect(h.held).toHaveLength(2));
+
+      // No view transition remains for the handoff, yet it must still reconcile once.
+      h.phase = 'reconciling';
+      await act(async () => { h.jobPoll.resolve({ requests: [reconciled] }); });
+      await waitFor(() => expect(h.reconcileReads).toBe(1));
+      expect((await screen.findAllByText(/Refreshed Workflow Pet/)).length).toBeGreaterThan(0);
+
+      await releaseHeld(h, resolveOlder);
+      expect(screen.getAllByText(/Refreshed Workflow Pet/).length).toBeGreaterThan(0);
+      expect(h.reconcileReads).toBe(1);
+      expect(h.unexpected).toBe(0);
+    });
+
+    it('applies ordinary refreshes made after the handoff completes', async () => {
+      const later = { ...reconciled, pet_name: 'Later Workflow Pet', pet_names: 'Later Workflow Pet' };
+      const h = createApprovalRaceHarness(intakeRecord, { reconciled, later });
+      await renderListForRace();
+      await startApprovalAndHoldJobPoll(h);
+
+      h.phase = 'reconciling';
+      await act(async () => { h.jobPoll.resolve({ requests: [reconciled] }); });
+      await waitFor(() => expect(h.reconcileReads).toBe(1));
+      expect((await screen.findAllByText(/Refreshed Workflow Pet/)).length).toBeGreaterThan(0);
+
+      h.phase = 'later';
+      fireEvent.change(screen.getByDisplayValue('All Time'), { target: { value: 'DAILY' } });
+      await waitFor(() => expect(h.laterReads).toBeGreaterThanOrEqual(2)); // immediate + debounced
+      expect((await screen.findAllByText(/Later Workflow Pet/)).length).toBeGreaterThan(0);
+      await flushAsync();
+      expect(screen.queryByText(/Refreshed Workflow Pet/)).toBeNull();
+      expect(h.reconcileReads).toBe(1);
+      expect(h.unexpected).toBe(0);
     });
   });
 

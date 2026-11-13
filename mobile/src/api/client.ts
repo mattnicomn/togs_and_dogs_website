@@ -3,6 +3,11 @@ import { getIdToken, isTokenExpired } from '../auth/storage';
 import { refreshSession } from '../auth/cognito';
 import { API_PATHS, buildPath } from '../contracts/generatedContracts';
 import type {
+  AdminQuoteSendResponse,
+  AdminQuoteUpdatePayload,
+  AdminQuoteUpdateResponse,
+  CancellationDecision,
+  CancellationDecisionResponse,
   ClientQuote,
   ClientQuoteAcceptResponse,
   ClientQuoteDeclineResponse,
@@ -11,15 +16,18 @@ import type {
 /**
  * OPS-3A.3A: Error carrying the HTTP status so callers can branch on it
  * (e.g. 409 conflict reconciliation in OPS-3A.3C) without parsing message text.
- * Preserves the existing message behavior; exposes only the numeric status, no
- * raw response/body/session/auth data.
+ * Preserves the existing message behavior; exposes only the numeric status and, when
+ * the server supplies one, its machine-readable `code` (D-4: e.g. a 409 classification).
+ * No raw response/body/session/auth data.
  */
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    if (typeof code === 'string' && code) this.code = code;
   }
 }
 
@@ -63,6 +71,7 @@ const request = async (path: string, method = 'GET', data: any = null, isProtect
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     const errorMessage = errorData.error || errorData.message || `Request failed with status ${response.status}`;
+    const errorCode = typeof errorData.code === 'string' && errorData.code ? errorData.code : undefined;
     // 401 = token expired or invalid → surface as session expiry so auth layer can log out.
     // Message text is preserved exactly so existing session-recovery checks continue to match.
     if (
@@ -74,10 +83,11 @@ const request = async (path: string, method = 'GET', data: any = null, isProtect
     }
     // 403 = valid token but insufficient role → surface as a plain permission error (do NOT trigger logout)
     if (response.status === 403) {
-      throw new ApiError(errorMessage || 'You do not have permission to perform this action.', 403);
+      throw new ApiError(errorMessage || 'You do not have permission to perform this action.', 403, errorCode);
     }
-    // All other non-OK responses preserve the HTTP status (e.g. 409 conflict) for callers.
-    throw new ApiError(errorMessage, response.status);
+    // All other non-OK responses preserve the HTTP status (e.g. 409 conflict) and the
+    // server's machine-readable code, when present, for callers.
+    throw new ApiError(errorMessage, response.status, errorCode);
   }
   
   return response.json();
@@ -132,6 +142,46 @@ export const completeJob = (jobId: string, requestId: string, visitNotes = "") =
 
 export const startJob = (jobId: string, requestId: string) =>
   request(API_PATHS.admin.jobStart, 'POST', { job_id: jobId, request_id: requestId }, true);
+
+// S1: Owner/admin canonical quote draft/update and send.
+// The deployed PATCH is last-write-wins (no expected_revision contract). Only the
+// send route has a server-side conditional write (409). Callers must not retry a
+// potentially successful mutation.
+
+// PATCH /admin/requests/{requestId}/quote — create/update the DRAFT quote.
+export const updateAdminQuote = (
+  requestId: string,
+  payload: AdminQuoteUpdatePayload,
+): Promise<AdminQuoteUpdateResponse> =>
+  request(buildPath(API_PATHS.admin.updateQuote, { requestId }), 'PATCH', payload, true);
+
+// POST /admin/requests/{requestId}/quote/send — DRAFT -> SENT. No request body.
+export const sendAdminQuote = (requestId: string): Promise<AdminQuoteSendResponse> =>
+  request(buildPath(API_PATHS.admin.sendQuote, { requestId }), 'POST', null, true);
+
+// S2 / D-4: Owner/admin cancellation decision.
+// PUT /admin/cancel/decision with { request_id, client_id, decision, note } plus
+// `cancellation_request_id` when the caller supplies the cycle id it read. The id is
+// omitted (never invented) for a legacy request that has none. With BE-CANCEL-1 the
+// server enforces the pending status, the exact literals and the cycle id with a
+// conditional write and answers conflicts with 409 + `code`. Callers must re-read and
+// verify CANCELLATION_REQUESTED first, and must never retry automatically.
+export const processCancellationDecision = (
+  requestId: string,
+  clientId: string,
+  decision: CancellationDecision,
+  note = '',
+  cancellationRequestId?: string,
+): Promise<CancellationDecisionResponse> =>
+  request(API_PATHS.admin.cancelDecision, 'PUT', {
+    request_id: requestId,
+    client_id: clientId,
+    decision,
+    note,
+    ...(typeof cancellationRequestId === 'string' && cancellationRequestId
+      ? { cancellation_request_id: cancellationRequestId }
+      : {}),
+  }, true);
 
 // Phase 24A-4: Client pets listing (read-only)
 export const getClientPets = () => request(API_PATHS.client.getPets, 'GET', null, true);

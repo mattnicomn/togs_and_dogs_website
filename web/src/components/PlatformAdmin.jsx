@@ -11,22 +11,32 @@ const PlatformAdmin = () => {
   
   const navigate = useNavigate();
 
-  const fetchTenants = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getPlatformTenants();
-      setTenants(data.tenants || []);
-    } catch (err) {
-      console.error('Failed to load tenants:', err);
-      setError(err.message || 'Failed to fetch platform tenants. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+  // Loads tenants; state is only set once the request settles. The executor form
+  // turns a synchronous throw into a rejection, exactly as the previous async
+  // try/catch did.
+  const loadTenants = () =>
+    new Promise((resolve) => resolve(getPlatformTenants()))
+      .then((data) => {
+        setTenants(data.tenants || []);
+      })
+      .catch((err) => {
+        console.error('Failed to load tenants:', err);
+        setError(err.message || 'Failed to fetch platform tenants. Please try again.');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+
+  // Retry: reset the loading/error state, then load.
+  const fetchTenants = () => {
+    setLoading(true);
+    setError(null);
+    return loadTenants();
   };
 
+  // Mount: loading already starts true and error null, so only the load is needed.
   useEffect(() => {
-    fetchTenants();
+    loadTenants();
   }, []);
 
   const formatDate = (dateStr) => {
@@ -38,7 +48,7 @@ const PlatformAdmin = () => {
         month: 'short',
         day: 'numeric'
       });
-    } catch (e) {
+    } catch {
       return dateStr;
     }
   };

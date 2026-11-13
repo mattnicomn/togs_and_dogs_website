@@ -204,6 +204,77 @@ CLIENT_REQUEST_LIST_ALLOWLIST = (
 )
 
 
+#: D-1: the ONLY cancellation-related keys the client list may emit. They are DERIVED
+#: server-side by ``_derive_cancellation_denial`` and are deliberately NOT part of
+#: ``CLIENT_REQUEST_LIST_ALLOWLIST``: no raw ``cancellation_*`` attribute of the REQUEST
+#: record (reason, decision, note, actor, cycle ids, prior status, timestamps, ...) is ever
+#: copied into the client projection. This is an explicit exception, not a pass-through.
+CLIENT_REQUEST_LIST_DERIVED_FIELDS = (
+    "cancellation_denied",
+    "cancellation_denied_at",
+)
+
+#: D-1: a denial marker is only meaningful while the booking is active in the exact status
+#: BE-CANCEL-1 restores on a DENY. Any other status (CANCELLED, COMPLETED, ARCHIVED, the
+#: legacy CANCELLATION_DENIED, a new CANCELLATION_REQUESTED, ...) never shows the marker.
+_DENIAL_MARKER_STATUSES = ("APPROVED", "ASSIGNED")
+
+_MAX_SAFE_TIMESTAMP_LEN = 40
+
+
+def _safe_utc_timestamp(value):
+    """Return a normalized UTC ISO-8601 string for a valid, timezone-aware timestamp
+    string; otherwise None. Never returns the raw value, never raises."""
+    if not isinstance(value, str):
+        return None
+    raw = value.strip()
+    if not raw or len(raw) > _MAX_SAFE_TIMESTAMP_LEN:
+        return None
+    try:
+        from datetime import datetime, timezone
+        parsed = datetime.fromisoformat(raw[:-1] + "+00:00" if raw.endswith(("Z", "z")) else raw)
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            return None
+        return parsed.astimezone(timezone.utc).isoformat()
+    except (ValueError, OverflowError):
+        return None
+
+
+def _derive_cancellation_denial(record):
+    """D-1: derive the client-safe cancellation-denial marker from persisted server state.
+
+    Returns ``{}`` unless ALL of the following hold, in which case it returns
+    ``{"cancellation_denied": True}`` (plus ``"cancellation_denied_at"`` only when the
+    recorded decision time is a valid, timezone-aware timestamp):
+
+    * ``cancellation_decision`` is exactly ``"DENY"``;
+    * ``cancellation_decision_request_id`` is a non-empty string equal to the booking's
+      CURRENT non-empty ``cancellation_request_id`` (the decision belongs to the current
+      cancellation cycle; a new cycle clears the decision and a mismatch never shows it);
+    * ``status`` is exactly ``"APPROVED"`` or ``"ASSIGNED"``.
+
+    The function reads only those four attributes plus the decision time and returns only
+    the derived values; the admin note, actor, audit entries, cycle ids, prior status and
+    every other attribute are never exposed. Legacy records (no cycle ids, or the old
+    ``CANCELLATION_DENIED`` status) never produce a marker: nothing is inferred.
+    """
+    if record.get("cancellation_decision") != "DENY":
+        return {}
+    current_cycle = record.get("cancellation_request_id")
+    decided_cycle = record.get("cancellation_decision_request_id")
+    if not (isinstance(current_cycle, str) and current_cycle.strip()):
+        return {}
+    if not (isinstance(decided_cycle, str) and decided_cycle == current_cycle):
+        return {}
+    if record.get("status") not in _DENIAL_MARKER_STATUSES:
+        return {}
+    derived = {"cancellation_denied": True}
+    denied_at = _safe_utc_timestamp(record.get("cancellation_decision_at"))
+    if denied_at:
+        derived["cancellation_denied_at"] = denied_at
+    return derived
+
+
 def project_client_request_list_item(record):
     """Return a client-safe LIST projection of a single REQUEST record.
 
@@ -233,6 +304,8 @@ def project_client_request_list_item(record):
     for field in CLIENT_REQUEST_LIST_ALLOWLIST:
         if field in record:
             projected[field] = record[field]
+    # D-1: the only two derived cancellation keys (see CLIENT_REQUEST_LIST_DERIVED_FIELDS).
+    projected.update(_derive_cancellation_denial(record))
     return projected
 
 

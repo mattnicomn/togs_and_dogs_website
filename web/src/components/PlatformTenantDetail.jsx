@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import { getPlatformTenant, updatePlatformTenant } from '../api/platform';
 import './PlatformAdmin.css';
 
@@ -51,7 +51,6 @@ const tierPriority = { starter: 1, professional: 2, premium: 3, enterprise: 4 };
 
 const PlatformTenantDetail = () => {
   const { companyId } = useParams();
-  const navigate = useNavigate();
 
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -72,31 +71,74 @@ const PlatformTenantDetail = () => {
   const [modalError, setModalError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  const fetchTenantDetail = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getPlatformTenant(companyId);
-      setTenant(data);
-      
-      // Initialize form fields
-      setFormFields({
-        display_name: data.profile?.display_name || '',
-        subscription_tier: data.subscription?.tier || 'starter',
-        subscription_status: data.subscription?.status || 'active',
-        admin_override_until: data.profile?.admin_override_until ? data.profile.admin_override_until.substring(0, 16) : '',
-        notes: data.profile?.notes || '',
+  const requestSeqRef = useRef(0);
+  const activeCompanyIdRef = useRef(companyId);
+
+  // Loads the tenant; state is only set once the request settles and still matches
+  // the active route companyId and request generation. The executor form turns a
+  // synchronous throw into a rejection, exactly as the previous async try/catch did.
+  const loadTenantDetail = (targetCompanyId = companyId) => {
+    activeCompanyIdRef.current = targetCompanyId;
+    const seq = ++requestSeqRef.current;
+    const isCurrentRequest = () =>
+      requestSeqRef.current === seq && activeCompanyIdRef.current === targetCompanyId;
+
+    return new Promise((resolve) => resolve(getPlatformTenant(targetCompanyId)))
+      .then((data) => {
+        if (!isCurrentRequest()) return;
+        setTenant(data);
+
+        // Initialize form fields
+        setFormFields({
+          display_name: data.profile?.display_name || '',
+          subscription_tier: data.subscription?.tier || 'starter',
+          subscription_status: data.subscription?.status || 'active',
+          admin_override_until: data.profile?.admin_override_until ? data.profile.admin_override_until.substring(0, 16) : '',
+          notes: data.profile?.notes || '',
+        });
+      })
+      .catch((err) => {
+        if (!isCurrentRequest()) return;
+        console.error('Failed to load tenant details:', err);
+        setError(err.message || 'Failed to fetch tenant metadata.');
+      })
+      .finally(() => {
+        if (!isCurrentRequest()) return;
+        setLoading(false);
       });
-    } catch (err) {
-      console.error('Failed to load tenant details:', err);
-      setError(err.message || 'Failed to fetch tenant metadata.');
-    } finally {
-      setLoading(false);
-    }
   };
 
+  // Retry / post-save refresh: reset the loading/error state, then load.
+  const fetchTenantDetail = () => {
+    setLoading(true);
+    setError(null);
+    return loadTenantDetail(companyId);
+  };
+
+  // Navigating to another tenant resets loading/error and transient modal/banner
+  // state during render, so the previous tenant's details are never committed
+  // under the new tenant's route. (Previously this reset ran one commit later
+  // from the effect.)
+  const [loadingCompanyId, setLoadingCompanyId] = useState(companyId);
+  if (loadingCompanyId !== companyId) {
+    setLoadingCompanyId(companyId);
+    setTenant(null);
+    setLoading(true);
+    setError(null);
+    setIsEditOpen(false);
+    setModalStep('edit');
+    setModalError(null);
+    setSuccessMessage(null);
+    setSaving(false);
+  }
+
+  // On mount loading already starts true and error null, so only the load is needed.
   useEffect(() => {
-    fetchTenantDetail();
+    loadTenantDetail(companyId);
+    return () => {
+      requestSeqRef.current += 1;
+      activeCompanyIdRef.current = null;
+    };
   }, [companyId]);
 
   if (loading) {
@@ -139,7 +181,7 @@ const PlatformTenantDetail = () => {
         hour: '2-digit',
         minute: '2-digit'
       });
-    } catch (e) {
+    } catch {
       return dateStr;
     }
   };
@@ -154,7 +196,7 @@ const PlatformTenantDetail = () => {
     if (!override) return false;
     try {
       return new Date() < new Date(override);
-    } catch (e) {
+    } catch {
       return false;
     }
   };
@@ -249,6 +291,7 @@ const PlatformTenantDetail = () => {
   };
 
   const handleConfirmSave = async () => {
+    const targetCompanyId = companyId;
     try {
       setSaving(true);
       setModalError(null);
@@ -263,19 +306,24 @@ const PlatformTenantDetail = () => {
       };
 
       // Perform update API helper call
-      await updatePlatformTenant(companyId, payload);
+      await updatePlatformTenant(targetCompanyId, payload);
+      if (activeCompanyIdRef.current !== targetCompanyId) return;
       
       // Close modal and refresh details
       setIsEditOpen(false);
       await fetchTenantDetail();
+      if (activeCompanyIdRef.current !== targetCompanyId) return;
 
       setSuccessMessage('Subscription plan updated successfully.');
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
+      if (activeCompanyIdRef.current !== targetCompanyId) return;
       console.error('Failed to update tenant:', err);
       setModalError(err.message || 'Failed to update subscription metadata.');
     } finally {
-      setSaving(false);
+      if (activeCompanyIdRef.current === targetCompanyId) {
+        setSaving(false);
+      }
     }
   };
 

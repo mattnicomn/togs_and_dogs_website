@@ -3,37 +3,41 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { completeGoogleAuth } from '../api/client';
 
 const GoogleCallback = () => {
-    const [status, setStatus] = useState('processing');
-    const [error, setError] = useState(null);
+    const [completionStatus, setStatus] = useState('processing');
+    // The error detail is recorded but (as before) not rendered.
+    const [, setError] = useState(null);
     const navigate = useNavigate();
     const location = useLocation();
+
+    // A callback without both `code` and `state` is invalid: it is shown as an error
+    // and never reaches the token exchange (derived during render, no effect needed).
+    const callbackParams = new URLSearchParams(location.search);
+    const hasCallbackParams = Boolean(callbackParams.get('code') && callbackParams.get('state'));
+    const status = hasCallbackParams ? completionStatus : 'error';
 
     useEffect(() => {
         const params = new URLSearchParams(location.search);
         const code = params.get('code');
         const state = params.get('state');
+        if (!(code && state)) return;
 
-        if (code && state) {
-            handleComplete(code, state);
-        } else {
-            setStatus('error');
-            setError('Missing code or state in callback.');
-        }
+        // Only used by this effect, so it is declared here. State is set only after
+        // the token exchange settles.
+        const handleComplete = async () => {
+            try {
+                await completeGoogleAuth(code, state);
+                setStatus('success');
+                setTimeout(() => {
+                    navigate('/admin');
+                }, 3000);
+            } catch (err) {
+                console.error("Token exchange failed", err);
+                setStatus('error');
+                setError(err.message);
+            }
+        };
+        handleComplete();
     }, [location, navigate]);
-
-    const handleComplete = async (code, state) => {
-        try {
-            await completeGoogleAuth(code, state);
-            setStatus('success');
-            setTimeout(() => {
-                navigate('/admin');
-            }, 3000);
-        } catch (err) {
-            console.error("Token exchange failed", err);
-            setStatus('error');
-            setError(err.message);
-        }
-    };
 
     return (
         <div className="section google-callback-section">

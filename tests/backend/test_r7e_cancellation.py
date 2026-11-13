@@ -22,6 +22,8 @@ def mock_get_item(pk, sk):
                 "SK": sk,
                 "request_id": req_id,
                 "client_id": "client-123",
+                # BE-CANCEL-1: a decision is only accepted while the request is pending.
+                "status": "CANCELLATION_REQUESTED",
                 "google_event_id": "parent_event_1",
             }
             
@@ -32,6 +34,8 @@ def mock_get_item(pk, sk):
                 "SK": sk,
                 "request_id": req_id,
                 "client_id": "client-123",
+                # BE-CANCEL-1: a decision is only accepted while the request is pending.
+                "status": "CANCELLATION_REQUESTED",
                 "start_date": "2026-07-20",
                 "end_date": "2026-07-21",
                 "job_ids": ["job-1", "job-2"]
