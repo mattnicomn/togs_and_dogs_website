@@ -142,7 +142,7 @@ authorized_at:       <timestamp>
 
 ## Cross-Platform Service & Workflow Alignment
 
-- ✅ Ryan O1 Overnight Fixed Scheduling is committed and pushed but **NOT DEPLOYED** and is absent from the current internal mobile builds
+- ✅ Ryan O1 Overnight Fixed Scheduling is committed and pushed but **NOT DEPLOYED** and is absent from the current internal mobile builds *(historical statement, preserved. B6-B1 factual update 2026-11-13: O1 backend code (`46bb6b8`) is present in the live 12 non-admin Lambda artifact `W6cqyudl…` — `BACKEND_CODE_DEPLOYED`; runtime acceptance and Ryan testing are NOT performed, and O1 remains absent from the internal mobile builds. This factual update grants no deployment, testing or release approval; the rule below is unchanged.)*
 - ❌ Do not deploy O1 without a separate explicit Matthew approval
 - ✅ Any operational service or workflow change must be assessed across: Web, Mobile, Shared contracts, Backend, Calendar/scheduling, and Notifications
 - ✅ Shared contracts (`shared/constants/`) are the canonical source of truth for service IDs, labels, durations, visit rules, and time windows

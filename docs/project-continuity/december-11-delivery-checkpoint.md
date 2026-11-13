@@ -2,7 +2,7 @@
 
 **Status:** ACTIVE delivery checkpoint for the single-business pilot (Togs & Dogs on PetCare Hero).
 **Target:** usable Android + web application by **2026-12-11**.
-**As of:** 2026-11-13 (B5-C1 post-merge documentation reconciliation after the owner-authorized B5-B squash merge of PR #78 into `main` at `cac3cd6a82220353c1d48599b484368f78251033`). **Assessment:** **AT RISK — RECOVERING (Full-Stack Source Integration MERGED to `main`, NOT DEPLOYED; Calendar Option 3A Selected; Full Convergence for Planning Only; Gated on Pre-Deploy Verification, W1 Release Scope, and Deploy/Build/Distribution Approvals)** (see §5).
+**As of:** 2026-11-13 (B6-C1 production baseline documentation reconciliation after the owner-approved read-only B6-B1 AWS metadata verification; see §16). *(Prior as-of text for the same date, preserved: B5-C1 post-merge documentation reconciliation after the owner-authorized B5-B squash merge of PR #78 into `main` at `cac3cd6a82220353c1d48599b484368f78251033`.)* **Assessment:** **AT RISK — RECOVERING (Full-Stack Source Integration MERGED to `main`, NOT DEPLOYED; Calendar Option 3A Selected; Full Convergence for Planning Only; Gated on Pre-Deploy Verification, W1 Release Scope, and Deploy/Build/Distribution Approvals)** (see §5).
 *(Previous as-of line, preserved: 2026-11-13 (B4.1 final documentation accuracy & owner planning decision reconciliation on top of full-stack Draft PR #78). Assessment: AT RISK — RECOVERING (Full-Stack Source Candidate Verified & CI Green; Consolidated Strategy & Calendar Option 3A Selected; Gated on Explicit Merge Authorization, W1 Release Scope, and Deploy/Build Approvals).)*
 
 This file is the shared checkpoint for ChatGPT, Kiro Desktop/Web and authorized implementation
@@ -46,6 +46,8 @@ snapshot; re-verify live state before acting).
 | Ruleset `protect-main-mvp` | Unchanged: PR required, 0 approvals, no required status checks, deletion + non-fast-forward blocked. Merge attributed to the owner identity; no independent human GitHub review (ChatGPT independent source review only) |
 | Source branches | `integration/b2c-full-stack-verification` and `docs/b4-release-gate-reconciliation` retained at `77e8ec8` (not deleted) |
 | Main checkout | on `fix/web-eslint-baseline-20261011` with one untracked `infra/prod/_gatea_plan_out.txt` — preserve; local `main` ref fast-forwarded to `cac3cd6` |
+| `origin/main` (B6-C1 update) | `61e84d9649d016f462a4f436f8ec266b83e2d2de` — PR #80 B5-C1 docs squash merge on top of `cac3cd6` (4 docs files) |
+| Production baseline (B6-B1) | Live-verified read-only on 2026-11-13 — see §16 |
 
 PR status after B5-B:
 
@@ -99,18 +101,20 @@ Mobile stack: **#69 → #68 → #67 → #46 → `main`**, combined with **#77 (#
 [`current-state.md`](current-state.md).
 
 Recorded production state (from `current-state.md`, not re-verified against AWS here):
+*(B6-B1 update 2026-11-13: the Lambda, API Gateway, IAM and Web items below were subsequently
+live-verified read-only and all match — see §16.)*
 
 - **Admin Lambda (`togs-and-dogs-prod-admin`):** `CodeSha256 GlA3mUtq3O0RJcdc3i2MQjwcbuo8aiv52ACvacQH99o=` (deployed 2026-10-27 from `main == 263b3e7`).
 - **Other 12 Lambdas (`intake`, `review`, `assign`, `job`, `google-auth`, `pet`, `cancellation`, `device`, `ses-feedback`, `postmark-webhook`, `stripe-webhook`, `platform`):** `CodeSha256 W6cqyudlRQF3Zw7uN2V42JzziwYITg8r5mCnsGdDAq4=` (deployed 2026-10-22 from curated PR #22 privacy RC `b94455a`).
 - **API Gateway (`a022yxuiue` / stage `prod`):** deployment `n40vai` (2026-10-24).
-- **Web (`app.togsanddogs.com`):** deployed 2026-10-08 (W2C Gate D2) from `main == 7c1a8f1f898233e37ee5c77e38bb92058deee3c7` (`index-DrAWpyW_.js`, `index-DEfFpwho.css`).
+- **Web (`toganddogs.usmissionhero.com`; bucket `togs-and-dogs-prod-toganddogs-hosting`; CloudFront `E35L00QPA2IRCY`):** deployed 2026-10-08 (W2C Gate D2, as recorded) from `main == 7c1a8f1f898233e37ee5c77e38bb92058deee3c7` (`index-DrAWpyW_.js`, `index-DEfFpwho.css`). *(B6-B1 2026-11-13: live-verified — public `index.html` SHA-256 `cc453a6e…` matches the W2C record and references `index-DrAWpyW_.js` / `index-DEfFpwho.css`; 11 bucket objects; CloudFront `Deployed`. Live object timestamps read 2026-10-10 UTC; see §16. Hostname corrected from the previously recorded `app.togsanddogs.com`.)*
 - **Mobile internal builds:** iOS `1.0.0 (6)` / Android `1.0.0` versionCode `4`, both from
   `bf9f80d95c1846f197bab24d96463906bc26bfce`. **None** of the D1/D2, E3B/E3B.1, OPS-3A.3 client quote UX, W4 Option A, W1 `pet_ids`, or #46–#69 mobile work is in a distributed build.
 - **W1 & untargeted apply guard:** `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`; `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES` — an untargeted `terraform apply` would sweep all 12 non-admin Lambdas and ship every merged-not-deployed backend change at once. Prohibited without explicit Matthew approval.
   *(B5-B update 2026-11-13: since `main` is now `cac3cd6`, an untargeted apply would additionally ship the entire merged PR #78 backend scope — BE-CANCEL-1, D-1, R7E — alongside W1. Still prohibited.)*
 - Stripe sandbox-only (EIN). `TENANT_RESOLUTION_MODE=multi` unchanged.
 
-### Two distinct `W1` concepts in repository source (both NOT deployed on `intake`/`job` Lambdas)
+### Two distinct `W1` concepts in repository source (deployment status corrected in B6-B1; original 2026-11-12 heading read "both NOT deployed on `intake`/`job` Lambdas")
 
 1. **Workstream 1 (`W1`) — Canonical Existing-Pet Association (`pet_ids`)** (PR #26 `429f3b9`,
    [release note](../release-notes/w1-canonical-request-pet-association.md)): authenticated client
@@ -122,8 +126,16 @@ Recorded production state (from `current-state.md`, not re-verified against AWS 
    `MORNING`/`MIDDAY`/`EVENING` single-window selection, deterministic UUIDv5 child `JOB` IDs, and
    deterministic `td<uuid_hex>` Google Calendar event IDs in `intake_handler.py`, `job_handler.py`,
    and `common/check_in.py`.
+   *(B6-B1 2026-11-13: **`BACKEND_CODE_DEPLOYED`** — this Ryan Slice W1 Walk backend code (`c51828e`)
+   is in the live 12 non-admin Lambda artifact `W6cqyudl…` (see §16). Runtime acceptance, customer
+   use and Ryan testing are NOT verified or claimed. Item 1, Workstream 1 `pet_ids`
+   validation/linking (#26 `429f3b9`), remains **NOT DEPLOYED**.)*
 - **Gate:** **`W1_PRODUCTION_RELEASE_AUTHORIZED=NO`**. Neither W1 workstream is authorized for
   production deployment.
+  *(B6-B1: gate unchanged — `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`,
+  `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`. The gate wording predates the finding that Ryan Slice W1
+  Walk backend code is already deployed; reconciling its scope is an open owner decision. No
+  historical approval is reinterpreted and no new approval is inferred.)*
 
 **Merged to `main` (`8fe7fa7`) but NOT deployed on the 12 non-admin Lambdas, Web (`7c1a8f1`), or Mobile (`bf9f80d`):**
 Ryan Slices A–C, C1, D1–D2, R1, W1 Walk (`WALK_20MIN`), O1 Overnight (`21:00–07:00`), E1, E2, E3A
@@ -132,6 +144,15 @@ Lambdas and Android `vc4`); Workstream 1 `pet_ids` association (PR #26/#27); W3-
 domain/adapter (PR #29/#31, present inside `admin` Lambda via W3-C2, dormant on the other 12); W4
 Option A client status presentation (PR #24, web/mobile); AC-9 Google OAuth diagnostics (`google-auth`
 Lambda). See [`document-map.md`](document-map.md) for each release note.
+*(B6-B1 2026-11-13 correction, list above preserved as recorded: the 12 non-admin Lambdas are
+live-verified on `W6cqyudl…`, byte-identical to the retained rollback ZIP whose 49 files match RC
+`b94455a` exactly. That artifact contains the backend code of Ryan O1 Overnight (`46bb6b8`), E3A
+child start (`e10a98e`), Ryan W1 Walk (`c51828e`) and R1 (`66d6cc3`) → **`BACKEND_CODE_DEPLOYED`**
+on `intake`, `job` and the other non-admin functions. Runtime acceptance, customer use and Ryan
+testing are NOT verified or claimed. Slices A–C, C1, E1 and E2 backend presence was not
+individually re-verified; D1–D2 and E3B/E3B.1 are mobile and are not in distributed builds. Still
+**NOT DEPLOYED**: Workstream 1 `pet_ids` (#26/#27), W3-B/W3-C1 on the 12, W4 Option A, AC-9, and all
+PR #78 scope.)*
 
 **Source-only (Draft PRs):** everything in the §2 table (combined in **Draft PR #78** at
 `2ef5a1f43b256189860a9c5f97d87e274c338211`).
@@ -150,7 +171,9 @@ already defined in `modules/api/main.tf` on REST API `a022yxuiue` (stage `prod` 
   `cancellation_request_id`). Under `BE-CANCEL-1C` (PR #71), `POST /admin/review` rejects all
   cancellation-state transitions (`CANCELLATION_REQUESTED` / `CANCELLATION_DENIED`) with HTTP `409
   CANCELLATION_TRANSITION_NOT_ALLOWED`.
-- `POST /client/requests/{requestId}/cancel` → `cancellation` Lambda (client cancellation request).
+- `POST /client/cancel` → `cancellation` Lambda (client cancellation request; body `request_id`,
+  `client_id`, `reason`). *(Corrected in B6-C1, 2026-11-13: previously listed as
+  `POST /client/requests/{requestId}/cancel`; see `modules/api/main.tf` resource `client_cancel`.)*
 - `POST /requests` (public intake) & `POST /client/requests` (authenticated client intake) →
   `intake` Lambda (`handlers.intake_handler.handler`).
 - `GET /client/requests` → `admin` Lambda (`handlers.admin_handler.handler`, using
@@ -394,6 +417,29 @@ Each batch is bounded, ends at a Draft/evidence stop, and needs its own owner ap
 
 ## 8. Current batch and next action
 
+- **Current batch (2026-11-13, B6-C1):** **Production Baseline Documentation Reconciliation** on a
+  single documentation-only Draft PR (branch `docs/b6c1-production-baseline-reconciliation` from
+  `main` `61e84d9649d016f462a4f436f8ec266b83e2d2de`; exactly 4 files: `current-state.md`, this
+  checkpoint, `master-handoff-prompt.md`, and a limited factual note on `guardrails.md` O1 status).
+  It records the read-only B6-B1 verification (§16). **STOP FOR CHATGPT REVIEW.**
+- **Next recommended actions after review (each separately owner-gated; none authorized today):**
+  1. Gate C3c `MERGE AUTHORIZATION` for the B6-C1 docs Draft PR.
+  2. Owner decision on the W1 gate wording given Ryan Slice W1 Walk `BACKEND_CODE_DEPLOYED` (§3).
+  3. Owner decision on the release option (B6-A2: recommended Option A — `cancellation` + `review` +
+     `admin` from `main` plus a curated web build), R7E inclusion, AC-9 exclusion and W4 Option A
+     web ride-along.
+  4. Curated web candidate: off-by-default existing-pet flag in `web/src/components/IntakeForm.jsx`
+     (and later `mobile/src/screens/IntakeScreen.tsx`) so no client `pet_ids` reach the pre-W1
+     intake; code PR + CI + separate merge authorization.
+  5. **B6-B2** (`NOT AUTHORIZED`): D-2 read-only legacy pending-cancellation inventory; `admin`
+     `GlA3mUtq…` rollback capture (two hash-verified copies); web bucket versioning check and
+     11-object pre-deploy snapshot; offline candidate hash of the `main` build; saved
+     `terraform plan -target` for `cancellation`/`review`/`admin` expecting `0/3/0`.
+  6. **B7 / B8** (`NOT AUTHORIZED`): backend → web deploy, then Android build/distribution/device
+     acceptance and separate Ryan testing.
+
+*(Previous §8 content for B5-C1, preserved:)*
+
 - **Current batch (2026-11-13):** **B5-C1 — Post-Merge Documentation Reconciliation** on a single
   documentation-only Draft PR (branch `docs/b5c-post-merge-reconciliation` from `main`
   `cac3cd6a82220353c1d48599b484368f78251033`; exactly 4 files: `current-state.md`, this checkpoint,
@@ -508,7 +554,30 @@ at all; exit codes always report -1).
 
 ---
 
-## 13. RESUME BLOCK (Active — B5-C1 Post-Merge Documentation Reconciliation)
+## 13. RESUME BLOCK (Active — B6-C1 Production Baseline Documentation Reconciliation)
+
+- **Timestamp:** 2026-11-13
+- **`origin/main`:** `61e84d9649d016f462a4f436f8ec266b83e2d2de` (PR #80 docs on top of PR #78
+  squash `cac3cd6a82220353c1d48599b484368f78251033`). Re-verify live before acting.
+- **Integration status:** `FULL_STACK_PR78_MERGED_TO_MAIN_NOT_DEPLOYED` (unchanged).
+- **Production baseline:** `PRODUCTION_BASELINE_VERIFIED_READ_ONLY` (B6-B1, §16) — `admin`
+  `GlA3mUtq…`; other 12 `W6cqyudl…`; `$LATEST` only, no aliases; API `n40vai`; IAM `v3`; Web W2C
+  `7c1a8f1` at `toganddogs.usmissionhero.com`.
+- **Ryan slices:** O1, E3A child start, W1 Walk and R1 = `BACKEND_CODE_DEPLOYED` (not
+  runtime-accepted, not Ryan-tested). Workstream 1 `pet_ids` = NOT DEPLOYED.
+- **Current batch / branch:** B6-C1 docs-only Draft PR, branch
+  `docs/b6c1-production-baseline-reconciliation` (worktree `%TEMP%\togs-b6c1`).
+- **Gates (unchanged):** `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`;
+  `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`; D-2, AWS writes, Terraform, deployment, Android
+  builds/distribution, Ryan testing, tenant changes and Stripe live NOT AUTHORIZED.
+- **Open owner decisions:** W1 gate wording; release option A/B/C; R7E; AC-9; W4 Option A web
+  ride-along; mobile `pet_ids` flag before B8; §14/§15 superseded-PR closures; #45 policy.
+- **December 11 assessment:** **AT RISK — RECOVERING** (§5).
+- **Next action:** STOP FOR CHATGPT REVIEW of the B6-C1 docs Draft PR; then §8.
+
+---
+
+### 13.0 Historical Resume Block (B5-C1 Post-Merge Documentation Reconciliation) — preserved; superseded by §13 on 2026-11-13
 
 - **Timestamp:** 2026-11-13
 - **`origin/main`:** `cac3cd6a82220353c1d48599b484368f78251033` (PR #78 squash merge; parent
@@ -654,3 +723,86 @@ recombination against #76. No PR was closed, edited or commented on.
 
 Closure of any candidate requires separate Matthew approval (recommended: pointer comment to
 `cac3cd6`, branches retained). PR #79 is already shown as MERGED by GitHub (auto-marked in B5-A).
+
+---
+
+## 16. B6-B1 Verified Production Baseline, Rollback and Compatibility (2026-11-13)
+
+**Verification scope:** owner-approved, read-only AWS metadata only — account `358604342897`,
+region `us-east-1`, profile `usmissionhero-website-prod`. Every call was a describe/list/get with
+field-restricted output. No DynamoDB/production data, D-2 inventory, Terraform, Lambda code
+download, rollback capture, environment-variable/secret/policy-document read, application API call
+or mutation. Disposition: `PRODUCTION_BASELINE_VERIFIED_READ_ONLY`.
+
+### 16.1 Verified baseline (all match the documented record)
+
+| Resource | Live value |
+|---|---|
+| `togs-and-dogs-prod-admin` | `CodeSha256 GlA3mUtq3O0RJcdc3i2MQjwcbuo8aiv52ACvacQH99o=`, 209,825 bytes, LastModified 2026-10-27T13:09:41Z |
+| Other 12 Lambdas (`intake`, `review`, `assign`, `job`, `google-auth`, `pet`, `cancellation`, `device`, `ses-feedback`, `postmark-webhook`, `stripe-webhook`, `platform`) | `CodeSha256 W6cqyudlRQF3Zw7uN2V42JzziwYITg8r5mCnsGdDAq4=`, 178,814 bytes, LastModified 2026-10-22 |
+| Runtime / handlers | All 13 `python3.11`; handlers as defined in `infra/prod/main.tf`; exactly 13 functions with the `togs-and-dogs-prod-` prefix |
+| Versions / aliases (`admin`, `review`, `cancellation`, `intake`, `job`) | `$LATEST` only; no aliases |
+| API Gateway `a022yxuiue` stage `prod` | deployment `n40vai` |
+| IAM `togs-and-dogs-prod-dynamodb-access` | default version `v3` (content not read) |
+| Web bucket `togs-and-dogs-prod-toganddogs-hosting` | 11 objects incl. `index.html`, `assets/index-DrAWpyW_.js`, `assets/index-DEfFpwho.css` |
+| CloudFront `E35L00QPA2IRCY` | `Deployed`; alias `toganddogs.usmissionhero.com` |
+| Public `index.html` | SHA-256 `cc453a6eae57fc8b913d32087b732de59928b7616dde5866e7b92de283b85a57` (matches the W2C record); references `/assets/index-DrAWpyW_.js`, `/assets/index-DEfFpwho.css` |
+
+### 16.2 Ryan slice status
+
+The live 12-Lambda artifact `W6cqyudl…` is byte-identical (same base64 SHA-256) to the retained
+rollback ZIP, whose 49 files match RC `b94455ac530e3ecca9a2fc2ddc69ed54902b84db`
+(`release/pr22-client-request-privacy-rc`) member for member. That RC contains Ryan O1 Overnight
+(`46bb6b8`), E3A child start (`e10a98e`), Ryan W1 Walk `WALK_20MIN` (`c51828e`) and R1
+(`66d6cc3`). Status: **`BACKEND_CODE_DEPLOYED`** on the 12 non-admin Lambdas. **Not verified or
+claimed:** runtime acceptance, customer use, Ryan testing. Slices A–C, C1, E1 and E2 backend
+presence was not individually re-verified. **NOT DEPLOYED:** Workstream 1 `pet_ids`
+validation/linking (#26 `429f3b9`), PR #78 scope, AC-9, W4 Option A web. Gates unchanged:
+`W1_PRODUCTION_RELEASE_AUTHORIZED=NO`; `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`.
+
+### 16.3 W2C date note (not resolved)
+
+The recorded W2C deployment milestone (2026-10-08, `current-state.md` and the W2C release note) is
+preserved. The live bucket objects report LastModified 2026-10-10 UTC (12:19Z for `index.html` and
+the JS/CSS assets). Related observations: source commit `7c1a8f1` is dated 2026-10-10 07:46 −04:00
+and the W2C release note's own pre-deploy snapshot path is labelled `w2c-web-2026-10-10`. These
+are recorded without inferring that either date is wrong; resolution needs further release
+evidence or an owner decision.
+
+### 16.4 Rollback facts and gaps
+
+- **Packaging:** all 13 Lambdas share one `src/backend` ZIP; no `publish`/alias/version resources in
+  Terraform and only `$LATEST` live (verified for 5 functions), so there is no AWS-side version to
+  roll back to. Terraform cannot regenerate an older artifact once `main` builds a different ZIP.
+- **`W6cqyudl…` (12 non-admin Lambdas):** two local hash-verified copies (`release-artifacts`
+  w3c2-phaseb copy and its OneDrive mirror, each with a SHA-256 sidecar) — byte-identical to the
+  live artifact; valid restore source for any of the 12.
+- **`1EPLbycK…` (pre-`263b3e7` admin):** one copy located (`D:\petcare-rollback\admin-1EPLbycK\`);
+  the second copy recorded on 2026-10-27 was not located in the B6-A1 search.
+- **`GlA3mUtq…` (current admin): NOT captured.** Two hash-verified copies are required before any
+  `admin` apply (B6-B2).
+- **API Gateway:** prior deployment `hhryhc` was destroyed; API rollback is fix-forward only.
+  Lambda-only targeted applies do not change the API (deployment fingerprint hashes API semantics
+  only).
+- **Web:** bucket versioning was recorded as disabled at W2C; an 11-object pre-deploy snapshot is
+  required before any web deploy.
+
+### 16.5 Compatibility constraints for the next release
+
+- **Backend-first cancellation rollout:** the current backend's DENY sets `CANCELLATION_DENIED`,
+  which the new web (WEB-CANCEL-1) does not expect, so the backend (`cancellation` + `review`, and
+  `admin` for D-1) must deploy before web. The new backend accepts the current web's decisions
+  without `cancellation_request_id` (optional field).
+- **Legacy DENY 409:** after BE-CANCEL-1, a DENY on a pending request that has no stored
+  `cancellation_prior_status` returns HTTP 409 `LEGACY_PRIOR_STATUS_UNKNOWN` and must be resolved
+  manually; the D-2 inventory sizes this. `/admin/review` returns 409
+  `CANCELLATION_TRANSITION_NOT_ALLOWED` when the current status is `CANCELLATION_REQUESTED` or the
+  target is `CANCELLATION_REQUESTED`/`CANCELLATION_DENIED`; in the current web this affects only
+  generic/bulk status transitions — "Review Cancellation" uses `PUT /admin/cancel/decision`.
+  Clients may request cancellation only from `APPROVED`, `ASSIGNED`, `BOOKED`, `SCHEDULED`,
+  `JOB_CREATED` (or repeat a pending request); legacy records never show the D-1 denial marker.
+- **Curated web `pet_ids` incompatibility:** the deployed `intake` stores client `pet_ids` without
+  ownership validation and its pet linking skips when `pet_ids` is present. A web or mobile build
+  from `main` (existing-pet picker sending `pet_ids`) must therefore not ship before W1 is
+  authorized and deployed, unless the picker is disabled by an off-by-default flag. Android
+  versionCode 4 sends no `pet_ids` and has no cancellation call sites.
