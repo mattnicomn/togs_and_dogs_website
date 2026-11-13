@@ -2,7 +2,7 @@
 
 **Status:** ACTIVE delivery checkpoint for the single-business pilot (Togs & Dogs on PetCare Hero).
 **Target:** usable Android + web application by **2026-12-11**.
-**As of:** 2026-11-12 (B4 reconciliation on top of full-stack Draft PR #78). **Assessment:** **AT RISK — RECOVERING (Full-Stack Source Candidate Verified & CI Green; Gated on Owner Merge, Release-Scope, Calendar, and Deploy/Build Approvals)** (see §5).
+**As of:** 2026-11-13 (B4.1 final documentation accuracy & owner planning decision reconciliation on top of full-stack Draft PR #78). **Assessment:** **AT RISK — RECOVERING (Full-Stack Source Candidate Verified & CI Green; Consolidated Strategy & Calendar Option 3A Selected; Gated on Explicit Merge Authorization, W1 Release Scope, and Deploy/Build Approvals)** (see §5).
 
 This file is the shared checkpoint for ChatGPT, Kiro Desktop/Web and authorized implementation
 agents. It does not replace [`guardrails.md`](guardrails.md) (canonical policy) or
@@ -45,8 +45,8 @@ Release-relevant Draft PRs (all OPEN, Draft, unchanged by B4):
 | PR | Branch → base | Head SHA | Mergeable | CI status |
 |---|---|---|---|---|
 | **#78 B2-C full-stack integration verification** (#77 + #46/#67/#68/#69, 86 files) | `integration/b2c-full-stack-verification` → `main` | `2ef5a1f43b256189860a9c5f97d87e274c338211` | MERGEABLE | **5/5 `SUCCESS`** (run `43359979814`: `backend`, `web`, `mobile`, `shared`, `GitGuardian`) |
-| **#77 B2-A combined backend/web verification** (#76 + #71 + #72 + #73, 61 files) | `integration/b2a-backend-web-verification` → `main` | `16471f858062f20ec3814e22a5cae76524d0a94b` | MERGEABLE | **5/5 `SUCCESS`** (run `43357577614`) |
-| **#76 B1-B web green CI + tenant-detail stale-response guard** (40 cumulative files on #75) | `web/b1b-web-green-ci` → `main` | `2d69045d9bd50e3a6f3f4cee0c4b8fd80ffcdd79` | MERGEABLE | **5/5 `SUCCESS`** (run `43354496802`) |
+| **#77 B2-A combined backend/web verification** (#76 + #71 + #72 + #73, 61 files) | `integration/b2a-backend-web-verification` → `main` | `16471f858062f20ec3814e22a5cae76524d0a94b` | MERGEABLE | **5/5 `SUCCESS`** (run `43355736742`) |
+| **#76 B1-B web green CI + tenant-detail stale-response guard** (40 cumulative files on #75) | `web/b1b-web-green-ci` → `main` | `2d69045d9bd50e3a6f3f4cee0c4b8fd80ffcdd79` | MERGEABLE | **5/5 `SUCCESS`** (run `43349187490`) |
 | **#75 B1-A backend green CI + R7E legacy multi-day window fix** (17 files) | `test/b1a-backend-green-ci` → `main` | `b91e8ccf73ba2c1223957069c626c4c0029c3f7d` | MERGEABLE | `backend`/`mobile`/`shared`/`GitGuardian` pass; `web` red = pre-#76 baseline |
 | **#74 December 11 delivery checkpoint** (initial docs-only checkpoint) | `docs/december-11-delivery-checkpoint` → `main` | `afa75c4a3b9ac52198b7ff193686df3968957ebd` | MERGEABLE | `mobile`/`shared`/`GitGuardian` pass; `backend`+`web` red = `main` baseline (adopted & reconciled by B4) |
 | **#46 Android booking workflow remediation** | `mobile/android-workflow-remediation` → `main` | `06ee9d628ac57d1a988e264ec74c26fe41174125` | MERGEABLE | `mobile`/`shared`/`GitGuardian` pass; `backend`+`web` red = `main` baseline (included in #78) |
@@ -144,7 +144,7 @@ Approved (owner):
   - **#67 (`d60b1b2`):** owner/admin mobile `DRAFT` quote create/edit/send with S1-R1 authoritative
     `GET /admin/requests/{id}` hydration, superseding `#46`'s web-only `QUOTE_NEEDED` handoff
     ([release note](../release-notes/android-s1-admin-quote-editor.md)).
-  - **#68 (`257e045`):** `owner | admin | staff` visit `Start`/`Complete` (`canExecuteVisits`),
+  - **#68 (`257e045`):** `owner | admin | staff` visit `Start`/`Complete` (`const canExecuteVisits = role === 'owner' || role === 'admin' || role === 'staff'` in `mobile/src/screens/RequestDetailScreen.tsx`),
     superseding `#46`'s staff-only execution boundary.
   - **#69 (`e4040ef`):** owner/admin mobile cancellation decisions (`PUT /admin/cancel/decision`)
     with D-4 `cancellation_request_id` cycle forwarding, `ApiError.code` handling, and `O-1 = A`
@@ -157,8 +157,8 @@ Source acceptance & integration CI status (NOT merged, deployed, built, distribu
   `#77` (`16471f8`), `#46` (`06ee9d6`), `#67` (`d60b1b2`), `#68` (`257e045`), `#69` (`e4040ef`),
   and `#78` (`2ef5a1f`).
 
-Pending owner product & release decisions (NOT YET SELECTED — require Matthew's explicit direction):
-1. **Legacy Multi-Day Calendar Event Format (`LEGACY_MULTIDAY_CALENDAR_DECISION=PENDING`):**
+Initial B4 pending owner product & release decisions (preserved from initial 2026-11-12 B4 snapshot — see **B4.1 Owner Planning Decision Update** immediately below):
+1. **Legacy Multi-Day Calendar Event Format (`LEGACY_MULTIDAY_CALENDAR_DECISION=PENDING` at initial B4 snapshot; updated to `OPTION_3A_SELECTED` in B4.1 below):**
    In PR #75/#78, `job_handler.py` (`_legacy_parent_visit_window`) copies a valid parent
    `visit_window` (`MORNING`, `MIDDAY`, `AFTERNOON`, `EVENING`, `ANYTIME`) onto legacy
    (non-canonical) multi-day child `JOB` records without persisting `start_time`. When
@@ -185,6 +185,22 @@ Pending owner product & release decisions (NOT YET SELECTED — require Matthew'
    Draft PRs with pointers to the merged SHA. No PR may be marked Ready or merged without Matthew's
    explicit structured `MERGE AUTHORIZATION` block.
 
+### 4.1 B4.1 Owner Planning Decision Update (2026-11-13)
+
+Following review of the initial B4 snapshot above, Matthew recorded the following planning decisions (preserving the initial B4 pending-decision text above as history):
+
+1. **Consolidated PR #78 Integration Strategy APPROVED; `MERGE AUTHORIZATION` NOT ISSUED (`CONSOLIDATED_PR78_INTEGRATION_STRATEGY=APPROVED`; `MERGE_AUTHORIZATION=NOT_ISSUED`):**
+   - Matthew approves the **consolidated integration strategy** for PR `#78` (`2ef5a1f43b256189860a9c5f97d87e274c338211`) plus the reconciled B4/B4.1 documentation.
+   - **`MERGE AUTHORIZATION` is NOT ISSUED.** No PR (`#78`, `#79`, or any constituent PR) may be marked Ready for Review or merged until Matthew relays an explicit structured Gate C3c `MERGE AUTHORIZATION` block naming the target PR and immutable head SHA.
+2. **Calendar Option 3A SELECTED (`LEGACY_MULTIDAY_CALENDAR_DECISION=OPTION_3A_SELECTED`):**
+   - Retain current estimated-start-time behavior (`WINDOW_START_HOURS` in `src/backend/common/google_calendar.py`: `08:00`, `11:00`, `14:00`, `17:00` `America/New_York` with note `⏰ Estimated from booking window`), without any new Calendar code change.
+3. **Full Pilot Convergence Chosen for PLANNING ONLY (`PILOT_CONVERGENCE_PLANNING_SCOPE=FULL_CONVERGENCE_PLANNING_ONLY`):**
+   - Release planning targets full pilot convergence across backend, web, and Android rather than a cancellation-only slice, for **planning only** (not deployment or W1 execution authorization).
+4. **`W1_PRODUCTION_RELEASE_AUTHORIZED=NO` Remains UNCHANGED:**
+   - Both **Workstream 1 (`W1`) canonical existing-pet association (`pet_ids`, PR #26 `429f3b9`)** and **Ryan Slice `W1` 20-Minute Walk (`WALK_20MIN`, `c51828e`)** remain **NOT AUTHORIZED** for production deployment (`W1_PRODUCTION_RELEASE_AUTHORIZED=NO`; `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`).
+5. **All Execution & Production Gates Remain NOT AUTHORIZED:**
+   - AWS/Terraform/D-2 inventory, backend/web deployment, Android builds/distribution, Ryan testing, tenant changes, and Stripe live remain **NOT AUTHORIZED**.
+
 Not approved / blocked (`NOT AUTHORIZED`):
 - **D-2 production cancellation inventory:** `NOT AUTHORIZED`. No production reads or writes.
 - **AWS / Terraform checks:** `NOT AUTHORIZED`. No live AWS CLI queries or `terraform plan`/`apply`.
@@ -207,9 +223,7 @@ with **5/5 green GitHub Actions CI checks**. However, **no item on the critical 
 merged to `main`, deployed to AWS, built via EAS, distributed to Play Internal Testing, or
 accepted on a device.** Remaining blockers to December 11 GO:
 
-1. **Owner decisions required (§4):** (a) Consolidated merge strategy & Gate C3c `MERGE AUTHORIZATION`,
-   (b) W1 activation vs. curated backend RC (`W1_PRODUCTION_RELEASE_AUTHORIZED=NO` today), and
-   (c) Legacy multi-day Calendar event format (`LEGACY_MULTIDAY_CALENDAR_DECISION=PENDING`: Option 3A vs Option 3B).
+1. **Owner decisions & authorizations (§4 / §4.1):** (a) Consolidated PR `#78` integration strategy is **APPROVED**, while Gate C3c **`MERGE AUTHORIZATION` is NOT ISSUED**; (b) Full pilot convergence is chosen for **PLANNING ONLY**, while **`W1_PRODUCTION_RELEASE_AUTHORIZED=NO` remains unchanged** for both Workstream 1 `pet_ids` and Ryan Slice `W1` `WALK_20MIN` deployment; and (c) Legacy multi-day Calendar event format **Option 3A is SELECTED** (`LEGACY_MULTIDAY_CALENDAR_DECISION=OPTION_3A_SELECTED`: retain current `WINDOW_START_HOURS` behavior in `google_calendar.py` with no new Calendar code change).
 2. **Pre-deploy verification & D-2 inventory (`NOT AUTHORIZED`):** Read-only AWS Lambda hash check,
    D-2 query for any legacy `CANCELLATION_REQUESTED` records lacking `cancellation_request_id` /
    `cancellation_prior_status`, and targeted read-only `terraform plan`.
@@ -235,13 +249,13 @@ released) · `IMPL` = implemented on `main`, not deployed · `NOT` = not impleme
 | 1 | Green CI baseline & full-stack source integration | `SRC-ACC` | #75 `b91e8cc`, #76 `2d69045`, #77 `16471f8`, **#78 `2ef5a1f`** (5/5 CI `SUCCESS`) | Matthew Gate C3c `MERGE AUTHORIZATION` → `main` CI green | Android + web | Matthew (merge) | P0 |
 | 2 | Android booking continuation + exact visit access + per-child draft notes | `SRC-ACC` | #46 `06ee9d6` (in #78 `2ef5a1f`) | Merge → EAS build → device check of M&G approval & child-visit selection | Android | Matthew (merge/build) | P0 |
 | 3 | Android owner/admin `DRAFT` quote create/edit/send + S1-R1 hydration | `SRC-ACC` | #67 `d60b1b2` (on #46; in #78 `2ef5a1f`) | Merge → EAS build → emulator/device run (`DRAFT → SENT`) | Android | Matthew (merge/build) | P0 |
-| 4 | Android `owner/admin/staff` visit Start/Complete (`canExecuteVisits`) | `SRC-ACC` | #68 `257e045` (on #67; in #78 `2ef5a1f`) | Merge → EAS build → device check against `/admin/job/start` & `/complete` | Android | Matthew (merge/build) | P0 |
+| 4 | Android `owner/admin/staff` visit Start/Complete (`const canExecuteVisits` in `RequestDetailScreen.tsx`) | `SRC-ACC` | #68 `257e045` (on #67; in #78 `2ef5a1f`) | Merge → EAS build → device check against `/admin/job/start` & `/complete` | Android | Matthew (merge/build) | P0 |
 | 5 | Android owner/admin cancellation decisions + D-4 BE-CANCEL-1 compatibility (`cancellation_request_id`, `ApiError.code`, `O-1 = A` `DENY` restores `APPROVED`/`ASSIGNED`) | `SRC-ACC` | #69 `e4040ef` (on #68; in #78 `2ef5a1f`); depends on #71 deployed | Merge → deploy #71 backend first → EAS build → device acceptance | Android | Matthew (merge/deploy/build) | P0 |
 | 6 | Server-safe cancellation decisions (`PUT /admin/cancel/decision`, exact literals, atomic gate, cycle id, `require_existing=True`, `/admin/review` guard) | `SRC-ACC` | #71 `ccf2d84` (in #77/#78 `2ef5a1f`) | Merge → D-2 inventory check → targeted `cancellation`+`review` Lambda deploy → bounded contract check | Android + web | Matthew (merge/deploy) | P0 |
 | 7 | Web explicit Approve/Deny cancellation modal (removes `Cancel = DENY` bug; sends `cancellation_request_id`) | `SRC-ACC` | #72 `56174ce` (in #77/#78 `2ef5a1f`); depends on #71 deployed | Merge → deploy after #71 backend verified → admin smoke | Web | Matthew (merge/deploy) | P0 |
 | 8 | Client portal "cancellation declined" marker (`cancellation_denied`, `cancellation_denied_at`) | `SRC-ACC` | #73 `6f1c60a` (in #77/#78 `2ef5a1f`); depends on #71 deployed | Merge → deploy `admin` Lambda projection then web → client smoke | Web | Matthew (merge/deploy) | P1 |
-| 9 | R7E legacy multi-day child `visit_window` inheritance + Calendar event format choice | `SRC-ACC` | #75 `b91e8cc` (in #78 `2ef5a1f`) | **Owner decision PENDING:** Option 3A (timed from `WINDOW_START_HOURS`, current code) vs Option 3B (label-only all-day) | Backend (`job` Lambda) | Matthew (product decision) | P1 |
-| 10 | Accumulated merged-not-deployed scheduling/workflow (A–C, C1, Ryan W1 Walk `WALK_20MIN`, O1 Overnight, E1, E2, W4 Option A, Workstream 1 `pet_ids`) | `IMPL` (merged on `main`) | on `main` `8fe7fa7` | **Owner decision required:** authorize W1 + full backend convergence vs curated cancellation-only RC (`W1_PRODUCTION_RELEASE_AUTHORIZED=NO` today) | Android + web | Matthew (release scope) | P0 |
+| 9 | R7E legacy multi-day child `visit_window` inheritance + Calendar Option 3A (`WINDOW_START_HOURS` in `google_calendar.py`) | `SRC-ACC` | #75 `b91e8cc` (in #78 `2ef5a1f`) | **Option 3A SELECTED (B4.1):** retain current `WINDOW_START_HOURS` behavior (no code change) → merge & `job` Lambda deploy gate | Backend (`job` Lambda) | Matthew (merge/deploy) | P1 |
+| 10 | Accumulated merged-not-deployed scheduling/workflow (A–C, C1, Ryan W1 Walk `WALK_20MIN`, O1 Overnight, E1, E2, W4 Option A, Workstream 1 `pet_ids`) | `IMPL` (merged on `main`) | on `main` `8fe7fa7` | **Full convergence chosen for PLANNING ONLY (B4.1):** **`W1_PRODUCTION_RELEASE_AUTHORIZED=NO` unchanged**; requires explicit W1 & backend deployment authorization | Android + web | Matthew (W1 & deploy gate) | P0 |
 | 11 | Android EAS build + Play internal distribution | `NOT` (for new code) | last build `vc4` `bf9f80d` | After merge & backend deploy: approved EAS build → Play internal → device acceptance | Android | Matthew (EAS, Play, Ryan) | P0 |
 | 12 | Web deployment of `main` + cancellation web (#72/#73/#76) | `NOT` | last web deploy W2C 2026-10-08 (`7c1a8f1`) | Build from approved RC → S3/CloudFront deploy → authenticated smoke | Web | Matthew (deploy) | P0 |
 | 13 | Mobile cancellation marker for clients | `NOT` (deferred by D-1) | — | Post-pilot | — | Matthew | P2 |
@@ -265,20 +279,25 @@ Each batch is bounded, ends at a Draft/evidence stop, and needs its own owner ap
 3. ✅ **B3 — Completed (Read-Only Assessment):** Evaluated PR #78 merge scope, undeployed `main`
    inventory, distinct W1 concepts, Calendar Option 3A vs 3B decision, release compatibility,
    predeploy manifest, and documentation consistency.
-4. 🔄 **B4 — Documentation and Release-Gate Reconciliation (Current Batch):** Reconciles continuity,
-   backlog, release-note navigation, supersession notes, and this December 11 checkpoint in a
-   documentation-only Draft PR stacked on #78. Stops for ChatGPT review.
-5. ⏳ **B5 — Owner Decisions & Integration (Gate C3c):** Matthew decides on (a) consolidated merge
-   authorization for #78 / B4, (b) W1 & backend release scope (Option 2A full convergence vs Option
-   2B cancellation-only curated RC), and (c) Legacy multi-day Calendar Option 3A vs Option 3B.
-6. ⏳ **B6 — Authorized Read-Only Pre-Deploy Verification & Plan:** Verify live AWS Lambda
+4. ✅ **B4 / B4.1 — Documentation and Release-Gate Reconciliation (Current Batch — PR #79):** Reconciles
+   continuity, backlog, release-note navigation, supersession notes, code-reference attribution
+   (`const canExecuteVisits` in `mobile/src/screens/RequestDetailScreen.tsx`), live CI workflow run
+   IDs (`43349187490` for `#76`, `43355736742` for `#77`, `43359979814` for `#78`), owner planning
+   decisions (§4.1), and this December 11 checkpoint in documentation-only **Draft PR #79** stacked
+   on `#78`. Stops for ChatGPT review.
+5. ⏳ **B5 — Consolidated Integration Execution (Gate C3c — `MERGE_AUTHORIZATION=NOT_ISSUED`):**
+   Consolidated PR `#78` integration strategy is **APPROVED**, Calendar **Option 3A** is **SELECTED**
+   (no code change), and full pilot convergence is selected for **PLANNING ONLY** (with
+   `W1_PRODUCTION_RELEASE_AUTHORIZED=NO` unchanged). Execution of the consolidated integration into
+   `main` awaits Matthew's explicit structured Gate C3c `MERGE AUTHORIZATION` block.
+6. ⏳ **B6 — Authorized Read-Only Pre-Deploy Verification & Plan (`NOT AUTHORIZED`):** Verify live AWS Lambda
    `CodeSha256` hashes and API Gateway `n40vai`, run read-only D-2 pending-cancellation inventory,
    capture rollback artifacts, and run a targeted read-only `terraform plan`.
-7. ⏳ **B7 — Authorized Backend & Web Deployment + Bounded Acceptance:** Deploy approved backend
-   Lambdas first (`cancellation`, `review`, `admin`, plus operational Lambdas if Option 2A is
-   approved), verify production cancellation/projection contract, then deploy Web to S3/CloudFront
-   and run authenticated smoke checks.
-8. ⏳ **B8 — Authorized Android Build, Play Internal Distribution & Device Acceptance:** Run
+7. ⏳ **B7 — Authorized Backend & Web Deployment + Bounded Acceptance (`NOT AUTHORIZED`):** Requires
+   explicit owner deployment authorization (and explicit `W1_PRODUCTION_RELEASE_AUTHORIZED=YES` if
+   W1 Lambdas `intake`/`job` are included). Deploy approved backend Lambdas first, verify production
+   cancellation/projection contract, then deploy Web to S3/CloudFront and run authenticated smoke checks.
+8. ⏳ **B8 — Authorized Android Build, Play Internal Distribution & Device Acceptance (`NOT AUTHORIZED`):** Run
    approved EAS Android build (`versionCode 5`+), upload to Play Internal Testing, complete
    emulator/physical device acceptance, and separately gate Ryan pilot testing.
 
@@ -286,17 +305,23 @@ Each batch is bounded, ends at a Draft/evidence stop, and needs its own owner ap
 
 ## 8. Current batch and next action
 
-- **Current batch:** **B4 — Documentation and Release-Gate Reconciliation** (documentation-only Draft
-  PR stacked on verified Draft PR #78 `2ef5a1f43b256189860a9c5f97d87e274c338211`).
-- **Stopping condition:** Draft PR delivered with 100% documentation-only scope on top of #78;
-  **STOP FOR CHATGPT REVIEW** and Matthew's explicit owner decisions (§4).
-- **Next recommended action after ChatGPT review:** Matthew's explicit direction on:
-  1. Consolidated Gate C3c `MERGE AUTHORIZATION` (merging #78 + B4 docs into `main`).
-  2. W1 production release authorization (`Option 2A` full pilot backend convergence vs. `Option 2B`
-     curated cancellation-only Lambda RC; currently `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`).
-  3. Legacy multi-day Calendar event format (`Option 3A` timed events from `WINDOW_START_HOURS` vs.
-     `Option 3B` label-only all-day events; currently `LEGACY_MULTIDAY_CALENDAR_DECISION=PENDING`).
-  4. Authorization for a bounded read-only AWS / Terraform / D-2 pre-deploy verification batch.
+- **Current batch:** **B4.1 — Final Documentation Accuracy Correction** on **Draft PR #79** (branch
+  `docs/b4-release-gate-reconciliation`, stacked on verified Draft PR #78
+  `2ef5a1f43b256189860a9c5f97d87e274c338211`).
+- **Stopping condition:** Draft PR #79 updated with bounded B4.1 corrections (12 documentation files
+  only vs. PR #78); **STOP FOR CHATGPT REVIEW** before the AG-to-Kiro integration handoff.
+- **Next recommended action after ChatGPT review:**
+  1. **Consolidated Integration Gate (Gate C3c):** Matthew issues an explicit structured Gate C3c
+     `MERGE AUTHORIZATION` block for the chosen consolidated integration vehicle (either fast-forwarding
+     PR `#78` to include the verified B4.1 docs commit so PR `#78` merges code + docs in one 5/5
+     CI-verified PR, or retargeting PR `#79` to `main` and waiting for 5/5 CI before merging `#79`;
+     currently **`MERGE_AUTHORIZATION=NOT_ISSUED`**).
+  2. **Read-Only Pre-Deploy Verification (`B6`):** Separate explicit owner authorization for
+     read-only AWS Lambda/API verification, D-2 legacy pending-cancellation inventory, and targeted
+     `terraform plan` (`NOT AUTHORIZED` today).
+  3. **W1 & Production Release Gates (`B7`/`B8`):** Keep `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`
+     until Matthew explicitly authorizes production deployment of Workstream 1 `pet_ids` and Ryan
+     Slice `W1` `WALK_20MIN`.
 
 ---
 
@@ -367,15 +392,16 @@ at all; exit codes always report -1).
 
 ---
 
-## 13. RESUME BLOCK (Active — B4 Documentation & Release-Gate Reconciliation)
+## 13. RESUME BLOCK (Active — B4.1 Final Documentation Accuracy & Owner Planning Decision Reconciliation)
 
-- **Timestamp:** 2026-11-12
+- **Timestamp:** 2026-11-13
 - **`origin/main`:** `8fe7fa78ad707ac67a05d29059d2771a9aa256c8` (unchanged)
 - **Source-Accepted Base PR:** Draft PR #78 (`2ef5a1f43b256189860a9c5f97d87e274c338211`, 86 changed
   files vs `main`, 5/5 GitHub CI checks `SUCCESS` in run `43359979814`, untouched and preserved)
-- **Current Batch / Branch:** B4 Documentation & Release-Gate Reconciliation on branch
-  `docs/b4-release-gate-reconciliation` (worktree `%TEMP%\togs-b4`), stacked directly on PR #78
-  (`2ef5a1f43b256189860a9c5f97d87e274c338211`)
+- **Current Batch / Branch / PR:** B4.1 Final Documentation Accuracy Correction on **Draft PR #79**,
+  branch `docs/b4-release-gate-reconciliation` (worktree `%TEMP%\togs-b4`, initial B4 commit
+  `7dd395bdbb1f46bccc2889a2ea26556ef2a2be56` followed by B4.1 accuracy commit), stacked directly on
+  PR #78 (`2ef5a1f43b256189860a9c5f97d87e274c338211`)
 - **Documentation Files Changed vs. PR #78 (12 files, docs-only):**
   `docs/project-continuity/README.md`, `docs/project-continuity/master-handoff-prompt.md`,
   `docs/project-continuity/document-map.md`, `docs/project-continuity/current-state.md`,
@@ -387,20 +413,33 @@ at all; exit codes always report -1).
   `docs/release-notes/android-s2-cancellation-decisions.md`,
   `docs/release-notes/be-cancel-1-cancellation-decision-safety.md`,
   `docs/release-notes/d1-client-denial-marker.md`
+- **B4.1 Corrections Recorded:**
+  1. **Code-reference accuracy:** Corrected `canExecuteVisits` attribution across B4 docs to
+     `const canExecuteVisits = role === 'owner' || role === 'admin' || role === 'staff'` in
+     `mobile/src/screens/RequestDetailScreen.tsx` (never `mobile/src/utils/bookingWorkflow.ts`).
+  2. **CI workflow run IDs:** Reconciled live-verified GitHub Actions CI run IDs in §2:
+     `#76` (`2d69045d9bd50e3a6f3f4cee0c4b8fd80ffcdd79`) → `43349187490`;
+     `#77` (`16471f858062f20ec3814e22a5cae76524d0a94b`) → `43355736742`;
+     `#78` (`2ef5a1f43b256189860a9c5f97d87e274c338211`) → `43359979814`.
+  3. **Owner planning decisions (§4.1):**
+     - Consolidated PR `#78` integration **STRATEGY APPROVED** (`CONSOLIDATED_PR78_INTEGRATION_STRATEGY=APPROVED`);
+       **`MERGE AUTHORIZATION` NOT ISSUED** (`MERGE_AUTHORIZATION=NOT_ISSUED`).
+     - **Calendar Option 3A SELECTED** (`LEGACY_MULTIDAY_CALENDAR_DECISION=OPTION_3A_SELECTED`):
+       retain current estimated-start-time behavior (`WINDOW_START_HOURS` in `google_calendar.py`),
+       without a new Calendar code change.
+     - **Full pilot convergence chosen for PLANNING ONLY** (`PILOT_CONVERGENCE_PLANNING_SCOPE=FULL_CONVERGENCE_PLANNING_ONLY`).
 - **Deployment / Release Status:** NONE. Nothing merged, marked Ready, built, deployed, or
   distributed. `W3C2_FUNCTIONAL_ACCEPTANCE=COMPLETE` (2026-10-27 single-settlement scenario) remains
   the latest completed production milestone.
 - **Explicitly Unchanged / NOT AUTHORIZED Gates:**
-  - `W1_PRODUCTION_RELEASE_AUTHORIZED=NO` (`W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`; Workstream 1
-    `pet_ids` and Ryan Slice `W1` `WALK_20MIN` are distinct and neither is authorized for production
-    deploy).
-  - `LEGACY_MULTIDAY_CALENDAR_DECISION=PENDING` (Option 3A timed events vs Option 3B label-only
-    all-day events).
+  - **`W1_PRODUCTION_RELEASE_AUTHORIZED=NO`** (`W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`; Workstream 1
+    `pet_ids` and Ryan Slice `W1` `WALK_20MIN` remain **NOT AUTHORIZED** for production deployment).
+  - **`MERGE_AUTHORIZATION=NOT_ISSUED`** (no PR Ready conversion or merge authorized).
   - `D-2` production cancellation inventory, AWS checks, `terraform plan`/`apply`, backend/web
-    deployment, Android EAS build, Play/TestFlight distribution, and Ryan testing: **NOT AUTHORIZED**.
-- **Next Action:** STOP for ChatGPT review of this B4 Draft PR and Matthew's explicit owner
-  decisions on (1) consolidated merge authorization, (2) W1 / backend release scope, (3) legacy
-  multi-day Calendar Option 3A vs 3B, and (4) read-only pre-deploy AWS/Terraform/D-2 verification.
+    deployment, Android EAS build, Play/TestFlight distribution, Ryan testing, tenant changes, and
+    Stripe live: **NOT AUTHORIZED**.
+- **Next Action:** STOP for ChatGPT review of B4.1 on Draft PR #79, followed by Matthew's explicit
+  structured Gate C3c `MERGE AUTHORIZATION` for the consolidated integration gate.
 
 ---
 
