@@ -175,10 +175,10 @@ describe('PlatformAuditLog loading', () => {
 });
 
 describe('PlatformTenantDetail tenant identity', () => {
-  const tenantRecord = (companyId, name) => ({
+  const tenantRecord = (companyId, name, overrides = {}) => ({
     company_id: companyId,
-    profile: { display_name: name },
-    subscription: { tier: 'starter', status: 'active' },
+    profile: { display_name: name, notes: `${name} note`, ...(overrides.profile || {}) },
+    subscription: { tier: 'starter', status: 'active', ...(overrides.subscription || {}) },
   });
 
   const Nav = () => {
@@ -216,6 +216,79 @@ describe('PlatformTenantDetail tenant identity', () => {
     expect(await screen.findByRole('heading', { name: 'Bravo Pets' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Alpha Pets' })).toBeNull();
     expect(getPlatformTenant.mock.calls).toEqual([['tenant_a'], ['tenant_b']]);
+  });
+
+  it('ignores a late response from Tenant A after navigating to Tenant B and keeps B record and edit form intact', async () => {
+    const pendingA = deferred();
+    const pendingB = deferred();
+    getPlatformTenant.mockImplementation((id) => (
+      id === 'tenant_a' ? pendingA.promise : pendingB.promise
+    ));
+
+    renderAt('tenant_a');
+    expect(screen.getByText(/Retrieving tenant metadata/)).toBeInTheDocument();
+
+    // Navigate to Tenant B before Tenant A resolves.
+    fireEvent.click(screen.getByRole('button', { name: 'Go to B' }));
+    expect(getPlatformTenant.mock.calls).toEqual([['tenant_a'], ['tenant_b']]);
+
+    // Resolve Tenant B first and confirm B is displayed.
+    await act(async () => {
+      pendingB.resolve(tenantRecord('tenant_b', 'Bravo Pets', {
+        subscription: { tier: 'professional', status: 'trialing' },
+      }));
+    });
+    expect(await screen.findByRole('heading', { name: 'Bravo Pets' })).toBeInTheDocument();
+    expect(screen.getByText('tenant_b')).toBeInTheDocument();
+
+    // Resolve Tenant A afterward.
+    await act(async () => {
+      pendingA.resolve(tenantRecord('tenant_a', 'Alpha Pets', {
+        subscription: { tier: 'enterprise', status: 'paused' },
+      }));
+    });
+    await settle();
+
+    // Confirm B remains displayed and A did not overwrite B's record or edit form fields.
+    expect(screen.getByRole('heading', { name: 'Bravo Pets' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Alpha Pets' })).toBeNull();
+    expect(screen.getByText('tenant_b')).toBeInTheDocument();
+    expect(screen.queryByText('tenant_a')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /Edit Subscription/ }));
+    expect(screen.getByLabelText('Business Display Name')).toHaveValue('Bravo Pets');
+    expect(screen.getByLabelText('Subscription Tier')).toHaveValue('professional');
+    expect(screen.getByLabelText('Subscription Status')).toHaveValue('trialing');
+    expect(screen.getByLabelText('Internal Platform Notes')).toHaveValue('Bravo Pets note');
+    expect(getPlatformTenant.mock.calls).toEqual([['tenant_a'], ['tenant_b']]);
+  });
+
+  it('ignores a late failure from Tenant A after navigating to Tenant B', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const pendingA = deferred();
+    const pendingB = deferred();
+    getPlatformTenant.mockImplementation((id) => (
+      id === 'tenant_a' ? pendingA.promise : pendingB.promise
+    ));
+
+    renderAt('tenant_a');
+    fireEvent.click(screen.getByRole('button', { name: 'Go to B' }));
+
+    // A rejects while B is still loading: B must stay in loading state, not show A's error.
+    await act(async () => {
+      pendingA.reject(new Error('Stale Alpha failure'));
+    });
+    await settle();
+    expect(screen.queryByText('Stale Alpha failure')).toBeNull();
+    expect(screen.getByText(/Retrieving tenant metadata/)).toBeInTheDocument();
+
+    // B then resolves cleanly.
+    await act(async () => {
+      pendingB.resolve(tenantRecord('tenant_b', 'Bravo Pets'));
+    });
+    expect(await screen.findByRole('heading', { name: 'Bravo Pets' })).toBeInTheDocument();
+    expect(screen.queryByText('Stale Alpha failure')).toBeNull();
+    errorSpy.mockRestore();
   });
 
   it('Retry after a load failure clears the error and loads the same tenant again', async () => {
