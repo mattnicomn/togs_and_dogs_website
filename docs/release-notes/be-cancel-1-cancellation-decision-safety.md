@@ -265,3 +265,14 @@ ships in the same backend package as every other Lambda.
   every decision. It must not be deployed until this backend is deployed and the
   production contract above is verified; otherwise every web cancellation decision is
   blocked.
+
+---
+
+## Supersession & Stack Integration Note (2026-11-12 — Draft PR #78)
+
+> **Historical record preserved.** All sections above remain the exact historical record for standalone Draft PR #71 (`ccf2d8460bde909e1bb63d812f360de1f62ecf8e`). Subsequent stack and integration updates:
+>
+> 1. **Index registration:** This note is now registered in [index.md](index.md) and [document-map.md](../project-continuity/document-map.md).
+> 2. **Mobile PR #69 `DENY` compatibility resolved in source (D-4):** The mobile compatibility blocker noted in `## Mobile compatibility` and `### Release gates that remain open` above was resolved in source by **Draft PR #69's D-4 commit (`e4040ef040cd49fb05bd3ba09b7999475f765ea5`)** (see [android-s2-cancellation-decisions.md](android-s2-cancellation-decisions.md#L22-L45)). Mobile `CancellationDecisionPanel` now forwards `cancellation_request_id` from the authoritative pre-submit read, preserves `ApiError.code` on 409 responses, offers `DENY` only when `cancellation_prior_status` is `APPROVED` or `ASSIGNED`, and expects that restored prior status (treating `CANCELLATION_DENIED` as a mismatch).
+> 3. **Full-stack integration verification:** Combined with `#75` (`b91e8cc`), `#76` (`2d69045`), `#72` (`WEB-CANCEL-1`, `56174ce`), and `#73` (`D-1`, `6f1c60a`) in **Draft PR #77** (`16471f858062f20ec3814e22a5cae76524d0a94b`), and with the complete Android stack (`#46`, `#67`, `#68`, `#69`) in **Draft PR #78** (`2ef5a1f43b256189860a9c5f97d87e274c338211`), where all 5 GitHub Actions CI checks passed (`43359979814`).
+> 4. **Gates unchanged:** Source-only. Merge, D-2 legacy pending-cancellation production inventory, AWS/Terraform checks, and deployment of the `cancellation` and `review` Lambdas remain **NOT AUTHORIZED**.

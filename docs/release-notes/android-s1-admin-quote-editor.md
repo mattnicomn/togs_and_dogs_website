@@ -57,3 +57,14 @@ No backend, web, infrastructure, dependency, lockfile, app-config or canonical-d
 | Android emulator / device acceptance | NOT RUN — requires separate authorization |
 | Production behavior against `test_tenant_alpha` | NOT RUN — requires separate authorization |
 | Build / distribution / Ryan testing | NOT AUTHORIZED OR PERFORMED |
+
+---
+
+## Supersession & Stack Integration Note (2026-11-12 — Draft PR #78)
+
+> **Historical record preserved.** All sections above remain the exact historical record for standalone Draft PR #67 (`d60b1b203782c7b99382e2cfd525b96757dd720c`). Subsequent stack and integration updates:
+>
+> 1. **Index registration:** This note is now registered in [index.md](index.md) and [document-map.md](../project-continuity/document-map.md).
+> 2. **Stacked Android extensions:** **Draft PR #68** (`257e045fe15095c981a08b6345efd076ee80ba3f`, `mobile/s1-visit-rbac-a1`) stacks on `#67` to expand Android visit `Start`/`Complete` (`canExecuteVisits`) from staff-only to `owner | admin | staff`, and **Draft PR #69** (`e4040ef040cd49fb05bd3ba09b7999475f765ea5`, [android-s2-cancellation-decisions.md](android-s2-cancellation-decisions.md)) stacks on `#68` to add owner/admin cancellation decisions with D-4 `BE-CANCEL-1` compatibility.
+> 3. **Source review & GitHub CI evidence:** Independent B2-B source review of `#46`, `#67`, `#68`, and `#69` completed (`ACCEPTABLE`). Combined in full-stack **Draft PR #78** (`2ef5a1f43b256189860a9c5f97d87e274c338211` → `main`), where all 5 GitHub Actions CI checks (`backend`, `web`, `mobile` 43 suites / 608 tests, `shared`, `GitGuardian`) passed in workflow run `43359979814`.
+> 4. **Gates unchanged:** Merge, deployment, Android build, Play distribution, emulator/device acceptance, and Ryan testing remain **NOT AUTHORIZED**.

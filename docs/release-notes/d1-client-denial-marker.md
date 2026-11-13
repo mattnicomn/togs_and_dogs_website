@@ -66,3 +66,14 @@ the notice does not state the booking's current status.
 
 See the PR description for the exact local runs and the CI comparison against the `main`
 baseline (74 backend failures and 63 web lint findings that predate this change).
+
+---
+
+## Supersession & Stack Integration Note (2026-11-12 — Draft PR #78)
+
+> **Historical record preserved.** All sections above remain the exact historical record for standalone Draft PR #73 (`6f1c60ad2e32cb1ad06622d277cd0bf4cb50b287`). Subsequent integration updates:
+>
+> 1. **Index registration:** This note is now registered in [index.md](index.md) and [document-map.md](../project-continuity/document-map.md).
+> 2. **Baseline CI remediation & full-stack integration:** Combined with `#75` (`B1-A` backend test isolation + R7E fix), `#76` (`B1-B` web ESLint remediation + `PlatformTenantDetail` stale-response guard), `#71` (`BE-CANCEL-1`), and `#72` (`WEB-CANCEL-1`) in **Draft PR #77** (`16471f858062f20ec3814e22a5cae76524d0a94b`), and with the Android stack (`#46`–`#69`) in **Draft PR #78** (`2ef5a1f43b256189860a9c5f97d87e274c338211`). The 74 backend pytest failures and 63 web lint findings noted on `main` above were remediated to **0 failures and 0 errors** (`5/5` GitHub CI checks `SUCCESS` in run `43359979814`).
+> 3. **Lambda target note:** `_derive_cancellation_denial` in `src/backend/common/auth.py` is invoked by `GET /client/requests`, which routes through `handlers.admin_handler.handler` (`aws_lambda_function.admin`). Its output depends on `BE-CANCEL-1` fields written by `handlers.cancellation_handler.handler` (`aws_lambda_function.cancellation`).
+> 4. **Gates unchanged:** Source-only. Merge and deployment remain **NOT AUTHORIZED**.

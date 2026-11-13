@@ -85,3 +85,14 @@ Device acceptance still requires separate authorization. Add explicit checks for
 ## Resume checkpoint
 
 Dedicated branch: `mobile/android-workflow-remediation`. Exact commit/PR and CI run are bound by the GitHub delivery record; avoid a self-referential commit hash in this file. Next action is owner review and separately scoped acceptance planning, not deployment. Original release outcomes, other worktrees/branches, retained evidence and PR43/44/45 are preserved.
+
+---
+
+## Supersession & Stack Integration Note (2026-11-12 — Draft PR #78)
+
+> **Historical record preserved.** All sections above remain the exact historical record for standalone Draft PR #46 (`06ee9d628ac57d1a988e264ec74c26fe41174125`). Within the cumulative Android stack (`#46 → #67 → #68 → #69`) and the full-stack integration candidate **Draft PR #78** (`2ef5a1f43b256189860a9c5f97d87e274c338211`, 5/5 GitHub CI checks `SUCCESS` in run `43359979814`), the following standalone `#46` deferrals are superseded by later stacked commits:
+>
+> 1. **Quote editing (`QUOTE_NEEDED` / `DRAFT`):** The web-only quote-editor handoff recorded above is superseded by **Draft PR #67** (`d60b1b203782c7b99382e2cfd525b96757dd720c`, [android-s1-admin-quote-editor.md](android-s1-admin-quote-editor.md)), which adds an on-screen owner/admin `DRAFT` quote editor (`PATCH /admin/requests/{id}/quote`, `POST /admin/requests/{id}/quote/send`) with S1-R1 authoritative hydration.
+> 2. **Visit execution RBAC (`Start` / `Complete`):** The staff-only `canExecuteVisits` boundary recorded above is superseded by **Draft PR #68** (`257e045fe15095c981a08b6345efd076ee80ba3f`, branch `mobile/s1-visit-rbac-a1`), which enables `owner`, `admin`, and `staff` (`canExecuteVisits(role)`) to Start and Complete assigned child visits on Android, matching backend `POST /admin/job/start` and `POST /admin/job/complete`.
+> 3. **Cancellation decisions (`CANCELLATION_REQUESTED`):** Extended by **Draft PR #69** (`e4040ef040cd49fb05bd3ba09b7999475f765ea5`, [android-s2-cancellation-decisions.md](android-s2-cancellation-decisions.md)), which adds the owner/admin mobile cancellation decision panel (`PUT /admin/cancel/decision`) with D-4 `BE-CANCEL-1` compatibility.
+> 4. **Gates unchanged:** Independent B2-B source review of `#46`, `#67`, `#68`, and `#69` is complete (`ACCEPTABLE`), and full-stack GitHub CI passed in PR `#78`. Merge, backend/web deployment, W1 activation, Android EAS build, Play internal distribution, device acceptance, and Ryan testing remain **NOT AUTHORIZED**.

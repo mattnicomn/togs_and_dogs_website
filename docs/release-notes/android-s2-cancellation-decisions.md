@@ -88,3 +88,14 @@ they do **not** replace server-side enforcement.
 | Android emulator / device acceptance | NOT RUN — requires separate authorization |
 | Production behavior against `test_tenant_alpha` | NOT RUN — requires separate authorization |
 | Build / distribution / Ryan testing | NOT AUTHORIZED OR PERFORMED |
+
+---
+
+## Supersession & Stack Integration Note (2026-11-12 — Draft PR #78)
+
+> **Historical record preserved.** All sections above remain the exact historical record for standalone Draft PR #69 (`e4040ef040cd49fb05bd3ba09b7999475f765ea5`). Subsequent integration updates:
+>
+> 1. **Index registration:** This note is now registered in [index.md](index.md) and [document-map.md](../project-continuity/document-map.md).
+> 2. **Full-stack integration & GitHub CI evidence:** Combined with backend/web PR `#77` (`16471f858062f20ec3814e22a5cae76524d0a94b`, containing `#75` backend CI/R7E fix, `#76` web lint/tenant-detail fix, `#71` `BE-CANCEL-1`, `#72` `WEB-CANCEL-1`, and `#73` `D-1` client-portal denial marker) in **Draft PR #78** (`2ef5a1f43b256189860a9c5f97d87e274c338211` → `main`). In PR `#78`, all 5 GitHub Actions CI jobs (`backend`, `web`, `mobile` 43 suites / 608 tests, `shared`, `GitGuardian`) passed (`SUCCESS`, run `43359979814`), and independent B2-B source review of `#46`, `#67`, `#68`, and `#69` completed (`ACCEPTABLE`).
+> 3. **D-1 web marker cross-reference:** The separate web client-portal denial marker noted in D-4 above is implemented in Draft PR #73 ([d1-client-denial-marker.md](d1-client-denial-marker.md)) and included in PR `#78`. The mobile client-facing denial marker remains deferred per D-1 policy.
+> 4. **Gates unchanged:** `BE-CANCEL-1` (PR #71) remains source-only and NOT deployed in production (`togs-and-dogs-prod-cancellation` and `togs-and-dogs-prod-review` still run `W6cqyudl…`). Merge, backend/web deployment, D-2 legacy cancellation inventory, Android build, Play internal distribution, device acceptance, and Ryan testing remain **NOT AUTHORIZED**.
