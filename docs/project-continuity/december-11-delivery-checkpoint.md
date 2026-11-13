@@ -2,7 +2,8 @@
 
 **Status:** ACTIVE delivery checkpoint for the single-business pilot (Togs & Dogs on PetCare Hero).
 **Target:** usable Android + web application by **2026-12-11**.
-**As of:** 2026-11-13 (B4.1 final documentation accuracy & owner planning decision reconciliation on top of full-stack Draft PR #78). **Assessment:** **AT RISK — RECOVERING (Full-Stack Source Candidate Verified & CI Green; Consolidated Strategy & Calendar Option 3A Selected; Gated on Explicit Merge Authorization, W1 Release Scope, and Deploy/Build Approvals)** (see §5).
+**As of:** 2026-11-13 (B5-C1 post-merge documentation reconciliation after the owner-authorized B5-B squash merge of PR #78 into `main` at `cac3cd6a82220353c1d48599b484368f78251033`). **Assessment:** **AT RISK — RECOVERING (Full-Stack Source Integration MERGED to `main`, NOT DEPLOYED; Calendar Option 3A Selected; Full Convergence for Planning Only; Gated on Pre-Deploy Verification, W1 Release Scope, and Deploy/Build/Distribution Approvals)** (see §5).
+*(Previous as-of line, preserved: 2026-11-13 (B4.1 final documentation accuracy & owner planning decision reconciliation on top of full-stack Draft PR #78). Assessment: AT RISK — RECOVERING (Full-Stack Source Candidate Verified & CI Green; Consolidated Strategy & Calendar Option 3A Selected; Gated on Explicit Merge Authorization, W1 Release Scope, and Deploy/Build Approvals).)*
 
 This file is the shared checkpoint for ChatGPT, Kiro Desktop/Web and authorized implementation
 agents. It does not replace [`guardrails.md`](guardrails.md) (canonical policy) or
@@ -10,6 +11,8 @@ agents. It does not replace [`guardrails.md`](guardrails.md) (canonical policy) 
 rather than repeating them.
 
 > **B4 Reconciliation Note (Draft PR #74 Integration):** This file adopts and reconciles Draft PR #74 (`afa75c4a3b9ac52198b7ff193686df3968957ebd`, `docs/december-11-delivery-checkpoint`) on top of the source-accepted full-stack integration candidate **Draft PR #78** (`2ef5a1f43b256189860a9c5f97d87e274c338211`). Every standing rule, historical note, Kiro shell procedure, and initial 2026-11-12 snapshot/resume block from PR #74 is preserved without silent deletion; §14 explicitly maps what from PR #74 is adopted verbatim versus superseded by batches B1-A (#75), B1-B (#76), B2-A (#77), B2-B (Android source audit), B2-C (#78), B3 (read-only RC assessment), and B4 (documentation & release-gate reconciliation).
+
+> **B5 Integration Note (2026-11-13):** Matthew issued an explicit structured Gate C3c `MERGE AUTHORIZATION` for PR #78 only (head `77e8ec8fbefe92134b829ebc9533c516af0f6262`, target `main`, squash, integration only). After B5-A non-force fast-forwarded the PR #78 branch from `2ef5a1f` to `77e8ec8` (adding the 12 B4/B4.1 docs files) and the full pre-merge checklist passed, B5-B converted PR #78 to Ready and squash-merged it: `main` `8fe7fa78ad707ac67a05d29059d2771a9aa256c8` → **`cac3cd6a82220353c1d48599b484368f78251033`** (89 files; tree identical to the approved head). **Merged ≠ deployed:** nothing was deployed, built, distributed or acceptance-tested. Historical 2026-11-12 / B4.1 text below is preserved and marked where superseded (see §4.2, §13).
 
 ---
 
@@ -29,7 +32,31 @@ rather than repeating them.
 
 ---
 
-## 2. Verified snapshot (2026-11-12 — Post-B2-C / B3 / B4)
+## 2. Verified snapshot (2026-11-13 — Post-B5-B Merge / B5-C1)
+
+Verified with `git fetch` / `git rev-parse` / `gh pr view` / `gh api` on 2026-11-13 (dated
+snapshot; re-verify live state before acting).
+
+| Item | Value |
+|---|---|
+| `origin/main` | **`cac3cd6a82220353c1d48599b484368f78251033`** — squash merge of PR #78 (2026-11-13T17:50:52Z), single parent `8fe7fa78ad707ac67a05d29059d2771a9aa256c8`, tree `f875c2c1583eba400a20ba3733f2e1c922077e90` (identical to the approved PR #78 head `77e8ec8fbefe92134b829ebc9533c516af0f6262` tree) |
+| Merged scope | 89 files (+11,872 / −727) vs `8fe7fa7`: 12 docs, 18 mobile, 5 backend source, 23 backend tests, 31 web; zero infra/Terraform/CI/EAS/app-config files |
+| Approved CI evidence | Run `43463005295` (`pull_request`) on `77e8ec8`: `backend`, `web`, `mobile`, `shared` `SUCCESS` + `GitGuardian` pass (5/5) |
+| CI on `main` | None — `.github/workflows/ci.yml` triggers on `pull_request` to `main` only; no push-to-`main` run exists or is expected |
+| Ruleset `protect-main-mvp` | Unchanged: PR required, 0 approvals, no required status checks, deletion + non-fast-forward blocked. Merge attributed to the owner identity; no independent human GitHub review (ChatGPT independent source review only) |
+| Source branches | `integration/b2c-full-stack-verification` and `docs/b4-release-gate-reconciliation` retained at `77e8ec8` (not deleted) |
+| Main checkout | on `fix/web-eslint-baseline-20261011` with one untracked `infra/prod/_gatea_plan_out.txt` — preserve; local `main` ref fast-forwarded to `cac3cd6` |
+
+PR status after B5-B:
+
+| PR | State | Head | Disposition |
+|---|---|---|---|
+| **#78** B2-C full-stack integration | **MERGED** (squash `cac3cd6`) | `77e8ec8fbefe92134b829ebc9533c516af0f6262` | Integrated into `main`; NOT deployed |
+| **#79** B4/B4.1 docs reconciliation | MERGED (GitHub auto-marked when its head `77e8ec8` landed in its base branch during B5-A; no merge action taken) | `77e8ec8fbefe92134b829ebc9533c516af0f6262` | Content in `main` via #78 |
+| #75, #76, #77, #71, #72, #73, #74, #46, #67, #68, #69, #62, #43 | OPEN, Draft (unchanged) | as in §2.1 | **Closure candidates** per §15 read-only audit — closure NOT authorized |
+| #45 inactive advisory-baseline policy | OPEN, Draft (unchanged) | `3c5679d72dd3cb239ec6785ce31d96e5d95799cb` | Content NOT in `main`; requires a separate Matthew policy decision |
+
+### 2.1 Historical verified snapshot (2026-11-12 — Post-B2-C / B3 / B4) — preserved; superseded by §2 above
 
 Verified with `git fetch` / `git rev-parse` / `gh pr view` / `gh pr checks` on 2026-11-12.
 
@@ -80,6 +107,7 @@ Recorded production state (from `current-state.md`, not re-verified against AWS 
 - **Mobile internal builds:** iOS `1.0.0 (6)` / Android `1.0.0` versionCode `4`, both from
   `bf9f80d95c1846f197bab24d96463906bc26bfce`. **None** of the D1/D2, E3B/E3B.1, OPS-3A.3 client quote UX, W4 Option A, W1 `pet_ids`, or #46–#69 mobile work is in a distributed build.
 - **W1 & untargeted apply guard:** `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`; `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES` — an untargeted `terraform apply` would sweep all 12 non-admin Lambdas and ship every merged-not-deployed backend change at once. Prohibited without explicit Matthew approval.
+  *(B5-B update 2026-11-13: since `main` is now `cac3cd6`, an untargeted apply would additionally ship the entire merged PR #78 backend scope — BE-CANCEL-1, D-1, R7E — alongside W1. Still prohibited.)*
 - Stripe sandbox-only (EIN). `TENANT_RESOLUTION_MODE=multi` unchanged.
 
 ### Two distinct `W1` concepts in repository source (both NOT deployed on `intake`/`job` Lambdas)
@@ -107,6 +135,10 @@ Lambda). See [`document-map.md`](document-map.md) for each release note.
 
 **Source-only (Draft PRs):** everything in the §2 table (combined in **Draft PR #78** at
 `2ef5a1f43b256189860a9c5f97d87e274c338211`).
+*(B5-B update 2026-11-13: the line above is the 2026-11-12 state. All PR #78 content — #75, #76,
+#71, #72, #73, #77, #46, #67, #68, #69 plus the B4/B4.1 docs — is now **merged to `main` at
+`cac3cd6a82220353c1d48599b484368f78251033` but NOT deployed** on any Lambda, Web, or Mobile build,
+joining the merged-not-deployed list above.)*
 
 ### Verified API route contract (`modules/api/main.tf`)
 
@@ -156,6 +188,9 @@ Source acceptance & integration CI status (NOT merged, deployed, built, distribu
   `#75` (`b91e8cc`), `#76` (`2d69045`), `#71` (`ccf2d84`), `#72` (`56174ce`), `#73` (`6f1c60a`),
   `#77` (`16471f8`), `#46` (`06ee9d6`), `#67` (`d60b1b2`), `#68` (`257e045`), `#69` (`e4040ef`),
   and `#78` (`2ef5a1f`).
+- *(B5-B update 2026-11-13: all of the above, plus the B4/B4.1 docs (`77e8ec8`), are now
+  **MERGED to `main` at `cac3cd6a82220353c1d48599b484368f78251033`** — still NOT deployed, built,
+  distributed, or device-accepted. See §4.2.)*
 
 Initial B4 pending owner product & release decisions (preserved from initial 2026-11-12 B4 snapshot — see **B4.1 Owner Planning Decision Update** immediately below):
 1. **Legacy Multi-Day Calendar Event Format (`LEGACY_MULTIDAY_CALENDAR_DECISION=PENDING` at initial B4 snapshot; updated to `OPTION_3A_SELECTED` in B4.1 below):**
@@ -201,10 +236,38 @@ Following review of the initial B4 snapshot above, Matthew recorded the followin
 5. **All Execution & Production Gates Remain NOT AUTHORIZED:**
    - AWS/Terraform/D-2 inventory, backend/web deployment, Android builds/distribution, Ryan testing, tenant changes, and Stripe live remain **NOT AUTHORIZED**.
 
+### 4.2 B5 Gate C3c Merge Authorization — Issued & Executed (2026-11-13)
+
+Item 1 of §4.1 (`MERGE_AUTHORIZATION=NOT_ISSUED`) is preserved above as the B4.1 state; it was
+**updated to `MERGE_AUTHORIZATION=ISSUED_AND_EXECUTED` for PR #78 only**:
+
+- **Authorization (relayed by Matthew, 2026-11-13, America/New_York):** repository
+  `mattnicomn/togs_and_dogs_website`; PR #78; head `77e8ec8fbefe92134b829ebc9533c516af0f6262`;
+  target `main`; method `squash`; `delete_branch_after: no`; restrictions: integration only, scope =
+  exactly the approved 89-file diff; NOT deployment / AWS / Terraform / W1 activation / Stripe live /
+  tenant changes / production testing / Ryan testing / mobile builds or distribution.
+- **B5-A (separately approved):** single non-force fast-forward of
+  `integration/b2c-full-stack-verification` `2ef5a1f` → `77e8ec8` (adds only the 12 B4/B4.1 docs
+  files; runtime byte-identical). CI run `43463005295` on `77e8ec8`: 5/5 `SUCCESS`.
+- **B5-B pre-merge checklist (`guardrails.md` items 1–10):** all PASS — repository, OPEN/Draft/base
+  `main`, exact head SHA, 89-file scope (no infra/secrets/tfvars/tfplan), 5/5 checks (none required
+  by ruleset), MERGEABLE/CLEAN, `main` unchanged at `8fe7fa7` since approval, author-only review
+  recorded (no independent human GitHub review), no blockers, clean worktree.
+- **Execution:** Draft → Ready, immediate re-check, then GitHub PR merge API (`squash`, expected
+  head `sha` precondition) — **merged 2026-11-13T17:50:52Z as
+  `cac3cd6a82220353c1d48599b484368f78251033`** (single parent `8fe7fa7`; tree
+  `f875c2c1583eba400a20ba3733f2e1c922077e90` identical to the approved head; 89 files,
+  +11,872 / −727). Source branches retained.
+- **Post-merge:** no CI run on `main` (workflow is `pull_request`-only); no deployment,
+  infrastructure, AWS or Terraform action occurred.
+- **Scope of this authorization is consumed.** No other PR is authorized for Ready or merge.
+
 Not approved / blocked (`NOT AUTHORIZED`):
 - **D-2 production cancellation inventory:** `NOT AUTHORIZED`. No production reads or writes.
 - **AWS / Terraform checks:** `NOT AUTHORIZED`. No live AWS CLI queries or `terraform plan`/`apply`.
-- **Merge or Ready conversion of any PR:** `NOT AUTHORIZED`.
+- **Merge or Ready conversion of any PR:** `NOT AUTHORIZED`. *(B5-B: the PR #78-only authorization
+  in §4.2 was issued and consumed; no other PR — including the §15 closure candidates and #45 — is
+  authorized for Ready, merge, or closure.)*
 - **Production deployment (backend Lambdas or web S3/CloudFront):** `NOT AUTHORIZED`.
 - **Mobile EAS build, Play Internal Testing upload, TestFlight, or Ryan testing:** `NOT AUTHORIZED`.
 - **Production test data, tenant changes, tenant-resolution mode change, or Stripe live:** `NOT AUTHORIZED`.
@@ -215,6 +278,22 @@ and Ryan action. ChatGPT reviews. Kiro/AG execute only approved, bounded scope.
 ---
 
 ## 5. December 11 assessment: AT RISK — RECOVERING
+
+**B5 update (2026-11-13):** The repository-level integration blocker is resolved — PR #78 is
+**merged to `main` at `cac3cd6a82220353c1d48599b484368f78251033`** (§4.2). The pilot remains
+**AT RISK** because nothing on the critical path is yet deployed to AWS, built via EAS,
+distributed to Play Internal Testing, or accepted on a device. Current remaining blockers, in
+dependency order:
+
+1. **Pre-deploy verification & D-2 inventory (B6, `NOT AUTHORIZED`).**
+2. **W1 / backend release-scope decision (`W1_PRODUCTION_RELEASE_AUTHORIZED=NO`;
+   `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`)** — full convergence is chosen for planning only;
+   any curated vs. converged backend release needs explicit owner authorization.
+3. **Coordinated backend → web deployment + bounded acceptance (B7, `NOT AUTHORIZED`).**
+4. **Android EAS build, Play Internal distribution, device acceptance and Ryan testing (B8,
+   `NOT AUTHORIZED`).**
+
+The text below is the preserved B4.1 assessment (pre-merge); item 1(a) there is superseded by §4.2.
 
  Batches B1-A (#75), B1-B (#76), B2-A (#77), B2-B (Android source audit), and B2-C (#78) resolved the
 two repository-level blockers from the initial checkpoint (the red CI baseline on `main` and the
@@ -240,23 +319,29 @@ items are pulled into December 11 pilot scope.
 
 ## 6. Release board (Android / web / backend pilot scope)
 
-State key: `DEP` = deployed · `SRC-ACC` = source accepted & 5/5 CI green in PR #78 (NOT merged or
-released) · `IMPL` = implemented on `main`, not deployed · `NOT` = not implemented / not executed ·
-`UNK` = unknown.
+State key: `DEP` = deployed · `MRG` = **merged to `main` at `cac3cd6` via PR #78 squash (2026-11-13),
+NOT deployed / built / distributed** · `SRC-ACC` = source accepted & 5/5 CI green in PR #78 (NOT
+merged or released; historical state of rows 1–9 at the 2026-11-12 / B4.1 snapshot) · `IMPL` =
+implemented on `main`, not deployed · `NOT` = not implemented / not executed · `UNK` = unknown.
+
+*(Board updated 2026-11-13 in B5-C1. At the 2026-11-12 / B4.1 snapshot, rows 1–9 were `SRC-ACC`
+in Draft PR #78 `2ef5a1f`, and each row's first remaining action was "Merge" / Gate C3c
+`MERGE AUTHORIZATION`; that step is now complete and has been removed from the remaining-action
+column.)*
 
 | # | Feature (user value) | State | PR / SHA / deps | Remaining action → acceptance check | Blocks | Gate / owner | Pri |
 |---|---|---|---|---|---|---|---|
-| 1 | Green CI baseline & full-stack source integration | `SRC-ACC` | #75 `b91e8cc`, #76 `2d69045`, #77 `16471f8`, **#78 `2ef5a1f`** (5/5 CI `SUCCESS`) | Matthew Gate C3c `MERGE AUTHORIZATION` → `main` CI green | Android + web | Matthew (merge) | P0 |
-| 2 | Android booking continuation + exact visit access + per-child draft notes | `SRC-ACC` | #46 `06ee9d6` (in #78 `2ef5a1f`) | Merge → EAS build → device check of M&G approval & child-visit selection | Android | Matthew (merge/build) | P0 |
-| 3 | Android owner/admin `DRAFT` quote create/edit/send + S1-R1 hydration | `SRC-ACC` | #67 `d60b1b2` (on #46; in #78 `2ef5a1f`) | Merge → EAS build → emulator/device run (`DRAFT → SENT`) | Android | Matthew (merge/build) | P0 |
-| 4 | Android `owner/admin/staff` visit Start/Complete (`const canExecuteVisits` in `RequestDetailScreen.tsx`) | `SRC-ACC` | #68 `257e045` (on #67; in #78 `2ef5a1f`) | Merge → EAS build → device check against `/admin/job/start` & `/complete` | Android | Matthew (merge/build) | P0 |
-| 5 | Android owner/admin cancellation decisions + D-4 BE-CANCEL-1 compatibility (`cancellation_request_id`, `ApiError.code`, `O-1 = A` `DENY` restores `APPROVED`/`ASSIGNED`) | `SRC-ACC` | #69 `e4040ef` (on #68; in #78 `2ef5a1f`); depends on #71 deployed | Merge → deploy #71 backend first → EAS build → device acceptance | Android | Matthew (merge/deploy/build) | P0 |
-| 6 | Server-safe cancellation decisions (`PUT /admin/cancel/decision`, exact literals, atomic gate, cycle id, `require_existing=True`, `/admin/review` guard) | `SRC-ACC` | #71 `ccf2d84` (in #77/#78 `2ef5a1f`) | Merge → D-2 inventory check → targeted `cancellation`+`review` Lambda deploy → bounded contract check | Android + web | Matthew (merge/deploy) | P0 |
-| 7 | Web explicit Approve/Deny cancellation modal (removes `Cancel = DENY` bug; sends `cancellation_request_id`) | `SRC-ACC` | #72 `56174ce` (in #77/#78 `2ef5a1f`); depends on #71 deployed | Merge → deploy after #71 backend verified → admin smoke | Web | Matthew (merge/deploy) | P0 |
-| 8 | Client portal "cancellation declined" marker (`cancellation_denied`, `cancellation_denied_at`) | `SRC-ACC` | #73 `6f1c60a` (in #77/#78 `2ef5a1f`); depends on #71 deployed | Merge → deploy `admin` Lambda projection then web → client smoke | Web | Matthew (merge/deploy) | P1 |
-| 9 | R7E legacy multi-day child `visit_window` inheritance + Calendar Option 3A (`WINDOW_START_HOURS` in `google_calendar.py`) | `SRC-ACC` | #75 `b91e8cc` (in #78 `2ef5a1f`) | **Option 3A SELECTED (B4.1):** retain current `WINDOW_START_HOURS` behavior (no code change) → merge & `job` Lambda deploy gate | Backend (`job` Lambda) | Matthew (merge/deploy) | P1 |
-| 10 | Accumulated merged-not-deployed scheduling/workflow (A–C, C1, Ryan W1 Walk `WALK_20MIN`, O1 Overnight, E1, E2, W4 Option A, Workstream 1 `pet_ids`) | `IMPL` (merged on `main`) | on `main` `8fe7fa7` | **Full convergence chosen for PLANNING ONLY (B4.1):** **`W1_PRODUCTION_RELEASE_AUTHORIZED=NO` unchanged**; requires explicit W1 & backend deployment authorization | Android + web | Matthew (W1 & deploy gate) | P0 |
-| 11 | Android EAS build + Play internal distribution | `NOT` (for new code) | last build `vc4` `bf9f80d` | After merge & backend deploy: approved EAS build → Play internal → device acceptance | Android | Matthew (EAS, Play, Ryan) | P0 |
+| 1 | Green CI baseline & full-stack source integration | `MRG` | #75 `b91e8cc`, #76 `2d69045`, #77 `16471f8`, #78 head `77e8ec8` (run `43463005295` 5/5 `SUCCESS`) → **`main` `cac3cd6`** | ✅ Merged (B5-B). Next: B6 read-only pre-deploy verification (no CI runs on `main`; workflow is `pull_request`-only) | Android + web | Matthew (B6 approval) | P0 |
+| 2 | Android booking continuation + exact visit access + per-child draft notes | `MRG` | #46 `06ee9d6` (in `cac3cd6`) | EAS build → device check of M&G approval & child-visit selection | Android | Matthew (build) | P0 |
+| 3 | Android owner/admin `DRAFT` quote create/edit/send + S1-R1 hydration | `MRG` | #67 `d60b1b2` (in `cac3cd6`) | EAS build → emulator/device run (`DRAFT → SENT`) | Android | Matthew (build) | P0 |
+| 4 | Android `owner/admin/staff` visit Start/Complete (`const canExecuteVisits` in `RequestDetailScreen.tsx`) | `MRG` | #68 `257e045` (in `cac3cd6`) | EAS build → device check against `/admin/job/start` & `/complete` | Android | Matthew (build) | P0 |
+| 5 | Android owner/admin cancellation decisions + D-4 BE-CANCEL-1 compatibility (`cancellation_request_id`, `ApiError.code`, `O-1 = A` `DENY` restores `APPROVED`/`ASSIGNED`) | `MRG` | #69 `e4040ef` (in `cac3cd6`); depends on #71 deployed | Deploy #71 backend first → EAS build → device acceptance | Android | Matthew (deploy/build) | P0 |
+| 6 | Server-safe cancellation decisions (`PUT /admin/cancel/decision`, exact literals, atomic gate, cycle id, `require_existing=True`, `/admin/review` guard) | `MRG` | #71 `ccf2d84` (in `cac3cd6`) | D-2 inventory check → targeted `cancellation`+`review` Lambda deploy → bounded contract check | Android + web | Matthew (D-2/deploy) | P0 |
+| 7 | Web explicit Approve/Deny cancellation modal (removes `Cancel = DENY` bug; sends `cancellation_request_id`) | `MRG` | #72 `56174ce` (in `cac3cd6`); depends on #71 deployed | Deploy after #71 backend verified → admin smoke | Web | Matthew (deploy) | P0 |
+| 8 | Client portal "cancellation declined" marker (`cancellation_denied`, `cancellation_denied_at`) | `MRG` | #73 `6f1c60a` (in `cac3cd6`); depends on #71 deployed | Deploy `admin` Lambda projection then web → client smoke | Web | Matthew (deploy) | P1 |
+| 9 | R7E legacy multi-day child `visit_window` inheritance + Calendar Option 3A (`WINDOW_START_HOURS` in `google_calendar.py`) | `MRG` | #75 `b91e8cc` (in `cac3cd6`) | **Option 3A SELECTED (B4.1):** retain current `WINDOW_START_HOURS` behavior (no code change) → `job` Lambda deploy gate | Backend (`job` Lambda) | Matthew (deploy) | P1 |
+| 10 | Accumulated merged-not-deployed scheduling/workflow (A–C, C1, Ryan W1 Walk `WALK_20MIN`, O1 Overnight, E1, E2, W4 Option A, Workstream 1 `pet_ids`) | `IMPL` (merged on `main`) | on `main` since `8fe7fa7` (now within `cac3cd6`) | **Full convergence chosen for PLANNING ONLY (B4.1):** **`W1_PRODUCTION_RELEASE_AUTHORIZED=NO` unchanged**; requires explicit W1 & backend deployment authorization | Android + web | Matthew (W1 & deploy gate) | P0 |
+| 11 | Android EAS build + Play internal distribution | `NOT` (for new code) | last build `vc4` `bf9f80d` | After backend deploy: approved EAS build → Play internal → device acceptance | Android | Matthew (EAS, Play, Ryan) | P0 |
 | 12 | Web deployment of `main` + cancellation web (#72/#73/#76) | `NOT` | last web deploy W2C 2026-10-08 (`7c1a8f1`) | Build from approved RC → S3/CloudFront deploy → authenticated smoke | Web | Matthew (deploy) | P0 |
 | 13 | Mobile cancellation marker for clients | `NOT` (deferred by D-1) | — | Post-pilot | — | Matthew | P2 |
 | 14 | Branded password-reset email (Cognito → Postmark) | `IMPL` (deferred in `infra/deferred/`) | see `current-state.md` | Separate approved release | Neither (generic email works) | Matthew | P1 |
@@ -285,11 +370,15 @@ Each batch is bounded, ends at a Draft/evidence stop, and needs its own owner ap
    IDs (`43349187490` for `#76`, `43355736742` for `#77`, `43359979814` for `#78`), owner planning
    decisions (§4.1), and this December 11 checkpoint in documentation-only **Draft PR #79** stacked
    on `#78`. Stops for ChatGPT review.
-5. ⏳ **B5 — Consolidated Integration Execution (Gate C3c — `MERGE_AUTHORIZATION=NOT_ISSUED`):**
+5. ✅ **B5 — Consolidated Integration Execution (Gate C3c — `MERGE_AUTHORIZATION=NOT_ISSUED` at
+   B4.1; updated to `ISSUED_AND_EXECUTED` for PR #78 on 2026-11-13):**
    Consolidated PR `#78` integration strategy is **APPROVED**, Calendar **Option 3A** is **SELECTED**
    (no code change), and full pilot convergence is selected for **PLANNING ONLY** (with
    `W1_PRODUCTION_RELEASE_AUTHORIZED=NO` unchanged). Execution of the consolidated integration into
-   `main` awaits Matthew's explicit structured Gate C3c `MERGE AUTHORIZATION` block.
+   `main` awaits Matthew's explicit structured Gate C3c `MERGE AUTHORIZATION` block. *(Completed:
+   B5-A non-force fast-forward `2ef5a1f` → `77e8ec8`; B5-B Ready + squash merge →
+   `main` `cac3cd6a82220353c1d48599b484368f78251033`; B5-C read-only superseded-PR audit (§15);
+   B5-C1 this post-merge documentation reconciliation. See §4.2.)*
 6. ⏳ **B6 — Authorized Read-Only Pre-Deploy Verification & Plan (`NOT AUTHORIZED`):** Verify live AWS Lambda
    `CodeSha256` hashes and API Gateway `n40vai`, run read-only D-2 pending-cancellation inventory,
    capture rollback artifacts, and run a targeted read-only `terraform plan`.
@@ -304,6 +393,28 @@ Each batch is bounded, ends at a Draft/evidence stop, and needs its own owner ap
 ---
 
 ## 8. Current batch and next action
+
+- **Current batch (2026-11-13):** **B5-C1 — Post-Merge Documentation Reconciliation** on a single
+  documentation-only Draft PR (branch `docs/b5c-post-merge-reconciliation` from `main`
+  `cac3cd6a82220353c1d48599b484368f78251033`; exactly 4 files: `current-state.md`, this checkpoint,
+  `document-map.md`, `docs/release-notes/index.md`).
+- **Stopping condition:** Draft PR open, not Ready, not merged; **STOP FOR CHATGPT REVIEW**.
+- **Next recommended actions after ChatGPT review (each separately owner-gated):**
+  1. **Docs PR integration:** a separate structured Gate C3c `MERGE AUTHORIZATION` for this B5-C1
+     docs Draft PR (no authorization exists today).
+  2. **Superseded PR closure:** separate Matthew approval to close the §15 closure candidates with
+     pointer comments to `cac3cd6` (branches retained); separate policy decision on #45.
+  3. **B6-A — Offline release manifest (no AWS / no Terraform):** from `main` `cac3cd6`, reproduce the
+     expected backend archive / `source_code_hash` offline, map which of the 13 Lambdas change
+     behaviour vs. the recorded deployed hashes (flagging W1 activation per Lambda), and draft
+     curated (`cancellation`/`review`/`admin`) vs. full-convergence deploy options with ordering and
+     rollback capture. Docs-only Draft PR stop.
+  4. **B6-B — Read-only AWS pre-deploy verification (`NOT AUTHORIZED`):** live Lambda/API hash check,
+     D-2 legacy pending-cancellation inventory, rollback capture, targeted read-only `terraform plan`.
+  5. **B7 / B8 (`NOT AUTHORIZED`):** keep `W1_PRODUCTION_RELEASE_AUTHORIZED=NO` until Matthew
+     explicitly authorizes; backend → web deploy, then Android build/distribution/device acceptance.
+
+*(Previous §8 content, preserved as the B4.1 record:)*
 
 - **Current batch:** **B4.1 — Final Documentation Accuracy Correction** on **Draft PR #79** (branch
   `docs/b4-release-gate-reconciliation`, stacked on verified Draft PR #78
@@ -326,6 +437,11 @@ Each batch is bounded, ends at a Draft/evidence stop, and needs its own owner ap
 ---
 
 ## 9. Known baseline failures on `origin/main` (`8fe7fa7`) vs. PR #78 (`2ef5a1f`) remediation
+
+*(B5-B update 2026-11-13: these remediations are now on `main` at `cac3cd6`. The `8fe7fa7` column
+is historical. Final pre-merge CI evidence is run `43463005295` on `77e8ec8` (5/5 `SUCCESS`); the
+job IDs below are from the earlier `2ef5a1f` run `43359979814`. No CI runs on `main` itself because
+`ci.yml` triggers on `pull_request` only.)*
 
 | Area | `origin/main` (`8fe7fa7`) Baseline | Status in PR #78 (`2ef5a1f`) & B4 |
 |---|---|---|
@@ -392,7 +508,42 @@ at all; exit codes always report -1).
 
 ---
 
-## 13. RESUME BLOCK (Active — B4.1 Final Documentation Accuracy & Owner Planning Decision Reconciliation)
+## 13. RESUME BLOCK (Active — B5-C1 Post-Merge Documentation Reconciliation)
+
+- **Timestamp:** 2026-11-13
+- **`origin/main`:** `cac3cd6a82220353c1d48599b484368f78251033` (PR #78 squash merge; parent
+  `8fe7fa78ad707ac67a05d29059d2771a9aa256c8`; tree `f875c2c1583eba400a20ba3733f2e1c922077e90`
+  == approved head `77e8ec8fbefe92134b829ebc9533c516af0f6262` tree). Re-verify live before acting.
+- **Integration status:** `FULL_STACK_PR78_MERGED_TO_MAIN_NOT_DEPLOYED` — 89 files (backend
+  BE-CANCEL-1 / D-1 / R7E + test isolation, web B1-B / WEB-CANCEL-1 / D-1, Android #46/#67/#68/#69,
+  B4/B4.1 docs). Approved CI run `43463005295` 5/5 `SUCCESS`. No CI on `main` (pull_request-only).
+- **Merge authorization:** `MERGE_AUTHORIZATION=ISSUED_AND_EXECUTED` for PR #78 only (§4.2);
+  consumed. No other PR authorized for Ready/merge/closure.
+- **Current batch / branch:** B5-C1 docs-only Draft PR, branch `docs/b5c-post-merge-reconciliation`
+  (worktree `%TEMP%\togs-b5c`), 4 files: `docs/project-continuity/current-state.md`,
+  `docs/project-continuity/december-11-delivery-checkpoint.md`,
+  `docs/project-continuity/document-map.md`, `docs/release-notes/index.md`.
+- **Owner decisions in force:** `CONSOLIDATED_PR78_INTEGRATION_STRATEGY=APPROVED` (executed);
+  `LEGACY_MULTIDAY_CALENDAR_DECISION=OPTION_3A_SELECTED`;
+  `PILOT_CONVERGENCE_PLANNING_SCOPE=FULL_CONVERGENCE_PLANNING_ONLY`.
+- **Production state (recorded, not re-verified against AWS):** unchanged since 2026-10-27 —
+  `admin` `GlA3mUtq…`, other 12 Lambdas `W6cqyudl…`, API stage `n40vai`, Web `7c1a8f1`, Android
+  `vc4` / iOS `(6)` from `bf9f80d`. Latest completed production milestone remains
+  `W3C2_FUNCTIONAL_ACCEPTANCE=COMPLETE` (2026-10-27).
+- **Explicitly unchanged / NOT AUTHORIZED gates:** `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`;
+  `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES` (an untargeted apply would now also ship all merged PR #78
+  backend scope); D-2 production inventory; AWS reads/writes; `terraform plan`/`apply`;
+  backend/web deployment; Android EAS build; Play/TestFlight distribution; Ryan testing; tenant
+  changes; Stripe live — all **NOT AUTHORIZED**.
+- **Open PRs:** §15 closure candidates (#75, #76, #77, #71, #72, #73, #46, #67, #68, #69, #74, #62,
+  #43) remain OPEN/Draft pending separate approval; #45 pending owner policy decision.
+- **December 11 assessment:** **AT RISK — RECOVERING** (§5).
+- **Next action:** STOP FOR CHATGPT REVIEW of the B5-C1 docs Draft PR; then the separately gated
+  options in §8.
+
+---
+
+### 13.1 Historical Resume Block (B4.1 Final Documentation Accuracy & Owner Planning Decision Reconciliation) — preserved; superseded by §13 on 2026-11-13
 
 - **Timestamp:** 2026-11-13
 - **`origin/main`:** `8fe7fa78ad707ac67a05d29059d2771a9aa256c8` (unchanged)
@@ -473,3 +624,33 @@ at all; exit codes always report -1).
   (subsequently completed in B2-B and integrated in #78).
 - **Latest owner approval in scope at PR #74:** D-1/D-3 product policy; Dec 11 continuity direction
   and PR #74 docs-only corrections. D-2 production inventory NOT authorized.
+
+---
+
+## 15. B5-C Superseded Draft PR Audit (read-only, 2026-11-13; closure NOT authorized)
+
+Because PR #78 was squash-merged, constituent heads are not ancestors of `main`; ancestry was
+not used as the sole test. Evidence per PR: (a) ancestry to the pre-squash head `77e8ec8` (whose
+tree equals `main`'s), (b) per-file blob comparison of the PR's own diff vs `cac3cd6`, (c) a
+3-way `git merge-tree` of the PR head into `main`, and (d) for squash-combined PRs, targeted
+recombination against #76. No PR was closed, edited or commented on.
+
+| PR | Head | Evidence | Disposition |
+|---|---|---|---|
+| #75 | `b91e8cc` | merge into `main` is a no-op (result tree == `main` tree); 17/17 files identical | Fully represented — closure candidate |
+| #62 | `057de19` | merge into `main` is a no-op; 13/13 files identical | Fully represented (consolidated by #75) — closure candidate |
+| #76 | `2d69045` | ancestor of `77e8ec8`; 38/40 identical; `AdminDashboard.jsx`/`ClientPortal.jsx` later changed only by B2-A `16471f8` | Represented, later extended — closure candidate |
+| #77 | `16471f8` | ancestor; 59/61 identical; 2 release notes gained only B4 lines (`7dd395b`) | Represented — closure candidate |
+| #71 | `ccf2d84` | not an ancestor (combined in `16471f8`); 8/8 code/test files identical; release note = PR text + B4 note | Fully represented — closure candidate |
+| #72 | `56174ce` | not an ancestor; #76 + #72 recombination conflicts only on one import line, resolved in `main` keeping #72's `getAdminRequest` and #76's removal of unused `disableClient`; other 7 files identical | Represented — closure candidate |
+| #73 | `6f1c60a` | not an ancestor; #76 + #73 merges cleanly to exactly `main`'s `ClientPortal.jsx`; other code/test files identical | Fully represented — closure candidate |
+| #46 | `06ee9d6` | ancestor; differing files changed later only by #67/#68/#69 (`134ba5a`, `257e045`, `ec806a7`) and B4/B4.1 docs | Represented; intentionally superseded by #67/#68/#69 — closure candidate |
+| #67 | `d60b1b2` | ancestor; 8/12 identical; others extended by #68/#69 and B4 | Represented — closure candidate |
+| #68 | `257e045` | ancestor; 2/3 identical; `RequestDetailScreen.tsx` only gained #69 lines (`canExecuteVisits` intact) | Represented — closure candidate |
+| #69 | `e4040ef` | ancestor; 7/8 identical; release note gained only B4 lines | Represented — closure candidate |
+| #74 | `afa75c4` | not an ancestor; checkpoint rewritten in B4 with §14 adopted/superseded mapping and the PR #74 resume block preserved verbatim | Intentionally superseded — closure candidate |
+| #43 | `9a5dc1d` | not an ancestor; merging #43 into #76 is a no-op (result == #76 tree) | Superseded by #76 — closure candidate |
+| #45 | `3c5679d` | not an ancestor; content (191 added lines incl. +61 in `guardrails.md` and a new policy note) is **NOT in `main`** | Not superseded — requires a separate Matthew policy decision |
+
+Closure of any candidate requires separate Matthew approval (recommended: pointer comment to
+`cac3cd6`, branches retained). PR #79 is already shown as MERGED by GitHub (auto-marked in B5-A).
