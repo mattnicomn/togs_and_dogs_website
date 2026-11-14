@@ -12,7 +12,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import IntakeForm from '../src/components/IntakeForm';
 import { getEffectiveRole, getSession } from '../src/api/auth';
 import { getClientPets, getStaffOptions, submitClientRequest, submitRequest } from '../src/api/client';
@@ -65,7 +65,15 @@ const acceptAndSubmit = async () => {
 };
 
 describe('IntakeForm — Workstream 1 client existing-pet selection', () => {
+  // B6-C2: these assertions describe the W1 behaviour, which now only applies
+  // when the build-time flag is exactly "true". The flag-OFF behaviour is
+  // covered by IntakeFormExistingPetSelectionFlag.test.jsx.
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
+    vi.stubEnv('VITE_W1_EXISTING_PET_SELECTION', 'true');
     vi.clearAllMocks();
     getSession.mockResolvedValue(clientSession);
     getEffectiveRole.mockReturnValue('client');
