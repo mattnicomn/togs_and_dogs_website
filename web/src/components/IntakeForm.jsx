@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { submitRequest, submitClientRequest, getStaffOptions, getClientPets } from '../api/client';
 import { getSession, getEffectiveRole } from '../api/auth';
 import { TERMS_VERSION, PRIVACY_VERSION } from '../constants/policy';
+import { isExistingPetSelectionEnabled } from '../config/featureFlags';
 import { SERVICE_TYPES } from '../generated/contracts';
 import DatePickerGrid from './DatePickerGrid';
 import './IntakeForm.css';
@@ -96,6 +97,9 @@ const IntakeForm = () => {
   // Workstream 1: authenticated client's existing pets (client-safe endpoint).
   const [clientPets, setClientPets] = useState([]);
   const [isClient, setIsClient] = useState(false);
+  // B6-C2: existing-pet selection is a build-time, off-by-default
+  // release-compatibility switch (NOT a security boundary).
+  const existingPetSelectionEnabled = isExistingPetSelectionEnabled();
   const selectedService = SERVICE_TYPES.services[formData.service_type];
   const canonicalWindowModel = getCanonicalWindowModel(formData.service_type);
   const usesCheckInSchedule = selectedService?.windowSelectionMode === 'match_visits_per_day';
@@ -115,12 +119,15 @@ const IntakeForm = () => {
         }));
         // Workstream 1: load the authenticated client's existing pets ONCE
         // through the client-safe endpoint (no admin endpoint, no N+1 calls).
-        getClientPets()
-          .then((data) => {
-            const list = Array.isArray(data) ? data : (data?.pets || []);
-            setClientPets(list);
-          })
-          .catch(() => setClientPets([]));
+        // B6-C2: only when existing-pet selection is enabled.
+        if (isExistingPetSelectionEnabled()) {
+          getClientPets()
+            .then((data) => {
+              const list = Array.isArray(data) ? data : (data?.pets || []);
+              setClientPets(list);
+            })
+            .catch(() => setClientPets([]));
+        }
       }
     }).catch(() => {});
     
@@ -166,11 +173,16 @@ const IntakeForm = () => {
     if (currentStep === 3) {
       const pets = formData.pets || [];
       const hasTypedPet = pets.some(p => p.name && p.name.trim());
-      // Workstream 1: a client may satisfy the pet requirement by selecting an
-      // existing pet (by id) instead of typing a new one.
-      const hasSelectedExisting = (formData.selected_pet_ids || []).length > 0;
-      if (!hasTypedPet && !hasSelectedExisting) {
-        errors.pets = "Select an existing pet or add at least one new pet.";
+      if (existingPetSelectionEnabled) {
+        // Workstream 1: a client may satisfy the pet requirement by selecting an
+        // existing pet (by id) instead of typing a new one.
+        const hasSelectedExisting = (formData.selected_pet_ids || []).length > 0;
+        if (!hasTypedPet && !hasSelectedExisting) {
+          errors.pets = "Select an existing pet or add at least one new pet.";
+        }
+      } else if (!hasTypedPet) {
+        // B6-C2 flag OFF: the pre-W1 typed-pet workflow (and message) is required.
+        errors.pets = "At least one pet name is required.";
       }
     }
     setValidationErrors(errors);
@@ -332,7 +344,7 @@ const IntakeForm = () => {
       const selectedIds = (payload.selected_pet_ids || []).filter(Boolean);
       delete payload.selected_pet_ids;
 
-      if (s && role === 'client' && selectedIds.length > 0) {
+      if (existingPetSelectionEnabled && s && role === 'client' && selectedIds.length > 0) {
         payload.pet_ids = selectedIds;
         const selectedNames = selectedIds
           .map((id) => (clientPets.find((p) => getPetId(p) === id) || {}).name)
@@ -343,9 +355,20 @@ const IntakeForm = () => {
         delete payload.pet_ids;
       }
 
+      // B6-C2: with existing-pet selection OFF, no outgoing intake request may
+      // carry pet_ids or selected_pet_ids, whatever stale or injected form state
+      // contains. Applied to the exact object sent on BOTH submit paths.
+      const stripExistingPetFields = (body) => {
+        if (!existingPetSelectionEnabled) {
+          delete body.pet_ids;
+          delete body.selected_pet_ids;
+        }
+        return body;
+      };
+
       let result;
       if (s && role === 'client') {
-        result = await submitClientRequest(payload);
+        result = await submitClientRequest(stripExistingPetFields(payload));
       } else {
         const fullPayload = {
           ...payload,
@@ -357,7 +380,7 @@ const IntakeForm = () => {
           accepted_by_email: formData.client_email,
           source: 'public_intake'
         };
-        result = await submitRequest(fullPayload);
+        result = await submitRequest(stripExistingPetFields(fullPayload));
       }
       
       setStatus({ 
@@ -861,7 +884,7 @@ const IntakeForm = () => {
                     Selection is keyed by pet_id; duplicate names stay independently
                     selectable. Submitted as canonical pet_ids. New pets are added
                     below via the structured entry. */}
-                {isClient && clientPets.length > 0 && (
+                {existingPetSelectionEnabled && isClient && clientPets.length > 0 && (
                   <div style={{ marginBottom: '24px' }} data-testid="existing-pet-picker">
                     <h4 style={{ marginBottom: '8px' }}>Your Pets</h4>
                     <p className="field-hint" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
