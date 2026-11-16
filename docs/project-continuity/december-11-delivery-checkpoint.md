@@ -2,7 +2,8 @@
 
 **Status:** ACTIVE delivery checkpoint for the single-business pilot (Togs & Dogs on PetCare Hero).
 **Target:** usable Android + web application by **2026-12-11**.
-**As of:** 2026-11-13 (B6-C1 production baseline documentation reconciliation after the owner-approved read-only B6-B1 AWS metadata verification; see §16). *(Prior as-of text for the same date, preserved: B5-C1 post-merge documentation reconciliation after the owner-authorized B5-B squash merge of PR #78 into `main` at `cac3cd6a82220353c1d48599b484368f78251033`.)* **Assessment:** **AT RISK — RECOVERING (Full-Stack Source Integration MERGED to `main`, NOT DEPLOYED; Calendar Option 3A Selected; Full Convergence for Planning Only; Gated on Pre-Deploy Verification, W1 Release Scope, and Deploy/Build/Distribution Approvals)** (see §5).
+**As of:** 2026-11-15 (CP-5M continuity reconciliation of backend release preparation CP-1 through CP-5J; see §17). **Assessment:** **AT RISK — RECOVERING (backend-first release BLOCKED: the single CP-5 targeted plan contained an unauthorized `admin` `STRIPE_SECRET_KEY` change and is `NEVER_APPLY`; Stripe test-key rotation approved in principle only; nothing deployed)** (see §5).
+*(Previous as-of line, preserved:)* **As of:** 2026-11-13 (B6-C1 production baseline documentation reconciliation after the owner-approved read-only B6-B1 AWS metadata verification; see §16). *(Prior as-of text for the same date, preserved: B5-C1 post-merge documentation reconciliation after the owner-authorized B5-B squash merge of PR #78 into `main` at `cac3cd6a82220353c1d48599b484368f78251033`.)* **Assessment:** **AT RISK — RECOVERING (Full-Stack Source Integration MERGED to `main`, NOT DEPLOYED; Calendar Option 3A Selected; Full Convergence for Planning Only; Gated on Pre-Deploy Verification, W1 Release Scope, and Deploy/Build/Distribution Approvals)** (see §5).
 *(Previous as-of line, preserved: 2026-11-13 (B4.1 final documentation accuracy & owner planning decision reconciliation on top of full-stack Draft PR #78). Assessment: AT RISK — RECOVERING (Full-Stack Source Candidate Verified & CI Green; Consolidated Strategy & Calendar Option 3A Selected; Gated on Explicit Merge Authorization, W1 Release Scope, and Deploy/Build Approvals).)*
 
 This file is the shared checkpoint for ChatGPT, Kiro Desktop/Web and authorized implementation
@@ -48,6 +49,7 @@ snapshot; re-verify live state before acting).
 | Main checkout | on `fix/web-eslint-baseline-20261011` with one untracked `infra/prod/_gatea_plan_out.txt` — preserve; local `main` ref fast-forwarded to `cac3cd6` |
 | `origin/main` (B6-C1 update) | `61e84d9649d016f462a4f436f8ec266b83e2d2de` — PR #80 B5-C1 docs squash merge on top of `cac3cd6` (4 docs files) |
 | Production baseline (B6-B1) | Live-verified read-only on 2026-11-13 — see §16 |
+| `origin/main` (CP-5M update, 2026-11-15) | **`e7f099214ac851b17d6bc909ea60fe0cf6bf0e78`**: PR #84 CP-5J squash on PR #83 `469e0e67622f1b71f079a5092a875b963a4b8cd5`, on PR #82 (B6-C2) `9cf27893fa6537045abf95b0d34898927c1c1aef`, on PR #81 (B6-C1 docs) `eab53c8c9ec00019a792b049d4cdf2a852c86e48`. See §17. Production unchanged from §16. |
 
 PR status after B5-B:
 
@@ -302,6 +304,12 @@ and Ryan action. ChatGPT reviews. Kiro/AG execute only approved, bounded scope.
 
 ## 5. December 11 assessment: AT RISK — RECOVERING
 
+**CP-5M update (2026-11-15) — current production blocker:** B6-B2 pre-deploy preparation (CP-1 through CP-5J, §17) built and verified the candidate, captured rollback copies, and ran **one** targeted plan for `cancellation`, `review` and `admin`.
+- That plan showed `0 add / 3 change / 0 destroy` with the candidate code hash matched.
+- It also contained an **unauthorized `admin` `environment.variables.STRIPE_SECRET_KEY` change** (`PLAN_COMPLETED_UNEXPECTED_DIFF` → `UNEXPECTED_CONFIG_CHANGE_CONFIRMED`), so it is **`CP5_SAVED_PLAN_STATUS=NEVER_APPLY`**.
+- The coordinated backend-first release (B7) is **BLOCKED**. The Stripe test-mode configuration mismatch must be resolved, through the owner-gated CP-5K, before any new three-Lambda plan is considered. D-1 still requires `admin`.
+- The CP-5J merge is source-only and is not deployment approval. The remaining blockers below are unchanged.
+
 **B5 update (2026-11-13):** The repository-level integration blocker is resolved — PR #78 is
 **merged to `main` at `cac3cd6a82220353c1d48599b484368f78251033`** (§4.2). The pilot remains
 **AT RISK** because nothing on the critical path is yet deployed to AWS, built via EAS,
@@ -405,6 +413,11 @@ Each batch is bounded, ends at a Draft/evidence stop, and needs its own owner ap
 6. ⏳ **B6 — Authorized Read-Only Pre-Deploy Verification & Plan (`NOT AUTHORIZED`):** Verify live AWS Lambda
    `CodeSha256` hashes and API Gateway `n40vai`, run read-only D-2 pending-cancellation inventory,
    capture rollback artifacts, and run a targeted read-only `terraform plan`.
+   *(CP-5M update 2026-11-15: B6-B1 completed read-only, §16. B6-B2 was executed as owner-approved
+   checkpoints CP-1 through CP-5J, §17. Rollback copies were captured, PR #83 removed the
+   `review` → `job` target dependency, and one targeted plan ran. **That plan was rejected
+   (`NEVER_APPLY`)** because of an unauthorized `admin` `STRIPE_SECRET_KEY` change. Next is CP-5K
+   (Stripe test-key rotation preparation), then a separately approved new targeted plan.)*
 7. ⏳ **B7 — Authorized Backend & Web Deployment + Bounded Acceptance (`NOT AUTHORIZED`):** Requires
    explicit owner deployment authorization (and explicit `W1_PRODUCTION_RELEASE_AUTHORIZED=YES` if
    W1 Lambdas `intake`/`job` are included). Deploy approved backend Lambdas first, verify production
@@ -416,6 +429,28 @@ Each batch is bounded, ends at a Draft/evidence stop, and needs its own owner ap
 ---
 
 ## 8. Current batch and next action
+
+- **Current batch (2026-11-15, CP-5M):** continuity reconciliation of CP-1 through CP-5J (§17) on one
+  documentation-only Draft PR (branch `docs/cp5m-continuity-reconciliation` from `main`
+  `e7f099214ac851b17d6bc909ea60fe0cf6bf0e78`; 6 files: `README.md`, `current-state.md`,
+  `master-handoff-prompt.md`, `document-map.md`, this checkpoint, `docs/release-notes/index.md`).
+  **STOP FOR CHATGPT REVIEW.**
+- **`NEXT_RECOMMENDED_CHECKPOINT=CP-5K`:** owner-controlled Stripe test API credential rotation,
+  preparation and approval gating only. It is not triggered automatically. Before any actual rotation:
+  - verify test-mode-only scope;
+  - confirm the affected credential consumers;
+  - confirm the Dashboard rotation mechanics and the overlap options;
+  - confirm the authoritative input procedure;
+  - confirm rollback and validation steps;
+  - keep webhook signing-secret rotation as a separate later checkpoint;
+  - require explicit owner execution approval.
+- **After CP-5K (each separately owner-gated; none authorized today):**
+  1. A new targeted plan from a clean worktree at the then-current pinned `main`.
+  2. Owner-gated real-plan JSON inspection with the CP-5J checker.
+  3. Separate approval of the exact reviewed saved-plan identity before any apply.
+  4. Then B7 / B8.
+
+*(Previous §8 content for B6-C1, preserved:)*
 
 - **Current batch (2026-11-13, B6-C1):** **Production Baseline Documentation Reconciliation** on a
   single documentation-only Draft PR (branch `docs/b6c1-production-baseline-reconciliation` from
@@ -554,7 +589,22 @@ at all; exit codes always report -1).
 
 ---
 
-## 13. RESUME BLOCK (Active — B6-C1 Production Baseline Documentation Reconciliation)
+## 13. RESUME BLOCK (Active — CP-5M Continuity Reconciliation of CP-1 through CP-5J)
+
+- **Timestamp:** 2026-11-15
+- **`origin/main`:** `e7f099214ac851b17d6bc909ea60fe0cf6bf0e78` (PR #84 CP-5J squash). Re-verify live before acting.
+- **Integration status:** latest source integration is CP-5J, PR #84: source only, **not deployed**. PR #83 (`469e0e6`) is the Terraform `review` → `job` decoupling, also not applied.
+- **Production baseline:** unchanged from §16 (`admin` `GlA3mUtq…`; other 12 `W6cqyudl…`; API `n40vai`; Web W2C `7c1a8f1`). Latest functional acceptance is still W3-C2 (2026-10-27).
+- **CP-5 plan:** ran once; `0/3/0`; candidate hash matched. It **also contained an unauthorized `admin` `STRIPE_SECRET_KEY` change**, so it is **`CP5_SAVED_PLAN_STATUS=NEVER_APPLY`** (preserved, protected, never inspected again without approval).
+- **Stripe:** rotation policy **approved in principle** (test API key first, webhook signing secret later and separately, test mode only). **Actual rotation is NOT authorized.** The authoritative credential is not established; the mismatch is not remediated.
+- **Gates (unchanged):** `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`; `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`. The following are NOT AUTHORIZED: credential rotation, Stripe live, new Terraform plan/apply, real-plan JSON inspection, Lambda/web deployment, production test data, Ryan testing, mobile builds/distribution, second tenant, tenant-resolution mode changes.
+- **Next action:** STOP FOR CHATGPT REVIEW of the CP-5M docs Draft PR; then `NEXT_RECOMMENDED_CHECKPOINT=CP-5K` (§8).
+
+---
+
+### 13.00 Historical Resume Block (B6-C1 Production Baseline Documentation Reconciliation) — preserved; superseded by §13 on 2026-11-15
+
+*(Original heading: "## 13. RESUME BLOCK (Active — B6-C1 Production Baseline Documentation Reconciliation)". Content below is unchanged.)*
 
 - **Timestamp:** 2026-11-13
 - **`origin/main`:** `61e84d9649d016f462a4f436f8ec266b83e2d2de` (PR #80 docs on top of PR #78
@@ -781,6 +831,10 @@ evidence or an owner decision.
   the second copy recorded on 2026-10-27 was not located in the B6-A1 search.
 - **`GlA3mUtq…` (current admin): NOT captured.** Two hash-verified copies are required before any
   `admin` apply (B6-B2).
+  *(CP-5M update 2026-11-15: captured in CP-3 as a rollback archive with two hash-verified copies on
+  separate physical disks; see §17. The `W6cqyudl…` copies above gained an independent copy on a
+  separate physical disk in CP-5D. The 11-object web pre-deploy snapshot was captured on two
+  separate disks in CP-4B. No restore was performed.)*
 - **API Gateway:** prior deployment `hhryhc` was destroyed; API rollback is fix-forward only.
   Lambda-only targeted applies do not change the API (deployment fingerprint hashes API semantics
   only).
@@ -806,3 +860,99 @@ evidence or an owner decision.
   from `main` (existing-pet picker sending `pet_ids`) must therefore not ship before W1 is
   authorized and deployed, unless the picker is disabled by an off-by-default flag. Android
   versionCode 4 sends no `pet_ids` and has no cancellation call sites.
+
+---
+
+## 17. Backend release preparation CP-1 through CP-5J (B6-B2, through 2026-11-15)
+
+**Disposition:** `CP5_PLAN_REJECTED_STRIPE_CONFIG_DRIFT_SOURCE_CHECKER_MERGED_NOT_DEPLOYED`.
+Each checkpoint below was separately owner-approved and stopped for ChatGPT review. Approvals were
+scoped to the named checkpoint only, and none authorized deployment, apply, credential rotation or
+Stripe changes. Sanitized evidence only: no plan contents, environment values, credentials or
+`terraform.tfvars` values are recorded here or anywhere in the repository.
+
+**Status vocabulary used here:** *source merged* ≠ *source tested* ≠ *production deployed* ≠
+*production functionally accepted*; *plan completed* ≠ *plan accepted*; *rotation policy approved in
+principle* ≠ *actual rotation authorized*.
+
+### 17.1 Checkpoint sequence
+
+| CP | Result |
+|---|---|
+| CP-1 | Backend candidate ZIP prepared and source identity verified: `source_code_hash` `861IQwFAXAIGW507wbNOgse3MCI12CIDbcsau8Ol5jc=`. CP-5 later confirmed Terraform built the identical archive. |
+| CP-2 | Cancellation rollback inventory and safeguards prepared. |
+| CP-3 | Current `admin` artifact `GlA3mUtq…` captured as a rollback archive; hash-verified copies on two separate physical disks, access-protected. |
+| CP-4B | Website rollback baseline (11 objects, W2C `7c1a8f1`) preserved on two separate physical disks and re-verified byte-exact. The earlier CP-4 attempts stopped safely: a transient identity 503, then a size mismatch traced to CRLF copies of three LF objects. Those were re-verified read-only (CP-4R2/CP-4R4) before the corrected capture. |
+| CP-5A | Offline plan preparation found that `review` referenced the `job` Lambda, so a targeted plan would pull `job` (R7E + W1 code) into scope. |
+| CP-5B | Dependency correction designed: a name-derived `JOB_FUNCTION_NAME` instead of a resource reference. |
+| CP-5C | PR #83 (head `543b1c8bf6b88755e5c1538a405498e3d230d6a7`, only `infra/prod/main.tf`). Squash-merged under an owner `MERGE AUTHORIZATION` → `main` `469e0e67622f1b71f079a5092a875b963a4b8cd5` (parent `9cf27893…`, 2026-11-15T22:51:47Z). CI 5/5 `SUCCESS` (confirmed read-only in CP-5M). No independent human GitHub review. Not applied. |
+| CP-5D | Independent hash-verified copy of the `W6cqyudl…` rollback ZIP made on a separate physical disk. |
+| CP-5E | Offline planning preflight accepted, covering provider lock entries, handling of the separate DNS-account provider alias, and a clean worktree pinned at `469e0e6`. |
+| CP-5 | **One** targeted plan (`-target` `aws_lambda_function.cancellation`, `.review`, `.admin`) from a clean detached worktree at `469e0e6`. A first launch stopped before planning on expired SSO; the owner refreshed it, and the plan ran exactly once. See §17.2. |
+| CP-5F | Unexpected environment change independently confirmed: `UNEXPECTED_CONFIG_CHANGE_CONFIRMED`. |
+| CP-5G | Stripe input provenance investigated, from source only:<br>• `stripe_secret_key` is a sensitive Terraform variable with an empty default and no validation, wired only to `admin` `STRIPE_SECRET_KEY`;<br>• the webhook secret is wired only to `stripe_webhook`;<br>• exactly one tfvars file exists locally (contents not read);<br>• the earlier-recorded exposure of the test API key and test webhook secret remains unrotated. |
+| CP-5H | Credential remediation readiness prepared. Owner-only steps and plan gates were identified; no credential was read or changed. |
+| CP-5I | Staged rotation strategy designed. The test API key rotates with an overlap window alongside the three-Lambda release. The webhook signing secret rotates later, via a separate `stripe_webhook`-only change. A nested-diff plan checker comes first. Fallback option recorded but **not decided**: release `cancellation` + `review` only and defer `admin`. |
+| CP-5J | Offline nested-plan diff checker implemented, security-corrected and merged as PR #84. See §17.4. |
+
+### 17.2 CP-5 plan result (sanitized)
+
+- Ran exactly once. Exit code 2 (changes present). **`0 add / 3 change / 0 destroy`**, all in-place
+  updates to `aws_lambda_function.cancellation`, `.review` and `.admin`.
+- Each update's `source_code_hash` matched the candidate `861IQ…`, and `last_modified` became unknown.
+- **The plan also contained an unauthorized configuration change: `admin`
+  `environment.variables.STRIPE_SECRET_KEY`.** No other attribute changed on the three resources.
+- Classification `PLAN_COMPLETED_UNEXPECTED_DIFF`. The plan-time checker also mis-handled nested
+  `after_unknown` objects; CP-5J fixes this. CP-5F confirmed the finding:
+  `UNEXPECTED_CONFIG_CHANGE_CONFIRMED`.
+- **`CP5_SAVED_PLAN_STATUS=NEVER_APPLY`.** The saved plan (SHA-256
+  `334edfe9ad3ea8b35c02fd57761b2c8ff063e9e6bd5e496d73d5b3c86838905e`) is preserved in an
+  owner-only, access-protected location outside the repository. Its console output contains
+  sensitive values and stays protected.
+- No state-lock error was reported. Lock release was not independently confirmed; never force-unlock.
+
+### 17.3 Stripe remediation status
+
+- **Owner decision, approved IN PRINCIPLE:** rotate the Stripe **test** API key first. Rotate the
+  test webhook signing secret later, in a separate operational checkpoint. Both remain sandbox/test
+  mode only.
+- **That approval does not authorize rotation.** Stripe Dashboard actions, credential handling and
+  any `terraform.tfvars` update remain owner-controlled and separately gated.
+- **The correct authoritative credential has NOT been established. The mismatch is NOT remediated.
+  No credential has been rotated.**
+
+### 17.4 CP-5J offline checker (PR #84)
+
+- **What it is:** a standard-library, pure-function checker that compares nested plan structures
+  recursively, resolves `after_unknown` to `true` leaves, and fails closed against an explicit
+  allowlist.
+  - Strict default policy: `0/3/0` code-only, with exact `source_code_hash`.
+  - Optional Stripe test-key rotation profile: only by explicit caller selection.
+  - Reports contain sanitized paths only. See the
+    [design doc](../planning/cp5j-terraform-plan-diff-checker.md).
+- **Review and correction:** ChatGPT independently reviewed the Draft. The required security
+  correction redacts untrusted resource addresses and policy labels in reports. Head
+  `7de601b86fb186f9a9be45071dcce80cda8ee636` → corrected head
+  `10276478bf5d317096a93fb2e1154d8e2b3584cf`.
+- **Tests:** 107 synthetic tests and 31/31 targeted mutation tests reported passing locally. CI
+  5/5 `SUCCESS` on the corrected head (run `43779589684`). Repository CI does not execute
+  `tests/cp5`.
+- **Merge:** owner-authorized squash merge → `main` `e7f099214ac851b17d6bc909ea60fe0cf6bf0e78`
+  (2026-11-16T00:27:38Z, single parent `469e0e6`, tree identical to the corrected head, exactly 4
+  files). No independent human GitHub review.
+- **What it is not:** it has been tested on synthetic plan data only. It is **not production-validated**
+  and has never been run against a real plan. No Terraform, AWS or Stripe operation was involved.
+
+### 17.5 Gates after CP-5J
+
+- `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`; `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`.
+- The backend release scope is unchanged (`cancellation`, `review`, `admin`; D-1 requires
+  `admin`). The coordinated backend-first release is **BLOCKED** until the Stripe configuration
+  mismatch is resolved.
+- Each of the following needs its own owner approval:
+  - credential rotation (CP-5K first);
+  - any new targeted plan;
+  - any real-plan JSON inspection;
+  - any apply, bound to the exact reviewed saved-plan identity;
+  - B7 and B8.
+- `NEXT_RECOMMENDED_CHECKPOINT=CP-5K` (§8). Not triggered automatically.

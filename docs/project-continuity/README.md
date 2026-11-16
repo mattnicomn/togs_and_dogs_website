@@ -28,6 +28,13 @@ Togs & Dogs is Ryan's individual pet-care business/tenant. It is NOT the USMissi
 9. **`continuity-maintenance-checklist.md`** — How to keep these docs accurate
 10. **[`december-11-delivery-checkpoint.md`](december-11-delivery-checkpoint.md)** — ACTIVE delivery checkpoint for the December 11, 2026 pilot target: verified PR snapshot, release board, critical path, next action and resume block (re-verify live state before acting)
 
+**Where the latest authoritative state lives (CP-5M, 2026-11-15):**
+- Current status: the top entry of [`current-state.md`](current-state.md).
+- Active resume block: §13 of the [December 11 checkpoint](december-11-delivery-checkpoint.md).
+- Backend release preparation CP-1 through CP-5J, including the rejected `NEVER_APPLY` CP-5 plan and the Stripe remediation status: §17 of the December 11 checkpoint.
+- Offline plan checker design: [`../planning/cp5j-terraform-plan-diff-checker.md`](../planning/cp5j-terraform-plan-diff-checker.md).
+- Policy: [`guardrails.md`](guardrails.md) remains canonical and unchanged.
+
 ---
 
 ## When to Use This
