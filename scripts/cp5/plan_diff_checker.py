@@ -298,21 +298,65 @@ class CheckResult:
 
 _ADDRESS_RE = re.compile(r'^[A-Za-z0-9_\-.\[\]"]{1,512}$')
 _KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_\-]{0,63}$")
-# Key shapes that look like credential material are never echoed, even as keys.
-_CREDENTIAL_LIKE_KEY = re.compile(
-    r"^(sk_|rk_|pk_|whsec_|AKIA|ASIA|ghp_|gho_|github_pat_|xox[abpr]-|eyJ)",
+# Credential-shaped material is never echoed. Matched ANYWHERE in a string
+# (not only as a prefix), so it cannot hide behind a harmless-looking prefix.
+_CREDENTIAL_LIKE = re.compile(
+    r"([spr]k_(test|live)_|whsec_|AKIA|ASIA|github_pat_|xox[abpr]-"
+    r"|(^|[^A-Za-z0-9])([spr]k_|gh[pousr]_|eyJ))",
 )
 _SENSITIVE_NAME = re.compile(
     r"(SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL|PRIVATE|APIKEY|API_KEY|_KEY$|^KEY$)",
     re.IGNORECASE,
 )
 REDACTED_KEY = "<redacted-key>"
+REDACTED_ADDRESS = "<redacted-resource-address>"
+REDACTED_POLICY_NAME = "<redacted-policy-name>"
+
+# Canonical, reviewed addresses that are always rendered readably.
+_CANONICAL_ADDRESSES = frozenset(RELEASE_LAMBDA_ADDRESSES)
+# Any other address is rendered only if it is a plain, unquoted Terraform
+# address: optional ``module.<name>[<int>]`` prefixes, optional ``data.``,
+# ``<type>.<name>`` and an optional integer index. Quoted (string) index keys
+# are never rendered, because they are arbitrary user-controlled text.
+_ADDR_SEG = r"[A-Za-z_][A-Za-z0-9_-]{0,63}"
+_SAFE_ADDRESS_RE = re.compile(
+    r"^(module\.%s(\[[0-9]{1,6}\])?\.)*(data\.)?%s\.%s(\[[0-9]{1,6}\])?$"
+    % (_ADDR_SEG, _ADDR_SEG, _ADDR_SEG)
+)
+_POLICY_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+_MAX_RENDERED_ADDRESS = 256
 
 
 def _sanitize_key(key: str) -> str:
-    if _KEY_RE.match(key) and not _CREDENTIAL_LIKE_KEY.match(key):
+    if _KEY_RE.match(key) and not _CREDENTIAL_LIKE.search(key):
         return key
     return REDACTED_KEY
+
+
+def sanitize_address(address: Any) -> str:
+    """Public rendering of a resource address (internal matching never uses it).
+
+    Canonical release addresses stay readable. Other addresses stay readable
+    only when they are plain unquoted Terraform addresses with no
+    credential-shaped text; everything else becomes ``<redacted-resource-address>``.
+    No fingerprint or hash of the original is produced.
+    """
+    if type(address) is not str:
+        return REDACTED_ADDRESS
+    if address in _CANONICAL_ADDRESSES:
+        return address
+    if (len(address) <= _MAX_RENDERED_ADDRESS
+            and _SAFE_ADDRESS_RE.match(address)
+            and not _CREDENTIAL_LIKE.search(address)):
+        return address
+    return REDACTED_ADDRESS
+
+
+def sanitize_policy_name(name: Any) -> str:
+    """Public rendering of a caller-supplied policy label."""
+    if type(name) is str and _POLICY_NAME_RE.match(name) and not _CREDENTIAL_LIKE.search(name):
+        return name
+    return REDACTED_POLICY_NAME
 
 
 def format_path(path: Path) -> str:
@@ -348,7 +392,9 @@ _CHANGE_KEYS = ("before", "after", "after_unknown", "before_sensitive", "after_s
 
 @dataclass
 class _Entry:
-    address: str
+    # Original, untrusted address: used for exact matching and duplicate
+    # detection only. Never copied into a public result object.
+    address: str = field(repr=False)
     mode: str
     rtype: str
     actions: Tuple[str, ...]
@@ -501,14 +547,15 @@ def check_plan(plan: Any, policy: Optional[Policy] = None) -> CheckResult:
     if not isinstance(policy, Policy):
         return CheckResult(FAIL_POLICY_MISMATCH, "<invalid-policy>", (), (),
                            (Finding(FAIL_POLICY_MISMATCH, "policy_invalid"),))
+    label = sanitize_policy_name(policy.name)
     try:
         return _check(plan, policy)
     except MalformedInput as exc:
-        return _malformed(policy.name, exc.reason)
+        return _malformed(label, exc.reason)
     except RecursionError:
-        return _malformed(policy.name, "depth_exceeded")
+        return _malformed(label, "depth_exceeded")
     except Exception:  # noqa: BLE001 - fail closed without exposing anything
-        return _malformed(policy.name, "internal_error")
+        return _malformed(label, "internal_error")
 
 
 def _check(plan: Any, policy: Policy) -> CheckResult:
@@ -531,13 +578,16 @@ def _check(plan: Any, policy: Policy) -> CheckResult:
             _require(not diff.changed and not diff.unknown, "noop_with_diff")
             continue
         reason = "pending_data_source_read" if e.mode == "data" else "unexpected_resource_change"
-        findings.append(Finding(FAIL_UNEXPECTED_RESOURCE, reason, address=e.address))
-        reports.append(ResourceReport(e.address, e.actions, expected=False))
+        # Matching above used the original address; only the sanitized
+        # rendering may enter a public result object.
+        shown_addr = sanitize_address(e.address)
+        findings.append(Finding(FAIL_UNEXPECTED_RESOURCE, reason, address=shown_addr))
+        reports.append(ResourceReport(shown_addr, e.actions, expected=False))
 
     for rule in policy.rules:
         if rule.address not in present:
             findings.append(Finding(FAIL_POLICY_MISMATCH, "expected_resource_absent",
-                                    address=rule.address))
+                                    address=sanitize_address(rule.address)))
 
     findings.extend(_output_findings(plan, policy))
 
@@ -549,10 +599,12 @@ def _check(plan: Any, policy: Policy) -> CheckResult:
 
     findings.sort(key=lambda f: (FAIL_PRECEDENCE.index(f.classification),
                                  f.address or "", f.path or "", f.reason))
-    reports.sort(key=lambda r: r.address)
+    # Several entries may share the redacted placeholder; order on rendered
+    # fields only so output stays deterministic without the originals.
+    reports.sort(key=lambda r: (r.address, r.actions, r.expected))
     return CheckResult(
         classification=_headline(findings),
-        policy_name=policy.name,
+        policy_name=sanitize_policy_name(policy.name),
         counts=_counts(entries),
         resources=tuple(reports),
         findings=tuple(findings),
@@ -560,7 +612,9 @@ def _check(plan: Any, policy: Policy) -> CheckResult:
 
 
 def _check_expected(e: _Entry, rule: ResourceRule, findings: List[Finding]) -> ResourceReport:
-    addr = e.address
+    # The caller matched e.address exactly against the policy; reports carry
+    # only the sanitized rendering.
+    addr = sanitize_address(e.address)
     if e.rtype != rule.resource_type:
         findings.append(Finding(FAIL_UNEXPECTED_RESOURCE, "resource_type_mismatch", address=addr))
         return ResourceReport(addr, e.actions, expected=True)

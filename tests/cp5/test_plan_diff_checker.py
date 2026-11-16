@@ -49,11 +49,16 @@ TABLE_OLD_SENTINEL = "SYNTHETIC-TABLE-OLD-SENTINEL-0007"
 TABLE_NEW_SENTINEL = "SYNTHETIC-TABLE-NEW-SENTINEL-0008"
 OLD_HASH_SENTINEL = "SYNTHETICOLDHASHSENTINEL0000000000000000000="
 REPR_SENTINEL = "SYNTHETIC-REPR-SENTINEL-0009"
+TOKEN_SENTINEL = "gh" + "p_" + "SYNTHETICTOKEN0010"
+JWT_SENTINEL = "ey" + "J" + "SYNTHETICJWT0011"
+POLICY_LABEL_SENTINEL = "SYNTHETIC-POLICY-LABEL-0012"
 
 ALL_SENTINELS = (
     OLD_STRIPE_SENTINEL, NEW_STRIPE_SENTINEL, LIVE_STRIPE_SENTINEL,
     WEBHOOK_OLD_SENTINEL, WEBHOOK_NEW_SENTINEL, TFVAR_SENTINEL,
     TABLE_OLD_SENTINEL, TABLE_NEW_SENTINEL, OLD_HASH_SENTINEL, REPR_SENTINEL,
+    TOKEN_SENTINEL, JWT_SENTINEL, POLICY_LABEL_SENTINEL,
+    "SYNTHETICTOKEN", "SYNTHETICJWT", "SYNTHETIC-POLICY-LABEL",
     # Fragments that must never surface either.
     "SYNTHETIC-OLD-NOT-A-KEY", "SYNTHETIC-NEW-NOT-A-KEY", "SYNTHETIC-LIVE",
     "SYNTHETIC-TABLE", "SYNTHETIC-TFVAR", "SYNTHETICOLDHASH",
@@ -965,6 +970,246 @@ class TestSensitive(_Base):
         result = self.run_check(plan)
         self.assertIn("environment[0].variables.<redacted-key>",
                       [f.path for f in result.findings])
+
+
+# ---------------------------------------------------------------------------
+# Resource-address and label sanitization (CP-5J security correction)
+# ---------------------------------------------------------------------------
+
+UNSAFE_ADDRESSES = {
+    # A: synthetic test-key sentinel in a quoted index
+    "A_key_quoted_index": 'aws_ssm_parameter.synthetic["%s"]' % OLD_STRIPE_SENTINEL,
+    # B: synthetic webhook-secret sentinel
+    "B_webhook_quoted_index": 'aws_ssm_parameter.synthetic["%s"]' % WEBHOOK_NEW_SENTINEL,
+    "B_webhook_embedded_name": "aws_ssm_parameter.x_%s" % WEBHOOK_OLD_SENTINEL,
+    # C: synthetic tokens
+    "C_token_name": "aws_s3_object.%s" % TOKEN_SENTINEL,
+    "C_jwt_quoted_index": 'aws_s3_object.synthetic["%s"]' % JWT_SENTINEL,
+    # D: credential-like text in nested (module) addresses
+    "D_module_live_key": "module.%s.aws_lambda_function.synthetic" % LIVE_STRIPE_SENTINEL,
+    "D_module_index_key": 'module.m["%s"].aws_lambda_function.synthetic' % NEW_STRIPE_SENTINEL,
+    "D_module_embedded": "module.prefix_%s.aws_s3_bucket.b" % WEBHOOK_NEW_SENTINEL,
+    # Arbitrary quoted text is never rendered, credential-shaped or not.
+    "plain_quoted_index": 'aws_s3_bucket.b["%s"]' % REPR_SENTINEL,
+    "canonical_lookalike": 'aws_lambda_function.admin["%s"]' % TOKEN_SENTINEL,
+}
+
+SAFE_ADDRESSES = (
+    "aws_lambda_function.admin",
+    "aws_lambda_function.cancellation",
+    "aws_lambda_function.review",
+    "aws_lambda_function.job",
+    "module.iam.aws_iam_policy.dynamodb_access",
+    "module.api.aws_api_gateway_deployment.main",
+    "data.aws_iam_policy_document.synthetic",
+    "aws_s3_bucket.task_role_logs[0]",
+    "module.m[2].aws_s3_bucket.b",
+)
+
+
+class TestAddressSanitization(_Base):
+    def _plan_with(self, *addresses, actions=("update",)):
+        plan = make_plan()
+        for address in addresses:
+            entry = _generic_change(address, "aws_s3_bucket", actions)
+            plan["resource_changes"].append(entry)
+        return plan
+
+    def _assert_no_sentinel_anywhere(self, result):
+        objects = [result, *result.resources, *result.findings]
+        for r in result.resources:
+            objects.extend(r.paths)
+        text = "\n".join([_all_output(result)] + [repr(o) for o in objects]
+                         + [str(o) for o in objects])
+        for sentinel in ALL_SENTINELS:
+            if sentinel in text:
+                self.fail("sentinel escaped into a public result object")
+
+    def test_ABCD_unsafe_addresses_redacted_and_still_fail(self):
+        for label, address in UNSAFE_ADDRESSES.items():
+            for policy in (None, rotation_policy()):
+                with self.subTest(label=label, policy=getattr(policy, "name", "default")):
+                    result = self.run_check(self._plan_with(address), policy)
+                    # F / P: still an unexpected resource, never a PASS.
+                    self.assert_class(result, pdc.FAIL_UNEXPECTED_RESOURCE)
+                    self.assertFalse(result.passed)
+                    extra = [f for f in result.findings
+                             if f.classification == pdc.FAIL_UNEXPECTED_RESOURCE]
+                    self.assertEqual([f.address for f in extra], [pdc.REDACTED_ADDRESS])
+                    unexpected = [r for r in result.resources if not r.expected]
+                    self.assertEqual([r.address for r in unexpected], [pdc.REDACTED_ADDRESS])
+                    self._assert_no_sentinel_anywhere(result)
+
+    def test_E_safe_addresses_remain_readable(self):
+        for address in SAFE_ADDRESSES:
+            with self.subTest(address=address):
+                self.assertEqual(pdc.sanitize_address(address), address)
+        result = self.run_check(self._plan_with("module.iam.aws_iam_policy.dynamodb_access"))
+        self.assertIn("module.iam.aws_iam_policy.dynamodb_access",
+                      [f.address for f in result.findings])
+        self.assertEqual(
+            [r.address for r in result.resources if r.expected],
+            [ADMIN, CANCEL, REVIEW])
+
+    def test_sanitize_address_rejects_non_strings_and_long_values(self):
+        long_but_well_formed = "module.m." * 40 + "aws_s3_bucket.b"
+        self.assertGreater(len(long_but_well_formed), 256)
+        for bad in (None, 5, ["a"], "a" * 300, "aws_s3_bucket.b c", "aws_s3_bucket",
+                    long_but_well_formed):
+            with self.subTest(bad=type(bad).__name__):
+                self.assertEqual(pdc.sanitize_address(bad), pdc.REDACTED_ADDRESS)
+
+    def test_F_unexpected_address_classification_unchanged(self):
+        result = self.run_check(self._plan_with(UNSAFE_ADDRESSES["A_key_quoted_index"]))
+        self.assertEqual(result.findings[0].reason, "unexpected_resource_change")
+        self.assertEqual(dict(result.counts)["change"], 4)
+
+    def test_G_duplicate_detection_uses_original_addresses(self):
+        a = UNSAFE_ADDRESSES["A_key_quoted_index"]
+        b = UNSAFE_ADDRESSES["B_webhook_quoted_index"]
+        # Distinct originals that render identically are NOT duplicates.
+        result = self.run_check(self._plan_with(a, b))
+        self.assert_class(result, pdc.FAIL_UNEXPECTED_RESOURCE)
+        extra = [f for f in result.findings if f.classification == pdc.FAIL_UNEXPECTED_RESOURCE]
+        self.assertEqual(len(extra), 2)
+        # Identical originals ARE duplicates.
+        result = self.run_check(self._plan_with(a, a))
+        self.assert_class(result, pdc.FAIL_MALFORMED_PLAN)
+        self.assertEqual(result.findings[0].reason, "address_duplicate")
+        # Data-source mode with an unsafe address is also redacted.
+        plan = make_plan()
+        plan["resource_changes"].append(_generic_change(
+            'data.aws_ssm_parameter.p["%s"]' % OLD_STRIPE_SENTINEL,
+            "aws_ssm_parameter", ["read"], mode="data"))
+        result = self.run_check(plan)
+        self.assertEqual([f.reason for f in result.findings], ["pending_data_source_read"])
+        self.assertEqual(result.findings[0].address, pdc.REDACTED_ADDRESS)
+
+    def test_HIJ_redaction_in_to_dict_render_and_objects(self):
+        plan = self._plan_with(*UNSAFE_ADDRESSES.values())
+        result = self.run_check(plan)
+        d = result.to_dict()
+        self.assertTrue(all(r["address"] in (ADMIN, CANCEL, REVIEW, pdc.REDACTED_ADDRESS)
+                            for r in d["resources"]))
+        self.assertTrue(all(f["address"] in (pdc.REDACTED_ADDRESS,) for f in d["findings"]))
+        text = pdc.render_report(result)
+        self.assertEqual(text.count(pdc.REDACTED_ADDRESS), 2 * len(UNSAFE_ADDRESSES))
+        for obj in [*result.resources, *result.findings]:
+            self.assertIn(obj.address, (ADMIN, CANCEL, REVIEW, pdc.REDACTED_ADDRESS))
+        self._assert_no_sentinel_anywhere(result)
+
+    def test_K_no_sentinel_in_internal_repr_or_malformed_path(self):
+        plan = self._plan_with(*UNSAFE_ADDRESSES.values())
+        entries = pdc._parse_entries(plan)
+        text = repr(entries) + str(entries)
+        for sentinel in ALL_SENTINELS:
+            self.assertNotIn(sentinel, text)
+        # Address failing structural validation: malformed, nothing echoed.
+        bad = make_plan()
+        bad["resource_changes"].append(_generic_change(
+            "aws_s3_bucket.b %s" % OLD_STRIPE_SENTINEL, "aws_s3_bucket", ["update"]))
+        result = self.run_check(bad)
+        self.assert_class(result, pdc.FAIL_MALFORMED_PLAN)
+        self._assert_no_sentinel_anywhere(result)
+
+    def test_L_redacted_output_deterministic(self):
+        addresses = list(UNSAFE_ADDRESSES.values()) + ["aws_sqs_queue.q"]
+        plan = self._plan_with(*addresses)
+        plan["resource_changes"].append(_generic_change(
+            'aws_s3_bucket.c["%s"]' % JWT_SENTINEL, "aws_s3_bucket", ["delete"]))
+        baseline = json.dumps(pdc.check_plan(plan).to_dict())
+        variant = copy.deepcopy(plan)
+        variant["resource_changes"].reverse()
+        for _ in range(3):
+            self.assertEqual(json.dumps(pdc.check_plan(plan).to_dict()), baseline)
+            self.assertEqual(json.dumps(pdc.check_plan(variant).to_dict()), baseline)
+
+    def test_N_strict_policy_unchanged(self):
+        policy = pdc.strict_code_only_policy()
+        self.assertEqual(policy.name, pdc.STRICT_POLICY_NAME)
+        self.assertEqual(tuple(r.address for r in policy.rules), pdc.RELEASE_LAMBDA_ADDRESSES)
+        for rule in policy.rules:
+            self.assertEqual(rule.required_actions, ("update",))
+            self.assertEqual(rule.allowed_changed, frozenset({("source_code_hash",)}))
+            self.assertEqual(rule.required_changed, frozenset({("source_code_hash",)}))
+            self.assertEqual(rule.allowed_unknown, frozenset({("last_modified",)}))
+            self.assertEqual(rule.constraint_for(("source_code_hash",)).expected, CANDIDATE)
+        self.assertEqual(pdc.check_plan(make_plan()).policy_name, pdc.STRICT_POLICY_NAME)
+
+    def test_O_rotation_still_explicit_only(self):
+        with self.assertRaises(ValueError):
+            pdc.stripe_test_key_rotation_policy()
+        policy = rotation_policy()
+        admin = policy.rule_for(ADMIN)
+        self.assertEqual(admin.allowed_changed - {("source_code_hash",)},
+                         frozenset({("environment", 0, "variables", "STRIPE_SECRET_KEY")}))
+        for address in (CANCEL, REVIEW):
+            self.assertEqual(policy.rule_for(address).allowed_changed,
+                             frozenset({("source_code_hash",)}))
+
+    def test_P_no_false_pass_with_mixed_safe_and_unsafe(self):
+        plan = self._plan_with(UNSAFE_ADDRESSES["canonical_lookalike"])
+        rc(plan, ADMIN)["change"]["after"]["environment"][0]["variables"][
+            "STRIPE_SECRET_KEY"] = NEW_STRIPE_SENTINEL
+        for policy in (None, rotation_policy()):
+            with self.subTest(policy=getattr(policy, "name", "default")):
+                result = self.run_check(plan, policy)
+                self.assertFalse(result.passed)
+                self.assert_class(result, pdc.FAIL_UNEXPECTED_RESOURCE)
+        # Unsafe-address no-op entries keep their prior semantics (allowed
+        # only when identical) and still never produce output.
+        plan = make_plan()
+        noop = _generic_change(UNSAFE_ADDRESSES["A_key_quoted_index"], "aws_s3_bucket", ["no-op"])
+        noop["change"]["after"] = copy.deepcopy(noop["change"]["before"])
+        plan["resource_changes"].append(noop)
+        result = self.run_check(plan)
+        self.assert_class(result, pdc.PASS_EXACT_ALLOWED_DIFF)
+        self._assert_no_sentinel_anywhere(result)
+
+    def test_policy_label_sanitized(self):
+        base = pdc.strict_code_only_policy()
+        for name in (POLICY_LABEL_SENTINEL, NEW_STRIPE_SENTINEL, "ok-name-" + JWT_SENTINEL, ""):
+            with self.subTest(name_len=len(name)):
+                custom = pdc.Policy(name=name, rules=base.rules)
+                result = self.run_check(make_plan(), custom)
+                self.assertEqual(result.policy_name, pdc.REDACTED_POLICY_NAME)
+                malformed = self.run_check({"resource_changes": "x"}, custom)
+                self.assertEqual(malformed.policy_name, pdc.REDACTED_POLICY_NAME)
+                self._assert_no_sentinel_anywhere(result)
+        self.assertEqual(pdc.sanitize_policy_name(pdc.ROTATION_POLICY_NAME),
+                         pdc.ROTATION_POLICY_NAME)
+
+    def test_policy_rule_address_sanitized_when_absent(self):
+        base = pdc.strict_code_only_policy()
+        extra_rule = pdc.ResourceRule(
+            address='aws_lambda_function.x["%s"]' % OLD_STRIPE_SENTINEL,
+            resource_type="aws_lambda_function", required_actions=("update",),
+            required_changed=frozenset(), allowed_changed=frozenset(),
+            allowed_unknown=frozenset())
+        custom = pdc.Policy(name="custom-test-policy", rules=base.rules + (extra_rule,))
+        result = self.run_check(make_plan(), custom)
+        self.assert_class(result, pdc.FAIL_POLICY_MISMATCH)
+        self.assertEqual([f.address for f in result.findings], [pdc.REDACTED_ADDRESS])
+
+        # Present and matched by a caller policy: the report still carries
+        # only the sanitized rendering of the matched address.
+        plan = make_plan()
+        entry = _generic_change(extra_rule.address, "aws_lambda_function", ["update"])
+        plan["resource_changes"].append(entry)
+        result = self.run_check(plan, custom)
+        self.assert_class(result, pdc.FAIL_UNEXPECTED_ATTRIBUTE)
+        self.assertIn(pdc.REDACTED_ADDRESS, [r.address for r in result.resources if r.expected])
+        self.assertEqual({f.address for f in result.findings}, {pdc.REDACTED_ADDRESS})
+        self._assert_no_sentinel_anywhere(result)
+
+    def test_key_redaction_matches_embedded_but_not_ordinary_names(self):
+        self.assertEqual(pdc.format_path(("task_role",)), "task_role")
+        self.assertEqual(pdc.format_path(("laughs_total",)), "laughs_total")
+        self.assertEqual(pdc.format_path(("disk_size",)), "disk_size")
+        for key in ("x_" + WEBHOOK_NEW_SENTINEL, "pre_" + OLD_STRIPE_SENTINEL,
+                    "a_" + TOKEN_SENTINEL, "x_" + JWT_SENTINEL):
+            with self.subTest(key_len=len(key)):
+                self.assertEqual(pdc.format_path(("tags", key)), "tags." + pdc.REDACTED_KEY)
 
 
 # ---------------------------------------------------------------------------

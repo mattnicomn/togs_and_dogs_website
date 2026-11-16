@@ -100,8 +100,26 @@ When several findings exist, the headline uses this fixed precedence: MALFORMED,
   - the marker's shape does not fit the path (treated as sensitive, conservatively);
   - the path is under `environment`;
   - a segment name matches `SECRET`, `TOKEN`, `PASSWORD`, `PASSWD`, `CREDENTIAL`, `PRIVATE`, `API_KEY` or `APIKEY`, or ends in `_KEY`.
-- Rendered paths redact keys that are not simple identifiers, and keys that look like credential material (prefixes such as `sk_`, `rk_`, `pk_`, `whsec_`, `AKIA`, `ASIA`, `ghp_`, `eyJ`). Such keys appear as `<redacted-key>`.
-- A report contains only: classification, policy name, action counts, sanitized resource addresses, sanitized paths, kind (`configured` or `unknown`), the sensitive flag, the verdict, fixed reason codes and the authority notice.
+- Rendered paths redact keys that are not simple identifiers, and keys that contain credential-shaped text. Distinctive forms (`sk_test_`/`sk_live_` and the `rk_`/`pk_` equivalents, `whsec_`, `AKIA`, `ASIA`, `github_pat_`, `xoxb-` and similar) match anywhere in a key. Short prefixes (`sk_`, `rk_`, `pk_`, `ghp_`-style, `eyJ`) match at the start or after a non-alphanumeric character, so ordinary names such as `task_role` stay readable. Redacted keys appear as `<redacted-key>`.
+- **Resource addresses** are untrusted plan data. The original address is used internally only, for exact policy matching and duplicate detection, and is never copied into a public result object (including internal `repr`). Public results carry `sanitize_address(address)`:
+  - the three canonical release addresses are always readable;
+  - any other address is readable only if it is a plain, unquoted Terraform address (optional `module.<name>[<int>]` prefixes, optional `data.`, `<type>.<name>`, optional integer index), is at most 256 characters, and contains no credential-shaped text;
+  - everything else, including **any quoted (string) index key**, renders as `<redacted-resource-address>`. No hash or fingerprint of the original is produced.
+- **Policy labels** are caller-supplied. They render only if they match `^[a-z0-9][a-z0-9-]{0,63}$` with no credential-shaped text; otherwise they appear as `<redacted-policy-name>`. Addresses taken from policy rules go through the same address sanitizer.
+- **Output boundary audit.** Every public field and where it comes from:
+
+  | Field | Source | Treatment |
+  |---|---|---|
+  | `classification`, `reason`, `kind`, `verdict`, `notice` | Fixed internal values | Emitted as-is |
+  | `counts`, `sensitive`, `expected`, `passed` | Computed integers and booleans | Emitted as-is |
+  | `actions` | Plan data | Validated against a fixed action set; anything else is malformed |
+  | resource `address` | Plan data, or policy rules | `sanitize_address` |
+  | attribute `path` | Plan keys plus integer indexes | `format_path` key redaction |
+  | output finding address | Plan output names | `output.` + key redaction |
+  | `policy` | Caller policy object | `sanitize_policy_name` |
+  | resource `type` | Plan data | Never emitted |
+
+- A report contains only: classification, sanitized policy name, action counts, sanitized resource addresses, sanitized paths, kind (`configured` or `unknown`), the sensitive flag, the verdict, fixed reason codes and the authority notice.
 
 ## 8. Strict default policy (`strict-code-only-3-lambda`)
 
@@ -180,6 +198,16 @@ All fixtures are synthetic and built in code. Credential-shaped sentinels are as
 | AM | No Stripe integration | AST and source audit | `test_AM_no_stripe_integration_or_paths` |
 | AN | Plan content cannot activate rotation | strict stays selected | `test_AN_plan_content_cannot_activate_rotation`, `test_rotation_requires_explicit_true` |
 | AO | No network, subprocess, file or environment access in the core | AST allowlist plus runtime tripwires | `test_AO_*` |
+| SA-A–D | Unsafe resource addresses: synthetic test key, webhook secret or token in quoted indexes, names or nested module segments | `<redacted-resource-address>`, still FAIL_UNEXPECTED_RESOURCE | `TestAddressSanitization.test_ABCD_*` |
+| SA-E | Safe and canonical addresses stay readable | readable | `test_E_safe_addresses_remain_readable` |
+| SA-F | Unexpected-resource classification unchanged after redaction | FAIL_UNEXPECTED_RESOURCE | `test_F_*` |
+| SA-G | Duplicate detection uses original addresses | distinct originals allowed; identical originals malformed | `test_G_*` |
+| SA-H–K | Redaction in `to_dict()`, `render_report()`, report and finding objects, `repr`/`str`, internal entry `repr`, malformed path | no sentinel anywhere | `test_HIJ_*`, `test_K_*` |
+| SA-L | Deterministic output with several redacted addresses | identical across orderings | `test_L_*` |
+| SA-N/O | Strict policy and explicit-only rotation policy unchanged | unchanged | `test_N_*`, `test_O_*` |
+| SA-P | No false PASS introduced by redaction | FAIL | `test_P_*` |
+| SA-labels | Caller policy labels and policy-rule addresses sanitized | redacted placeholders | `test_policy_label_sanitized`, `test_policy_rule_address_sanitized_when_absent` |
+| SA-keys | Credential-shaped text embedded mid-key redacted; ordinary names readable | as stated | `test_key_redaction_matches_embedded_but_not_ordinary_names` |
 
 Every check-path test also asserts that:
 
@@ -189,9 +217,13 @@ Every check-path test also asserts that:
 
 **Local results (Windows, Python 3.13.3, `-I -B`, standard library only):**
 
-- 93 tests, OK, on three consecutive runs.
-- Mutation check: 20 of 20 targeted mutants killed. The mutants included reintroducing the CP-5 nested-unknown bug, bypassing the attribute and unknown allowlists, disabling the hash match, the live-mode check, the explicit opt-in, the action check, duplicate detection, the output check, the noop-diff check, the errored-plan check, the sensitivity marker, the environment override and the key redaction.
-- Sources were restored byte-exact after the mutation run, and the suite passed again.
+- 107 tests, OK, on three consecutive runs (93 original plus 14 address and label sanitization regressions added in the CP-5J security correction).
+- Mutation check: 31 of 31 targeted mutants killed. The mutants included:
+  - reintroducing the CP-5 nested-unknown bug;
+  - bypassing the attribute and unknown allowlists;
+  - disabling the hash match, the live-mode check, the explicit opt-in, the action check, duplicate detection, the output check, the noop-diff check, the errored-plan check, the sensitivity marker, the environment override and the key redaction;
+  - bypassing the address sanitizer, allowing quoted indexes, removing the credential search or the length cap, emitting raw addresses on each of the three report paths, emitting unsanitized policy labels, anchoring the credential pattern to the prefix only, and dropping the deterministic report sort.
+- Sources were restored byte-exact after each mutation run, and the suite passed again.
 
 ```text
 python -I -B -m unittest discover -s tests/cp5 -t tests/cp5 -v
@@ -270,6 +302,8 @@ notice: PASS is a technical policy match only; it grants no release, deployment,
 7. **Restricted test keys** (`rk_test_`) are accepted by the rotation profile alongside `sk_test_`. Which key type to deploy is an owner decision.
 8. **Output-change failures** are classified `FAIL_POLICY_MISMATCH`, because outputs are not resources.
 9. **Import path:** `scripts/cp5` must be on `sys.path`. No package `__init__` was added, to keep the change scope minimal.
+10. **Address redaction is conservative.** Every non-canonical address with a quoted index (for example `for_each` keys) renders as `<redacted-resource-address>`, and several such resources become indistinguishable in a report. Reviewers then need the plan's own resource list, under the separately gated real-plan procedure, to identify them. Redaction never changes a verdict.
+11. **Credential-shape detection is pattern-based.** A credential with no recognizable shape inside an otherwise plain, unquoted address segment would still render. Quoted indexes, the usual place for arbitrary strings in an address, are always redacted.
 
 ## 15. Deployment authorization boundary
 
