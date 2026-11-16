@@ -1,5 +1,27 @@
 # Current Project State
 
+**2026-11-15 Backend release preparation CP-1 through CP-5J & continuity reconciliation (`CP-5M`):** `CP5_PLAN_REJECTED_STRIPE_CONFIG_DRIFT_SOURCE_CHECKER_MERGED_NOT_DEPLOYED`.
+- **Latest completed source integration:** CP-5J, PR #84 (squash `e7f099214ac851b17d6bc909ea60fe0cf6bf0e78`, 2026-11-16T00:27:38Z, 4 files: an offline Terraform plan diff checker, its synthetic tests and its design doc). It is source only. Before it, PR #83 (squash `469e0e67622f1b71f079a5092a875b963a4b8cd5`, 2026-11-15T22:51:47Z) changed only `infra/prod/main.tf`, removing the `review` → `job` Terraform target dependency. Both had 5/5 CI `SUCCESS` and no independent human GitHub review. **`main` = `e7f099214ac851b17d6bc909ea60fe0cf6bf0e78`.**
+- **Prepared release scope (unchanged):** curated targets `aws_lambda_function.cancellation`, `.review` and `.admin` from `main`. Candidate backend ZIP `source_code_hash` `861IQwFAXAIGW507wbNOgse3MCI12CIDbcsau8Ol5jc=`. D-1 requires `admin`.
+- **Rollback safeguards (CP-2 – CP-5D):** cancellation rollback inventory and safeguards prepared (CP-2). The current `admin` artifact `GlA3mUtq…` is captured as a rollback archive (CP-3). The 11-object web baseline is preserved on two separate physical disks (CP-4B). An independent hash-verified copy of `W6cqyudl…` is on a separate disk (CP-5D). No restore was performed.
+- **CP-5 targeted plan:** run exactly once.
+  - Result: `0 add / 3 change / 0 destroy`, all in-place, with the candidate code hash matched.
+  - It **also contained an unauthorized configuration change, `admin` `environment.variables.STRIPE_SECRET_KEY`**.
+  - Classification `PLAN_COMPLETED_UNEXPECTED_DIFF`; CP-5F follow-up `UNEXPECTED_CONFIG_CHANGE_CONFIRMED`.
+  - **`CP5_SAVED_PLAN_STATUS=NEVER_APPLY`.** The saved plan stays preserved and access-protected, and its contents are not recorded anywhere.
+- **Stripe test-mode remediation:** policy **approved in principle** (owner). The test API key is rotated first; the webhook signing secret later, in a separate operational checkpoint; sandbox/test mode only.
+  - **No rotation is authorized or performed.** Stripe Dashboard actions and credential handling stay owner-controlled.
+  - The correct authoritative credential has **not** been established, and the mismatch is **not** remediated.
+- **CP-5J checker:** 107 synthetic tests pass and 31/31 targeted mutation tests pass. It is tested on synthetic plan data only, **not production-validated**, and has never been run against a real plan.
+- **Production is unchanged** from the B6-B1 baseline below. No CP-5 backend deployment, Terraform apply, AWS write, Stripe operation or credential access occurred.
+  - The latest production functional acceptance is still W3-C2 (2026-10-27).
+  - The coordinated backend-first release is **BLOCKED** until the Stripe configuration mismatch is resolved and a new targeted plan is separately approved.
+- **Gates:** **`W1_PRODUCTION_RELEASE_AUTHORIZED=NO`**; **`W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`**. B7 and B8 are not authorized.
+- **`NEXT_RECOMMENDED_CHECKPOINT=CP-5K`:** owner-controlled Stripe test API credential rotation, preparation and approval gating only. It is not triggered automatically.
+- Details: [December 11 checkpoint §17](december-11-delivery-checkpoint.md#17-backend-release-preparation-cp-1-through-cp-5j-b6-b2-through-2026-11-15) and the [CP-5J checker design](../planning/cp5j-terraform-plan-diff-checker.md).
+
+---
+
 **2026-11-13 Production baseline read-only verification (`B6-B1`) & documentation reconciliation (`B6-C1`):** `PRODUCTION_BASELINE_VERIFIED_READ_ONLY`.
 - **Scope of verification:** owner-approved, read-only AWS metadata only (account `358604342897`, region `us-east-1`, profile `usmissionhero-website-prod`). No DynamoDB/production data, D-2 inventory, Terraform, code download, rollback capture, environment-variable/secret read, application API call or mutation.
 - **Lambda (13 functions, all `python3.11`, handlers as defined in `infra/prod/main.tf`):** `admin` = `CodeSha256 GlA3mUtq3O0RJcdc3i2MQjwcbuo8aiv52ACvacQH99o=` (209,825 bytes, LastModified 2026-10-27T13:09:41Z); the other 12 (`intake`, `review`, `assign`, `job`, `google-auth`, `pet`, `cancellation`, `device`, `ses-feedback`, `postmark-webhook`, `stripe-webhook`, `platform`) = `CodeSha256 W6cqyudlRQF3Zw7uN2V42JzziwYITg8r5mCnsGdDAq4=` (178,814 bytes, LastModified 2026-10-22). `admin`, `review`, `cancellation`, `intake` and `job` have only `$LATEST` and no aliases.
