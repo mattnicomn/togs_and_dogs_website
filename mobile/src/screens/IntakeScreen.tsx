@@ -16,6 +16,7 @@ import { useAuth } from '../auth/useAuth';
 import { submitClientRequest, getClientPets, getStaffOptions } from '../api/client';
 import { COLORS } from '../theme/colors';
 import { SERVICE_TYPES, PET_FIELDS } from '../contracts/generatedContracts';
+import { isExistingPetSelectionEnabled } from '../config/featureFlags';
 
 // D2 uses the target booking-eligibility contract. The legacy
 // availableInIntake flag remains unchanged for pre-D2 platform compatibility.
@@ -70,6 +71,11 @@ const getPetId = (pet: any): string | undefined => {
 export const IntakeScreen = () => {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
+  // M-1: existing-pet selection is a build-time, off-by-default
+  // release-compatibility switch (NOT a security boundary). When OFF, the
+  // intake is name-only and never sends pet_ids or pets[].pet_id, because the
+  // deployed pre-W1 intake backend does not validate them.
+  const existingPetSelectionEnabled = isExistingPetSelectionEnabled();
 
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -142,26 +148,29 @@ export const IntakeScreen = () => {
       setClientEmail(user);
     }
 
-    // Fetch existing read-only client pets
-    setPetsLoading(true);
-    getClientPets()
-      .then((data) => {
-        if (isMounted) {
-          const petsList = Array.isArray(data) ? data : data?.pets || [];
-          setAvailablePets(petsList);
-          // Pre-select the first pet by its canonical id (never by name).
-          const firstId = petsList.length > 0 ? getPetId(petsList[0]) : undefined;
-          if (firstId) {
-            setSelectedPetIds([firstId]);
+    // Fetch existing read-only client pets (M-1: only when existing-pet
+    // selection is enabled; otherwise nothing is loaded or pre-selected).
+    if (existingPetSelectionEnabled) {
+      setPetsLoading(true);
+      getClientPets()
+        .then((data) => {
+          if (isMounted) {
+            const petsList = Array.isArray(data) ? data : data?.pets || [];
+            setAvailablePets(petsList);
+            // Pre-select the first pet by its canonical id (never by name).
+            const firstId = petsList.length > 0 ? getPetId(petsList[0]) : undefined;
+            if (firstId) {
+              setSelectedPetIds([firstId]);
+            }
           }
-        }
-      })
-      .catch(() => {
-        if (isMounted) setAvailablePets([]);
-      })
-      .finally(() => {
-        if (isMounted) setPetsLoading(false);
-      });
+        })
+        .catch(() => {
+          if (isMounted) setAvailablePets([]);
+        })
+        .finally(() => {
+          if (isMounted) setPetsLoading(false);
+        });
+    }
 
     // Fetch staff options for preferred sitter dropdown
     getStaffOptions()
@@ -175,7 +184,7 @@ export const IntakeScreen = () => {
     return () => {
       isMounted = false;
     };
-  }, [user]);
+  }, [user, existingPetSelectionEnabled]);
 
   // Quick date helper: Generate next 14 YYYY-MM-DD dates for chip selector
   const generateUpcomingDates = () => {
@@ -327,9 +336,13 @@ export const IntakeScreen = () => {
       // Workstream 1: resolve selected existing pets by canonical id (identity),
       // preserving selection order. Display names/metadata are derived from the
       // ID-backed pet objects — no name→ID lookup occurs here.
-      const selectedPets = selectedPetIds
-        .map((id) => availablePets.find((p) => getPetId(p) === id))
-        .filter((p): p is any => Boolean(p));
+      // M-1: when existing-pet selection is OFF, no existing pet contributes
+      // to the payload, so neither pet_ids nor pets[].pet_id is ever sent.
+      const selectedPets = existingPetSelectionEnabled
+        ? selectedPetIds
+          .map((id) => availablePets.find((p) => getPetId(p) === id))
+          .filter((p): p is any => Boolean(p))
+        : [];
 
       // Canonical existing-pet association: the array of validated selection IDs.
       const canonicalPetIds = selectedPets
@@ -746,7 +759,9 @@ export const IntakeScreen = () => {
         {step === 2 && (
           <View style={styles.stepContent}>
             <Text style={styles.sectionTitle} accessibilityRole="header">Select Pets</Text>
-            {petsLoading ? (
+            {!existingPetSelectionEnabled ? (
+              <Text style={styles.fieldHint}>Enter your pet's name below:</Text>
+            ) : petsLoading ? (
               <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: 12 }} accessibilityLabel="Loading pets" />
             ) : availablePets.length > 0 ? (
               <View style={styles.petsChipContainer}>
@@ -773,7 +788,9 @@ export const IntakeScreen = () => {
               <Text style={styles.fieldHint}>No pets on file. Specify your pet's name below:</Text>
             )}
 
-            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Or Specify Pet Name</Text>
+            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
+              {existingPetSelectionEnabled ? 'Or Specify Pet Name' : 'Pet Name'}
+            </Text>
             <TextInput
               style={styles.textInput}
               placeholder="e.g. Buster"

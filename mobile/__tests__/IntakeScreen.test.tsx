@@ -51,6 +51,19 @@ jest.mock('../src/api/client', () => ({
   submitClientRequest: (...args: any[]) => mockSubmitClientRequest(...args),
 }));
 
+// M-1: existing-pet selection flag. The suites below that predate M-1 document
+// the ENABLED (W1) behaviour and run with the flag on; the M-1 suite at the end
+// covers the default OFF (pre-W1 compatible) behaviour. Flag-string semantics
+// (absent / "false" / "true") are unit-tested in featureFlags.test.ts.
+let mockExistingPetSelectionEnabled = true;
+jest.mock('../src/config/featureFlags', () => ({
+  isExistingPetSelectionEnabled: () => mockExistingPetSelectionEnabled,
+}));
+
+beforeEach(() => {
+  mockExistingPetSelectionEnabled = true;
+});
+
 import { IntakeScreen } from '../src/screens/IntakeScreen';
 import { SERVICE_TYPES } from '../src/contracts/generatedContracts';
 
@@ -1037,5 +1050,138 @@ describe('IntakeScreen - Workstream 1 canonical pet selection (by pet_id)', () =
 
     // Exactly one id, and it is the second pet's id — unambiguous despite dup name.
     expect(payload.pet_ids).toEqual(['PET-B']);
+  });
+});
+
+describe('IntakeScreen - M-1 pre-W1 compatibility (existing-pet selection OFF)', () => {
+  const dateLabelPattern = /^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/;
+  const morningLabel = 'Morning, 6:30 AM to 9:30 AM';
+  const termsLabel = 'Accept Tog & Dogs Terms of Service and Privacy Policy';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockExistingPetSelectionEnabled = false;
+    // A returning client with saved pets: none of these may reach the payload.
+    mockGetClientPets.mockResolvedValue([
+      { pet_id: 'PET-1', name: 'Buster', species: 'DOG', breed: 'Golden Retriever' },
+      { pet_id: 'PET-2', name: 'Luna', species: 'CAT' },
+    ]);
+    mockGetStaffOptions.mockResolvedValue({ staff_options: [] });
+    mockSubmitClientRequest.mockResolvedValue({ request_id: 'REQ-M1' });
+  });
+
+  const pressAndSettle = async (element: any) => {
+    await act(async () => {
+      fireEvent.press(element);
+    });
+  };
+
+  const advanceToPetsStep = async () => {
+    await render(<IntakeScreen />);
+    await pressAndSettle(await screen.findByLabelText(morningLabel));
+    const dateChips = await screen.findAllByLabelText(dateLabelPattern);
+    await pressAndSettle(dateChips[0]);
+    await waitFor(() => expect(screen.getByText(/Selected \(1\)/)).toBeTruthy());
+    await pressAndSettle(screen.getByLabelText('Continue →'));
+    await waitFor(() => expect(screen.getByText('Select Pets')).toBeTruthy());
+  };
+
+  const typePetName = async (name: string) => {
+    await act(async () => {
+      fireEvent.changeText(screen.getByPlaceholderText('e.g. Buster'), name);
+    });
+    await waitFor(() => expect(screen.getByDisplayValue(name)).toBeTruthy());
+  };
+
+  const submitFromReview = async () => {
+    await pressAndSettle(screen.getByLabelText('Continue →'));
+    await screen.findByText('Review Booking Request');
+    const submitBtn = screen.getByLabelText('Submit Booking Request');
+    expect(submitBtn.props.accessibilityState.disabled).toBe(true);
+    await pressAndSettle(submitBtn);
+    expect(mockSubmitClientRequest).not.toHaveBeenCalled();
+    await pressAndSettle(screen.getByLabelText(termsLabel));
+    await waitFor(() => expect(screen.getByLabelText(termsLabel).props.accessibilityState.checked).toBe(true));
+    await pressAndSettle(screen.getByLabelText('Submit Booking Request'));
+    await waitFor(() => expect(mockSubmitClientRequest).toHaveBeenCalledTimes(1));
+    await screen.findByText('Request Received!');
+    return mockSubmitClientRequest.mock.calls[0][0];
+  };
+
+  const expectNoCanonicalPetIdentity = (payload: any) => {
+    expect('pet_ids' in payload).toBe(false);
+    expect(Array.isArray(payload.pets)).toBe(true);
+    payload.pets.forEach((p: any) => expect('pet_id' in p).toBe(false));
+    const serialized = JSON.stringify(payload);
+    expect(serialized).not.toContain('pet_id');
+    expect(serialized).not.toContain('PET-1');
+    expect(serialized).not.toContain('PET-2');
+  };
+
+  test('M-1: does not load, show or pre-select saved pets', async () => {
+    await advanceToPetsStep();
+
+    expect(mockGetClientPets).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Golden Retriever/)).toBeNull();
+    expect(screen.queryByText(/Luna/)).toBeNull();
+    expect(screen.getByText("Enter your pet's name below:")).toBeTruthy();
+    expect(screen.getByText('Pet Name')).toBeTruthy();
+    expect(screen.queryByText('Or Specify Pet Name')).toBeNull();
+  });
+
+  test('M-1: pet-name validation still requires a name', async () => {
+    await advanceToPetsStep();
+    await pressAndSettle(screen.getByLabelText('Continue →'));
+
+    expect(await screen.findByText('⚠️ Please select or specify at least one pet name.')).toBeTruthy();
+    expect(screen.queryByText('Review Booking Request')).toBeNull();
+  });
+
+  test('M-1: returning client with saved pets submits a name-only payload', async () => {
+    await advanceToPetsStep();
+    await typePetName('Buster');
+    const payload = await submitFromReview();
+
+    expectNoCanonicalPetIdentity(payload);
+    expect(payload.pet_names).toBe('Buster');
+    expect(payload.pets).toEqual([expect.objectContaining({ name: 'Buster', species: 'DOG' })]);
+    // Service, schedule and policy fields are unchanged.
+    expect(payload.service_type).toBe('WALK_20MIN');
+    expect(payload.visit_windows).toEqual(['MORNING']);
+    expect(payload.selected_dates).toEqual([expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)]);
+    expect(payload.accepted_terms).toBe(true);
+    expect(payload.accepted_privacy).toBe(true);
+    expect(payload.terms_version).toBe('1.0');
+    expect(payload.status).toBeUndefined();
+  });
+
+  test('M-1: new client with a typed pet name submits a name-only payload', async () => {
+    mockGetClientPets.mockResolvedValue([]);
+    await advanceToPetsStep();
+    await typePetName('NewPup');
+    const payload = await submitFromReview();
+
+    expectNoCanonicalPetIdentity(payload);
+    expect(payload.pet_names).toBe('NewPup');
+    expect(payload.pets).toHaveLength(1);
+    expect(payload.pets[0].name).toBe('NewPup');
+  });
+
+  test('M-1: Check-In schedule fields are preserved with the flag off', async () => {
+    await render(<IntakeScreen />);
+    await pressAndSettle(screen.getByLabelText('Select service 30-Minute Check-In'));
+    await pressAndSettle(screen.getByLabelText('1 visit per day'));
+    await pressAndSettle(screen.getByLabelText(morningLabel));
+    const dateChips = await screen.findAllByLabelText(dateLabelPattern);
+    await pressAndSettle(dateChips[0]);
+    await pressAndSettle(screen.getByLabelText('Continue →'));
+    await waitFor(() => expect(screen.getByText('Select Pets')).toBeTruthy());
+    await typePetName('Buster');
+    const payload = await submitFromReview();
+
+    expectNoCanonicalPetIdentity(payload);
+    expect(payload.service_type).toBe('CHECK_IN');
+    expect(payload.visits_per_day).toBe(1);
+    expect(payload.visit_windows).toEqual(['MORNING']);
   });
 });
