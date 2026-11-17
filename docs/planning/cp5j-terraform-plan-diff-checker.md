@@ -151,6 +151,29 @@ The default when no policy is given.
 - **If the key does not change,** the rotation profile still passes, with the same result as the strict policy.
 - **Scope of the check:** it verifies the change path and test mode only. It never validates a credential, calls Stripe, stores a new credential or embeds any key value.
 
+### 9.1 Optional first-time Stripe test-key configuration policy (`stripe-test-key-first-time-config-3-lambda`)
+
+Added after CP-5K B-4 found that the deployed admin Lambda's key is an empty string, so the first CP-5K plan configures a key for the first time. The rotation profile above is unchanged and still requires a non-empty key before the change.
+
+- **Never the default.** It is available only through `stripe_test_key_first_time_configuration_policy(first_time_configuration_separately_authorized=True)`. The argument is keyword-only and must be the literal `True`. Plan content cannot select it.
+- **What it allows:** the strict policy, plus exactly one configured path, `aws_lambda_function.admin` `environment[0].variables.STRIPE_SECRET_KEY`.
+- **Conditions on that change:**
+  - the key is absent or an empty string before the change;
+  - after the change it is a known, non-empty string with an `sk_test_` or `rk_test_` prefix and no `_live_`;
+  - the change is **required**. A plan that leaves the key empty fails with `required_change_absent`.
+- **Fixed reason codes:** `first_time_before_not_empty_or_absent`, `first_time_after_missing_or_invalid`, `first_time_after_not_test_mode`.
+- **Unchanged:** the exact three-Lambda allowlist, 0/3/0 counts, the candidate `source_code_hash`, the `last_modified`-only unknown allowance, and every other drift rule. A non-empty before value, live-mode or unknown values, and other environment changes all fail.
+
+### 9.2 Optional targeted-plan exception (`targeted_incomplete_plan_authorized`)
+
+A plan created with resource targeting reports `complete: false`. By default the checker still rejects it (`plan_incomplete`).
+
+- **Explicit caller authorization only.** `check_plan(plan, policy, targeted_incomplete_plan_authorized=True)`. The argument is keyword-only and must be the literal `True` or `False`. Plan content cannot enable it.
+- **When authorized, `complete: false` is tolerated only if** `applyable` is `true`, `errored` is `false` and present, and `deferred_changes` is absent or empty. Otherwise the plan is `FAIL_MALFORMED_PLAN` with a fixed reason (`targeted_plan_not_applyable`, `targeted_plan_errored_missing`, `targeted_plan_deferred_changes`).
+- **Nothing else is relaxed.** Resource allowlist, actions, unknowns, outputs, hash and attribute rules apply as before.
+- **Visible marker.** Every report produced under the exception carries `targeted-plan exception: ACTIVE (... full convergence is NOT claimed)`, and `to_dict()` has `targeted_plan_exception: true`. A PASS never means the plan converges, and the exception must stay visible in the release evidence.
+- **Limits.** The plan JSON does not record which targets were used. That evidence comes from the plan command record, not from this checker.
+
 ## 10. Test matrix
 
 All fixtures are synthetic and built in code. Credential-shaped sentinels are assembled from fragments at runtime; none is a literal credential-shaped token. No fixture comes from any real plan, state, tfvars file, AWS account or Stripe account.

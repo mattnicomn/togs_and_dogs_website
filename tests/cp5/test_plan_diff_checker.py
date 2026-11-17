@@ -1307,6 +1307,348 @@ class TestRotationPolicy(_Base):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# First-time Stripe TEST-key configuration policy and targeted-plan exception
+# ---------------------------------------------------------------------------
+
+RK_STRIPE_SENTINEL = "rk" + "_" + "test" + "_" + "SYNTHETIC-RK-NOT-A-KEY-0013"
+ALL_SENTINELS = ALL_SENTINELS + (RK_STRIPE_SENTINEL, "SYNTHETIC-RK-NOT-A-KEY")
+_STRIPE = "environment[0].variables.STRIPE_SECRET_KEY"
+
+
+def first_time_policy():
+    return pdc.stripe_test_key_first_time_configuration_policy(
+        first_time_configuration_separately_authorized=True)
+
+
+def first_time_plan(before="empty", after=RK_STRIPE_SENTINEL):
+    """Synthetic first-time configuration: admin key empty/absent -> test key."""
+    plan = make_plan()
+    ch = rc(plan, ADMIN)["change"]
+    bv = ch["before"]["environment"][0]["variables"]
+    av = ch["after"]["environment"][0]["variables"]
+    if before == "empty":
+        bv["STRIPE_SECRET_KEY"] = ""
+    elif before == "absent":
+        bv.pop("STRIPE_SECRET_KEY", None)
+    else:
+        bv["STRIPE_SECRET_KEY"] = before
+    if after is None:
+        av.pop("STRIPE_SECRET_KEY", None)
+    else:
+        av["STRIPE_SECRET_KEY"] = after
+    return plan
+
+
+def targeted(plan, applyable=True):
+    plan["complete"] = False
+    plan["applyable"] = applyable
+    plan["errored"] = False
+    return plan
+
+
+class TestFirstTimeConfigurationPolicy(_Base):
+    def test_requires_explicit_true(self):
+        for value in (False, None, 1, "true", "True", [True]):
+            with self.subTest(value=repr(value)):
+                with self.assertRaises(ValueError):
+                    pdc.stripe_test_key_first_time_configuration_policy(
+                        first_time_configuration_separately_authorized=value)
+        with self.assertRaises(ValueError):
+            pdc.stripe_test_key_first_time_configuration_policy()
+        with self.assertRaises(TypeError):
+            pdc.stripe_test_key_first_time_configuration_policy(True)  # keyword-only
+
+    def test_empty_before_and_test_after_passes(self):
+        for after in (RK_STRIPE_SENTINEL, NEW_STRIPE_SENTINEL):
+            with self.subTest(after_kind=after[:3]):
+                result = self.run_check(first_time_plan("empty", after), first_time_policy())
+                self.assert_class(result, pdc.PASS_EXACT_ALLOWED_DIFF)
+                self.assertEqual(result.policy_name, pdc.FIRST_TIME_POLICY_NAME)
+                counts = dict(result.counts)
+                self.assertEqual((counts["add"], counts["change"], counts["destroy"]), (0, 3, 0))
+                self.assertFalse(result.targeted_plan_exception)
+                admin = [r for r in result.resources if r.address == ADMIN][0]
+                stripe = [p for p in admin.paths if p.path == _STRIPE][0]
+                self.assertEqual((stripe.kind, stripe.sensitive, stripe.verdict),
+                                 ("configured", True, "allowed"))
+
+    def test_absent_before_and_test_after_passes(self):
+        result = self.run_check(first_time_plan("absent"), first_time_policy())
+        self.assert_class(result, pdc.PASS_EXACT_ALLOWED_DIFF)
+
+    def test_nonempty_before_is_rejected(self):
+        result = self.run_check(first_time_plan(OLD_STRIPE_SENTINEL), first_time_policy())
+        self.assert_class(result, pdc.FAIL_POLICY_MISMATCH)
+        self.assertIn("first_time_before_not_empty_or_absent", [f.reason for f in result.findings])
+
+    def test_non_string_before_is_rejected(self):
+        for before in (None, 0, 5, True, ["x"], {"k": "v"}):
+            with self.subTest(before=repr(before)):
+                result = self.run_check(first_time_plan(before), first_time_policy())
+                self.assertFalse(result.passed)
+
+    def test_after_must_be_known_nonempty_test_mode(self):
+        cases = {
+            "live": LIVE_STRIPE_SENTINEL,
+            "embedded_live": "rk_test_" + "x_live_y",
+            "empty": "",
+            "no_prefix": "SYNTHETIC-NO-PREFIX",
+            "int": 7,
+            "none": None,
+            "list": [RK_STRIPE_SENTINEL],
+        }
+        for label, after in cases.items():
+            with self.subTest(case=label):
+                plan = first_time_plan("empty")
+                av = rc(plan, ADMIN)["change"]["after"]["environment"][0]["variables"]
+                av["STRIPE_SECRET_KEY"] = after
+                result = self.run_check(plan, first_time_policy())
+                self.assertFalse(result.passed)
+
+    def test_key_change_is_required(self):
+        for before in ("empty", "absent"):
+            with self.subTest(before=before):
+                plan = first_time_plan(before, "")
+                if before == "absent":
+                    rc(plan, ADMIN)["change"]["after"]["environment"][0]["variables"].pop(
+                        "STRIPE_SECRET_KEY", None)
+                result = self.run_check(plan, first_time_policy())
+                self.assert_class(result, pdc.FAIL_POLICY_MISMATCH)
+                self.assertIn("required_change_absent", [f.reason for f in result.findings])
+        # Plain code-only plan (no key change at all) is also rejected here.
+        result = self.run_check(make_plan(), first_time_policy())
+        self.assert_class(result, pdc.FAIL_POLICY_MISMATCH)
+
+    def test_after_missing_is_rejected(self):
+        result = self.run_check(first_time_plan("empty", None), first_time_policy())
+        self.assertFalse(result.passed)
+
+    def test_after_unknown_is_rejected(self):
+        plan = first_time_plan("empty", None)
+        marker = rc(plan, ADMIN)["change"]["after_unknown"]
+        marker["environment"] = [{"variables": {"STRIPE_SECRET_KEY": True}}]
+        result = self.run_check(plan, first_time_policy())
+        self.assertFalse(result.passed)
+
+    def test_rotation_policy_unchanged_still_rejects_first_time(self):
+        plan = first_time_plan("empty")
+        result = self.run_check(plan, rotation_policy())
+        self.assert_class(result, pdc.FAIL_POLICY_MISMATCH)
+        self.assertIn("rotation_before_missing_or_invalid", [f.reason for f in result.findings])
+        result = self.run_check(first_time_plan("absent"), rotation_policy())
+        self.assert_class(result, pdc.FAIL_POLICY_MISMATCH)
+
+    def test_strict_policy_still_rejects_first_time(self):
+        self.assert_class(self.run_check(first_time_plan("empty")), pdc.FAIL_UNEXPECTED_ATTRIBUTE)
+
+    def test_genuine_rotation_still_passes_only_under_rotation_policy(self):
+        plan = make_plan()
+        rc(plan, ADMIN)["change"]["after"]["environment"][0]["variables"][
+            "STRIPE_SECRET_KEY"] = NEW_STRIPE_SENTINEL
+        self.assert_class(self.run_check(plan, rotation_policy()), pdc.PASS_EXACT_ALLOWED_DIFF)
+        self.assertFalse(self.run_check(plan, first_time_policy()).passed)
+
+    def test_only_admin_may_configure_the_key(self):
+        plan = first_time_plan("empty")
+        for address in (CANCEL, REVIEW):
+            ch = rc(plan, address)["change"]
+            ch["before"]["environment"][0]["variables"]["STRIPE_SECRET_KEY"] = ""
+            ch["after"]["environment"][0]["variables"]["STRIPE_SECRET_KEY"] = RK_STRIPE_SENTINEL
+        self.assert_class(self.run_check(plan, first_time_policy()), pdc.FAIL_UNEXPECTED_ATTRIBUTE)
+
+    def test_hash_still_required(self):
+        plan = first_time_plan("empty")
+        rc(plan, ADMIN)["change"]["after"]["source_code_hash"] = OTHER_HASH
+        self.assert_class(self.run_check(plan, first_time_policy()), pdc.FAIL_POLICY_MISMATCH)
+
+    def test_exactly_three_lambdas_still_required(self):
+        plan = first_time_plan("empty")
+        plan["resource_changes"].append(_lambda_change("job"))
+        self.assert_class(self.run_check(plan, first_time_policy()), pdc.FAIL_UNEXPECTED_RESOURCE)
+        plan = first_time_plan("empty")
+        plan["resource_changes"] = [e for e in plan["resource_changes"] if e["address"] != REVIEW]
+        result = self.run_check(plan, first_time_policy())
+        self.assert_class(result, pdc.FAIL_POLICY_MISMATCH)
+        self.assertIn("expected_resource_absent", [f.reason for f in result.findings])
+
+    def test_other_environment_drift_still_rejected(self):
+        for key, value in (("TABLE_NAME", TABLE_NEW_SENTINEL),
+                           ("STRIPE_WEBHOOK_SECRET", WEBHOOK_NEW_SENTINEL),
+                           ("STRIPE_ENV", "live")):
+            with self.subTest(key=key):
+                plan = first_time_plan("empty")
+                rc(plan, ADMIN)["change"]["after"]["environment"][0]["variables"][key] = value
+                self.assert_class(self.run_check(plan, first_time_policy()),
+                                  pdc.FAIL_UNEXPECTED_ATTRIBUTE)
+
+    def test_plan_content_cannot_select_the_policy(self):
+        plan = first_time_plan("empty")
+        plan["policy"] = pdc.FIRST_TIME_POLICY_NAME
+        plan["variables"]["first_time_configuration_separately_authorized"] = {"value": True}
+        result = self.run_check(plan)
+        self.assertEqual(result.policy_name, pdc.STRICT_POLICY_NAME)
+        self.assertFalse(result.passed)
+
+    def test_input_not_mutated(self):
+        plan = first_time_plan("empty")
+        snapshot = copy.deepcopy(plan)
+        pdc.check_plan(plan, first_time_policy())
+        self.assertEqual(plan, snapshot)
+
+
+class TestTargetedPlanException(_Base):
+    def run_t(self, plan, policy=None, authorized=True):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            result = pdc.check_plan(plan, policy, targeted_incomplete_plan_authorized=authorized)
+        self.assertEqual((out.getvalue(), err.getvalue()), ("", ""))
+        self.assert_clean(result)
+        return result
+
+    def reasons(self, result):
+        return [f.reason for f in result.findings]
+
+    def test_default_rejects_incomplete_plan(self):
+        result = self.run_check(targeted(make_plan()))
+        self.assert_class(result, pdc.FAIL_MALFORMED_PLAN)
+        self.assertEqual(self.reasons(result), ["plan_incomplete"])
+        self.assertFalse(result.targeted_plan_exception)
+        result = self.run_t(targeted(make_plan()), authorized=False)
+        self.assertEqual(self.reasons(result), ["plan_incomplete"])
+
+    def test_authorization_argument_must_be_literal_bool_keyword_only(self):
+        for value in (1, 0, "true", None, [True]):
+            with self.subTest(value=repr(value)):
+                with self.assertRaises(ValueError):
+                    pdc.check_plan(make_plan(), None, targeted_incomplete_plan_authorized=value)
+        with self.assertRaises(TypeError):
+            pdc.check_plan(make_plan(), None, True)  # keyword-only
+
+    def test_authorized_incomplete_plan_passes_with_visible_marker(self):
+        result = self.run_t(targeted(make_plan()))
+        self.assert_class(result, pdc.PASS_EXACT_ALLOWED_DIFF)
+        self.assertTrue(result.targeted_plan_exception)
+        text = pdc.render_report(result)
+        self.assertIn(pdc.TARGETED_PLAN_EXCEPTION_NOTICE, text)
+        self.assertIn("full convergence is NOT claimed", text)
+        self.assertTrue(result.to_dict()["targeted_plan_exception"])
+        self.assertTrue(json.dumps(result.to_dict()))
+
+    def test_complete_plan_with_authorization_has_no_marker(self):
+        result = self.run_t(make_plan())
+        self.assert_class(result, pdc.PASS_EXACT_ALLOWED_DIFF)
+        self.assertFalse(result.targeted_plan_exception)
+        self.assertNotIn("targeted-plan exception", pdc.render_report(result))
+        self.assertFalse(result.to_dict()["targeted_plan_exception"])
+
+    def test_requires_applyable_true_errored_false_and_no_deferred(self):
+        def malformed(plan, reason):
+            result = self.run_t(plan)
+            self.assert_class(result, pdc.FAIL_MALFORMED_PLAN)
+            self.assertEqual(self.reasons(result), [reason])
+            self.assertFalse(result.targeted_plan_exception)
+
+        malformed(targeted(make_plan(), applyable=False), "targeted_plan_not_applyable")
+        plan = targeted(make_plan()); del plan["applyable"]
+        malformed(plan, "targeted_plan_not_applyable")
+        for bad in ("true", 1, None):
+            plan = targeted(make_plan()); plan["applyable"] = bad
+            malformed(plan, "targeted_plan_not_applyable")
+        plan = targeted(make_plan()); plan["errored"] = True
+        malformed(plan, "plan_errored")
+        plan = targeted(make_plan()); del plan["errored"]
+        malformed(plan, "targeted_plan_errored_missing")
+        plan = targeted(make_plan()); plan["deferred_changes"] = [{"x": 1}]
+        malformed(plan, "targeted_plan_deferred_changes")
+        plan = targeted(make_plan()); plan["deferred_changes"] = "none"
+        malformed(plan, "targeted_plan_deferred_changes")
+        plan = make_plan(); plan["complete"] = "false"
+        malformed(plan, "plan_complete_invalid")
+
+    def test_empty_deferred_changes_list_is_allowed(self):
+        plan = targeted(make_plan()); plan["deferred_changes"] = []
+        self.assert_class(self.run_t(plan), pdc.PASS_EXACT_ALLOWED_DIFF)
+
+    def test_exception_does_not_relax_other_rules(self):
+        plan = targeted(make_plan())
+        plan["resource_changes"].append(_generic_change("aws_iam_role.synthetic", "aws_iam_role", ["update"]))
+        self.assert_class(self.run_t(plan), pdc.FAIL_UNEXPECTED_RESOURCE)
+
+        plan = targeted(make_plan())
+        plan["resource_changes"].append(_generic_change("aws_s3_bucket.synthetic", "aws_s3_bucket", ["create"]))
+        self.assert_class(self.run_t(plan), pdc.FAIL_UNEXPECTED_RESOURCE)
+
+        plan = targeted(make_plan())
+        plan["output_changes"] = {"synthetic_out": {"actions": ["update"]}}
+        self.assert_class(self.run_t(plan), pdc.FAIL_POLICY_MISMATCH)
+
+        plan = targeted(make_plan())
+        rc(plan, ADMIN)["change"]["after"]["source_code_hash"] = OTHER_HASH
+        self.assert_class(self.run_t(plan), pdc.FAIL_POLICY_MISMATCH)
+
+        plan = targeted(make_plan())
+        rc(plan, ADMIN)["change"]["after"]["environment"][0]["variables"]["TABLE_NAME"] = TABLE_NEW_SENTINEL
+        self.assert_class(self.run_t(plan), pdc.FAIL_UNEXPECTED_ATTRIBUTE)
+
+        plan = targeted(make_plan())
+        ch = rc(plan, ADMIN)["change"]
+        del ch["after"]["handler"]
+        ch["after_unknown"]["handler"] = True
+        self.assertFalse(self.run_t(plan).passed)
+
+        plan = targeted(make_plan())
+        plan["resource_changes"][0]["change"]["actions"] = ["delete", "create"]
+        self.assertFalse(self.run_t(plan).passed)
+
+    def test_failing_report_still_shows_the_marker(self):
+        plan = targeted(make_plan())
+        rc(plan, ADMIN)["change"]["after"]["source_code_hash"] = OTHER_HASH
+        result = self.run_t(plan)
+        self.assertTrue(result.targeted_plan_exception)
+        self.assertIn(pdc.TARGETED_PLAN_EXCEPTION_NOTICE, pdc.render_report(result))
+
+    def test_noop_with_diff_is_still_malformed(self):
+        plan = targeted(make_plan())
+        plan["resource_changes"].append(_generic_change("aws_s3_bucket.synthetic", "aws_s3_bucket", ["no-op"]))
+        self.assert_class(self.run_t(plan), pdc.FAIL_MALFORMED_PLAN)
+
+    def test_plan_content_cannot_authorize_the_exception(self):
+        plan = targeted(make_plan())
+        plan["targeted_incomplete_plan_authorized"] = True
+        plan["variables"]["targeted_incomplete_plan_authorized"] = {"value": True}
+        result = self.run_check(plan)
+        self.assert_class(result, pdc.FAIL_MALFORMED_PLAN)
+        self.assertEqual(self.reasons(result), ["plan_incomplete"])
+
+    def test_first_time_policy_with_targeted_exception_passes_end_to_end(self):
+        plan = targeted(first_time_plan("empty"))
+        plan["output_changes"] = {"synthetic_out": {"actions": ["no-op"]}}
+        plan["resource_changes"].append(
+            {**_generic_change("aws_s3_bucket.synthetic", "aws_s3_bucket", ["no-op"]),
+             "change": {"actions": ["no-op"], "before": {"synthetic": "a"}, "after": {"synthetic": "a"},
+                        "after_unknown": {}, "before_sensitive": {}, "after_sensitive": {}}})
+        result = self.run_t(plan, first_time_policy())
+        self.assert_class(result, pdc.PASS_EXACT_ALLOWED_DIFF)
+        self.assertEqual(result.policy_name, pdc.FIRST_TIME_POLICY_NAME)
+        self.assertTrue(result.targeted_plan_exception)
+        text = pdc.render_report(result)
+        self.assertIn("policy: " + pdc.FIRST_TIME_POLICY_NAME, text)
+        self.assertIn(pdc.TARGETED_PLAN_EXCEPTION_NOTICE, text)
+        self.assertEqual(dict(result.counts)["change"], 3)
+
+    def test_rotation_policy_with_targeted_exception_still_needs_nonempty_before(self):
+        result = self.run_t(targeted(first_time_plan("empty")), rotation_policy())
+        self.assert_class(result, pdc.FAIL_POLICY_MISMATCH)
+        self.assertIn("rotation_before_missing_or_invalid", self.reasons(result))
+
+    def test_input_not_mutated(self):
+        plan = targeted(first_time_plan("empty"))
+        snapshot = copy.deepcopy(plan)
+        pdc.check_plan(plan, first_time_policy(), targeted_incomplete_plan_authorized=True)
+        self.assertEqual(plan, snapshot)
+
+
 def _reverse_keys(value):
     if isinstance(value, dict):
         return {k: _reverse_keys(value[k]) for k in reversed(list(value))}

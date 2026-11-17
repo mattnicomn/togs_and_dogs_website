@@ -31,6 +31,11 @@ Usage (from code; ``scripts/cp5`` must be on ``sys.path``)::
     rotation = pdc.stripe_test_key_rotation_policy(
         rotation_separately_authorized=True)                # explicit opt-in
     result = pdc.check_plan(plan_obj, rotation)
+
+    first_time = pdc.stripe_test_key_first_time_configuration_policy(
+        first_time_configuration_separately_authorized=True)  # explicit opt-in
+    result = pdc.check_plan(plan_obj, first_time,
+                            targeted_incomplete_plan_authorized=True)  # targeted plans only
 """
 
 from __future__ import annotations
@@ -86,9 +91,16 @@ RELEASE_LAMBDA_ADDRESSES: Tuple[str, ...] = (
 
 STRICT_POLICY_NAME = "strict-code-only-3-lambda"
 ROTATION_POLICY_NAME = "stripe-test-key-rotation-3-lambda"
+FIRST_TIME_POLICY_NAME = "stripe-test-key-first-time-config-3-lambda"
 
 CONSTRAINT_EXACT_VALUE = "exact_value"
 CONSTRAINT_STRIPE_TEST_SECRET_ROTATION = "stripe_test_secret_rotation"
+CONSTRAINT_STRIPE_TEST_SECRET_FIRST_TIME = "stripe_test_secret_first_time"
+
+TARGETED_PLAN_EXCEPTION_NOTICE = (
+    "targeted-plan exception: ACTIVE (complete=false accepted only because the "
+    "caller explicitly authorized it; full convergence is NOT claimed)"
+)
 
 _SOURCE_CODE_HASH: Path = ("source_code_hash",)
 _LAST_MODIFIED: Path = ("last_modified",)
@@ -193,6 +205,46 @@ def stripe_test_key_rotation_policy(
             "(rotation_separately_authorized=True)"
         )
     candidate_hash = _validated_hash(candidate_hash)
+    return _admin_stripe_policy(ROTATION_POLICY_NAME, CONSTRAINT_STRIPE_TEST_SECRET_ROTATION,
+                                candidate_hash)
+
+
+def stripe_test_key_first_time_configuration_policy(
+    *,
+    first_time_configuration_separately_authorized: bool = False,
+    candidate_hash: str = CP5_CANDIDATE_SOURCE_CODE_HASH,
+) -> Policy:
+    """Optional profile for a FIRST-TIME Stripe *test* key configuration.
+
+    Never enabled by default. The caller must pass
+    ``first_time_configuration_separately_authorized=True`` (the literal
+    boolean ``True``). Plan content can never select this profile. It does
+    NOT relax the rotation profile, which still requires a non-empty key
+    before the change.
+
+    Identical to the strict policy except that ``aws_lambda_function.admin``
+    may additionally change exactly
+    ``environment[0].variables.STRIPE_SECRET_KEY``, provided the key is
+    absent or an empty string before, and after the change is a known,
+    non-empty string with a Stripe *test-mode* prefix and no live marker.
+    Unknown, non-string or live-looking values fail closed. Unlike the
+    rotation profile, the key change is REQUIRED: a plan that leaves the key
+    empty fails with ``required_change_absent``. The checker verifies the
+    change path and mode only, never the legitimacy of any credential.
+    """
+    if first_time_configuration_separately_authorized is not True:
+        raise ValueError(
+            "first-time configuration policy requires explicit caller selection "
+            "(first_time_configuration_separately_authorized=True)"
+        )
+    candidate_hash = _validated_hash(candidate_hash)
+    return _admin_stripe_policy(FIRST_TIME_POLICY_NAME,
+                                CONSTRAINT_STRIPE_TEST_SECRET_FIRST_TIME, candidate_hash,
+                                require_key_change=True)
+
+
+def _admin_stripe_policy(name: str, constraint_kind: str, candidate_hash: str,
+                         require_key_change: bool = False) -> Policy:
     rules: List[ResourceRule] = []
     for address in RELEASE_LAMBDA_ADDRESSES:
         rule = _code_only_rule(address, candidate_hash)
@@ -201,14 +253,15 @@ def stripe_test_key_rotation_policy(
                 address=rule.address,
                 resource_type=rule.resource_type,
                 required_actions=rule.required_actions,
-                required_changed=rule.required_changed,
+                required_changed=(rule.required_changed | {_STRIPE_SECRET_KEY}
+                                  if require_key_change else rule.required_changed),
                 allowed_changed=rule.allowed_changed | {_STRIPE_SECRET_KEY},
                 allowed_unknown=rule.allowed_unknown,
                 constraints=rule.constraints
-                + ((_STRIPE_SECRET_KEY, Constraint(CONSTRAINT_STRIPE_TEST_SECRET_ROTATION)),),
+                + ((_STRIPE_SECRET_KEY, Constraint(constraint_kind)),),
             )
         rules.append(rule)
-    return Policy(name=ROTATION_POLICY_NAME, rules=tuple(rules))
+    return Policy(name=name, rules=tuple(rules))
 
 
 # ---------------------------------------------------------------------------
@@ -249,6 +302,9 @@ class CheckResult:
     resources: Tuple[ResourceReport, ...]
     findings: Tuple[Finding, ...]
     notice: str = AUTHORITY_NOTICE
+    #: True only when ``complete=false`` was accepted through the explicit
+    #: targeted-plan authorization. It never means the plan converges.
+    targeted_plan_exception: bool = False
 
     @property
     def passed(self) -> bool:
@@ -289,6 +345,7 @@ class CheckResult:
                 for f in self.findings
             ],
             "notice": self.notice,
+            "targeted_plan_exception": self.targeted_plan_exception,
         }
 
 
@@ -409,13 +466,33 @@ def _require(condition: bool, reason: str) -> None:
 
 
 def _parse_entries(plan: Any) -> List[_Entry]:
+    entries, _used = _parse_plan(plan, False)
+    return entries
+
+
+def _parse_plan(plan: Any, allow_incomplete: bool) -> Tuple[List[_Entry], bool]:
+    """Validate plan structure. Returns ``(entries, targeted_exception_used)``.
+
+    ``complete=false`` is rejected unless ``allow_incomplete`` is the caller's
+    explicit authorization AND the plan is applyable, not errored and has no
+    deferred changes.
+    """
     _require(type(plan) is dict, "plan_not_object")
+    used = False
     if "errored" in plan:
         _require(type(plan["errored"]) is bool, "plan_errored_invalid")
         _require(plan["errored"] is False, "plan_errored")
     if "complete" in plan:
         _require(type(plan["complete"]) is bool, "plan_complete_invalid")
-        _require(plan["complete"] is True, "plan_incomplete")
+        if plan["complete"] is not True:
+            _require(allow_incomplete, "plan_incomplete")
+            _require("applyable" in plan and type(plan["applyable"]) is bool
+                     and plan["applyable"] is True, "targeted_plan_not_applyable")
+            _require("errored" in plan and plan["errored"] is False, "targeted_plan_errored_missing")
+            deferred = plan.get("deferred_changes", [])
+            _require(type(deferred) is list and len(deferred) == 0,
+                     "targeted_plan_deferred_changes")
+            used = True
     _require("resource_changes" in plan, "resource_changes_missing")
     changes = plan["resource_changes"]
     _require(type(changes) is list, "resource_changes_not_list")
@@ -446,7 +523,7 @@ def _parse_entries(plan: Any) -> List[_Entry]:
         nd.validate_marker(change["before_sensitive"])
         nd.validate_marker(change["after_sensitive"])
         entries.append(_Entry(address, mode, rtype, tuple(actions), change, rc))
-    return entries
+    return entries, used
 
 
 def _output_findings(plan: Dict[str, Any], policy: Policy) -> List[Finding]:
@@ -489,6 +566,14 @@ def _constraint_ok(constraint: Constraint, before: Any, after: Any, path: Path) 
             return False, "rotation_after_missing_or_invalid"
         if "_live_" in after_v or not after_v.startswith(_STRIPE_TEST_SECRET_PREFIXES):
             return False, "rotation_not_test_mode"
+        return True, "allowed"
+    if constraint.kind == CONSTRAINT_STRIPE_TEST_SECRET_FIRST_TIME:
+        if not (before_v is MISSING or (type(before_v) is str and before_v == "")):
+            return False, "first_time_before_not_empty_or_absent"
+        if type(after_v) is not str or not after_v:
+            return False, "first_time_after_missing_or_invalid"
+        if "_live_" in after_v or not after_v.startswith(_STRIPE_TEST_SECRET_PREFIXES):
+            return False, "first_time_after_not_test_mode"
         return True, "allowed"
     return False, "unknown_constraint"
 
@@ -536,12 +621,24 @@ def _malformed(policy_name: str, reason: str) -> CheckResult:
     )
 
 
-def check_plan(plan: Any, policy: Optional[Policy] = None) -> CheckResult:
+def check_plan(plan: Any, policy: Optional[Policy] = None, *,
+               targeted_incomplete_plan_authorized: bool = False) -> CheckResult:
     """Evaluate an in-memory Terraform plan JSON object against ``policy``.
 
     ``policy`` defaults to :func:`strict_code_only_policy`. Never raises for
     bad plan input; every uncertainty yields a FAIL classification.
+
+    ``targeted_incomplete_plan_authorized`` (keyword-only, default ``False``)
+    is the caller's explicit acknowledgement that the plan was produced with
+    resource targeting and so reports ``complete=false``. Only the literal
+    ``True`` is accepted. When set, ``complete=false`` is tolerated solely if
+    the plan is applyable, not errored and has no deferred changes; every
+    other rule is unchanged, and the result carries a visible
+    ``targeted_plan_exception`` marker. Plan content can never select it, and
+    it never claims the plan converges.
     """
+    if targeted_incomplete_plan_authorized is not True and targeted_incomplete_plan_authorized is not False:
+        raise ValueError("targeted_incomplete_plan_authorized must be the literal True or False")
     if policy is None:
         policy = strict_code_only_policy()
     if not isinstance(policy, Policy):
@@ -549,7 +646,7 @@ def check_plan(plan: Any, policy: Optional[Policy] = None) -> CheckResult:
                            (Finding(FAIL_POLICY_MISMATCH, "policy_invalid"),))
     label = sanitize_policy_name(policy.name)
     try:
-        return _check(plan, policy)
+        return _check(plan, policy, targeted_incomplete_plan_authorized)
     except MalformedInput as exc:
         return _malformed(label, exc.reason)
     except RecursionError:
@@ -558,8 +655,8 @@ def check_plan(plan: Any, policy: Optional[Policy] = None) -> CheckResult:
         return _malformed(label, "internal_error")
 
 
-def _check(plan: Any, policy: Policy) -> CheckResult:
-    entries = _parse_entries(plan)
+def _check(plan: Any, policy: Policy, allow_incomplete: bool = False) -> CheckResult:
+    entries, exception_used = _parse_plan(plan, allow_incomplete)
     findings: List[Finding] = []
     reports: List[ResourceReport] = []
     present: set = set()
@@ -608,6 +705,7 @@ def _check(plan: Any, policy: Policy) -> CheckResult:
         counts=_counts(entries),
         resources=tuple(reports),
         findings=tuple(findings),
+        targeted_plan_exception=exception_used,
     )
 
 
@@ -692,6 +790,8 @@ def render_report(result: CheckResult) -> str:
         "policy: %s" % result.policy_name,
         "counts: %s" % ", ".join("%s=%d" % (k, v) for k, v in result.counts),
     ]
+    if result.targeted_plan_exception:
+        lines.append(TARGETED_PLAN_EXCEPTION_NOTICE)
     for r in result.resources:
         lines.append("resource: %s actions=%s expected=%s"
                      % (r.address, "/".join(r.actions), str(r.expected).lower()))
