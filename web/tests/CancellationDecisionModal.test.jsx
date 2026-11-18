@@ -23,6 +23,7 @@ const pending = (overrides = {}) => ({
   request_id: 'req-1', client_id: 'client-1',
   status: 'CANCELLATION_REQUESTED',
   cancellation_request_id: CYCLE,
+  cancellation_prior_status: 'ASSIGNED',
   cancellation_requested_at: '2030-01-01T10:00:00Z',
   cancellation_reason: 'Plans changed',
   ...overrides,
@@ -297,5 +298,61 @@ describe('WEB-CANCEL-1 cancellation decision modal', () => {
     getAdminRequest.mockResolvedValueOnce(pending());
     await choose('Retry loading');
     expect(await screen.findByRole('button', { name: 'Approve Cancellation' })).toBeTruthy();
+  });
+
+  // P1-A: Prevent DENY on legacy cancellation records lacking a valid prior status
+  it.each([undefined, null, '', 'PENDING_REVIEW', 'CANCELLED', 'CANCELLATION_DENIED', 42])(
+    'P1-A: missing or unverified cancellation_prior_status (%p) disables DENY while keeping APPROVE and Dismiss',
+    async (badPrior) => {
+      getAdminRequest.mockResolvedValue(pending({ cancellation_prior_status: badPrior }));
+      renderModal();
+      expect(await screen.findByRole('button', { name: 'Approve Cancellation' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Dismiss' })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Deny Cancellation' })).toBeNull();
+      expect(screen.getByTestId('cancellation-deny-unavailable-notice')).toHaveTextContent(
+        /no verified prior booking status \(Approved or Assigned\)/i,
+      );
+      expect(processCancellationDecision).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['APPROVED', 'ASSIGNED'])(
+    'P1-A: verified cancellation_prior_status %s permits DENY',
+    async (validPrior) => {
+      getAdminRequest.mockResolvedValue(pending({ cancellation_prior_status: validPrior }));
+      renderModal();
+      expect(await screen.findByRole('button', { name: 'Deny Cancellation' })).toBeTruthy();
+      expect(screen.queryByTestId('cancellation-deny-unavailable-notice')).toBeNull();
+    },
+  );
+
+  it('P1-A: preserves the backend 409 LEGACY_PRIOR_STATUS_UNKNOWN safeguard if returned by the server', async () => {
+    getAdminRequest.mockResolvedValue(pending({ cancellation_prior_status: 'ASSIGNED' }));
+    processCancellationDecision.mockRejectedValue(
+      httpError(
+        409,
+        'Legacy cancellation record has no verified prior status; manual owner review required.',
+        'LEGACY_PRIOR_STATUS_UNKNOWN',
+      ),
+    );
+    renderModal();
+    await choose('Deny Cancellation');
+    getAdminRequest
+      .mockResolvedValueOnce(pending({ cancellation_prior_status: 'ASSIGNED' }))
+      .mockResolvedValueOnce(pending({ cancellation_prior_status: undefined }));
+    await choose('Confirm Deny Cancellation');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/was not applied: Legacy cancellation record has no verified prior status/);
+    expect(processCancellationDecision).toHaveBeenCalledTimes(1);
+  });
+
+  it('P0-A: modal dialog and alert use established theme tokens (--text-primary, --warning-color)', async () => {
+    getAdminRequest.mockResolvedValue(pending({ cancellation_request_id: undefined }));
+    renderModal();
+    const dialog = await screen.findByTestId('cancellation-decision-modal');
+    expect(dialog.className).toContain('cancellation-decision-modal');
+    expect(dialog.getAttribute('style')).toContain('var(--text-primary');
+    const alert = await screen.findByRole('alert');
+    expect(alert.getAttribute('style')).toContain('var(--warning-color');
   });
 });

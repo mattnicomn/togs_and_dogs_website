@@ -13,7 +13,7 @@ const initialPaymentAmountFor = (pet) => {
     : (pet.quote_amount ? parseFloat(pet.quote_amount).toFixed(2) : '');
 };
 
-const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList = [], onAssign, onAddPet, onPaymentSessionCreated, onQuoteUpdated }) => {
+const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, onReviewCancellation, userRole, staffList = [], onAssign, onAddPet, onPaymentSessionCreated, onQuoteUpdated }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState((pet._originItem?.status || '').toUpperCase());
@@ -1669,70 +1669,97 @@ const CareCard = ({ pet, onClose, onUpdate, onStatusUpdate, userRole, staffList 
           {renderTabContent()}
         </div>
 
-        {pet._originItem && onStatusUpdate && (
+        {pet._originItem && (onStatusUpdate || onReviewCancellation) && (() => {
+          const originStatus = (pet._originItem?.status || '').toUpperCase();
+          const isPendingCancellation = originStatus === 'CANCELLATION_REQUESTED';
+          const canDecideCancellation = ['owner', 'admin'].includes(userRole);
+          return (
           <div className="admin-quick-actions" style={{ marginTop: '32px', padding: '24px', background: 'var(--bg-warm)', borderRadius: '20px', border: '1px solid var(--border-soft)' }}>
             <h4 style={{ marginBottom: '16px' }}>Status & Lifecycle Actions</h4>
-            <div className="grid-2" style={{ alignItems: 'flex-end', gap: '16px' }}>
-              <div className="field" style={{ margin: 0 }}>
-                <label>Change Status</label>
-                <select 
-                  value={selectedStatus} 
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="status-select-admin"
-                >
-                  <optgroup label="Intake & Review">
-                    <option value="PENDING_REVIEW">Needs Review</option>
-                    <option value="PROFILE_CREATED">Profile Created</option>
-                    <option value="READY_FOR_APPROVAL">New Request</option>
-                  </optgroup>
-                  <optgroup label="Meet & Greet">
-                    <option value="MEET_GREET_REQUIRED">Needs M&G</option>
-                    <option value="MG_SCHEDULED">M&G Scheduled</option>
-                    <option value="MG_COMPLETED">M&G Completed</option>
-                  </optgroup>
-                  <optgroup label="Execution">
-                    <option value="APPROVED">Approved / Booked</option>
-                    <option value="ASSIGNED">Scheduled</option>
-                    <option value="IN_PROGRESS">In Progress</option>
-                    <option value="COMPLETED">Completed</option>
-                  </optgroup>
-                  <optgroup label="Lifecycle">
-                    <option value="CANCELLED">Cancelled</option>
-                    <option value="ARCHIVED">Archived</option>
-                    <option value="DELETED">Trash (Soft)</option>
-                  </optgroup>
-                </select>
+            {isPendingCancellation ? (
+              <div data-testid="carecard-cancellation-pending" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+                  Cancellation Requested — generic status changes are disabled while a client cancellation request is pending.
+                </p>
+                {canDecideCancellation && onReviewCancellation && (
+                  <div>
+                    <button
+                      type="button"
+                      className="button-primary"
+                      onClick={() => onReviewCancellation(pet._originItem)}
+                    >
+                      Review Cancellation
+                    </button>
+                  </div>
+                )}
               </div>
-              <button 
-                className="button-primary" 
-                style={{ height: '48px' }}
-                disabled={isUpdatingStatus || (selectedStatus === (pet._originItem?.status || '').toUpperCase() && !statusNote)}
-                onClick={async () => {
-                  setIsUpdatingStatus(true);
-                  try {
-                    await onStatusUpdate(pet._originItem, selectedStatus, statusNote);
-                    setStatusNote('');
-                  } finally {
-                    setIsUpdatingStatus(false);
-                  }
-                }}
-              >
-                {isUpdatingStatus ? 'Updating...' : 'Apply Status Change'}
-              </button>
-            </div>
-            {selectedStatus === 'CANCELLED' && (
-              <div className="field" style={{ marginTop: '16px' }}>
-                <label>Cancellation Reason (Required)</label>
-                <textarea 
-                  rows="2"
-                  value={statusNote}
-                  onChange={(e) => setStatusNote(e.target.value)}
-                  placeholder="Reason for cancellation..."
-                />
-              </div>
+            ) : (
+              <>
+                <div className="grid-2" style={{ alignItems: 'flex-end', gap: '16px' }}>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Change Status</label>
+                    <select 
+                      value={selectedStatus} 
+                      onChange={(e) => setSelectedStatus(e.target.value)}
+                      className="status-select-admin"
+                    >
+                      <optgroup label="Intake & Review">
+                        <option value="PENDING_REVIEW">Needs Review</option>
+                        <option value="PROFILE_CREATED">Profile Created</option>
+                        <option value="READY_FOR_APPROVAL">New Request</option>
+                      </optgroup>
+                      <optgroup label="Meet & Greet">
+                        <option value="MEET_GREET_REQUIRED">Needs M&G</option>
+                        <option value="MG_SCHEDULED">M&G Scheduled</option>
+                        <option value="MG_COMPLETED">M&G Completed</option>
+                      </optgroup>
+                      <optgroup label="Execution">
+                        <option value="APPROVED">Approved / Booked</option>
+                        <option value="ASSIGNED">Scheduled</option>
+                        <option value="IN_PROGRESS">In Progress</option>
+                        <option value="COMPLETED">Completed</option>
+                      </optgroup>
+                      <optgroup label="Lifecycle">
+                        <option value="CANCELLED">Cancelled</option>
+                        <option value="ARCHIVED">Archived</option>
+                        <option value="DELETED">Trash (Soft)</option>
+                      </optgroup>
+                    </select>
+                  </div>
+                  <button 
+                    className="button-primary" 
+                    style={{ height: '48px' }}
+                    disabled={isUpdatingStatus || (selectedStatus === originStatus && !statusNote)}
+                    onClick={async () => {
+                      if ((pet._originItem?.status || '').toUpperCase() === 'CANCELLATION_REQUESTED') return;
+                      setIsUpdatingStatus(true);
+                      try {
+                        await onStatusUpdate(pet._originItem, selectedStatus, statusNote);
+                        setStatusNote('');
+                      } finally {
+                        setIsUpdatingStatus(false);
+                      }
+                    }}
+                  >
+                    {isUpdatingStatus ? 'Updating...' : 'Apply Status Change'}
+                  </button>
+                </div>
+                {selectedStatus === 'CANCELLED' && (
+                  <div className="field" style={{ marginTop: '16px' }}>
+                    <label>Cancellation Reason (Required)</label>
+                    <textarea 
+                      rows="2"
+                      value={statusNote}
+                      onChange={(e) => setStatusNote(e.target.value)}
+                      placeholder="Reason for cancellation..."
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
-        )}
+          );
+        })()}
 
         <footer className="card-footer">
           <div className="footer-left">

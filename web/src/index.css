@@ -93,8 +93,6 @@
   --success-color: #34d399;
 
   /* Legacy overrides */
-  --primary: var(--accent-color);
-  --primary-hover: var(--accent-hover);
   --header-bg: rgba(26, 26, 25, 0.95);
   
   color-scheme: dark;

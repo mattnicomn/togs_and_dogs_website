@@ -45,6 +45,7 @@ const pendingRow = (overrides = {}) => ({
   PK: 'REQ#req-cancel-1', SK: 'CLIENT#client-1', entity_type: 'REQUEST',
   workflow_type: 'VISIT_BOOKING', request_id: 'req-cancel-1', client_id: 'client-1',
   status: 'CANCELLATION_REQUESTED', cancellation_request_id: CYCLE,
+  cancellation_prior_status: 'ASSIGNED',
   client_name: 'Cancel Client', pet_name: 'Cancel Pet', pet_names: 'Cancel Pet',
   service_type: 'WALK_20MIN', start_date: new Date().toLocaleDateString('sv-SE'),
   ...overrides
@@ -125,5 +126,39 @@ describe('AdminDashboard WEB-CANCEL-1 cancellation decision workflow', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Quote' }));
     await waitFor(() => expect(reviewRequest).toHaveBeenCalledWith('req-cancel-1', 'client-1', 'QUOTE_NEEDED', ''));
     expect(processCancellationDecision).not.toHaveBeenCalled();
+  });
+
+  it.each(['owner', 'admin'])(
+    'P1-B: %s sees Review Cancellation in CareCard for a pending cancellation and generic status change is hidden',
+    async (role) => {
+      getEffectiveRole.mockReturnValue(role);
+      getAdminRequest.mockResolvedValue(pendingRow());
+      getAdminRequests.mockResolvedValue({ requests: [pendingRow()] });
+      render(<AdminDashboard />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Request List' }));
+      fireEvent.click(await screen.findByRole('button', { name: /All Active/ }));
+      fireEvent.click(await screen.findByText(/Cancel Pet \(Cancel Client\)/));
+
+      const careCardPending = await screen.findByTestId('carecard-cancellation-pending');
+      expect(careCardPending).toHaveTextContent(/generic status changes are disabled/i);
+      expect(screen.queryByRole('button', { name: /Apply Status Change/i })).toBeNull();
+
+      const reviewBtn = screen.getByRole('button', { name: 'Review Cancellation' });
+      fireEvent.click(reviewBtn);
+
+      expect(await screen.findByTestId('cancellation-decision-modal')).toBeInTheDocument();
+      expect(await screen.findByRole('button', { name: 'Approve Cancellation' })).toBeInTheDocument();
+    }
+  );
+
+  it('P1-B: staff does not see Review Cancellation or generic status change in CareCard for a pending cancellation', async () => {
+    getEffectiveRole.mockReturnValue('staff');
+    getAdminRequests.mockResolvedValue({ requests: [pendingRow()] });
+    render(<AdminDashboard />);
+    fireEvent.click(await screen.findByText('Cancel Pet'));
+
+    expect(await screen.findByTestId('carecard-cancellation-pending')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Apply Status Change/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Review Cancellation' })).toBeNull();
   });
 });

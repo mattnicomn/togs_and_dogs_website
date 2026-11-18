@@ -2775,9 +2775,21 @@
 
 /* --- List View Container: base layout (desktop) --- */
 .list-view-container {
-  overflow: hidden;
+  overflow-x: auto;
   min-width: 0;
   box-sizing: border-box;
+}
+
+/* WEB-CANCEL-1: theme-aware high-contrast secondary buttons inside the cancellation modal */
+.cancellation-decision-modal .button-secondary {
+  color: var(--text-primary);
+  background: var(--card-bg-muted);
+  border: 2px solid var(--primary);
+}
+
+.cancellation-decision-modal .button-secondary:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--primary-hover);
 }
 
 .list-header-bar {
@@ -2938,8 +2950,8 @@
   }
 }
 
-/* Tablet breakpoint (481px–767px): keep filter controls horizontal but ensure they wrap */
-@media (min-width: 481px) and (max-width: 767px) {
+/* Tablet breakpoint (481px–900px): responsive card layout for Request List & wrapped filter controls */
+@media (min-width: 481px) and (max-width: 900px) {
   .list-controls-bar {
     flex-wrap: wrap;
     gap: 12px;
@@ -2959,6 +2971,117 @@
 
   .list-header-bar {
     padding: 20px 20px 8px;
+  }
+
+  .request-table {
+    display: block;
+    border-spacing: 0;
+    margin-top: 0;
+  }
+
+  .request-table thead {
+    display: none;
+  }
+
+  .request-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .request-table tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 20px;
+    padding: 16px 20px;
+    margin-bottom: 0;
+    border-radius: var(--radius-md, 12px);
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    box-shadow: var(--shadow-sm);
+    box-sizing: border-box;
+  }
+
+  .request-table tbody tr:hover {
+    transform: none;
+  }
+
+  .request-table tbody tr.expanded-row-details {
+    display: block;
+  }
+
+  .request-table td {
+    display: block;
+    padding: 4px 0;
+    border: none;
+    border-radius: 0;
+    font-size: 0.9rem;
+    min-width: 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .request-table td:first-child,
+  .request-table td:last-child {
+    border: none;
+    border-radius: 0;
+  }
+
+  .request-table td[data-label="Select"] {
+    grid-column: 1 / -1;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .request-table td[data-label="Status"] {
+    width: auto !important;
+  }
+
+  .request-table td[data-label="Actions"] {
+    grid-column: 1 / -1;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+    margin-top: 4px;
+  }
+
+  .request-table .mobile-only-label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+
+  .request-table .action-menu-container {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .request-table .action-menu-container .dropdown-trigger,
+  .request-table .btn-small {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 10px 16px;
+    font-size: 0.875rem;
+  }
+
+  .request-table .action-dropdown-menu {
+    position: relative;
+    width: 100%;
+    margin-top: 8px;
+    right: auto;
+    top: auto;
+  }
+
+  .request-table .action-dropdown-menu .dropdown-item {
+    min-height: 44px;
+    padding: 12px 16px;
+    font-size: 0.875rem;
   }
 }
 

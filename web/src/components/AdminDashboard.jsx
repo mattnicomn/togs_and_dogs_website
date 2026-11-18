@@ -59,12 +59,22 @@ const cancellationCycleId = (record) => {
   return typeof id === 'string' && id.trim() ? id : null;
 };
 
+const VERIFIED_PRIOR_STATUSES = ['APPROVED', 'ASSIGNED'];
+const cancellationVerifiedPrior = (record) => {
+  const s = record?.cancellation_prior_status;
+  return typeof s === 'string' && VERIFIED_PRIOR_STATUSES.includes(s) ? s : null;
+};
+
 const cancellationFingerprint = (record) => JSON.stringify([
   record?.status ?? null,
   cancellationCycleId(record),
   record?.cancellation_requested_at ?? null,
   record?.cancellation_reason ?? null,
+  cancellationVerifiedPrior(record),
 ]);
+
+const CANCELLATION_DENY_UNAVAILABLE_MESSAGE =
+  'Deny is unavailable: this cancellation request has no verified prior booking status (Approved or Assigned), so it cannot be denied automatically. Owner review is required.';
 
 const CANCELLATION_STATUS_LABELS = {
   CANCELLATION_REQUESTED: 'Cancellation Requested',
@@ -167,6 +177,7 @@ export const CancellationDecisionModal = ({ request, role, onClose }) => {
 
   const choose = (decision) => {
     if (decision !== 'APPROVE' && decision !== 'DENY') return;
+    if (decision === 'DENY' && !cancellationVerifiedPrior(snapshotRef.current)) return;
     setError('');
     setPendingDecision(decision);
     setPhase('confirm');
@@ -214,6 +225,13 @@ export const CancellationDecisionModal = ({ request, role, onClose }) => {
           setPendingDecision(null);
           setPhase('ready');
         }
+        return;
+      }
+      if (decision === 'DENY' && !cancellationVerifiedPrior(current)) {
+        adopt(current);
+        setError(`${CANCELLATION_DENY_UNAVAILABLE_MESSAGE} No decision was submitted.`);
+        setPendingDecision(null);
+        setPhase('ready');
         return;
       }
       const cycleId = cancellationCycleId(current);
@@ -277,15 +295,16 @@ export const CancellationDecisionModal = ({ request, role, onClose }) => {
   };
 
   const busy = phase === 'submitting' || phase === 'loading';
+  const canDeny = Boolean(cancellationVerifiedPrior(snapshot));
   const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 };
-  const card = { background: 'var(--card-bg, #fff)', color: 'var(--text, #1f2937)', borderRadius: '12px', padding: '24px', width: 'min(520px, 92vw)', maxHeight: '90vh', overflowY: 'auto' };
+  const card = { background: 'var(--card-bg, #fff)', color: 'var(--text-primary, #1f2937)', border: '1px solid var(--border-color, #e2dfd9)', boxShadow: 'var(--shadow-soft)', borderRadius: '12px', padding: '24px', width: 'min(520px, 92vw)', maxHeight: '90vh', overflowY: 'auto' };
 
   if (missingIdentity) {
     return createPortal(
       <div style={overlay}>
-        <div role="dialog" aria-modal="true" aria-labelledby="cancellation-decision-title" style={card} data-testid="cancellation-decision-modal">
+        <div role="dialog" aria-modal="true" aria-labelledby="cancellation-decision-title" className="cancellation-decision-modal" style={card} data-testid="cancellation-decision-modal">
           <h3 id="cancellation-decision-title" style={{ marginTop: 0 }}>Cancellation request</h3>
-          <p role="alert" style={{ color: 'var(--error, #b42318)' }}>{MISSING_CANCELLATION_IDENTITY_MESSAGE}</p>
+          <p role="alert" style={{ color: 'var(--warning-color, #d64933)', fontWeight: 600 }}>{MISSING_CANCELLATION_IDENTITY_MESSAGE}</p>
           <button type="button" className="button-secondary" onClick={onClose}>Close</button>
         </div>
       </div>,
@@ -295,17 +314,22 @@ export const CancellationDecisionModal = ({ request, role, onClose }) => {
 
   const content = (
     <div style={overlay}>
-      <div role="dialog" aria-modal="true" aria-labelledby="cancellation-decision-title" style={card} data-testid="cancellation-decision-modal">
+      <div role="dialog" aria-modal="true" aria-labelledby="cancellation-decision-title" className="cancellation-decision-modal" style={card} data-testid="cancellation-decision-modal">
         <h3 id="cancellation-decision-title" style={{ marginTop: 0 }}>Cancellation request</h3>
         {phase === 'loading' && <p>Checking the latest cancellation request…</p>}
         {snapshot && phase !== 'loading' && (
           <div style={{ marginBottom: '12px' }}>
             <p style={{ margin: '4px 0' }}>Status: {cancellationStatusLabel(snapshot.status)}</p>
             {snapshot.cancellation_reason ? <p style={{ margin: '4px 0' }}>Reason: {snapshot.cancellation_reason}</p> : null}
-            {snapshot.cancellation_requested_at ? <p style={{ margin: '4px 0', fontSize: '0.85rem' }}>Requested {snapshot.cancellation_requested_at}</p> : null}
+            {snapshot.cancellation_requested_at ? <p style={{ margin: '4px 0', fontSize: '0.85rem', color: 'var(--text-secondary, inherit)' }}>Requested {snapshot.cancellation_requested_at}</p> : null}
           </div>
         )}
-        {!!error && <p role="alert" style={{ color: 'var(--error, #b42318)' }}>{error}</p>}
+        {!!error && <p role="alert" style={{ color: 'var(--warning-color, #d64933)', fontWeight: 600 }}>{error}</p>}
+        {phase === 'ready' && !canDeny && (
+          <p role="note" data-testid="cancellation-deny-unavailable-notice" style={{ color: 'var(--text-secondary, inherit)', fontSize: '0.9rem', margin: '0 0 12px' }}>
+            {CANCELLATION_DENY_UNAVAILABLE_MESSAGE}
+          </p>
+        )}
         {phase === 'result' && resultLines.map((line, i) => <p key={`r-${i}`} role="status">{line}</p>)}
 
         {(phase === 'ready' || phase === 'confirm' || phase === 'submitting') && (
@@ -318,7 +342,7 @@ export const CancellationDecisionModal = ({ request, role, onClose }) => {
               disabled={busy}
               onChange={e => setNote(e.target.value)}
               rows={3}
-              style={{ width: '100%' }}
+              style={{ width: '100%', color: 'var(--text-primary, inherit)' }}
             />
           </div>
         )}
@@ -326,7 +350,9 @@ export const CancellationDecisionModal = ({ request, role, onClose }) => {
         {phase === 'ready' && (
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button type="button" className="button-primary" onClick={() => choose('APPROVE')}>Approve Cancellation</button>
-            <button type="button" className="button-secondary" onClick={() => choose('DENY')}>Deny Cancellation</button>
+            {canDeny && (
+              <button type="button" className="button-secondary" onClick={() => choose('DENY')}>Deny Cancellation</button>
+            )}
             <button type="button" className="button-secondary" onClick={onClose}>Dismiss</button>
           </div>
         )}
@@ -6043,6 +6069,10 @@ const AdminDashboard = ({ expectedTenantSlug = null }) => {
           onClose={() => setSelectedPet(null)}
           onUpdate={handleUpdatePet}
           onStatusUpdate={(item, status, note) => onReviewAction(item, status, note)}
+          onReviewCancellation={(item) => {
+            setSelectedPet(null);
+            handleProcessCancellation(item);
+          }}
           userRole={role}
           staffList={staffList}
           onPaymentSessionCreated={async (updatedOriginItem) => {

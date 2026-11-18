@@ -449,7 +449,7 @@ const ClientPortal = () => {
                           data-testid="cancellation-denied-notice"
                           style={{
                             marginTop: '10px', padding: '8px 12px', borderRadius: '8px',
-                            borderLeft: '4px solid var(--border-soft, #888)',
+                            borderLeft: '4px solid var(--caution-color, var(--primary, #f59e0b))',
                             background: 'var(--bg-muted, rgba(255,255,255,0.05))'
                           }}
                         >

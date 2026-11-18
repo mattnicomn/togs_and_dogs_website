@@ -64,10 +64,10 @@
   justify-content: space-between;
   align-items: center;
   padding: 24px;
-  background: white;
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft);
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--border-color, #e2dfd9);
   border-left: 8px solid var(--primary);
   transition: all 0.3s ease;
   flex-wrap: wrap;
