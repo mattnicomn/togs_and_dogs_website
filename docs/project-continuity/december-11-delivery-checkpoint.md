@@ -6,6 +6,10 @@
 *(Previous as-of line, preserved:)* **As of:** 2026-11-13 (B6-C1 production baseline documentation reconciliation after the owner-approved read-only B6-B1 AWS metadata verification; see §16). *(Prior as-of text for the same date, preserved: B5-C1 post-merge documentation reconciliation after the owner-authorized B5-B squash merge of PR #78 into `main` at `cac3cd6a82220353c1d48599b484368f78251033`.)* **Assessment:** **AT RISK — RECOVERING (Full-Stack Source Integration MERGED to `main`, NOT DEPLOYED; Calendar Option 3A Selected; Full Convergence for Planning Only; Gated on Pre-Deploy Verification, W1 Release Scope, and Deploy/Build/Distribution Approvals)** (see §5).
 *(Previous as-of line, preserved: 2026-11-13 (B4.1 final documentation accuracy & owner planning decision reconciliation on top of full-stack Draft PR #78). Assessment: AT RISK — RECOVERING (Full-Stack Source Candidate Verified & CI Green; Consolidated Strategy & Calendar Option 3A Selected; Gated on Explicit Merge Authorization, W1 Release Scope, and Deploy/Build Approvals).)*
 
+> **2026-11-16 pilot prioritization:** current status, priorities (P0–P3), critical path and
+> required approvals are in **§18**. Nothing was deployed; the as-of and assessment lines above are
+> preserved.
+
 This file is the shared checkpoint for ChatGPT, Kiro Desktop/Web and authorized implementation
 agents. It does not replace [`guardrails.md`](guardrails.md) (canonical policy) or
 [`current-state.md`](current-state.md) (production record). It references existing release notes
@@ -956,3 +960,148 @@ principle* ≠ *actual rotation authorized*.
   - any apply, bound to the exact reviewed saved-plan identity;
   - B7 and B8.
 - `NEXT_RECOMMENDED_CHECKPOINT=CP-5K` (§8). Not triggered automatically.
+
+---
+
+## 18. Pilot Delivery Prioritization — Current Status (2026-11-16)
+
+**Owner direction (2026-11-16):** deliver the usable Togs & Dogs web and Android pilot by
+**2026-12-11**. Do not expand security tooling, CI pipelines, deployment frameworks or governance
+unless a demonstrated issue blocks safe delivery; desirable improvements go to the
+[Post-Launch Engineering Backlog](../backlog/saas-maturity-and-multi-business-owner-readiness.md#post-launch-engineering-backlog).
+Sections 1–17 are preserved as history; where they conflict on *current* status, this section wins.
+Re-verify live state before acting.
+
+**Verified 2026-11-16 (read-only):** `origin/main` = `9ff2d79bca868384dc2a5e3e35ac1bea422aefe1`
+(PR #85). PR #86 (SEC-1B-T inspector) is OPEN and Draft at
+`927f6a0ce00192b9fa3d9842696a3ddfef2cb617`, 2 files, CI run `43793576103` 5/5 `SUCCESS`; source
+accepted by ChatGPT review pending the owner gate; not merged.
+
+**Stage vocabulary (unchanged):** merged source ≠ deployed code ≠ distributed mobile build ≠
+functionally accepted behavior. Today: production is the §16 baseline; everything listed in 18.2
+is **merged source only**; the last distributed Android build is versionCode 4; the latest
+functional acceptance is W3-C2 (2026-10-27).
+
+**Priority key:** **P0 RELEASE BLOCKER** (pilot cannot ship safely without it) · **P1 PILOT
+DELIVERY** (needed for the pilot experience, not a safety blocker) · **P2 POST-LAUNCH** ·
+**P3 FUTURE SAAS**.
+
+### 18.1 Pilot goal
+
+One business (Togs & Dogs, Ryan's tenant) using the production web app and an Android build from
+Play internal testing for real bookings, quotes, visits and cancellation decisions by 2026-12-11.
+Out of scope: App Store publication, Stripe live, a second tenant, SaaS maturity items (§6 row 17).
+
+### 18.2 Merged to `main`, not deployed / built / distributed
+
+- Full-stack integration `cac3cd6` (PR #78): Android #46/#67/#68/#69; backend #71 (BE-CANCEL-1),
+  #75 (R7E); web #72 (WEB-CANCEL-1), #73 (D-1 marker), #76; and the accumulated A–C, C1, E1, E2,
+  W4 Option A, Workstream 1 `pet_ids` and Ryan W1/O1 source (§6 row 10).
+- PR #83 `469e0e6` (Terraform `review` → `job` decoupling, not applied); PR #84 `e7f0992` (CP-5J
+  offline plan checker, synthetic-tested only); PR #85 `9ff2d79` (docs).
+
+### 18.3 Critical path
+
+| # | Task | Class | Depends on | Approval |
+|---|---|---|---|---|
+| B-1 | CP-5K: owner creates a new Stripe **test** secret key and sets the Terraform input (owner-only; Kiro never handles the value) | P0 | — | Owner execution approval |
+| B-2 | D-2 legacy pending-cancellation inventory (read-only). §17 records CP-2 as "inventory and safeguards prepared"; confirm the count was taken, otherwise run it | P0 | — | Owner (read-only AWS) |
+| B-3 | New targeted plan `cancellation` + `review` + `admin` from a clean worktree at pinned `main`; expect `0/3/0`, candidate `source_code_hash`, and only the approved Stripe change | P0 | B-1 | Owner |
+| B-4 | CP-5J checker on that plan's JSON (owner-gated real-plan inspection) | P0 | B-3 | Owner |
+| B-5 | Apply bound to the exact reviewed saved-plan identity; rollback copies per §16.4/§17 stay mandatory | P0 | B-4, B-2 | Owner (B7) |
+| B-6 | Bounded backend contract check (18.6) | P0 | B-5 | Owner (production test data) |
+| W-1 | Curated web build from `main` with `VITE_W1_EXISTING_PET_SELECTION` unset (off unless exactly `"true"`; used by `web/src/components/IntakeForm.jsx`) | P0 | — (build may be prepared in parallel) | — |
+| W-2 | Web deploy to S3/CloudFront after B-6; 11-object snapshot (CP-4B) is the rollback | P0 | B-6, W-1 | Owner (B7) |
+| W-3 | Authenticated web smoke (18.6) | P0 | W-2 | Owner |
+| M-1 | Mobile `pet_ids` compatibility (18.5): gate the existing-pet picker/payload, or authorize W1 | P0 | — | Code PR + merge authorization, or W1 authorization |
+| M-2 | Approved EAS Android build (next versionCode above 4) from `main` including M-1 | P0 | M-1, B-6 | Owner (B8, billable) |
+| M-3 | Play internal testing upload and owner device acceptance (18.6) | P0 | M-2 | Owner (B8) |
+| R-2 | Verify archive/delete/purge behaviour of pending cancellations (§6 row 15, `UNK`) — source read only | P1 | — | — |
+| M-4 | Ryan pilot testing | P1 | M-3, W-3 | Owner (separate gate) |
+| R-1 | D-1 client denial marker (needs `admin`); if the CP-5I fallback "release `cancellation` + `review` only, defer `admin`" is chosen instead, D-1 moves to P2 | P1 | B-5 | Owner decision (fallback still **not decided**) |
+
+### 18.4 CP-5 Stripe blocker and SEC-1
+
+- **CP-5:** the only targeted plan changed the `admin` `STRIPE_SECRET_KEY` without authorization.
+  **`CP5_SAVED_PLAN_STATUS=NEVER_APPLY`** — it must never be applied or reused. The authoritative
+  test credential is not established and nothing has been rotated (§17.3). Resolution is B-1 then a
+  **new** plan (B-3/B-4).
+- **SEC-1 (HIGH, active, not deferred):** this repository is public, and its history contains
+  three tracked Terraform saved-plan binaries under `infra/prod/` (one in the root commit).
+  Saved plans can embed state values. Contents have not been inspected. Sanitized handling only;
+  no values are recorded anywhere.
+  - SEC-1B-R (P0): owner-only run of the offline inspector from PR #86 at the reviewed head and
+    script SHA-256, after closing all agents. Expected result `INCOMPLETE_OR_UNKNOWN` (the `tfplan`
+    entry is opaque).
+  - SEC-1C (P0 for any still-valid credential the inspection shows PRESENT or cannot rule out):
+    per-credential rotation, each separately approved. The Stripe test key is already covered by
+    B-1. A Google user-token finding would need rotation before pilot use of Calendar.
+  - SEC-1D (P1): remove the tracked binaries from the current tree and correct `.gitignore` and
+    `docs/project-control/repo-cleanup-policy.md` (which wrongly says the file is ignored); review
+    other operational JSON files tracked in `infra/prod/` by the root commit. History rewrite is
+    not recommended (rotation is the primary control; it would change every SHA).
+  - **Open owner decisions:** approval of SEC-1B-R; per-credential SEC-1C scope after the result;
+    SEC-1D scope; whether PR #86 is merged or kept as a reviewed Draft.
+
+### 18.5 Mobile / backend compatibility checks
+
+- **Finding (read-only source, `main` `9ff2d79`):** `mobile/src/screens/IntakeScreen.tsx` has no
+  feature flag. It loads the client's saved pets, **pre-selects the first one**, and on submit sends
+  `pet_ids` whenever at least one existing pet is selected; each existing entry in `pets` also
+  carries `pet_id`. So a returning client with a saved pet sends `pet_ids` by default.
+- **Production capability (§16.5):** the deployed pre-W1 `intake` stores client `pet_ids` without
+  ownership validation and skips pet linking when they are present. Web already has the
+  off-by-default `VITE_W1_EXISTING_PET_SELECTION` switch; mobile has no equivalent.
+- **Smallest safe option (recommended):** a small mobile change that gates the existing-pet
+  picker and both payload fields (`pet_ids`, `pets[].pet_id`) behind an off-by-default build-time
+  switch mirroring the web flag, with tests, before M-2. The alternative, a W1 backend release,
+  requires `W1_PRODUCTION_RELEASE_AUTHORIZED=YES` plus `intake`/`job` in scope, and
+  `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES` applies; it is larger and not needed for the pilot.
+- Other checks before M-2/M-3: backend B-5/B-6 first (Android #69 depends on BE-CANCEL-1);
+  owner/admin visit Start/Complete relies on `/admin/job/start|complete` behaviour verified only in
+  `main` source; the distributed versionCode 4 sends no `pet_ids` and has no cancellation calls.
+
+### 18.6 Minimum end-to-end acceptance criteria
+
+Each production write is separately approved test data.
+- **Backend:** `PUT /admin/cancel/decision` APPROVE and DENY (DENY restores `APPROVED`/`ASSIGNED`);
+  `/admin/review` rejects cancellation transitions; legacy DENY returns 409 as documented; Lambda
+  hashes equal the plan's candidate.
+- **Web:** admin login; Approve/Deny modal sends `cancellation_request_id`; client portal loads
+  (denial marker if `admin` shipped); client intake submits without `pet_ids`.
+- **Android:** login; meet-and-greet approval and child-visit selection; owner/admin quote
+  `DRAFT → SENT`; visit Start/Complete; cancellation decisions; intake submits without `pet_ids`.
+- **Rollback readiness:** the §16.4/§17 copies are re-verified before each apply or deploy.
+
+### 18.7 Parallel work
+
+- Now, independent of each other: B-1 (owner), B-2 (owner read-only), SEC-1B-R (owner), M-1
+  (code PR), W-1 (build preparation).
+- Strictly sequential: B-3 → B-4 → B-5 → B-6 → W-2 → W-3; and M-1 + B-6 → M-2 → M-3 → M-4.
+
+### 18.8 Release pipeline policy (pilot)
+
+- Existing CI (the 5 PR checks: web, mobile, shared, backend, GitGuardian) and the existing release checks in
+  [`release-checklist.md`](../project-control/release-checklist.md) and this checkpoint remain
+  mandatory. These checks are never treated as optional or bypassed.
+- No new CI/CD, deployment or security tooling is required for the pilot unless a material blocker
+  is demonstrated and recorded here.
+- Source acceptance and merge never authorize deployment, build or distribution.
+- Existing rollback verification (§16.4, §17) remains mandatory before every apply or deploy.
+- Every production mutation (apply, Lambda/web deploy, credential rotation, production test data,
+  EAS build, Play distribution, Ryan testing, tenant change) requires Matthew's explicit approval.
+- Post-launch optimisation is tracked in the Post-Launch Engineering Backlog, not done now.
+
+### 18.9 Approvals still required (none issued)
+
+CP-5K execution (B-1); D-2 read-only inventory if not already taken (B-2); new targeted plan
+(B-3); real-plan JSON inspection (B-4); apply bound to the reviewed plan (B-5); production test
+data (B-6, 18.6); web deploy (W-2); mobile compatibility PR merge (M-1) or W1 authorization; EAS
+build and Play internal distribution (M-2/M-3); Ryan testing (M-4); CP-5I fallback decision (R-1);
+SEC-1B-R, SEC-1C (per credential), SEC-1D.
+
+Gates unchanged: `CP5_SAVED_PLAN_STATUS=NEVER_APPLY`; `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`;
+`W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`.
+
+`NEXT_RECOMMENDED_CHECKPOINT=M-1` (mobile existing-pet compatibility gate, code PR only), in
+parallel with owner-run CP-5K (B-1) and SEC-1B-R.

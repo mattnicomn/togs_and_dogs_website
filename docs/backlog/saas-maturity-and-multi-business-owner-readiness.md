@@ -250,6 +250,35 @@ Remaining real-route intake/M&G/approval/async-job/assignment and downstream not
 
 ---
 
+## Post-Launch Engineering Backlog
+
+**Added:** 2026-11-16 (pilot delivery prioritization). **Owner direction:** ship the Togs & Dogs
+web + Android pilot by 2026-12-11 without expanding tooling, pipelines or governance; track
+improvements here. Pilot-critical work and its P0/P1 classification live in
+[december-11-delivery-checkpoint.md §18](../project-continuity/december-11-delivery-checkpoint.md#18-pilot-delivery-prioritization--current-status-2026-11-16).
+
+**Not deferrable:** confirmed security incidents, secret exposure, unsafe production changes and
+critical functional failures are never deferred to ship faster. SEC-1 (public-history Terraform
+plan binaries), CP-5K Stripe test-key rotation and the mobile `pet_ids` compatibility gate are
+pilot-critical and are tracked in §18, not here. Items below are improvements only. Priorities use
+the §18 key (P2 POST-LAUNCH, P3 FUTURE SAAS). Existing rows above (e.g. Remaining Product and
+Operations items 16–19, quote GAP-1..3, PTM, DOMAIN) are referenced, not duplicated.
+
+| ID | Item | Priority | Current state | Reason for deferral | Dependency | Recommended future checkpoint |
+|---|---|---|---|---|---|---|
+| PL-1 | CI coverage for offline security/release utilities (`tests/sec1`, `tests/cp5` run in CI) | P2 | Both suites run locally only; CI does not execute them | Pilot uses them owner-run/offline; existing 5 checks gate the app | PR #84 merged; PR #86 disposition | Post-launch CI test-discovery PR |
+| PL-2 | Pipeline performance and reliability (CI runs on `main`, flaky-test tracking, run time) | P2 | Workflow is `pull_request`-only; 5 checks green on recent PRs | No demonstrated blocker for the pilot | — | CI reliability review after pilot |
+| PL-3 | Deployment automation (scripted, hash-verified targeted Lambda/web release with rollback capture) | P2 | Manual, owner-gated checkpoints (§16, §17 of the delivery checkpoint) | Existing manual procedure is proven and gated; automation adds risk before launch | Pilot release completed | Post-launch release-automation design |
+| PL-4 | Terraform workflow and plan-checker hardening (per-Lambda artifacts/versions/aliases to remove shared-ZIP coupling; CP-5J checker validated on real plans; checker in CI) | P2 | Shared `src/backend` ZIP for 13 Lambdas, `$LATEST` only; checker synthetic-tested only | Structural change to infra is out of pilot scope; targeted plans + checker suffice | Pilot release; PL-1 | Post-launch Terraform packaging ADR |
+| PL-5 | Secret-management architecture (Secrets Manager/SSM instead of `terraform.tfvars` and Lambda environment values; plan output free of secrets) | P2 | Sensitive variables flow through tfvars into Lambda environment | Migration touches every consumer; rotation (CP-5K, SEC-1C) is the pilot control | SEC-1C complete | Post-launch secrets ADR |
+| PL-6 | Additional regression and mutation testing (backend handlers, web AdminDashboard races, mobile intake/quote/visit flows) | P2 | Targeted suites exist; mutation testing only on offline utilities | Not a blocker; existing tests gate merges | — | Post-launch test-hardening batch |
+| PL-7 | Monitoring and observability (Lambda error/latency alarms per function, web error reporting, mobile crash reporting) | P2 | Tenant-resolution metrics/alarms exist (17Y); no consolidated pilot dashboard | Pilot is single-business and owner-monitored | Pilot launch | Post-launch observability checkpoint |
+| PL-8 | Documentation and governance simplification (shorten continuity docs, single current-state source, archive dated history) | P2 | Several overlapping continuity docs with long preserved history | Rewriting governance now risks losing gates | Pilot launch | Post-launch docs consolidation PR |
+| PL-9 | Mobile release workflow (documented EAS build/versioning, Play internal promotion checklist, build provenance) | P2 | Manual owner-approved EAS builds; last distributed versionCode 4 | Existing manual process suffices for one pilot build | Pilot Android distribution | Post-launch mobile release runbook |
+| PL-10 | Remaining non-critical UX and SaaS work: mobile client cancellation marker; branded password-reset email; Request List queue fix (item 17); client onboarding completion (item 16); mobile dashboard filters and insets (items 18–19); quote GAP-1..3; PTM/DOMAIN programs | P2 (pilot follow-ups) / P3 (PTM, DOMAIN, Stripe live, App Store) | Tracked in the rows/sections referenced; none in pilot scope | Not required for the single-business pilot | Pilot launch; EIN for Stripe live | Prioritize after pilot feedback |
+
+---
+
 ## Current Platform Maturity
 
 | Dimension | Score | Notes |
