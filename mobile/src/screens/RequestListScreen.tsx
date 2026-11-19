@@ -46,6 +46,7 @@ export const RequestListScreen = () => {
     { label: 'Pending', status: REQUEST_LIST_FILTERS.pendingReview },
     { label: 'Approved', status: REQUEST_LIST_FILTERS.approved },
     { label: 'Assigned', status: REQUEST_LIST_FILTERS.assigned },
+    { label: 'Cancellations', status: REQUEST_LIST_FILTERS.cancellationRequested },
     { label: 'All Active', status: REQUEST_LIST_FILTERS.all },
     { label: 'Completed', status: REQUEST_LIST_FILTERS.completed },
     { label: 'Cancelled', status: REQUEST_LIST_FILTERS.cancelled },
@@ -172,6 +173,12 @@ export const RequestListScreen = () => {
           title: 'No Assigned Bookings',
           message: 'No assigned visits in this view.',
           icon: '👥',
+        };
+      case 'CANCELLATION_REQUESTED':
+        return {
+          title: 'No Cancellation Requests',
+          message: 'No client cancellation requests are waiting for a decision.',
+          icon: '🗓️',
         };
       case 'ALL':
         return {

@@ -6,6 +6,7 @@ export const REQUEST_LIST_FILTERS = {
   pendingReview: 'PENDING_REVIEW',
   approved: 'APPROVED',
   assigned: 'ASSIGNED',
+  cancellationRequested: 'CANCELLATION_REQUESTED',
   all: 'ALL',
   completed: 'COMPLETED',
   cancelled: 'CANCELLED',
