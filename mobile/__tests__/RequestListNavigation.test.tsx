@@ -4,7 +4,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 const mockGetAdminRequests = jest.fn();
 const mockSetParams = jest.fn();
 const mockNavigation = { setParams: mockSetParams };
-let mockRouteParams: { initialFilter?: 'PENDING_REVIEW' | 'APPROVED' } | undefined;
+let mockRouteParams: { initialFilter?: 'PENDING_REVIEW' | 'APPROVED' | 'CANCELLATION_REQUESTED' } | undefined;
 let mockFocusCleanup: (() => void) | undefined;
 
 jest.mock('@react-navigation/native', () => {
@@ -76,6 +76,38 @@ describe('RequestListScreen dashboard filter integration', () => {
 
     await act(async () => mockFocusCleanup?.());
     expect(mockSetParams).toHaveBeenCalledWith({ initialFilter: undefined });
+  });
+
+  it('offers a Cancellations filter that loads only CANCELLATION_REQUESTED bookings', async () => {
+    const view = await render(<RequestListScreen />);
+    await waitFor(() => expect(view.getByText('All Caught Up')).toBeTruthy());
+
+    await fireEvent.press(view.getByText('Cancellations'));
+
+    await waitFor(() => {
+      expect(mockGetAdminRequests).toHaveBeenLastCalledWith('CANCELLATION_REQUESTED');
+      expect(view.getByText('No Cancellation Requests')).toBeTruthy();
+    });
+    expect(mockGetAdminRequests).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps every existing filter pill and its order around the new Cancellations pill', async () => {
+    const view = await render(<RequestListScreen />);
+    await waitFor(() => expect(view.getByText('All Caught Up')).toBeTruthy());
+    const labels = ['Pending', 'Approved', 'Assigned', 'Cancellations', 'All Active', 'Completed', 'Cancelled'];
+    const rendered = view
+      .getAllByText(new RegExp('^(' + labels.join('|') + ')$'))
+      .map(node => node.props.children);
+    expect(rendered).toEqual(labels);
+  });
+
+  it('accepts the Cancellations filter as a dashboard initialFilter', async () => {
+    mockRouteParams = { initialFilter: 'CANCELLATION_REQUESTED' };
+    const view = await render(<RequestListScreen />);
+    await waitFor(() => {
+      expect(mockGetAdminRequests).toHaveBeenCalledWith('CANCELLATION_REQUESTED');
+      expect(view.getByText('No Cancellation Requests')).toBeTruthy();
+    });
   });
 
   it('keeps ordinary filter-pill changes working after a normal tab entry', async () => {

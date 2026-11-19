@@ -18,6 +18,7 @@ export const bookingNextStep = (status: string) => {
   if (['MG_COMPLETED', 'READY_FOR_APPROVAL'].includes(status)) return 'Submit approval separately when the booking is ready. Meet & Greet and quote requirements are still checked.';
   if (status === 'APPROVED') return 'Choose a staff member after visit setup finishes. Refresh if the visits are still initializing.';
   if (status === 'ASSIGNED') return 'Load the visits below and select the exact visit. Changing staff does not start or complete a visit.';
+  if (status === 'CANCELLATION_REQUESTED') return 'The client asked to cancel this booking. Decide in the Cancellation requested section below. Approve Cancellation cancels the booking and its open visits and may update the calendar and notify the client and assigned staff. Deny Cancellation restores the booking to its recorded prior status (Approved or Assigned) and is offered only when that status was recorded. The server checks each decision; nothing is retried automatically.';
   if (['COMPLETED', 'CANCELLED', 'ARCHIVED', 'DECLINED'].includes(status)) return 'Review the booking history. No approval or visit execution is offered for this booking state.';
   if (status === 'QUOTE_NEEDED') return 'Prepare the quote in the Quote section on this screen: save the draft, then send it to the client. The client response appears there once sent.';
   if (status === 'PROFILE_CREATED') return 'Profile Created is a workflow status, not proof of a client account or invitation. Verify the client profile, account link and invitation in web client management.';
