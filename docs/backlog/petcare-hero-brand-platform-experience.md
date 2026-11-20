@@ -7,6 +7,15 @@
 **Type:** DOCUMENTATION / PLANNING ONLY
 **Program ID:** `PCH` (PetCare Hero)
 
+> **2026-11-20 owner decision — PILOT-FIRST.** PetCare Hero is USMISSIONHERO's enterprise SaaS platform;
+> **Togs & Dogs is its first operational customer business, not the SaaS brand.** The whole `PCH` program
+> (brand foundation, public site, neutral platform shell, white-label/tenant presentation templates,
+> neutral-branding and Alpha demos, onboarding and commercial UX) is **DEFERRED until after Togs & Dogs
+> pilot acceptance** (target 2026-12-11; see
+> [December 11 checkpoint §19](../project-continuity/december-11-delivery-checkpoint.md)). Exception:
+> `PCH-OPS` operational-workflow and mobile-usability work continues **only where it directly serves the
+> Togs & Dogs pilot workflows**. No item is removed; existing gates are unchanged.
+
 > This document is the canonical master tracker for the PetCare Hero initiative.
 > Creating it is planning, not a software release. No frontend, backend,
 > infrastructure, tenant, Stripe, mobile-distribution, or production change has

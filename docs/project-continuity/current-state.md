@@ -1,5 +1,17 @@
 # Current Project State
 
+**2026-11-20 Owner direction: PILOT-FIRST (Togs & Dogs operational pilot by 2026-12-11):** `PILOT_FIRST_TOGS_AND_DOGS`.
+- **Togs & Dogs (`tog_and_dogs`) is the first operational customer business, not the SaaS brand.** PetCare Hero is USMISSIONHERO's enterprise SaaS platform.
+- **Priority:** Togs & Dogs end to end for Ryan and his team: intake, meet & greet, quotes, approval, staff assignment, visits, completion, cancellations, notifications and calendar. Android-first device validation with shared iOS compatibility; iPhone internal acceptance afterwards; no public App Store release.
+- **`test_tenant_alpha` is internal test-only**, for approved regression or isolation testing. Alpha-specific UX, branding, demo and onboarding work stops.
+- **Deferred until after pilot acceptance** (kept in the SaaS maturity and PetCare Hero brand backlogs): future-tenant onboarding, white-label templates, neutral-branding demos, self-service provisioning, enterprise commercialization.
+- **Status:** most pilot workflows are implemented but not yet runtime-verified for `tog_and_dogs` on the current release; cancellation DENY is accepted on the owner path in Alpha only. Android pilot APK `cd5b800d-cd4f-428f-bead-fe0c4857efbb` is FINISHED (`.apk`, `38da4fb`, versionCode 4; not installed or distributed).
+- **Pilot DONE** = verified complete workflows, correct permissions, usable mobile UX and Ryan/team handoff readiness.
+- **Gates unchanged:** `CP5_SAVED_PLAN_STATUS=NEVER_APPLY`; `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`; `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`. Ryan testing, tenant changes, deployments and EAS builds still need explicit owner approval.
+- Details, workflow acceptance matrix and critical path: [December 11 checkpoint §19](december-11-delivery-checkpoint.md#19-pilot-first-direction-togs--dogs-operational-pilot-owner-decision-2026-11-20).
+
+---
+
 **2026-11-19 WEB-CANCEL-1 web deployed and verified; PR #91 merged; Android pilot build queued:** `WEB_CANCEL1_DEPLOYED_VERIFIED_ANDROID_BUILD_PENDING`.
 - **Source:** PR #91 (Android Requests-tab **Cancellations** filter and cancellation next-step copy; 5 mobile files; CI 5/5) squash-merged → **`main` = `38da4fbd0c0a4d9d61eb1257ca3560ae3cc7df10`**.
 - **D-2 count-only recheck PASS** before the web deploy: `CANCELLATION_REQUESTED` request count 0 (table and `StatusIndex` active).

@@ -2,7 +2,8 @@
 
 **Status:** ACTIVE delivery checkpoint for the single-business pilot (Togs & Dogs on PetCare Hero).
 **Target:** usable Android + web application by **2026-12-11**.
-**As of:** 2026-11-19 (WEB-CANCEL-1 web deployed and verified from `main` `38da4fb`; PR #91 merged; Android pilot build `cd5b800d…` queued; see §13 and §18). **Assessment:** **AT RISK — RECOVERING (backend and web cancellation live; signed-in smoke, Android APK and owner handoff remain)**.
+**As of:** 2026-11-20 (owner **pilot-first direction**: Togs & Dogs operational pilot for Ryan and his team by 2026-12-11, Alpha test-only, SaaS onboarding/branding deferred; Android APK `cd5b800d…` FINISHED; see §19). **Assessment:** **AT RISK — RECOVERING (cancellation live; Togs & Dogs end-to-end acceptance, Android team release, iPhone internal acceptance and handoff remain)**.
+*(Previous as-of line, preserved:)* **As of:** 2026-11-19 (WEB-CANCEL-1 web deployed and verified from `main` `38da4fb`; PR #91 merged; Android pilot build `cd5b800d…` queued; see §13 and §18). **Assessment:** **AT RISK — RECOVERING (backend and web cancellation live; signed-in smoke, Android APK and owner handoff remain)**.
 *(Previous as-of line, preserved:)* **As of:** 2026-11-18 (B-5 backend deployed; B-6 owner-path acceptance COMPLETE; WEB-CANCEL-1 UI fixes PR #90 merged, NOT deployed; see §18). **Assessment:** **AT RISK — RECOVERING (backend accepted; web deploy, Android readiness and owner handoff remain)**.
 *(Previous as-of line, preserved:)* **As of:** 2026-11-15 (CP-5M continuity reconciliation of backend release preparation CP-1 through CP-5J; see §17). **Assessment:** **AT RISK — RECOVERING (backend-first release BLOCKED: the single CP-5 targeted plan contained an unauthorized `admin` `STRIPE_SECRET_KEY` change and is `NEVER_APPLY`; Stripe test-key rotation approved in principle only; nothing deployed)** (see §5).
 *(Previous as-of line, preserved:)* **As of:** 2026-11-13 (B6-C1 production baseline documentation reconciliation after the owner-approved read-only B6-B1 AWS metadata verification; see §16). *(Prior as-of text for the same date, preserved: B5-C1 post-merge documentation reconciliation after the owner-authorized B5-B squash merge of PR #78 into `main` at `cac3cd6a82220353c1d48599b484368f78251033`.)* **Assessment:** **AT RISK — RECOVERING (Full-Stack Source Integration MERGED to `main`, NOT DEPLOYED; Calendar Option 3A Selected; Full Convergence for Planning Only; Gated on Pre-Deploy Verification, W1 Release Scope, and Deploy/Build/Distribution Approvals)** (see §5).
@@ -611,7 +612,8 @@ at all; exit codes always report -1).
 - **Users can now:** owners decide cancellation requests (Approve/Deny with cycle checks) in the web dashboard; clients request cancellation and see a denial marker.
 - **Blocks Dec 11:** signed-in web smoke (task 2); Android pilot APK (build `cd5b800d…` `IN_QUEUE`) and its read-only device test (task 4); owner handoff (task 5).
 - **Staffing:** Antigravity quota exhausted until 2026-11-24; Kiro is the temporary source-only fallback.
-- **Next action:** one read-only `eas build:view cd5b800d-cd4f-428f-bead-fe0c4857efbb`; when `FINISHED` with an `.apk`, the owner-run read-only device test (uninstall the Play build first).
+- **Next action:** owner-run read-only device smoke of APK build `cd5b800d…` (FINISHED, `.apk`, `38da4fb`, versionCode 4; uninstall the Play build first). *(2026-11-20 update; the earlier next action was the build status check, now done.)*
+- **Pilot-first direction (2026-11-20):** Togs & Dogs operational pilot for Ryan and his team is the priority; Alpha is test-only; SaaS onboarding, white-label and branding work is deferred. Pilot DONE definition, workflow acceptance matrix and critical path: §19.
 - **Gates:** `CP5_SAVED_PLAN_STATUS=NEVER_APPLY`; `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`; `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`.
 
 ---
@@ -1037,7 +1039,7 @@ authentication.
 | 1 | Kiro | D-2 fresh count-only recheck; bounded WEB-CANCEL-1 web deployment preparation | **DONE 2026-11-19**: D-2 PASS (0 pending); web `DEPLOYED_VERIFIED` (details below) | Owner approvals given and consumed |
 | 2 | Antigravity | Post-deploy visual/browser smoke of web cancellation (no new test data) | **NEXT**: AG unavailable until 2026-11-24; owner-run read-only checklist is the fallback. Public read-only checks already PASS. | Bounded browser authorization |
 | 3 | Antigravity | Android pilot readiness: merged mobile scope, pet flag OFF, typecheck/tests, build readiness | **DONE 2026-11-19** (Kiro fallback): PR #91 merged; scope from `38da4fb` verified; pet flag OFF; profile `preview-production` | — |
-| 4 | Kiro | Android build/distribution readiness, rollback and approval coordination | **PENDING**: EAS build `cd5b800d…` `IN_QUEUE`, versionCode 4; then owner-run read-only device test | Device test and any distribution separately gated |
+| 4 | Kiro | Android build/distribution readiness, rollback and approval coordination | **BUILD DONE 2026-11-19**: EAS `cd5b800d…` FINISHED, `.apk`, source `38da4fb`, versionCode 4. **NEXT**: owner-run read-only device smoke | Device test and any distribution separately gated |
 | 5 | Kiro + Antigravity | Owner handoff: Kiro runbook/checklist; AG UI walkthrough/screenshots from safe synthetic/local context | After release readiness | — |
 | 6 | — | Deferred, separately gated: client-only portal identity acceptance; 403/cross-tenant; APPROVE/Checkout (notification/calendar effects); Ryan testing; TestFlight/App Store/public distribution; Stripe live; tenant creation; W1 activation | Deferred | Each separately |
 
@@ -1097,7 +1099,84 @@ default) but not yet confirmed. Not installed or distributed. Install note: vers
 Google Play Internal Testing build, which has a different (Play) signature, so uninstall the Play build
 first. Build link expires 2026-12-03.
 
+**Android pilot build — FINISHED (read-only check 2026-11-20):** `cd5b800d-cd4f-428f-bead-fe0c4857efbb`
+status `FINISHED` (completed 2026-11-19T20:15:14Z; about 30 min queued, about 8 min building); artifact
+**`.apk`**; git commit `38da4fbd0c0a4d9d61eb1257ca3560ae3cc7df10` (no mobile change between it and
+`main` `9f5d8b4`); profile `preview-production`, distribution `INTERNAL`, version `1.0.0`, versionCode
+`4`. Not installed or distributed. Next: owner-run read-only device smoke (uninstall the Play
+Internal Testing build first because of the signature mismatch). Internal build links are reachable by anyone
+holding the URL unless unauthenticated access is disabled in the Expo project settings, so do not share
+them.
+
 ### 18.4 Gates
 
 `CP5_SAVED_PLAN_STATUS=NEVER_APPLY`; `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`;
+`W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`.
+
+---
+
+## 19. Pilot-first direction: Togs & Dogs operational pilot (owner decision, 2026-11-20)
+
+### 19.1 Decision
+
+1. **Togs & Dogs (`tog_and_dogs`) is the first operational customer business**, not the SaaS brand.
+   **PetCare Hero** is USMISSIONHERO's enterprise SaaS platform.
+2. The priority is completing Togs & Dogs **for Ryan and his team by 2026-12-11**.
+3. **`test_tenant_alpha` stays internal test-only.** Stop Alpha-specific UX, branding, demo workflow and
+   onboarding work unless it is needed for approved regression or isolation testing.
+4. **Deferred until after pilot acceptance** (kept in the
+   [SaaS maturity backlog](../backlog/saas-maturity-and-multi-business-owner-readiness.md) and the
+   [PetCare Hero brand backlog](../backlog/petcare-hero-brand-platform-experience.md)): future-tenant
+   onboarding, white-label templates, neutral-branding demos, self-service provisioning and enterprise
+   commercialization.
+5. **Android first** for device validation, keeping shared iOS compatibility. iPhone **internal**
+   acceptance follows; there is no public App Store release.
+6. Distinguish implemented code from verified runtime acceptance. Avoid redesign and avoid new gates
+   unless they cover a specific risk, an unmet requirement or a mandatory approval boundary.
+
+### 19.2 Operational pilot DONE
+
+The pilot is done when all of these hold for the **`tog_and_dogs`** tenant on the deployed release:
+
+- each workflow in §19.3 has been run end to end and verified (not only implemented);
+- permissions are correct for owner, admin, staff and client;
+- the Android app (then iPhone, internally) is usable for daily operations;
+- Ryan and his team have a handoff: accounts and roles confirmed, a short runbook, and a walkthrough.
+
+### 19.3 Togs & Dogs workflow acceptance matrix
+
+"Verified" means runtime acceptance on the currently deployed release in `tog_and_dogs`. Earlier
+acceptance in `test_tenant_alpha` proves the code path but not the Togs & Dogs configuration.
+
+| Workflow | Implemented | Verified for `tog_and_dogs` on current release |
+|---|---|---|
+| Customer intake (web public, client portal, Android) | Yes (pet selection flag OFF) | **Not yet** |
+| Meet & greet (schedule, verify) | Yes (web, Android) | **Not yet** |
+| Quotes (draft, send, client accept/decline) | Yes (web, Android S1) | **Not yet** (the M4-C controlled client-decline acceptance of 2026-10-21 predates this release) |
+| Approval | Yes (web E2 Approve & Open Scheduler; Android) | **Not yet** |
+| Staff assignment | Yes (web, Android) | **Not yet** |
+| Visits Start/Complete | Yes (Android `owner`/`admin`/`staff`; backend E3A) | **Not yet** |
+| Cancellation request and decision | Yes (backend B-5, web WEB-CANCEL-1, Android S2 + PR #91) | **Partial**: DENY owner path accepted in Alpha (B-6); APPROVE not run; `tog_and_dogs` not run |
+| Notifications (Postmark email, SNS staff SMS) | Yes; **live** (`NOTIFICATIONS_ENABLED=true`, no test-recipient override) | **Not yet**: any test must use owner-controlled recipients |
+| Google Calendar sync/cleanup | Yes; `tog_and_dogs` provider configured (Alpha has none) | **Not yet** |
+| Payments | MANUAL_EXTERNAL route live (W3-C2, Alpha); Stripe sandbox only | Out of pilot DONE unless the owner adds it |
+
+### 19.4 Updated critical path to 2026-12-11
+
+1. **Owner-run Android device smoke** of APK `cd5b800d…` (read-only; checklist in the 2026-11-20 build
+   report). *Next executable task; no further approval needed beyond the owner running it.*
+2. **Owner-run signed-in web smoke** (read-only) on the live WEB-CANCEL-1 build.
+3. **Togs & Dogs end-to-end acceptance run:** one bounded synthetic booking in `tog_and_dogs` through
+   the §19.3 workflows on Android and web, with notifications sent only to owner-controlled addresses,
+   calendar effects observed, and exact cleanup. Kiro prepares a one-page run sheet; the run needs one
+   explicit owner approval (production data in the real tenant, notifications, calendar).
+4. **Fix defects** found in steps 1–3 (Antigravity from 2026-11-24; Kiro as source-only fallback), with
+   the normal PR/CI path and gated deploys.
+5. **Android release to the team:** a versionCode-incremented build and Play Internal Testing
+   distribution (owner-gated).
+6. **iPhone internal acceptance** via a TestFlight internal build (owner-gated; no public release).
+7. **Ryan/team handoff:** accounts and roles check, runbook, walkthrough, then Ryan testing (owner-gated).
+8. **Pilot DONE sign-off** against §19.2.
+
+Gates are unchanged: `CP5_SAVED_PLAN_STATUS=NEVER_APPLY`; `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`;
 `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`.

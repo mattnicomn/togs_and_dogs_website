@@ -6,6 +6,16 @@
 **Created:** 2026-06-19
 **Source:** Release 16A Repository Readiness Audit
 
+> **2026-11-20 owner decision — PILOT-FIRST (deferral, not cancellation).** Togs & Dogs (`tog_and_dogs`)
+> is the first operational customer business, and completing it for Ryan and his team by
+> **2026-12-11** is the priority (see [December 11 checkpoint §19](../project-continuity/december-11-delivery-checkpoint.md)).
+> Everything in this backlog for **future customer tenants** is **DEFERRED until after Togs & Dogs pilot
+> acceptance**: future-tenant onboarding, self-service provisioning, white-label templates, neutral
+> branding demos, PTM control-plane expansion (except fixes needed to keep `tog_and_dogs` isolated and
+> correct), subscription billing/Stripe live, and enterprise commercialization. `test_tenant_alpha` stays
+> **internal test-only**, used only for approved regression or isolation testing. No item here is removed;
+> existing gates and approvals are unchanged.
+
 ---
 
 ## Summary
