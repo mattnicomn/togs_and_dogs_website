@@ -20,6 +20,17 @@ The role model is **device-independent**. A role is defined by what it does and 
 - The **Kiro** role is exercised from **both Kiro Desktop and Kiro Web** with the **same authority and the same limits**. Mobile (Kiro Web) is **not** extra authority.
 - **"Authorized implementation agent"** generalizes AG/Antigravity: it is any implementation agent Matthew has authorized to execute approved code/deploy work. The authority model is unchanged — only Matthew approves production changes.
 
+### Delivery role assignment (owner direction, 2026-11-18 — supersedes the table above and "When to Use Each Agent" where they conflict)
+
+| Agent | Permanent ownership |
+|-------|---------------------|
+| **Antigravity** | Frontend/mobile implementation and UI fixes; visual/responsive tests; local mocked browser acceptance; browser automation of explicitly approved synthetic workflows; frontend/mobile tests and build validation. Never accesses production credentials or runs production mutations without explicit authorization. |
+| **Kiro** | Continuity docs and the task board; release sequencing; AWS inventories and D-2 count-only checks; backend acceptance verification (K2) and conditional cleanup (K3); deployment preflight and authorized deployment execution; evidence and rollback checks. No production action without explicit owner approval. |
+| **ChatGPT** | Reviews, scope and priorities, cross-agent coordination. |
+| **Matthew** | All gated approvals; credentials; manual authentication when needed. |
+
+Delivery-first rules in [`guardrails.md`](guardrails.md) apply to every role. The active task board is in [`december-11-delivery-checkpoint.md`](december-11-delivery-checkpoint.md) §18.
+
 ---
 
 ## Normal Workflow

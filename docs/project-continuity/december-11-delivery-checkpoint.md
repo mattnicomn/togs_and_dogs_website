@@ -2,7 +2,9 @@
 
 **Status:** ACTIVE delivery checkpoint for the single-business pilot (Togs & Dogs on PetCare Hero).
 **Target:** usable Android + web application by **2026-12-11**.
-**As of:** 2026-11-15 (CP-5M continuity reconciliation of backend release preparation CP-1 through CP-5J; see §17). **Assessment:** **AT RISK — RECOVERING (backend-first release BLOCKED: the single CP-5 targeted plan contained an unauthorized `admin` `STRIPE_SECRET_KEY` change and is `NEVER_APPLY`; Stripe test-key rotation approved in principle only; nothing deployed)** (see §5).
+**As of:** 2026-11-19 (WEB-CANCEL-1 web deployed and verified from `main` `38da4fb`; PR #91 merged; Android pilot build `cd5b800d…` queued; see §13 and §18). **Assessment:** **AT RISK — RECOVERING (backend and web cancellation live; signed-in smoke, Android APK and owner handoff remain)**.
+*(Previous as-of line, preserved:)* **As of:** 2026-11-18 (B-5 backend deployed; B-6 owner-path acceptance COMPLETE; WEB-CANCEL-1 UI fixes PR #90 merged, NOT deployed; see §18). **Assessment:** **AT RISK — RECOVERING (backend accepted; web deploy, Android readiness and owner handoff remain)**.
+*(Previous as-of line, preserved:)* **As of:** 2026-11-15 (CP-5M continuity reconciliation of backend release preparation CP-1 through CP-5J; see §17). **Assessment:** **AT RISK — RECOVERING (backend-first release BLOCKED: the single CP-5 targeted plan contained an unauthorized `admin` `STRIPE_SECRET_KEY` change and is `NEVER_APPLY`; Stripe test-key rotation approved in principle only; nothing deployed)** (see §5).
 *(Previous as-of line, preserved:)* **As of:** 2026-11-13 (B6-C1 production baseline documentation reconciliation after the owner-approved read-only B6-B1 AWS metadata verification; see §16). *(Prior as-of text for the same date, preserved: B5-C1 post-merge documentation reconciliation after the owner-authorized B5-B squash merge of PR #78 into `main` at `cac3cd6a82220353c1d48599b484368f78251033`.)* **Assessment:** **AT RISK — RECOVERING (Full-Stack Source Integration MERGED to `main`, NOT DEPLOYED; Calendar Option 3A Selected; Full Convergence for Planning Only; Gated on Pre-Deploy Verification, W1 Release Scope, and Deploy/Build/Distribution Approvals)** (see §5).
 *(Previous as-of line, preserved: 2026-11-13 (B4.1 final documentation accuracy & owner planning decision reconciliation on top of full-stack Draft PR #78). Assessment: AT RISK — RECOVERING (Full-Stack Source Candidate Verified & CI Green; Consolidated Strategy & Calendar Option 3A Selected; Gated on Explicit Merge Authorization, W1 Release Scope, and Deploy/Build Approvals).)*
 
@@ -30,6 +32,17 @@ rather than repeating them.
 4. **Distinguish the stages.** Code complete ≠ source accepted ≠ merged ≠ deployed ≠ built ≠
    distributed ≠ acceptance-tested. Source acceptance (independent review of a Draft PR head) is
    not integration or release. Passing tests or an open Draft PR is not released functionality.
+5. **Delivery first.** Follow the canonical Delivery-First Discipline in
+   [`guardrails.md`](guardrails.md): favor working, user-visible features; proceed when existing
+   verification meets the approved acceptance criteria; add gates only for a specific demonstrable
+   risk, unmet requirement or mandatory approval boundary; reuse verified evidence; prefer one
+   bounded execution task; backlog nonblocking polish and hardening. Tag every item **Required for
+   Dec 11**, **Required before a specific release**, or **Optional post-pilot**. Every handoff states
+   what was completed, what users can now do, what genuinely blocks delivery, and the next
+   executable action. Owner approval boundaries and safety invariants are unchanged.
+6. **December 11 critical path:** B-6 backend acceptance → WEB-CANCEL-1 → mobile pilot readiness →
+   owner handoff. Work that does not advance this path is backlog unless it removes a genuine
+   blocker.
 
 ---
 
@@ -589,7 +602,36 @@ at all; exit codes always report -1).
 
 ---
 
-## 13. RESUME BLOCK (Active — CP-5M Continuity Reconciliation of CP-1 through CP-5J)
+## 13. RESUME BLOCK (Active — WEB-CANCEL-1 Live; Android Pilot Build Queued)
+
+- **Timestamp:** 2026-11-19
+- **`origin/main`:** `38da4fbd0c0a4d9d61eb1257ca3560ae3cc7df10` (PR #91). Re-verify live before acting.
+- **Production:** `cancellation`/`review`/`admin` on `861IQ…` (B-5); other 10 Lambdas `W6cqyudl…`; API `n40vai`; **web = build of `38da4fb`** (`index.html` `891671f9…`, WEB-CANCEL-1 live, `DEPLOYED_VERIFIED`).
+- **Completed:** B-5; B-6 owner-path acceptance; PR #90 and #91 merged; D-2 recheck PASS; WEB-CANCEL-1 web deployment verified (public hashes 6/6, 0 errors).
+- **Users can now:** owners decide cancellation requests (Approve/Deny with cycle checks) in the web dashboard; clients request cancellation and see a denial marker.
+- **Blocks Dec 11:** signed-in web smoke (task 2); Android pilot APK (build `cd5b800d…` `IN_QUEUE`) and its read-only device test (task 4); owner handoff (task 5).
+- **Staffing:** Antigravity quota exhausted until 2026-11-24; Kiro is the temporary source-only fallback.
+- **Next action:** one read-only `eas build:view cd5b800d-cd4f-428f-bead-fe0c4857efbb`; when `FINISHED` with an `.apk`, the owner-run read-only device test (uninstall the Play build first).
+- **Gates:** `CP5_SAVED_PLAN_STATUS=NEVER_APPLY`; `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`; `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`.
+
+---
+
+### 13.0000 Historical Resume Block (B-6 Accepted; WEB-CANCEL-1 Deploy Next) — preserved; superseded by §13 on 2026-11-19
+
+- **Timestamp:** 2026-11-18
+- **`origin/main`:** `ef98088665e7c0cf30d6a77525519982ab5646e2` (PR #90 WEB-CANCEL-1 UI fixes). Re-verify live before acting.
+- **Production:** `cancellation`/`review`/`admin` on `861IQ…` (B-5); other 10 Lambdas `W6cqyudl…`; API `n40vai`; web still W2C `7c1a8f1`.
+- **Completed:** B-5 deployment; B-6 owner-path acceptance (K2 PASS `DENIED_EXPECTED`, K3 PASS `CLEANED`, one DENY AUDIT retained); PR #90 merged; Antigravity isolated browser validation.
+- **Users can now:** nothing new in the live UI yet. The deployed backend safely handles cancellation requests, cycle-checked decisions and DENY; it becomes visible once WEB-CANCEL-1 is deployed.
+- **Blocks Dec 11:** WEB-CANCEL-1 web deployment; Android pilot readiness; owner handoff.
+- **Next action:** §18 task 1 — Kiro D-2 count-only recheck and bounded WEB-CANCEL-1 deployment preparation (owner-gated).
+- **Gates:** `CP5_SAVED_PLAN_STATUS=NEVER_APPLY`; `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`; `W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`.
+
+---
+
+### 13.000 Historical Resume Block (CP-5M Continuity Reconciliation of CP-1 through CP-5J) — preserved; superseded by §13 on 2026-11-18
+
+*(Original heading: "## 13. RESUME BLOCK (Active — CP-5M Continuity Reconciliation of CP-1 through CP-5J)". Content below is unchanged.)*
 
 - **Timestamp:** 2026-11-15
 - **`origin/main`:** `e7f099214ac851b17d6bc909ea60fe0cf6bf0e78` (PR #84 CP-5J squash). Re-verify live before acting.
@@ -956,3 +998,106 @@ principle* ≠ *actual rotation authorized*.
   - any apply, bound to the exact reviewed saved-plan identity;
   - B7 and B8.
 - `NEXT_RECOMMENDED_CHECKPOINT=CP-5K` (§8). Not triggered automatically.
+
+*(2026-11-18 note: §17.5's BLOCKED status and CP-5K recommendation are superseded by §18. History above is unchanged.)*
+
+---
+
+## 18. B-5/B-6 completion and active task board (2026-11-18)
+
+### 18.1 Completed
+
+- **B-5 backend deployment:** owner-approved targeted apply of the exact reviewed saved plan
+  (`0/3/0`). `cancellation`, `review`, `admin` = `861IQwFAXAIGW507wbNOgse3MCI12CIDbcsau8Ol5jc=`
+  from `c4488af`; other 10 Lambdas unchanged on `W6cqyudl…`; API `n40vai` and IAM `v3`
+  unchanged. `admin` uses a restricted Stripe **test** key (CP-5K first-time policy, PR #89; B-4
+  inspection PASS). The old CP-5 plan stays `NEVER_APPLY`.
+- **B-6 owner-path acceptance:** one synthetic REQUEST in `test_tenant_alpha`; cancellation
+  request, wrong-cycle 409, review-guard 409, DENY restoring `APPROVED`, idempotent replay.
+  **K2 PASS `DENIED_EXPECTED`**, 0 Lambda errors in the window; **K3 PASS `CLEANED`** (REQUEST
+  removed); **one `CANCEL_DECISION_DENY` AUDIT record retained**. No notification, calendar,
+  Stripe, job write or APPROVE. O1 browser sequence run once by Antigravity under owner
+  authorization. Deferred: client-only path, role-boundary 403, cross-tenant, APPROVE/Checkout.
+- **WEB-CANCEL-1 UI fixes:** PR #90 squash-merged → `main` `ef98088665e7c0cf30d6a77525519982ab5646e2`.
+  **NOT deployed** (production web is W2C `7c1a8f1`).
+- **Antigravity isolated responsive/browser validation:** complete (local, mocked; owner-reported).
+
+### 18.2 Roles
+
+Permanent roles are defined in [`agent-operating-model.md`](agent-operating-model.md)
+("Delivery role assignment"): Antigravity = frontend/mobile and browser validation; Kiro =
+continuity, sequencing, AWS checks, K2/K3, deployment preflight and authorized execution;
+ChatGPT = reviews and coordination; Matthew = all gated approvals, credentials and manual
+authentication.
+
+### 18.3 Active task board
+
+| # | Owner | Task | Status | Approval |
+|---|---|---|---|---|
+| 1 | Kiro | D-2 fresh count-only recheck; bounded WEB-CANCEL-1 web deployment preparation | **DONE 2026-11-19**: D-2 PASS (0 pending); web `DEPLOYED_VERIFIED` (details below) | Owner approvals given and consumed |
+| 2 | Antigravity | Post-deploy visual/browser smoke of web cancellation (no new test data) | **NEXT**: AG unavailable until 2026-11-24; owner-run read-only checklist is the fallback. Public read-only checks already PASS. | Bounded browser authorization |
+| 3 | Antigravity | Android pilot readiness: merged mobile scope, pet flag OFF, typecheck/tests, build readiness | **DONE 2026-11-19** (Kiro fallback): PR #91 merged; scope from `38da4fb` verified; pet flag OFF; profile `preview-production` | — |
+| 4 | Kiro | Android build/distribution readiness, rollback and approval coordination | **PENDING**: EAS build `cd5b800d…` `IN_QUEUE`, versionCode 4; then owner-run read-only device test | Device test and any distribution separately gated |
+| 5 | Kiro + Antigravity | Owner handoff: Kiro runbook/checklist; AG UI walkthrough/screenshots from safe synthetic/local context | After release readiness | — |
+| 6 | — | Deferred, separately gated: client-only portal identity acceptance; 403/cross-tenant; APPROVE/Checkout (notification/calendar effects); Ryan testing; TestFlight/App Store/public distribution; Stripe live; tenant creation; W1 activation | Deferred | Each separately |
+
+Classification: tasks 1–5 are **Required for Dec 11**; task 6 is **Required before a specific
+release** or **Optional post-pilot**.
+
+**Staffing update (2026-11-18):** Antigravity's usage quota is exhausted until **2026-11-24**.
+Kiro is the temporary implementation fallback for narrow, source-only Antigravity tasks.
+
+| # | Owner | Task | Status | Approval |
+|---|---|---|---|---|
+| 3a | Kiro (AG fallback) | Android cancellation UX: Requests-tab **Cancellations** filter (`CANCELLATION_REQUESTED`) and cancellation-specific next-step copy, with focused tests | **MERGED** — PR #91 squash → `main` `38da4fbd0c0a4d9d61eb1257ca3560ae3cc7df10` (2026-11-19; 5 mobile files; CI 5/5). Not built or distributed. | Android build/distribution separately gated (task 4) |
+
+Production approval gates are unchanged by this staffing change.
+
+**Task 1 status (2026-11-19):** **D-2 count-only recheck PASS** — account `358604342897`;
+table and `StatusIndex` active with the expected schema; `CANCELLATION_REQUESTED` request
+count **0** (1 page, pagination complete). (A first attempt stopped at AWS SSO before any read
+and was re-run once under owner approval.) `origin/main` = `38da4fb`; 39 web files changed since
+W2C `7c1a8f1`, no web dependency changes; live `index.html` still W2C
+(`assets/index-DrAWpyW_.js`). **WEB-CANCEL-1 deployment proposal prepared** (local build of
+`38da4fb`: 11 objects, `index.html` `891671f9…`, `assets/index-MGDKmCuF.js`,
+`assets/index-BXp8LH8d.css`; full web suite 598/598). Rollback archive W2C verified on C: and D:
+(11/11 hashes).
+
+**WEB-CANCEL-1 web deployment: DEPLOYED_VERIFIED (2026-11-19, writes from 17:44:02Z).** Owner-approved
+`wd_deploy_v2.py` (SHA-256 `0183feeb…7a57`), source `main` `38da4fb`. (The first approved script,
+`27b627af…`, stopped at its local rollback-path check before any AWS call; corrected once and
+re-approved.) Preflight passed: build 11/11, rollback copies C: and D: 11/11, account
+`358604342897`, CloudFront `E35L00QPA2IRCY` deployed with alias and origin matching, live bucket
+exactly the W2C 11-object baseline, public `index.html` W2C. Uploaded 6 objects
+(`assets/index-MGDKmCuF.js`, `assets/index-BXp8LH8d.css`, `icons.svg`, `manifest.webmanifest`,
+`sw.js`, `index.html` last), with existing cache headers kept and nothing deleted; invalidation
+`IDQVE58JYAN3B1QX7C1C9UCCTR` (4 paths) Completed. Bucket now 13 objects (11 new-build + 2
+retained W2C assets). Public SHA-256 6/6 match (`index.html` `891671f9…`). Lambda Errors
+admin/cancellation/review = 0; API 5XX = 0 (short window). Rollback: restore the 4 overwritten
+root files from the W2C archive and invalidate (owner approval required). **Next: task 2
+(Antigravity post-deploy visual smoke, available after 2026-11-24, or owner/Kiro fallback) and
+task 3/4 (Android).**
+
+**Post-web checkpoint (2026-11-19):** public read-only checks PASS (new `index.html`, JS, CSS,
+`sw.js`, manifest and `icons.svg` all 200 with matching SHA-256; retained W2C assets still served;
+SPA routes `/`, `/admin`, `/portal`, `/t/test-tenant-alpha/admin` return the new index; bundle
+contains the cancellation decision and denial-marker code paths). Authenticated smoke without
+Antigravity: Kiro has no browser; an owner-run read-only checklist is the available path.
+**Android pilot APK scope prepared** from `main` `38da4fb` (includes PR #91 and M-1): profile
+`preview-production` (internal distribution, `EXPO_PUBLIC_APP_ENV=production`; plain `preview`
+would fail closed with no app environment); pet selection flag OFF (set nowhere). Next approval:
+one EAS Android build with that profile (task 4).
+
+**Android pilot build (task 4) — PENDING:** owner-approved single EAS build
+`cd5b800d-cd4f-428f-bead-fe0c4857efbb` submitted 2026-11-19T19:37:36Z from `38da4fb`, profile
+`preview-production`, distribution `INTERNAL`, version `1.0.0`, versionCode `4` (remote; not
+incremented), signed with the existing remote keystore. Read-only `eas build:view` still shows
+**`IN_QUEUE`**, with no artifacts and no change since 19:37:41Z. APK expected (internal distribution
+default) but not yet confirmed. Not installed or distributed. Install note: versionCode 4 matches the
+Google Play Internal Testing build, which has a different (Play) signature, so uninstall the Play build
+first. Build link expires 2026-12-03.
+
+### 18.4 Gates
+
+`CP5_SAVED_PLAN_STATUS=NEVER_APPLY`; `W1_PRODUCTION_RELEASE_AUTHORIZED=NO`;
+`W3C2_UNTARGETED_APPLY_ACTIVATES_W1=YES`.
