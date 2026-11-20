@@ -14,6 +14,26 @@
 
 ---
 
+## Delivery-First Discipline (December 11, 2026 pilot)
+
+The December 11 pilot is the primary delivery objective. These rules prevent analysis loops and gate proliferation; they never relax any safety rule elsewhere in this document.
+
+1. ✅ Prioritize working application features and demonstrated user-visible progress.
+2. ✅ When existing verification satisfies the approved acceptance criteria, recommend proceeding. ❌ Do not invent additional review gates.
+3. ✅ Add a new gate only for a specific, demonstrable risk, an unmet requirement, or a mandatory approval boundary.
+4. ✅ Reuse existing verified evidence. ❌ Do not repeat completed checks unless they are stale or the environment changed.
+5. ✅ Prefer one bounded execution task over multiple preparation-only tasks.
+6. ✅ Classify every item as **Required for December 11**, **Required before a specific release**, or **Optional post-pilot improvement**.
+7. ✅ Move nonblocking refactoring, documentation polish and optional hardening to the backlog.
+8. ✅ Every handoff states: what was completed; what users can now do; what genuinely blocks delivery; the next executable action.
+9. ❌ Do not confuse completed source work with deployed or accepted functionality.
+10. 🔒 Explicit owner approval is still required for production modifications, data writes, deployments, Stripe changes, tenant changes and mobile distribution.
+11. ❌ Never weaken authorization, tenant isolation, secret protection, rollback safety or data integrity to meet the schedule.
+12. ✅ If a task repeatedly produces plans without user-visible progress, stop and propose the shortest safe route to the next working feature.
+13. ✅ Maintain the December 11 critical path: **B-6 acceptance → WEB-CANCEL-1 → mobile pilot readiness → owner handoff** (detail in [`december-11-delivery-checkpoint.md`](december-11-delivery-checkpoint.md)).
+
+---
+
 ## Secrets and Credentials
 
 - ❌ Never commit secrets, tokens, passwords, API keys, or webhook secrets
