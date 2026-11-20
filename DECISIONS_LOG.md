@@ -14,3 +14,4 @@
 | 2026-04-25 | Domain Separation | Keep toganddogs.com for marketing and toganddogs.usmissionhero.com for operations. | Preserves Ryan's marketing SEO while maintaining USMH control of the app. |
 | 2026-04-25 | Portal Pivot | Replaced public marketing landing page with a lightweight branded Portal Gateway. | Clearer positioning as a professional client/admin operations platform. |
 | 2026-04-25 | Multi-step Intake | Transitioned single long form to a 3-step guided experience with progress tracking. | Improved user experience and higher conversion potential for new requests. |
+| 2026-11-20 | Dev-orchestration direction (PROPOSED, Issue #94) | Prefer Kiro Crew for development-agent coordination plus a small independent governance layer over a fully custom orchestrator, subject to capability/security validation. | Docs only; orchestrator PRs #60-#66 preserved; no tooling installed or activated; separate from pilot milestones. |
