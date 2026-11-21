@@ -220,7 +220,7 @@ class TestGoogleCalendarTenantGate:
             'provider_secret_arn': self._VALID_PROVIDER_SECRET_ARN,
             'redirect_uri': _OAUTH_PROD_REDIRECT,
             'post_auth_destination': _OAUTH_PROD_DESTINATION,
-            'created_at': created,
+            'created_epoch': created,
             'expires_at': now + 300,
         }
 

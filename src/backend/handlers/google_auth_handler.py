@@ -283,7 +283,7 @@ def _load_oauth_transaction(state, now):
     record = table.get_item(Key={'PK': 'OAUTHSTATE#' + state, 'SK': 'META'}, ConsistentRead=True).get('Item')
     if not isinstance(record, dict):
         raise _OAuthFailure(400, 'INVALID_OAUTH_STATE')
-    created, expires = record.get('created_at'), record.get('expires_at')
+    created, expires = record.get('created_epoch'), record.get('expires_at')
     def integer(value):
         try:
             return (not isinstance(value, bool) and isinstance(value, (int, Decimal))
@@ -293,7 +293,10 @@ def _load_oauth_transaction(state, now):
     from common.google_calendar import _SECRET_ARN
     destinations = {(_OAUTH_PROD_REDIRECT, _OAUTH_PROD_DESTINATION),
                     (_OAUTH_LOCAL_ORIGIN + '/admin/auth/callback', _OAUTH_LOCAL_ORIGIN + '/admin')}
-    if (record.get('PK') != 'OAUTHSTATE#' + state or record.get('SK') != 'META' or
+    # created_at is a string key of the table's StatusIndex GSI. An OAuth state uses
+    # created_epoch instead and must never carry created_at (fail closed on old shapes).
+    if ('created_at' in record or
+            record.get('PK') != 'OAUTHSTATE#' + state or record.get('SK') != 'META' or
             record.get('schema_version') != 'v2' or record.get('status') != 'PENDING' or
             not isinstance(record.get('company_id'), str) or
             not re.fullmatch(r'[a-z0-9_]{3,64}', record['company_id']) or
@@ -313,7 +316,7 @@ def _claim_oauth_transaction(record):
     from botocore.exceptions import ClientError
     names, values, conditions = {}, {':now': int(time.time()), ':consumed': 'CONSUMED'}, []
     fields = ('schema_version', 'status', 'company_id', 'initiating_principal',
-              'provider_secret_arn', 'redirect_uri', 'post_auth_destination', 'created_at', 'expires_at')
+              'provider_secret_arn', 'redirect_uri', 'post_auth_destination', 'created_epoch', 'expires_at')
     for field in fields:
         names['#' + field] = field
         values[':' + field] = record[field]
@@ -375,7 +378,7 @@ def initiate_auth(event):
             'PK': 'OAUTHSTATE#' + state, 'SK': 'META', 'schema_version': 'v2',
             'company_id': company_id, 'initiating_principal': principal,
             'provider_secret_arn': arn, 'redirect_uri': redirect,
-            'post_auth_destination': destination, 'created_at': now,
+            'post_auth_destination': destination, 'created_epoch': now,
             'expires_at': now + 600, 'status': 'PENDING',
         }, ConditionExpression='attribute_not_exists(PK) AND attribute_not_exists(SK)')
         params = {'client_id': config['client_id'], 'redirect_uri': redirect,
@@ -398,9 +401,9 @@ def initiate_auth(event):
         # Log only the marker and the exception class name (no message/payload).
         # For botocore ClientError, additionally capture the short, non-sensitive
         # AWS Error.Code (never Error.Message, request IDs, or response metadata).
-        # The only unwrapped pre-OAUTHSTATE AWS call reaching this branch is the
-        # DynamoDB GetItem in _require_oauth_tenant_eligible, so the operation
-        # context is a fixed developer constant (not derived from the exception).
+        # The unwrapped AWS calls reaching this branch are DynamoDB only: the
+        # eligibility GetItem and the OAUTHSTATE PutItem. The operation is botocore's
+        # API operation name, accepted only if it is a plain identifier.
         line = 'AC9_OAUTH_UNAVAILABLE_UNEXPECTED_EXCEPTION exception_class=' + type(exc).__name__
         if type(exc).__name__ == 'ClientError':
             code = 'UNKNOWN'
@@ -411,7 +414,10 @@ def initiate_auth(event):
                     code = candidate
             except Exception:
                 code = 'UNKNOWN'
-            line += ' error_code=' + code + ' operation=DynamoDB.GetItem'
+            op = getattr(exc, 'operation_name', None)
+            if not (isinstance(op, str) and re.fullmatch(r'[A-Za-z]{1,64}', op)):
+                op = 'UNKNOWN'
+            line += ' error_code=' + code + ' operation=DynamoDB.' + op
             # For a DynamoDB.GetItem ValidationException, additionally classify the
             # failure into ONE fixed, developer-defined enum by inspecting the AWS
             # Error.Message INTERNALLY only. The raw message is never logged, never

@@ -750,3 +750,45 @@ def test_precision_key_type_message_secret_taint_not_emitted(mock_get_item, mock
     assert 'LEAK-KT' not in combined
     assert 'super-secret' not in combined
     _assert_no_sensitive(out)
+
+
+# --- operation label comes from botocore's operation name (PutItem path) ---
+_GSI_TYPE_MSG = ('One or more parameter values were invalid: Type mismatch for Index Key '
+                 'created_at Expected: S Actual: N IndexName: StatusIndex')
+
+
+def _run_put_failure(mock_get_item, mock_put, exc, capsys):
+    mock_get_item.return_value = _TENANT_METADATA_ITEM
+    mock_put.side_effect = exc
+    with patch('handlers.google_auth_handler._require_oauth_binding',
+               return_value='arn:aws:secretsmanager:us-east-1:123456789012:secret:togs-and-dogs-prod/google/user-tokens-Ab1234'), \
+            patch('handlers.google_auth_handler.get_google_config',
+                  return_value={'client_id': 'THE-CLIENT-ID', 'client_secret': 'super-secret'}):
+        result = google_auth_handler(make_event(groups=('owner',)), None)
+    return result, capsys.readouterr()
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_put_item_validation_reports_put_item_operation(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    result, out = _run_put_failure(
+        mock_get_item, mock_put, _clienterror('ValidationException', message=_GSI_TYPE_MSG, op='PutItem'), capsys)
+    assert result['statusCode'] == 503
+    assert ('AC9_OAUTH_UNAVAILABLE_UNEXPECTED_EXCEPTION exception_class=ClientError '
+            'error_code=ValidationException operation=DynamoDB.PutItem '
+            'validation_category=GENERIC_TYPE_MISMATCH') in out.out
+    assert 'operation=DynamoDB.GetItem' not in out.out
+    combined = out.out + out.err
+    assert 'StatusIndex' not in combined and 'Index Key' not in combined
+    _assert_no_sensitive(out)
+
+
+@patch('common.db.table.put_item')
+@patch('common.db.table.get_item')
+def test_non_identifier_operation_name_logs_unknown(mock_get_item, mock_put, capsys, _owned_provider_metadata):
+    exc = _clienterror('ValidationException', message=_GSI_TYPE_MSG, op='PutItem')
+    exc.operation_name = 'Put Item\nrefresh_token=X'
+    result, out = _run_put_failure(mock_get_item, mock_put, exc, capsys)
+    assert result['statusCode'] == 503
+    assert 'operation=DynamoDB.UNKNOWN' in out.out
+    assert 'refresh_token=X' not in (out.out + out.err)
