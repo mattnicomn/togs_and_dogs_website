@@ -154,7 +154,7 @@ class TestGoogleTokenIsolation:
                 "provider_secret_arn": "arn:aws:secretsmanager:us-east-1:123456789012:secret:togs-and-dogs-prod/calendar/custom_tenant_beta/tokens-Ab1234",
                 "redirect_uri": "https://a022yxuiue.execute-api.us-east-1.amazonaws.com/prod/admin/auth/callback",
                 "post_auth_destination": "https://toganddogs.usmissionhero.com/admin",
-                "created_at": int(datetime.now(timezone.utc).timestamp()),
+                "created_epoch": int(datetime.now(timezone.utc).timestamp()),
                 "expires_at": int(datetime.now(timezone.utc).timestamp()) + 600
             }
         }

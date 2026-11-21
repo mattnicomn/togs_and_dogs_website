@@ -37,7 +37,7 @@ def transaction():
             'company_id': 'tog_and_dogs', 'initiating_principal': 'synthetic-sub',
             'provider_secret_arn': ARN, 'redirect_uri': auth._OAUTH_PROD_REDIRECT,
             'post_auth_destination': auth._OAUTH_PROD_DESTINATION,
-            'created_at': now, 'expires_at': now + 600, 'status': 'PENDING'}
+            'created_epoch': now, 'expires_at': now + 600, 'status': 'PENDING'}
 
 
 def conditional_failure():
@@ -117,7 +117,8 @@ def test_create_v2(rig):
     assert rig.record['schema_version'] == 'v2' and rig.record['status'] == 'PENDING'
     assert rig.record['provider_secret_arn'] == ARN
     assert rig.record['initiating_principal'] == 'synthetic-sub'
-    assert rig.record['expires_at'] - rig.record['created_at'] == 600
+    assert rig.record['expires_at'] - rig.record['created_epoch'] == 600
+    assert 'created_at' not in rig.record
     rig.http.assert_not_called()
     rig.secrets.get_secret_value.assert_not_called()
 
@@ -165,7 +166,7 @@ def test_unknown_forged_state(rig, state):
 @pytest.mark.parametrize('field,value', [('schema_version', 'v1'), ('schema_version', None), ('status', 'CONSUMED'),
     ('company_id', 'Bad Tenant'), ('initiating_principal', None), ('provider_secret_arn', None),
     ('redirect_uri', 'https://attacker.invalid'), ('post_auth_destination', 'https://attacker.invalid'),
-    ('expires_at', 1), ('created_at', int(time.time()) + 500), ('SK', 'OTHER')])
+    ('expires_at', 1), ('created_epoch', int(time.time()) + 500), ('created_at', int(time.time())), ('SK', 'OTHER')])
 def test_invalid_transaction(rig, field, value):
     rig.record[field] = value
     assert auth.handle_callback(event(True))['statusCode'] == 400
@@ -258,7 +259,7 @@ def test_drift_before_save(rig):
 
 
 @pytest.mark.parametrize('field', ['PK', 'SK', 'schema_version', 'status', 'company_id', 'initiating_principal',
-                                   'provider_secret_arn', 'redirect_uri', 'post_auth_destination', 'created_at', 'expires_at'])
+                                   'provider_secret_arn', 'redirect_uri', 'post_auth_destination', 'created_epoch', 'expires_at'])
 def test_missing_security_fields(rig, field):
     del rig.record[field]
     assert auth.handle_callback(event(True))['statusCode'] == 400
@@ -274,7 +275,7 @@ def test_missing_state_record(rig):
 
 def test_decimal_timestamps(rig):
     from decimal import Decimal
-    rig.record['created_at'] = Decimal(rig.record['created_at'])
+    rig.record['created_epoch'] = Decimal(rig.record['created_epoch'])
     rig.record['expires_at'] = Decimal(rig.record['expires_at'])
     assert auth.handle_callback(event(True))['statusCode'] == 302
 
@@ -333,3 +334,69 @@ def test_same_tenant_body_substitution_cannot_select_owner(rig):
     assert auth.initiate_auth(request)['statusCode'] == 200
     assert rig.record['company_id'] == 'tog_and_dogs'
     assert rig.record['provider_secret_arn'] == ARN
+
+
+# --- OAuth state vs. the real DynamoDB GSI schema (created_at is a StatusIndex string key) ---
+def _gsi_key_types():
+    import pathlib, re
+    tf = (pathlib.Path(__file__).resolve().parents[2] / 'modules' / 'data' / 'main.tf').read_text(encoding='utf-8')
+    types = dict(re.findall(r'attribute\s*\{\s*name\s*=\s*"([^"]+)"\s*type\s*=\s*"([SNB])"\s*\}', tf))
+    keys = set()
+    for block in re.findall(r'global_secondary_index\s*\{(.*?)\}', tf, re.S):
+        keys.update(re.findall(r'(?:hash_key|range_key)\s*=\s*"([^"]+)"', block))
+    return {k: types[k] for k in keys}
+
+
+def _dynamo_type(value):
+    from decimal import Decimal
+    if isinstance(value, bool):
+        return 'BOOL'
+    if isinstance(value, str):
+        return 'S'
+    if isinstance(value, (int, Decimal)):
+        return 'N'
+    return type(value).__name__
+
+
+def test_state_put_item_matches_table_gsi_key_types(rig):
+    rig.record = None
+    assert auth.initiate_auth(event())['statusCode'] == 200
+    item = rig.put.call_args.kwargs['Item']
+    keys = _gsi_key_types()
+    assert keys.get('status') == 'S' and keys.get('created_at') == 'S'
+    for name, expected in keys.items():
+        if name in item:
+            assert _dynamo_type(item[name]) == expected, name
+    assert 'created_at' not in item
+    assert _dynamo_type(item['created_epoch']) == 'N' and _dynamo_type(item['expires_at']) == 'N'
+    assert item['expires_at'] - item['created_epoch'] == 600
+
+
+def test_created_state_loads_claims_once_then_replay_fails(rig, monkeypatch):
+    monkeypatch.setattr(auth.uuid, 'uuid4', lambda: uuid.UUID(STATE))
+    rig.record = None
+    assert auth.initiate_auth(event())['statusCode'] == 200
+    assert auth.handle_callback(event(True))['statusCode'] == 302
+    assert rig.record['status'] == 'CONSUMED'
+    assert auth.handle_callback(event(True))['statusCode'] == 400
+    rig.http.assert_called_once()
+    rig.secrets.put_secret_value.assert_called_once()
+
+
+def test_expired_state_rejected(rig):
+    now = int(time.time())
+    rig.record['created_epoch'], rig.record['expires_at'] = now - 700, now - 100
+    assert auth.handle_callback(event(True))['statusCode'] == 400
+    rig.update.assert_not_called()
+    rig.http.assert_not_called()
+
+
+@pytest.mark.parametrize('shape', ['both', 'legacy_only'])
+def test_state_with_created_at_rejected(rig, shape):
+    if shape == 'both':
+        rig.record['created_at'] = rig.record['created_epoch']
+    else:
+        rig.record['created_at'] = rig.record.pop('created_epoch')
+    assert auth.handle_callback(event(True))['statusCode'] == 400
+    rig.update.assert_not_called()
+    rig.http.assert_not_called()
